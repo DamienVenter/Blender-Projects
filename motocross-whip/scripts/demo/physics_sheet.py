@@ -76,7 +76,7 @@ tt = np.array(sim.TARGET["t"]) * sc
 x = summ["whip_x"]
 for j, (key, lab) in enumerate((("bike_yaw", "yaw (nose left +)"), ("bike_roll", "lean (left -)"))):
     ax = fig.add_subplot(gs[1, j])
-    tgt = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"]) * (x[3] if key == "bike_yaw" else x[2])
+    tgt = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"]) * (x[4] if key == "bike_yaw" else x[3])
     ax.plot(tt, tgt, "o", color=C_TARGET, ms=4, label="from your clips")
     ax.plot(ta, [h[key] for h, a in zip(hud, air_mask) if a], color=C_BIKE, lw=2, label="bike (simulated)")
     rk = "rider_yaw" if key == "bike_yaw" else "rider_roll"

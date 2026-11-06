@@ -14,9 +14,11 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
   (morphological dilation of the profile by the tyre radius): exact for concave transitions and the lip edge.
 - Air (`air.py`): bike + rider as two rigid bodies + spinning wheels. Total angular momentum about the
   system CoM is conserved exactly; the CoM flies ballistically with drag.
-- Whip (`sim.py`): INVERSE formulation. Prescribe the bike's motion (Damien's whip from footage), solve the
-  rider's rotation from conservation, optimise only the real inputs (lip yaw/roll kick, lay-down depth,
-  rear-wheel throttle/brake) so the rider stays within reach and faces forward.
+- Whip (`sim.py`, `air.run_control`): CLOSED-LOOP rider. Each step the rider picks how fast to twist the bike
+  relative to his body and how much throttle/brake to give the rear wheel (weighted least squares: follow
+  Damien's whip, keep the torso facing forward, stay in reach, be neutral by touchdown). Conservation of
+  angular momentum (gyro included) then fixes both rotations. Outer optimiser picks only the lip inputs:
+  yaw kick, roll kick, takeoff rotation change (lip pull on the bars) and the whip amplitude.
 
 ## Lessons (each cost real time)
 1. **The rider's legs decide the lip rotation.** A passive, springy rider (zeta 0.5) stores energy crouching
@@ -28,13 +30,24 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
 3. **Gyroscope makes the whip.** With the wheels spinning (about 62 kg m^2/s), laying the bike down to the LEFT
    swings the rear to the RIGHT by itself (test `test_gyro_whip_direction`). Straightening needs the opposite.
    Throttle in the air spins up the rear wheel and pitches the nose up; a brake tap pitches it down.
-4. **Do not drive the whip forward with a generic optimiser.** 25 rider-input knots plus gyro coupling produced
-   tumbling solutions (rider roll 178 deg). The inverse formulation with 6 physical parameters is well posed.
-5. **Euler angles wrap.** Reading pitch from a rotation matrix (asin) hides a 180 deg over-rotation behind a
+4. **Whip formulations that FAILED, and why.**
+   - Open-loop forward (25 rider-input knots, generic optimiser): tumbling (rider roll 178 deg).
+   - Inverse (prescribe the bike, solve the rider): the gyro reaction of laying the bike down is far larger
+     than the rider's inertia can absorb, so the rider spins (170 deg off the bike).
+   - Open-loop forward with sensible shapes: once the input stops, the system keeps precessing.
+   - What works: closed-loop rider (feedback), like a real rider who watches the landing.
+5. **Laying the bike flat pitches everything nose-down faster** (wheel momentum leaves the pitch axis). A whip
+   needs a gentler takeoff rotation than a straight jump. Throttle on the face only shifts it about 4 deg/s
+   (power limited); the rider lifting on the bars at the lip shifts it about 1.8 deg/s per 100 N (cap 1000 N).
+6. **Hips must be a physical DOF.** Solving the hip shift instantly from the rider's orientation creates an
+   algebraic loop (hip rate feeds the rider's spin): 1000 m/s hip rates. Rate-limit it (80 ms, 2 m/s, 0.45 m).
+7. **Rigid rider pivoting at the pegs cannot reach the bars when the bike is flat** (1.1 to 1.6 m overreach).
+   Real riders shift their hips over the bike; model it.
+8. **Euler angles wrap.** Reading pitch from a rotation matrix (asin) hides a 180 deg over-rotation behind a
    plausible -39 deg. Track continuous pitch by accumulating small rotations.
-6. **Pure-radius FMX ramps load about 4 g steady** (6 to 7 g transients at the toe) and push a stock-sprung bike
+9. **Pure-radius FMX ramps load about 4 g steady** (6 to 7 g transients at the toe) and push a stock-sprung bike
    near the bottom of its travel. Model the linkage rising rate, fork air volume and bottoming cone.
-7. `numpy.cross` on 3-vectors costs 60 % of an inner loop; use a hand-written cross.
+10. `numpy.cross` on 3-vectors costs 60 % of an inner loop; use a hand-written cross.
 
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |

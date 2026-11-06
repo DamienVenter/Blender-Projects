@@ -121,59 +121,94 @@ class Pipeline:
                     yaw_t=tk, yaw=[v * x[3] for v in TARGET["yaw"]], r0=x[0] / sc,
                     roll_t=tk, roll=[v * x[2] for v in TARGET["roll"]], p0=x[1] / sc)
 
-    def rider_cost(self, rec, con, x, detail=False):
-        lm = self.lm
+    def target_fn(self, take, T_air, x):
+        """Damien's whip (scaled by x[3] roll, x[4] yaw) as the controller's target: (R, omega) at t."""
+        prof = self.profile(take, T_air, [x[0], x[1], x[3], x[4], 0.0, 0.9])
+        h = 1e-3
+
+        def R(t):
+            y, p, r = self.A.bike_angles(prof, np.array([t]))
+            return air.euler_from(y[0], p[0], r[0])
+
+        def f(t):
+            R0, R1 = R(t), R(t + h)
+            return R0, air.logm_so3(R1 @ R0.T) / h
+        return f
+
+    def ctrl_cost(self, rec, con, x, detail=False):
         arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
         leg = RD.L_THIGH + RD.L_SHANK
-        reach = yawc = rollc = 0.0
-        worst = 0.0
+        Lmax = np.array([arm, arm, leg, leg])
+        reach = track = yawc = 0.0
+        worst = -1.0
         for r in rec:
-            Rr = r["RB"].T @ r["RA"]
-            for s in ("l", "r"):
-                da = np.linalg.norm(Rr @ lm[f"grip_{s}"] - lm[f"shoulder_{s}"])
-                dl = np.linalg.norm(Rr @ lm[f"ankle_{s}"] - lm[f"hip_{s}"])
-                over = max(da - 0.97 * arm, 0) + max(dl - 0.97 * leg, 0)
-                under = max(0.45 * arm - da, 0) + max(0.45 * leg - dl, 0)
-                reach += over ** 2 + under ** 2
-                worst = max(worst, da - arm, dl - leg)
-            yb, pb, rb = air.euler_of(r["RB"])
-            yawc += (math.degrees(yb) / 30) ** 2
-            rollc += (math.degrees(rb) / 35) ** 2
+            d = self.A.att_L + r["reach_err"]
+            reach += float((np.maximum(d - 0.97 * Lmax, 0) ** 2).sum() + (np.maximum(0.40 * Lmax - d, 0) ** 2).sum())
+            worst = max(worst, float((d - Lmax).max()))
+            track += math.degrees(r["track_err"]) ** 2
+            yb, _, _ = air.euler_of(r["RB"])
+            yawc += math.degrees(yb) ** 2
         n = len(rec)
         reach = reach / n / 0.02 ** 2
-        yawc, rollc = yawc / n, rollc / n
-        Rr_end = con["RB"].T @ con["RA"]
-        land = (math.degrees(np.linalg.norm(air.logm_so3(Rr_end))) / 8) ** 2
-        reg = (x[0] / 300) ** 2 + (x[1] / 400) ** 2 + x[4] ** 2
-        J = reach + 0.5 * yawc + 0.5 * rollc + land + 0.3 * reg
+        track_rms = math.sqrt(track / n)
+        yaw_rms = math.sqrt(yawc / n)
+        ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
+        rel_c = math.degrees(np.linalg.norm(air.logm_so3(con["RB"].T @ con["RA"])))
+        land = (ya / 4) ** 2 + (ra / 4) ** 2 + ((pa - self.landing_pitch) / 4) ** 2 + (rel_c / 10) ** 2
+        reg = (x[0] / 150) ** 2 + (x[1] / 250) ** 2 + (x[2] / 30) ** 2 + 4 * (1 - x[3]) ** 2 + 4 * (1 - x[4]) ** 2
+        J = (track_rms / 8) ** 2 + land + reach + 0.3 * (yaw_rms / 30) ** 2 + 0.3 * reg
         if detail:
-            ya, pa, ra = air.euler_of(con["RA"])
-            return dict(J=J, reach=reach, rider_yaw=yawc, rider_roll=rollc, land_rel=land, reg=reg, t_air=con["t"],
-                        worst_overreach_m=worst, land_yaw=math.degrees(ya), land_pitch=math.degrees(pa),
-                        land_roll=math.degrees(ra), contact=con["wheel"])
+            return dict(J=J, track_rms_deg=track_rms, rider_yaw_rms_deg=yaw_rms, reach=reach, worst_overreach_m=worst,
+                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg,
+                        t_air=con["t"], contact=con["wheel"])
         return J
 
     def objective(self, x, take, T_air, dt=1.0 / 600, detail=False):
-        prof = self.profile(take, T_air, x)
-        rec, con = self.A.run_inverse(take, prof, b=x[4], t_b=x[5], dt=dt, rec_dt=1.0 / 30, t_max=T_air + 0.5)
+        tk = dict(take)
+        tk["W"] = take["W"] + math.radians(x[2])
+        rec, con = self.A.run_control(tk, self.target_fn(tk, T_air, x), r0=math.radians(x[0]), p0=math.radians(x[1]),
+                                      dt=dt, rec_dt=1.0 / 30, t_max=T_air + 0.6, T_land=T_air)
         if con is None:
             return 1e6
-        return self.rider_cost(rec, con, x, detail)
+        return self.ctrl_cost(rec, con, x, detail)
 
-    def optimise(self, take, T_air, maxiter=600):
-        self.lm = RD.neutral_landmarks()
-        lo = np.array([-300, -500, 0.80, 0.70, -0.6, 0.4])
-        hi = np.array([300, 500, 1.06, 1.20, 0.6, 1.6])
-        f = lambda z: self.objective(np.clip(z, lo, hi), take, T_air) + 1e3 * np.sum((z - np.clip(z, lo, hi)) ** 2)
-        best = None
+    LO = np.array([-200.0, -300.0, -10.0, 0.70, 0.60])
+    HI = np.array([200.0, 300.0, 19.0, 1.00, 1.10])
+
+    STARTS = ([0, -100, 19, 0.85, 0.8], [40, -100, 19, 1.0, 1.0], [0, -60, 15, 0.9, 0.9], [20, -150, 19, 0.8, 0.7])
+
+    def optimise(self, take, T_air, maxiter=250):
+        """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline)."""
+        import concurrent.futures as cf
+        import multiprocessing as mp
+        global _OPT_CTX
+        _OPT_CTX = (self, take, T_air, maxiter)
         t0 = time.time()
-        for x0 in ([60, -150, 1.0, 1.0, 0.0, 0.9], [120, -300, 0.95, 1.0, 0.2, 0.9], [0, -50, 1.0, 1.0, -0.2, 1.1]):
-            res = minimize(f, np.array(x0, float), method="Nelder-Mead",
-                           options=dict(maxiter=maxiter, xatol=0.5, fatol=1e-3, adaptive=True))
-            if best is None or res.fun < best.fun:
-                best = res
-        best.x = np.clip(best.x, lo, hi)
-        return best, time.time() - t0
+        with cf.ProcessPoolExecutor(max_workers=min(4, len(self.STARTS)), mp_context=mp.get_context("fork")) as ex:
+            results = list(ex.map(_opt_worker, self.STARTS))
+        for x0, (fun, x) in zip(self.STARTS, results):
+            print(f"      start {x0} -> J {fun:.3f} x {[round(float(v), 2) for v in x]}", flush=True)
+        fun, x = min(results, key=lambda r: r[0])
+
+        class Res:
+            pass
+        res = Res()
+        res.fun, res.x = fun, np.clip(np.array(x), self.LO, self.HI)
+        return res, time.time() - t0
+
+    def solve_lip_pull(self, v, W_target):
+        """Rider's lift on the bars at the lip (N) that gives the takeoff rotation W_target (rad/s)."""
+        def err(pull):
+            self.S.lip_pull = pull
+            t, st, sp, rec = self.to_takeoff(v)
+            return self.take_from(st, sp, rec)["W"] - W_target
+        lo, hi = -1000.0, 1000.0
+        if err(lo) * err(hi) > 0:
+            self.S.lip_pull = hi if abs(err(hi)) < abs(err(lo)) else lo
+            return self.S.lip_pull
+        pull = brentq(err, lo, hi, xtol=2.0)
+        self.S.lip_pull = pull
+        return pull
 
     # ---------- landing and ride-away
     def landing(self, recA, con, ride_time=2.6):
@@ -214,24 +249,52 @@ class Pipeline:
         T_air = con0["t"]
         print(f"[2] takeoff t={t_off:.3f}s |V|={math.hypot(take['VX'], take['VZ']):.2f} m/s "
               f"pitch {math.degrees(take['beta']):.1f} deg, W={math.degrees(take['W']):.1f} deg/s, no-whip airtime {T_air:.3f}s")
-        # optimise, then make the prescribed landing time equal the actual first contact and repeat
+        # optimise rider inputs with the closed-loop rider; iterate the landing time to the actual contact
         el = 0.0
+        take_nom = take
         for it in range(4):
-            res, e = self.optimise(take, T_air, maxiter=maxiter)
+            res, e = self.optimise(take_nom, T_air, maxiter=maxiter)
             el += e
-            det = self.objective(res.x, take, T_air, dt=1.0 / 1200, detail=True)
-            print(f"    pass {it}: T_air {T_air:.4f} -> contact {det['t_air']:.4f}, J {det['J']:.3f}", flush=True)
+            det = self.objective(res.x, take_nom, T_air, dt=1.0 / 1200, detail=True)
+            print(f"    pass {it}: T_air {T_air:.4f} -> contact {det['t_air']:.4f}, J {det['J']:.3f}, "
+                  f"x {[round(float(v), 3) for v in res.x]}", flush=True)
+            with open(f"{out_dir}/whip_pass{it}.json", "w") as f:
+                json.dump({"T_air": T_air, "x": [float(v) for v in res.x], "detail": _jsonable(det)}, f)
             if abs(det["t_air"] - T_air) < 0.01:
                 break
             T_air = float(det["t_air"])
-        print(f"[3] whip optimised in {el:.0f}s, {res.nit} it: {json.dumps({k: round(v, 3) for k, v in det.items()})}")
-        prof = self.profile(take, T_air, res.x)
-        recA, con = self.A.run_inverse(take, prof, b=res.x[4], t_b=res.x[5], dt=1.0 / 1200, rec_dt=1.0 / FPS_SIM,
-                                       t_max=T_air + 0.5)
+        # realise the takeoff rotation change in the ground model (rider lifts on the bars at the lip)
+        pull = self.solve_lip_pull(v, take_nom["W"] + math.radians(res.x[2]))
+        t_off, st, sp, rec_g1 = self.to_takeoff(v)
+        take = self.take_from(st, sp, rec_g1)
+        print(f"    lip pull {pull:.0f} N -> takeoff rotation {math.degrees(take['W']):.2f} deg/s "
+              f"(wanted {math.degrees(take_nom['W']) + res.x[2]:.2f})", flush=True)
+        x_real = np.array(res.x, float)
+        x_real[2] = 0.0                                   # the rotation change is now in the takeoff itself
+        det = self.objective(x_real, take, T_air, dt=1.0 / 1200, detail=True)
+        print(f"[3] whip optimised in {el:.0f}s: "
+              f"{json.dumps({k: (round(float(v), 3) if isinstance(v, (int, float, np.floating)) else v) for k, v in det.items()})}")
+        recA, con = self.A.run_control(take, self.target_fn(take, T_air, x_real), r0=math.radians(x_real[0]),
+                                       p0=math.radians(x_real[1]), dt=1.0 / 1200, rec_dt=1.0 / FPS_SIM,
+                                       t_max=T_air + 0.6, T_land=T_air)
+        res.x = x_real
+        log["lip_pull_N"] = pull
         rec_g2 = self.landing(recA, con)
         log.update(dict(mass_total=self.S.M, mass_bike=self.S.mb, mass_rider=self.S.mr, t_off=t_off, take=take, whip_x=list(map(float, res.x)), detail=det, contact_wheel=con["wheel"],
                         t_air=con["t"], L0=list(map(float, self.A.L0))))
         return log, rec_g1, recA, con, rec_g2
+
+
+_OPT_CTX = None
+
+
+def _opt_worker(x0):
+    pl, take, T_air, maxiter = _OPT_CTX
+    lo, hi = pl.LO, pl.HI
+    f = lambda z: pl.objective(np.clip(z, lo, hi), take, T_air) + 1e3 * np.sum(((z - np.clip(z, lo, hi)) / (hi - lo)) ** 2)
+    res = minimize(f, np.array(x0, float), method="Nelder-Mead",
+                   options=dict(maxiter=maxiter, xatol=0.5, fatol=1e-3, adaptive=True))
+    return float(res.fun), [float(v) for v in res.x]
 
 
 def _jsonable(o):

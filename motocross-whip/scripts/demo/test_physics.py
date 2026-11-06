@@ -108,3 +108,44 @@ def test_no_penetration_on_ramp(pl):
             ax, az = S.to_world(X, Z, beta, S.axle_local(wheel, s))
             zc, _ = T.centre(wheel, ax)
             assert az - zc > -0.002, (wheel, r["t"], az - zc)
+
+
+def test_body_shift_neutral_is_zero(pl):
+    s, err = pl.A.body_shift(np.eye(3), np.zeros(3))
+    assert np.linalg.norm(s) < 1e-9
+    assert np.abs(err).max() < 1e-9
+
+
+def _target(pl, take, T, x):
+    return pl.target_fn(take, T, x)
+
+
+def test_controller_conserves_L(pl):
+    """Closed-loop rider with hip shift and throttle: independent finite-difference check of L."""
+    take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-20), sf=0.0, sr=0.0,
+                wf=45.0, wr=47.0)
+    x = [0.0, -100.0, 0.0, 0.85, 0.8]
+    dt = 1 / 1200
+    rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), r0=0.0, p0=math.radians(-100), dt=dt,
+                                rec_dt=dt / 2, t_max=1.2, T_land=2.2)
+    L0 = pl.A.L0
+    worst = 0.0
+    for a, b in zip(rec[:-1], rec[1:]):
+        h = b["t"] - a["t"]
+        RA, RB = 0.5 * (a["RA"] + b["RA"]), 0.5 * (a["RB"] + b["RB"])
+        wA = air.logm_so3(b["RA"] @ a["RA"].T) / h
+        wB = air.logm_so3(b["RB"] @ a["RB"].T) / h
+        D = 0.5 * (a["D"] + b["D"])
+        Ddot = (b["D"] - a["D"]) / h
+        L = _L(pl, RA, RB, wA, wB, D, Ddot, 0.5 * (a["wr"] + b["wr"]), a["wf"])
+        worst = max(worst, np.linalg.norm(L - L0) / np.linalg.norm(L0))
+    assert worst < 1e-2, worst
+
+
+def test_controller_tracks_gentle_whip(pl):
+    """A mild whip (30 % of Damien's) is well inside the body's limits: the bike must follow it closely."""
+    take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-38), sf=0.0, sr=0.0,
+                wf=45.0, wr=47.0)
+    x = [0.0, 0.0, 0.0, 0.3, 0.3]
+    rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), dt=1 / 1200, rec_dt=1 / 60, t_max=1.5, T_land=2.2)
+    assert max(math.degrees(r["track_err"]) for r in rec) < 6.0

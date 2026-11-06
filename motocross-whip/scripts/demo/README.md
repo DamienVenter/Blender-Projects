@@ -19,8 +19,8 @@ before any detailed modelling. Every number lives in `params.py` with its source
 - `terrain.py`: jump profile and exact wheel-centre contact curves.
 - `bike.py`, `rider.py`: mass properties (part breakdown; Winter / Drillis-Contini anthropometry), neutral attack pose, two-bone IK.
 - `ground.py`: sagittal dynamics on the ground: bike rigid body, non-linear suspension, rider on absorbing legs, throttle and traction.
-- `air.py`: airborne two-body dynamics with gyroscopic wheels, exact angular momentum conservation; forward and inverse formulations.
-- `sim.py`: solves face throttle and run-in speed, optimises the whip inputs, lands, exports.
+- `air.py`: airborne two-body dynamics with gyroscopic wheels and exact angular momentum conservation; hip shift; closed-loop rider (`run_control`) with throttle/brake.
+- `sim.py`: solves face throttle and run-in speed, optimises the lip inputs (kicks, lip pull, whip amplitude) around the closed-loop rider, lands, exports.
 - `pose.py`, `export.py`: per-frame transforms for every part, cameras, data overlay.
 - `build_scene.py`, `render_view.py`: Blender 5.2 scene (Workbench) and per-camera renders.
 

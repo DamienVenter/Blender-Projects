@@ -53,6 +53,7 @@ class System:
         self.x0_r = Nr * B.rear_travel_dir(sr)[1] / (P.REAR_K * fac) - sr
         self.Nf_static, self.Nr_static = Nf, Nr
         self.T_face = 0.0                                 # steady throttle force up the ramp face (N)
+        self.lip_pull = 0.0                               # rider's lift on the bars at the lip (N), see forces()
 
     def spring(self, wheel, s):
         if wheel == "front":
@@ -174,6 +175,17 @@ class GroundSim:
         FX -= Frx
         FZ -= Frz
         TAU += ax_r * (-Frz) - az_r * (-Frx)
+        # lip technique: the rider lifts on the bars as the bike leaves the lip (force on the bike at the
+        # grips along the bike's up axis, equal and opposite on the rider). Ramps in over the last 1.5 m.
+        if S.lip_pull != 0.0 and -1.5 < Xb < 0.6:
+            f = S.lip_pull * min((Xb + 1.5) / 0.5, 1.0)
+            ux, uz = rot2(beta, (0.0, 1.0))
+            gx, gz = S.to_world(Xb, Zb, beta, P.GRIP)
+            FX += f * ux
+            FZ += f * uz
+            TAU += (gx - Xb) * (f * uz) - (gz - Zb) * (f * ux)
+            Frx -= f * ux
+            Frz -= f * uz
         out = {"rider": (du, dw)}
         for wheel in ("front", "rear"):
             s, contact = self.wheel_update(wheel, Xb, Zb, beta, s_prev[wheel], dt)
