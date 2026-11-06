@@ -178,23 +178,28 @@ class Pipeline:
 
     STARTS = ([0, -54, 19, 0.70, 0.60], [0, -80, 19, 0.85, 0.8], [0, -60, 15, 0.6, 0.5], [20, -120, 19, 0.9, 0.9])
 
-    def optimise(self, take, T_air, maxiter=250):
-        """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline)."""
+    def optimise(self, take, T_air, maxiter=250, starts=None, fix_dW=None):
+        """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline).
+        fix_dW: hold the takeoff-rotation change at this value (used once the lip pull is realised)."""
         import concurrent.futures as cf
         import multiprocessing as mp
         global _OPT_CTX
-        _OPT_CTX = (self, take, T_air, maxiter)
+        starts = starts or self.STARTS
+        lo, hi = self.LO.copy(), self.HI.copy()
+        if fix_dW is not None:
+            lo[2] = hi[2] = fix_dW
+        _OPT_CTX = (self, take, T_air, maxiter, lo, hi)
         t0 = time.time()
-        with cf.ProcessPoolExecutor(max_workers=min(4, len(self.STARTS)), mp_context=mp.get_context("fork")) as ex:
-            results = list(ex.map(_opt_worker, self.STARTS))
-        for x0, (fun, x) in zip(self.STARTS, results):
+        with cf.ProcessPoolExecutor(max_workers=min(4, len(starts)), mp_context=mp.get_context("fork")) as ex:
+            results = list(ex.map(_opt_worker, starts))
+        for x0, (fun, x) in zip(starts, results):
             print(f"      start {x0} -> J {fun:.3f} x {[round(float(v), 2) for v in x]}", flush=True)
         fun, x = min(results, key=lambda r: r[0])
 
         class Res:
             pass
         res = Res()
-        res.fun, res.x = fun, np.clip(np.array(x), self.LO, self.HI)
+        res.fun, res.x = fun, np.clip(np.array(x), lo, hi)
         return res, time.time() - t0
 
     def solve_lip_pull(self, v, W_target):
@@ -270,9 +275,22 @@ class Pipeline:
         take = self.take_from(st, sp, rec_g1)
         print(f"    lip pull {pull:.0f} N -> takeoff rotation {math.degrees(take['W']):.2f} deg/s "
               f"(wanted {math.degrees(take_nom['W']) + res.x[2]:.2f})", flush=True)
-        x_real = np.array(res.x, float)
-        x_real[2] = 0.0                                   # the rotation change is now in the takeoff itself
-        det = self.objective(x_real, take, T_air, dt=1.0 / 1200, detail=True)
+        # final stage: re-optimise the remaining lip inputs on the REAL takeoff state (rotation change now
+        # physically inside the takeoff), iterating the landing time to the actual contact
+        x0 = np.array(res.x, float)
+        x0[2] = 0.0
+        starts = [list(x0), list(x0 + [0, -15, 0, 0.05, 0.05]), list(x0 + [0, 15, 0, -0.05, 0.05]), list(x0 + [15, 0, 0, 0, -0.05])]
+        for it in range(4):
+            res2, e = self.optimise(take, T_air, maxiter=maxiter, starts=starts, fix_dW=0.0)
+            el += e
+            det = self.objective(res2.x, take, T_air, dt=1.0 / 1200, detail=True)
+            print(f"    final pass {it}: T_air {T_air:.4f} -> contact {det['t_air']:.4f}, J {det['J']:.3f}, "
+                  f"x {[round(float(v), 3) for v in res2.x]}", flush=True)
+            starts = [list(res2.x)] + starts[1:]
+            if abs(det["t_air"] - T_air) < 0.01:
+                break
+            T_air = float(det["t_air"])
+        x_real = np.array(res2.x, float)
         print(f"[3] whip optimised in {el:.0f}s: "
               f"{json.dumps({k: (round(float(v), 3) if isinstance(v, (int, float, np.floating)) else v) for k, v in det.items()})}")
         recA, con = self.A.run_control(take, self.target_fn(take, T_air, x_real), r0=math.radians(x_real[0]),
@@ -290,9 +308,9 @@ _OPT_CTX = None
 
 
 def _opt_worker(x0):
-    pl, take, T_air, maxiter = _OPT_CTX
-    lo, hi = pl.LO, pl.HI
-    f = lambda z: pl.objective(np.clip(z, lo, hi), take, T_air) + 1e3 * np.sum(((z - np.clip(z, lo, hi)) / (hi - lo)) ** 2)
+    pl, take, T_air, maxiter, lo, hi = _OPT_CTX
+    span = np.maximum(hi - lo, 1e-6)
+    f = lambda z: pl.objective(np.clip(z, lo, hi), take, T_air) + 1e3 * np.sum(((z - np.clip(z, lo, hi)) / span) ** 2)
     res = minimize(f, np.array(x0, float), method="Nelder-Mead",
                    options=dict(maxiter=maxiter, xatol=0.5, fatol=1e-3, adaptive=True))
     return float(res.fun), [float(v) for v in res.x]
