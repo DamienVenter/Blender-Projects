@@ -58,11 +58,14 @@ def test_ballistic_matches_analytic(pl, monkeypatch):
         assert abs(r["C"][2] - (4.0 + 10.0 * t - 0.5 * P.G * t * t)) < 1e-6
 
 
-def _L(pl, RA, RB, wA, wB, D, Ddot, wr, wf):
+def _L(pl, RA, RB, wA, wB, D, Ddot, wr, wf, steer=0.0):
+    """Total angular momentum about the system CoM, computed independently of the solvers."""
     A = pl.A
     IAw = RA @ A.IA @ RA.T
     IBw = RB @ A.IB @ RB.T
-    Lw = (P.WHEEL_SPIN_INERTIA_FRONT * wf + P.WHEEL_SPIN_INERTIA_REAR * wr) * (RA @ np.array([0.0, 1.0, 0.0]))
+    s_ax = np.array([-math.sin(math.radians(P.RAKE_DEG)), 0.0, math.cos(math.radians(P.RAKE_DEG))])
+    a_front = RA @ air.expm_so3(s_ax * steer) @ np.array([0.0, 1.0, 0.0])
+    Lw = P.WHEEL_SPIN_INERTIA_FRONT * wf * a_front + P.WHEEL_SPIN_INERTIA_REAR * wr * (RA @ np.array([0.0, 1.0, 0.0]))
     return IAw @ wA + IBw @ wB + A.mu * np.cross(D, Ddot) + Lw
 
 
@@ -124,7 +127,7 @@ def test_controller_conserves_L(pl):
     """Closed-loop rider with hip shift and throttle: independent finite-difference check of L."""
     take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-20), sf=0.0, sr=0.0,
                 wf=45.0, wr=47.0)
-    x = [0.0, -100.0, 0.0, 0.85, 0.8]
+    x = [0.0, -100.0, 0.0, 40.0, 20.0, -20.0]
     dt = 1 / 1200
     rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), r0=0.0, p0=math.radians(-100), dt=dt,
                                 rec_dt=dt / 2, t_max=1.2, T_land=2.2)
@@ -137,15 +140,27 @@ def test_controller_conserves_L(pl):
         wB = air.logm_so3(b["RB"] @ a["RB"].T) / h
         D = 0.5 * (a["D"] + b["D"])
         Ddot = (b["D"] - a["D"]) / h
-        L = _L(pl, RA, RB, wA, wB, D, Ddot, 0.5 * (a["wr"] + b["wr"]), a["wf"])
+        L = _L(pl, RA, RB, wA, wB, D, Ddot, 0.5 * (a["wr"] + b["wr"]), a["wf"], 0.5 * (a["steer"] + b["steer"]))
         worst = max(worst, np.linalg.norm(L - L0) / np.linalg.norm(L0))
     assert worst < 1e-2, worst
 
 
-def test_controller_tracks_gentle_whip(pl):
-    """A mild whip (30 % of Damien's) is well inside the body's limits: the bike must follow it closely."""
+def test_controller_tracks_gentle_whip(pl, monkeypatch):
+    """A mild whip (30 % of Damien's peak) is well inside the body's limits: the bike must follow it closely."""
+    monkeypatch.setattr(pl, "PEAK_YAW", [v * 0.3 for v in pl.PEAK_YAW])
+    monkeypatch.setattr(pl, "PEAK_ROLL", [v * 0.3 for v in pl.PEAK_ROLL])
     take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-38), sf=0.0, sr=0.0,
                 wf=45.0, wr=47.0)
-    x = [0.0, 0.0, 0.0, 0.3, 0.3]
+    x = [0.0, 0.0, 0.0, 15.0, 8.0, -6.0]
     rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), dt=1 / 1200, rec_dt=1 / 60, t_max=1.5, T_land=2.2)
     assert max(math.degrees(r["track_err"]) for r in rec) < 6.0
+
+
+def test_full_whip_peak_is_flown(pl):
+    """Damien's full-size whip peak (bike flat at -85 deg, rear out 55 deg) is reached within 10 deg RMS."""
+    pl.S.T_face = 1344.4
+    t, st, sp, rec = pl.to_takeoff(14.868)
+    take = pl.take_from(st, sp, rec)
+    d = pl.objective(np.array([0.0, -80.0, 15.0, 45.0, 25.0, -30.0]), take, 2.23, detail=True)
+    assert d["peak_track_rms_deg"] < 10.0
+    assert d["worst_overreach_m"] < 0.15

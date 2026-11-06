@@ -112,6 +112,15 @@ class AirSim:
         self.att_g = np.array([lm["grip_l"], lm["grip_r"], lm["ankle_l"], lm["ankle_r"]])
         self.att_h = np.array([lm["shoulder_l"], lm["shoulder_r"], lm["hip_l"], lm["hip_r"]])
         self.att_L = np.linalg.norm(self.att_g - self.att_h, axis=1)
+        # spine: the upper body (trunk above the lumbar joint, head, arms) rotates about the pelvis
+        self.pelvis = lm["pelvis"]
+        segs = RD.segments(lm)
+        up = [sg for sg in segs if sg[0].startswith(("head", "upper_arm", "forearm", "hand"))]
+        m_tr = [sg for sg in segs if sg[0] == "trunk"][0]
+        upper_trunk_c = lm["pelvis"] + 0.75 * (lm["shoulder_mid"] - lm["pelvis"])
+        self.m_up = sum(sg[1] for sg in up) + 0.5 * m_tr[1]
+        self.c_up = (sum(sg[1] * sg[2] for sg in up) + 0.5 * m_tr[1] * upper_trunk_c) / self.m_up - lm["pelvis"]
+        self.m_rider = sum(sg[1] for sg in segs)
 
     def body_shift(self, RrelT, s0, lam=0.6, iters=3):
         """Hip shift s (bike frame) that keeps hands on the grips and feet on the pegs.
@@ -131,6 +140,43 @@ class AirSim:
             s = s + np.linalg.solve(A, b)
         v = self.att_g - s - h
         return s, np.sqrt((v * v).sum(axis=1)) - self.att_L
+
+    # spine limits (rider frame axes): side bend about x, flexion about y, twist about z (EST, human ROM)
+    SPINE_MAX = np.radians([35.0, 30.0, 45.0])
+    SPINE_TAU, SPINE_RATE = 0.08, 4.0
+
+    def limb_vectors(self, RrelT, s, b):
+        """Bike-frame vectors shoulder->grip and hip->ankle for hip shift s and spine rotation b."""
+        Rs = expm_so3(b)
+        h = self.att_h.copy()
+        h[:2] = self.pelvis + (Rs @ (h[:2] - self.pelvis).T).T          # shoulders follow the spine
+        return self.att_g - s - (RrelT @ h.T).T
+
+    def posture(self, RrelT, q0, lam_s=0.6, lam_b=0.25, iters=3):
+        """Hip shift s (bike frame) and spine rotation b (rider frame) keeping hands on the grips and feet
+        on the pegs: least squares on the four limb lengths with pulls back to neutral. q = [s, b]."""
+        q = q0.copy()
+        W = np.array([lam_s] * 3 + [lam_b] * 3)
+
+        def res(q):
+            v = self.limb_vectors(RrelT, q[:3], q[3:])
+            return np.sqrt((v * v).sum(axis=1)) - self.att_L
+
+        for _ in range(iters):
+            r = res(q)
+            J = np.empty((4, 6))
+            for j in range(6):
+                dq = np.zeros(6)
+                dq[j] = 1e-4
+                J[:, j] = (res(q + dq) - r) / 1e-4
+            A = J.T @ J + np.diag(W)
+            q = q + np.linalg.solve(A, -(J.T @ r + W * q))
+            q[3:] = np.clip(q[3:], -self.SPINE_MAX, self.SPINE_MAX)
+        return q, res(q)
+
+    def upper_shift(self, b):
+        """Rider CoM displacement (rider frame) caused by bending the spine by b."""
+        return (self.m_up / self.m_rider) * ((expm_so3(b) - np.eye(3)) @ self.c_up)
 
     def reach_errors(self, RrelT, s):
         """Limb length errors (m) for hip shift s: positive = stretched beyond neutral."""
@@ -300,33 +346,38 @@ class AirSim:
         L0 = (IAw0 + IBw0 + self.mu * (np.dot(D0, D0) * np.eye(3) - np.outer(D0, D0))) @ w0 \
             + (If * take["wf"] + Ir * wr) * (RA @ EY)
         self.L0 = L0
-        shift = np.zeros(3)
+        hip = np.zeros(3)                                 # hip shift, bike frame
+        spine = np.zeros(3)                               # spine rotation, rider frame
 
         def front_axis(delta):
             return expm_so3(s_ax * delta) @ EY            # front wheel spin axis in the bike frame
 
-        def model(RA, RB, shift, shift_dot, wr, delta):
+        def model(RA, RB, hip, cBe, v_rel, wr, delta):
+            """hip: hip shift (bike frame); cBe: rider CoM rel. rider origin incl. spine bend (rider frame);
+            v_rel: world velocity of the rider CoM relative to the two frames (R_A hip' + R_B cBe')."""
             IAw, IBw = RA @ self.IA @ RA.T, RB @ self.IB @ RB.T
-            u = RA @ (self.p_rel + shift)
-            D = u + RB @ self.cB
+            u = RA @ (self.p_rel + hip)
+            D = u + RB @ cBe
             Mt = IAw + IBw + self.mu * (np.dot(D, D) * np.eye(3) - np.outer(D, D))
             Mi = np.linalg.inv(Mt)
             a = RA @ EY
             af = RA @ front_axis(delta)
-            c = L0 - self.mu * cross(D, RA @ shift_dot) - If * take["wf"] * af - Ir * wr * a
+            c = L0 - self.mu * cross(D, v_rel) - If * take["wf"] * af - Ir * wr * a
             K = IAw + self.mu * (np.dot(D, u) * np.eye(3) - np.outer(u, D))
             hs = Mi @ (If * take["wf"] * (RA @ cross(s_ax, front_axis(delta))))
             # omega_B = wB0 - MK w - h dwr - hs ddelta ; omega_A = omega_B + w
             return Mi @ c, Mi @ K, Mi @ (Ir * a), hs, D
 
-        def choose(RA, RB, shift, shift_dot, wr, delta, t, dt_ctrl):
-            wB0, MK, h, hs, D = model(RA, RB, shift, shift_dot, wr, delta)
-            RT, wT = target_fn(t)
+        def choose(RA, RB, hip, cBe, v_rel, wr, delta, t, dt_ctrl):
+            wB0, MK, h, hs, D = model(RA, RB, hip, cBe, v_rel, wr, delta)
+            tgt = target_fn(t)
+            RT, wT = tgt[0], tgt[1]
+            RB_pref = tgt[2] if len(tgt) > 2 else None
             e = logm_so3(RT @ RA.T)
             wA_des = wT + g["kp"] * e
             # rider's preferred torso: facing the travel direction, pitched like the bike, no lean
             _, pitch_b, _ = euler_of(RA)
-            e_r = logm_so3(Ry(-pitch_b) @ RB.T)
+            e_r = logm_so3((Ry(-pitch_b) if RB_pref is None else RB_pref) @ RB.T)
             wB_des = 3.0 * e_r
             rel = logm_so3(RA @ RB.T)
             ang = np.linalg.norm(rel)
@@ -335,7 +386,7 @@ class AirSim:
             GA = np.hstack([np.eye(3) - MK, -h[:, None], -hs[:, None]])
             GB = np.hstack([-MK, -h[:, None], -hs[:, None]])
             land = smoothstep((t - (T_land - 0.45)) / 0.3)
-            wt = math.sqrt(g["w_track"])
+            wt = math.sqrt(g["w_track"] * (g["w_track_fn"](t) if "w_track_fn" in g else 1.0))
             rows.append(wt * GA); rhs.append(wt * (wA_des - wB0))
             wrd = math.sqrt(g["w_rider"] * (1.0 - land))
             rows.append(wrd * GB); rhs.append(wrd * (wB_des - wB0))
@@ -383,15 +434,24 @@ class AirSim:
         for k in range(n):
             t = k * dt
             RrelT = RA.T @ RB
-            target, _ = self.body_shift(RrelT, shift)
-            nt = np.linalg.norm(target)
+            qt, _ = self.posture(RrelT, np.concatenate([hip, spine]))
+            hip_t, spine_t = qt[:3], qt[3:]
+            nt = np.linalg.norm(hip_t)
             if nt > self.SHIFT_MAX:
-                target *= self.SHIFT_MAX / nt
-            shift_dot = (target - shift) / self.SHIFT_TAU
-            sp = np.linalg.norm(shift_dot)
+                hip_t *= self.SHIFT_MAX / nt
+            hip_dot = (hip_t - hip) / self.SHIFT_TAU
+            sp = np.linalg.norm(hip_dot)
             if sp > self.SHIFT_VMAX:
-                shift_dot *= self.SHIFT_VMAX / sp
-            w, dwr, dd, wB, wA, D, e = choose(RA, RB, shift, shift_dot, wr, delta, t, dt)
+                hip_dot *= self.SHIFT_VMAX / sp
+            spine_dot = (spine_t - spine) / self.SPINE_TAU
+            sp = np.linalg.norm(spine_dot)
+            if sp > self.SPINE_RATE:
+                spine_dot *= self.SPINE_RATE / sp
+            # rider CoM = peg midpoint + R_A hip + R_B (cB + upper-body swing from the spine bend)
+            cBe = self.cB + self.upper_shift(spine)
+            cBe_dot = (self.upper_shift(spine + spine_dot * dt) - self.upper_shift(spine)) / dt
+            v_rel = RA @ hip_dot + RB @ cBe_dot
+            w, dwr, dd, wB, wA, D, e = choose(RA, RB, hip, cBe, v_rel, wr, delta, t, dt)
             wr = wr + dwr
             delta = delta + dd
             bike_c = C - (self.mB / self.M) * D
@@ -407,20 +467,23 @@ class AirSim:
             if record and t >= next_rec - 1e-9:
                 rec.append({"t": t, "C": C.copy(), "V": V.copy(), "RA": RA.copy(), "RB": RB.copy(), "D": D.copy(),
                             "wB": wB.copy(), "wA": wA.copy(), "sf": sf, "sr": sr, "wf": take["wf"], "wr": wr,
-                            "shift": shift.copy(), "reach_err": self.reach_errors(RrelT, shift),
+                            "shift": hip.copy(), "spine": spine.copy(),
+                            "reach_err": np.sqrt((self.limb_vectors(RrelT, hip, spine) ** 2).sum(axis=1)) - self.att_L,
                             "track_err": float(np.linalg.norm(e)), "w_rel": w.copy(), "steer": delta})
                 next_rec += rec_dt
             if hit:
                 contact = {"t": t, "wheel": hit, "C": C.copy(), "V": V.copy(), "RA": RA.copy(), "RB": RB.copy(),
-                           "D": D.copy(), "sf": sf, "sr": sr, "wr": wr, "wf": take["wf"], "shift": shift.copy(),
+                           "D": D.copy(), "sf": sf, "sr": sr, "wr": wr, "wf": take["wf"], "shift": hip.copy(), "spine": spine.copy(),
                            "steer": delta}
                 break
             # midpoint step: same rider action over the step, re-solve the conservation law at the midpoint
             RAh, RBh = expm_so3(wA * dt / 2) @ RA, expm_so3(wB * dt / 2) @ RB
-            wB0h, MKh, hh, _, _ = model(RAh, RBh, shift + shift_dot * dt / 2, shift_dot, wr, delta)
+            cBe_h = self.cB + self.upper_shift(spine + spine_dot * dt / 2)
+            wB0h, MKh, hh, _, _ = model(RAh, RBh, hip + hip_dot * dt / 2, cBe_h, RAh @ hip_dot + RBh @ cBe_dot, wr, delta)
             wBh = wB0h - MKh @ w
             RA, RB = expm_so3((wBh + w) * dt) @ RA, expm_so3(wBh * dt) @ RB
-            shift = shift + shift_dot * dt
+            hip = hip + hip_dot * dt
+            spine = spine + spine_dot * dt
             k1v = acc(V); k1x = V
             k2v = acc(V + k1v * dt / 2); k2x = V + k1v * dt / 2
             k3v = acc(V + k2v * dt / 2); k3x = V + k2v * dt / 2

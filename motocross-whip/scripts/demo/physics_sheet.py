@@ -78,10 +78,11 @@ tt = np.array(sim.TARGET["t"]) * sc
 x = summ["whip_x"]
 for j, (key, lab) in enumerate((("bike_yaw", "yaw (nose left +)"), ("bike_roll", "lean (left -)"))):
     ax = fig.add_subplot(gs[1, j])
-    tgt = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"]) * (x[4] if key == "bike_yaw" else x[3])
     full = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"])
+    kt, ky, kr = sim.Pipeline.whip_keys(sim.Pipeline, x)
     ax.plot(tt, full, "o", mfc="none", mec=C_TARGET, ms=5, label="your clip (my estimate)")
-    ax.plot(tt, tgt, "o", color=C_TARGET, ms=4, label=f"target flown ({(x[4] if key == 'bike_yaw' else x[3])*100:.0f} % of clip)")
+    ax.plot(np.array(kt) * t_air / sim.Pipeline.RETURN_T[-1], ky if key == "bike_yaw" else kr, "o", color=C_TARGET,
+            ms=4, label="target: your peak, physics-shaped return")
     ax.plot(ta, [h[key] for h, a in zip(hud, air_mask) if a], color=C_BIKE, lw=2, label="bike (simulated)")
     rk = "rider_yaw" if key == "bike_yaw" else "rider_roll"
     ax.plot(ta, [h[rk] for h, a in zip(hud, air_mask) if a], color=C_RIDER, lw=1.6, label="rider torso (from physics)")
@@ -138,7 +139,8 @@ inputs = (f"Lip inputs chosen by the optimiser\n\n"
           f"yaw kick  {x[0]:+.0f} deg/s\n"
           f"roll kick  {x[1]:+.0f} deg/s (lean left -)\n"
           f"lift on the bars at the lip  {summ.get('lip_pull_N', 0):.0f} N\n"
-          f"whip size vs your clip:  lean {x[3]*100:.0f} %,  swing {x[4]*100:.0f} %\n\n"
+          f"whip peak: 100 % of your clip (lean -85, swing 55 deg)\n"
+          f"return: swing {x[3]:.0f} deg at 0.9 s, {x[4]:.0f} deg at 1.5 s\n\n"
           f"Touchdown\n"
           f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
           f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"

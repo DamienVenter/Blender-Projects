@@ -53,6 +53,7 @@ def build(pl, log, g1, recA, con, g2, out_dir):
 
     last_rider = g1[-1]["rider"] if g1 else (0.0, 0.0)
     last_steer = 0.0
+    last_spine = np.zeros(3)
     spin_f = spin_r = 0.0
     w_f = w_r = None
     prev_t = None
@@ -66,7 +67,10 @@ def build(pl, log, g1, recA, con, g2, out_dir):
             pb = r["C"] - (mB / M) * r["D"]
             prc = r["C"] + (mA / M) * r["D"]
             fade = math.exp(-r["t"] / 0.12)
-            origin = prc - RB @ S.cr + RA @ np.array([last_rider[0], 0.0, last_rider[1]]) * fade
+            spine = np.asarray(r.get("spine", np.zeros(3)), float)
+            last_spine = spine
+            origin = (prc - RB @ (S.cr + pl.A.upper_shift(spine))
+                      + RA @ np.array([last_rider[0], 0.0, last_rider[1]]) * fade)
             crouch = float(np.clip(-last_rider[1] * 0.9, -0.08, 0.25)) * fade
             sf, sr = r["sf"], r["sr"]
             w_f, w_r = r["wf"], r["wr"]
@@ -90,6 +94,7 @@ def build(pl, log, g1, recA, con, g2, out_dir):
                 pb = np.array([st[0], 0.0, st[1]])
                 look = sweet
             RB = RA @ air.expm_so3(rel_c * res) if kind == "g2" else RA
+            spine = last_spine * res if kind == "g2" else np.zeros(3)
             du, dw = r["rider"]
             if kind == "g1":
                 last_rider = (du, dw)
@@ -113,7 +118,7 @@ def build(pl, log, g1, recA, con, g2, out_dir):
         spin_f += w_f * dt
         spin_r += w_r * dt
         parts, Wb2, Wf2, Rfront = poser.bike_parts(RA, pb, sf, sr, spin_f, spin_r, steer)
-        rp = poser.rider_parts(RA, RB, Wb2, origin, look, crouch, Wf=Wf2, R_front=Rfront)
+        rp = poser.rider_parts(RA, RB, Wb2, origin, look, crouch, Wf=Wf2, R_front=Rfront, spine=spine)
         allp = {**{f"bike:{k}": v for k, v in parts.items()}, **{f"rider:{k}": v for k, v in rp.items()}}
         if names is None:
             names = sorted(allp)

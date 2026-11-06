@@ -113,54 +113,95 @@ class Pipeline:
         return v
 
     # ---------- whip optimisation (inverse: bike motion prescribed, rider from conservation)
+    # Whip shape: lip to peak is Damien's (fixed, 100 %); the return is shaped by physics within his clip's range.
+    PEAK_T = [0.00, 0.10, 0.30, 0.45, 0.60]
+    PEAK_YAW = [0.0, 10.0, 40.0, 55.0, 58.0]
+    PEAK_ROLL = [0.0, -25.0, -75.0, -85.0, -70.0]
+    RETURN_T = [0.90, 1.50, 1.90, 2.05]
+
+    def whip_keys(self, x):
+        """Keyframes (Damien's 2.05 s timeline). x[3] yaw held at 0.9 s, x[4] yaw at 1.5 s, x[5] lean at 0.9 s."""
+        t = self.PEAK_T + self.RETURN_T
+        yaw = self.PEAK_YAW + [x[3], x[4], min(12.0, x[4]), 2.0]
+        roll = self.PEAK_ROLL + [x[5], -6.0, 0.0, 0.0]
+        return t, yaw, roll
+
     def profile(self, take, T_air, x):
-        """Damien's whip, time-scaled to this airtime. x: r0, p0 (deg/s), roll scale, yaw scale, b, t_b."""
-        sc = T_air / TARGET["t"][-1]
-        tk = [t * sc for t in TARGET["t"]]
+        """Whip keyframes time-scaled to this airtime. x: r0, p0 (deg/s), dW, yaw_hold, yaw_late, roll_up."""
+        sc = T_air / self.RETURN_T[-1]
+        t, yaw, roll = self.whip_keys(x)
+        tk = [v * sc for v in t]
         return dict(T=T_air, beta0=take["beta"], beta_dot0=take["W"], beta_land=math.radians(self.landing_pitch),
-                    yaw_t=tk, yaw=[v * x[3] for v in TARGET["yaw"]], r0=x[0] / sc,
-                    roll_t=tk, roll=[v * x[2] for v in TARGET["roll"]], p0=x[1] / sc)
+                    yaw_t=tk, yaw=yaw, r0=x[0] / sc, roll_t=tk, roll=roll, p0=x[1] / sc)
+
+    RIDER_LEAN_SHARE = 0.35          # rider's torso leans with the bike by this share of the bike's lay-down
 
     def target_fn(self, take, T_air, x):
-        """Damien's whip (scaled by x[3] roll, x[4] yaw) as the controller's target: (R, omega) at t."""
-        prof = self.profile(take, T_air, [x[0], x[1], x[3], x[4], 0.0, 0.9])
+        """Damien's whip as the controller's target: f(t) -> (R_bike, omega_bike, R_rider_preferred).
+
+        Angles are world angles as read from Damien's footage. Only the lay-down/peak and the landing are
+        tracked firmly (see track_weight); in between, the gyroscopic bike/rider system shapes the return.
+        """
+        prof = self.profile(take, T_air, x)
         h = 1e-3
 
-        def R(t):
+        def parts(t):
             y, p, r = self.A.bike_angles(prof, np.array([t]))
-            return air.euler_from(y[0], p[0], r[0])
+            # bike: world angles as measured from the footage (yaw about vertical, pitch, lean about the long
+            # axis); rider's preferred torso: facing the travel direction, pitched with the bike, partly leaned
+            return air.euler_from(y[0], p[0], r[0]), air.Ry(-p[0]) @ air.Rx(self.RIDER_LEAN_SHARE * r[0])
 
         def f(t):
-            R0, R1 = R(t), R(t + h)
-            return R0, air.logm_so3(R1 @ R0.T) / h
+            R0, RB0 = parts(t)
+            R1, _ = parts(t + h)
+            return R0, air.logm_so3(R1 @ R0.T) / h, RB0
         return f
 
-    def ctrl_cost(self, rec, con, x, detail=False):
+    PEAK_END = 0.62          # s on Damien's timeline: lay-down and peak are tracked firmly up to here
+    LAND_WINDOW = 0.50       # s before touchdown: firm tracking again for a straight landing
+
+    def track_weight(self, T_air):
+        sc = T_air / self.RETURN_T[-1]
+        t_peak, t_land = self.PEAK_END * sc, T_air - self.LAND_WINDOW
+
+        def w(t):
+            if t <= t_peak:
+                return 1.0
+            if t >= t_land:
+                return 1.0
+            return 0.05                                   # light touch: the gyroscope shapes the return
+        return w
+
+    def ctrl_cost(self, rec, con, x, T_air, detail=False):
+        """Peak matches Damien's whip, the landing is straight, the body stays human in between."""
         arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
         leg = RD.L_THIGH + RD.L_SHANK
         Lmax = np.array([arm, arm, leg, leg])
-        reach = track = yawc = 0.0
+        sc = T_air / self.RETURN_T[-1]
+        reach = peak = body = 0.0
+        n_peak = 0
         worst = -1.0
         for r in rec:
             d = self.A.att_L + r["reach_err"]
             reach += float((np.maximum(d - 0.97 * Lmax, 0) ** 2).sum() + (np.maximum(0.40 * Lmax - d, 0) ** 2).sum())
             worst = max(worst, float((d - Lmax).max()))
-            track += math.degrees(r["track_err"]) ** 2
-            yb, _, _ = air.euler_of(r["RB"])
-            yawc += math.degrees(yb) ** 2
+            if r["t"] <= self.PEAK_END * sc:
+                peak += math.degrees(r["track_err"]) ** 2
+                n_peak += 1
+            yb, _, rb = (math.degrees(v) for v in air.euler_of(r["RB"]))
+            body += max(abs(rb) - 45.0, 0) ** 2 + max(abs(yb) - 45.0, 0) ** 2   # torso lean/turn beyond 45 deg
         n = len(rec)
         reach = reach / n / 0.02 ** 2
-        track_rms = math.sqrt(track / n)
-        yaw_rms = math.sqrt(yawc / n)
+        peak_rms = math.sqrt(peak / max(n_peak, 1))
+        body = body / n / 10.0 ** 2
         ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
         rel_c = math.degrees(np.linalg.norm(air.logm_so3(con["RB"].T @ con["RA"])))
         land = (ya / 4) ** 2 + (ra / 4) ** 2 + ((pa - self.landing_pitch) / 4) ** 2 + (rel_c / 10) ** 2
         reg = (x[0] / 150) ** 2 + (x[1] / 250) ** 2 + (x[2] / 30) ** 2
-        amp = 25.0 * ((1 - x[3]) ** 2 + (1 - x[4]) ** 2)   # prefer Damien's full whip: shrink only if physics forces it
-        J = (track_rms / 8) ** 2 + land + reach + 0.3 * (yaw_rms / 30) ** 2 + 0.3 * reg + amp
+        J = (peak_rms / 5) ** 2 + land + reach + body + 0.3 * reg
         if detail:
-            return dict(J=J, track_rms_deg=track_rms, rider_yaw_rms_deg=yaw_rms, reach=reach, worst_overreach_m=worst,
-                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg, amp=amp,
+            return dict(J=J, peak_track_rms_deg=peak_rms, body=body, reach=reach, worst_overreach_m=worst,
+                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg,
                         t_air=con["t"], contact=con["wheel"])
         return J
 
@@ -168,15 +209,17 @@ class Pipeline:
         tk = dict(take)
         tk["W"] = take["W"] + math.radians(x[2])
         rec, con = self.A.run_control(tk, self.target_fn(tk, T_air, x), r0=math.radians(x[0]), p0=math.radians(x[1]),
-                                      dt=dt, rec_dt=1.0 / 30, t_max=T_air + 0.6, T_land=T_air)
+                                      dt=dt, rec_dt=1.0 / 30, t_max=T_air + 0.6, T_land=T_air,
+                                      gains={"w_track_fn": self.track_weight(T_air)})
         if con is None:
             return 1e6
-        return self.ctrl_cost(rec, con, x, detail)
+        return self.ctrl_cost(rec, con, x, T_air, detail)
 
-    LO = np.array([-200.0, -300.0, -10.0, 0.50, 0.40])
-    HI = np.array([200.0, 300.0, 19.0, 1.00, 1.10])
-
-    STARTS = ([0, -54, 19, 0.70, 0.60], [0, -80, 19, 0.85, 0.8], [0, -60, 15, 0.6, 0.5], [20, -120, 19, 0.9, 0.9])
+    # x = [yaw kick, roll kick (deg/s), takeoff rotation change (deg/s), yaw held at 0.9 s, yaw at 1.5 s,
+    #      lean at 0.9 s (deg)]; peak of the whip is fixed at Damien's full size
+    LO = np.array([-100.0, -250.0, -10.0, 20.0, 0.0, -50.0])
+    HI = np.array([150.0, 50.0, 19.0, 65.0, 55.0, 0.0])
+    STARTS = ([0, -50, 15, 40, 20, -20], [0, -80, 15, 45, 25, -30], [40, -100, 15, 40, 20, -20], [20, -70, 19, 50, 30, -25])
 
     def optimise(self, take, T_air, maxiter=250, starts=None, fix_dW=None):
         """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline).
@@ -279,7 +322,7 @@ class Pipeline:
         # physically inside the takeoff), iterating the landing time to the actual contact
         x0 = np.array(res.x, float)
         x0[2] = 0.0
-        starts = [list(x0), list(x0 + [0, -15, 0, 0.05, 0.05]), list(x0 + [0, 15, 0, -0.05, 0.05]), list(x0 + [15, 0, 0, 0, -0.05])]
+        starts = [list(x0), list(x0 + [0, -15, 0, 5, 5, 0]), list(x0 + [0, 15, 0, -5, -5, 5]), list(x0 + [15, 0, 0, 0, 5, -5])]
         for it in range(4):
             res2, e = self.optimise(take, T_air, maxiter=maxiter, starts=starts, fix_dW=0.0)
             el += e

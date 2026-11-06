@@ -49,6 +49,22 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
    near the bottom of its travel. Model the linkage rising rate, fork air volume and bottoming cone.
 10. `numpy.cross` on 3-vectors costs 60 % of an inner loop; use a hand-written cross.
 
+## Getting Damien's FULL whip (session 2026-11-06, after "the demo whip was nowhere near as big")
+- Never let the optimiser shrink the whip to make the physics easy. Fix the peak at Damien's size and find
+  the inputs and body motion that achieve it; if it fails, the MODEL is missing something real.
+- What was missing, in order of impact:
+  1. **A spine.** A rigid torso leaves the low hand 0.5 m short of the grip when the bike is flat. Real
+     riders side-bend, twist and flex (about 35, 45, 30 deg). Model it with the hips in the posture solver,
+     and put the upper body's mass swing into the momentum balance (it rotates with the RIDER, not the bike).
+  2. **Track only where the whip is defined.** Firm tracking for the lay-down/peak and the last 0.5 s
+     before touchdown; light touch in between. Holding a crossed-up bike precesses the whole system into
+     a roll (wheel momentum gains a component along the travel direction): about 60 deg/s at 60 deg yaw.
+     Real riders let the gyroscope bring the bike back instead of fighting it.
+  3. **Define the peak in world angles** (how footage shows it). Composing the whip on top of the jump's
+     own rotation over-flattens the apparent lean past -100 deg.
+- Momentum budget: any roll or yaw momentum given at the lip is still there at touchdown (wheels hold it
+  only while the bike is crossed up or laid over). Lip kicks must be small or cancelled by body motion.
+
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |
 |---|---|---|

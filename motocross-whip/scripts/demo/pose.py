@@ -89,11 +89,13 @@ class Poser:
         out["rear_wheel"] = (W(v3(B.rear_axle_at(sr))), RA @ Ry(spin_r))
         return out, W, Wf, RA @ Rs
 
-    def rider_parts(self, RA, RB, W, origin, look_at, crouch=0.0, Wf=None, R_front=None):
+    def rider_parts(self, RA, RB, W, origin, look_at, crouch=0.0, Wf=None, R_front=None, spine=None):
         """origin: world position of the rider-frame origin (peg midpoint in the neutral pose).
         crouch: extra trunk lean (rad) applied about the pelvis."""
         lm = self.lm
         lean = Ry(crouch)                             # forward lean about the pelvis (rider frame)
+        if spine is not None:
+            lean = air.expm_so3(np.asarray(spine, float)) @ lean   # spine bend and twist about the pelvis
 
         def U(p):                                     # rigid upper body point, rider frame -> world
             p = np.asarray(p, float)
