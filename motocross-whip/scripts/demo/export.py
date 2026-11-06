@@ -157,11 +157,11 @@ def build(pl, log, g1, recA, con, g2, out_dir):
 
     side_pos = np.array([12.0, 36.0, 5.0])         # frames x = -6.5 .. 30.5 m: ramp toe to landing bottom
     cams.append({"name": "CAM_SIDE", "lens": 35.0, "path": path_of(lambda i: side_pos, [np.array([12.0, 0.0, 4.2])] * len(frames))})
-    dam_pos = np.array([k["ramp_bottom"] - 6.0, 3.0, 1.6])
-    cams.append({"name": "CAM_DAMIEN", "lens": 26.0, "path": path_of(lambda i: dam_pos, rc_s)})
+    dam_pos = np.array([k["ramp_bottom"] - 3.5, 2.5, 1.5])      # matched to Damien's clip 3 framing
+    cams.append({"name": "CAM_DAMIEN", "lens": 35.0, "path": path_of(lambda i: dam_pos, rc_s)})
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
-    land_pos = np.array([k["landing_bottom"] + 7.0, 3.5, 1.3])
+    land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])
     cams.append({"name": "CAM_LAND", "lens": 28.0, "path": path_of(lambda i: land_pos, rc_s)})
 
     # ---- scene description

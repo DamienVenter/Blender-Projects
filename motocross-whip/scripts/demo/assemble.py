@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 FONT = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
 DAMIEN_CLIP = os.path.join(REPO, "motocross-whip/reference/user-clips/clip3_back-wide_2026-11-06_102401k.mp4")
-DAMIEN_LIP_T = 0.95          # s, lip departure in clip 3 (research/whip-analysis-user-clips.md)
+DAMIEN_LIP_T = 0.94          # s, rear wheel leaves the lip in clip 3 (frame timestamps 0.906 / 0.940 / 0.973)
 FPS = 120
 
 
@@ -87,6 +87,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def main():
     data, work, out = sys.argv[1], sys.argv[2], sys.argv[3]
     skip = "--skip-render" in sys.argv
+    only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
     os.makedirs(work, exist_ok=True)
     os.makedirs(out, exist_ok=True)
     with open(f"{data}/frames.json") as f:
@@ -99,7 +100,10 @@ def main():
         run(["blender", "-b", "--factory-startup", "--python-exit-code", "1", "--python",
              f"{HERE}/build_scene.py", "--", data, blend])
         for name, v in V.items():
+            if only and name not in only:
+                continue
             d = f"{work}/frames_{name}"
+            subprocess.run(["rm", "-rf", d], check=True)
             os.makedirs(d, exist_ok=True)
             run(["blender", "-b", blend, "--python-exit-code", "1", "--python", f"{HERE}/render_view.py", "--",
                  v["cam"], str(v["res"][0]), str(v["res"][1]), str(v["f0"]), str(v["f1"]), str(v["step"]), d])

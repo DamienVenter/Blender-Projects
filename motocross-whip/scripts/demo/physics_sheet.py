@@ -33,8 +33,8 @@ plt.rcParams.update({"font.family": "Inter", "font.size": 10, "axes.edgecolor": 
 fig = plt.figure(figsize=(16, 13), dpi=150)
 gs = fig.add_gridspec(4, 3, height_ratios=[1.25, 1, 1, 1], hspace=0.5, wspace=0.28)
 
-# 1. trajectory to scale
-ax = fig.add_subplot(gs[0, :])
+# 1. trajectory to scale; key numbers in their own panel to the right
+ax = fig.add_subplot(gs[0, :2])
 xs, zs = np.array(tr["xs"]), np.array(tr["zs"])
 m = (xs > k["ramp_bottom"] - 4) & (xs < k["landing_bottom"] + 4)
 ax.fill_between(xs[m], 0, zs[m], color="#d8c3a5", lw=0)
@@ -66,8 +66,10 @@ facts = (f"Run-in speed at the ramp toe  {summ['approach_speed']*3.6:.1f} km/h\n
          f"Ramp 2.51 m lip, 9.1 m radius, {P.LIP_ANGLE_DEG:.1f} deg\n"
          f"Landing 4.0 m knuckle, {P.LANDING_ANGLE_DEG:.0f} deg downslope\n"
          f"Johannesburg: g = {P.G:.3f} m/s2, air {P.RHO:.2f} kg/m3")
-ax.text(0.995, 0.97, facts, transform=ax.transAxes, ha="right", va="top", fontsize=9.5, color=INK,
-        bbox=dict(boxstyle="round,pad=0.6", fc="white", ec=GRID))
+axf = fig.add_subplot(gs[0, 2])
+axf.axis("off")
+axf.text(0.02, 0.95, facts, transform=axf.transAxes, ha="left", va="top", fontsize=10, color=INK, linespacing=1.6,
+         bbox=dict(boxstyle="round,pad=0.8", fc="white", ec=GRID))
 
 # 2. bike angles vs Damien's target
 ta = t[air_mask]
@@ -77,7 +79,9 @@ x = summ["whip_x"]
 for j, (key, lab) in enumerate((("bike_yaw", "yaw (nose left +)"), ("bike_roll", "lean (left -)"))):
     ax = fig.add_subplot(gs[1, j])
     tgt = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"]) * (x[4] if key == "bike_yaw" else x[3])
-    ax.plot(tt, tgt, "o", color=C_TARGET, ms=4, label="from your clips")
+    full = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"])
+    ax.plot(tt, full, "o", mfc="none", mec=C_TARGET, ms=5, label="your clip (my estimate)")
+    ax.plot(tt, tgt, "o", color=C_TARGET, ms=4, label=f"target flown ({(x[4] if key == 'bike_yaw' else x[3])*100:.0f} % of clip)")
     ax.plot(ta, [h[key] for h, a in zip(hud, air_mask) if a], color=C_BIKE, lw=2, label="bike (simulated)")
     rk = "rider_yaw" if key == "bike_yaw" else "rider_roll"
     ax.plot(ta, [h[rk] for h, a in zip(hud, air_mask) if a], color=C_RIDER, lw=1.6, label="rider torso (from physics)")
