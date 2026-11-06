@@ -158,7 +158,7 @@ class Pipeline:
         return f
 
     PEAK_END = 0.62          # s on Damien's timeline: lay-down and peak are tracked firmly up to here
-    LAND_WINDOW = 0.50       # s before touchdown: firm tracking again for a straight landing
+    LAND_WINDOW = 0.60       # s before touchdown: firm tracking again for a straight landing
 
     def track_weight(self, T_air):
         sc = T_air / self.RETURN_T[-1]
@@ -176,7 +176,7 @@ class Pipeline:
         """Peak matches Damien's whip, the landing is straight, the body stays human in between."""
         arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
         leg = RD.L_THIGH + RD.L_SHANK
-        Lmax = np.array([arm, arm, leg, leg])
+        Lmax = np.array([arm + RD.SCAPULA_REACH, arm + RD.SCAPULA_REACH, leg, leg])
         sc = T_air / self.RETURN_T[-1]
         reach = peak = body = 0.0
         n_peak = 0
@@ -219,7 +219,8 @@ class Pipeline:
     #      lean at 0.9 s (deg)]; peak of the whip is fixed at Damien's full size
     LO = np.array([-100.0, -250.0, -10.0, 20.0, 0.0, -50.0])
     HI = np.array([150.0, 50.0, 19.0, 65.0, 55.0, 0.0])
-    STARTS = ([0, -50, 15, 40, 20, -20], [0, -80, 15, 45, 25, -30], [40, -100, 15, 40, 20, -20], [20, -70, 19, 50, 30, -25])
+    STARTS = ([38.6, -67.4, 19.0, 62.9, 14.2, -0.8], [0.0, -44.8, 19.0, 45.0, 18.7, -17.0],
+              [20.0, -55.0, 19.0, 55.0, 16.0, -8.0], [0.0, -60.0, 17.0, 50.0, 20.0, -12.0])
 
     def optimise(self, take, T_air, maxiter=250, starts=None, fix_dW=None):
         """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline).

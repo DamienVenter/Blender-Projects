@@ -131,6 +131,12 @@ class Poser:
         for s, sign in (("l", 1.0), ("r", -1.0)):
             knee, ankle, ok1 = RD.two_bone(J[f"hip_{s}"], J[f"ankle_target_{s}"], RD.L_THIGH, RD.L_SHANK,
                                            J[f"hip_{s}"] + RA @ np.array([0.6, sign * 0.18, 0.0]))
+            # shoulder blade slides toward the bar when the arm is near full stretch (up to SCAPULA_REACH)
+            arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
+            to_grip = J[f"grip_{s}"] - J[f"shoulder_{s}"]
+            dist = np.linalg.norm(to_grip)
+            slide = min(max(dist - 0.95 * arm, 0.0), RD.SCAPULA_REACH)
+            J[f"shoulder_{s}"] = J[f"shoulder_{s}"] + to_grip / max(dist, 1e-9) * slide
             elbow, grip, ok2 = RD.two_bone(J[f"shoulder_{s}"], J[f"grip_{s}"], RD.L_UPPER_ARM,
                                            RD.L_FOREARM + RD.L_HAND_GRIP,
                                            J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15]))

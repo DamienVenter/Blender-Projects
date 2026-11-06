@@ -24,6 +24,7 @@ L_TRUNK = 0.288 * H            # hip-joint centre to shoulder-joint centre
 HIP_HALF = 0.096 * H / 2 * 1.0 # hip joint half separation (0.096 H between joint centres)
 SHOULDER_HALF = 0.205 * H / 2  # shoulder joint half separation
 L_NECK_HEAD = 0.137 * H        # shoulder line to head centre (helmet centre)
+SCAPULA_REACH = 0.08           # extra reach from the shoulder blade sliding forward (protraction), EST
 ANKLE_ABOVE_PEG = 0.10         # boot sole + ankle height above the ball of foot on the peg
 ANKLE_BEHIND_PEG = 0.14        # ankle joint behind the ball of the foot
 

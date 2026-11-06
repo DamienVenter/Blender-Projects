@@ -388,7 +388,7 @@ class AirSim:
             land = smoothstep((t - (T_land - 0.45)) / 0.3)
             wt = math.sqrt(g["w_track"] * (g["w_track_fn"](t) if "w_track_fn" in g else 1.0))
             rows.append(wt * GA); rhs.append(wt * (wA_des - wB0))
-            wrd = math.sqrt(g["w_rider"] * (1.0 - land))
+            wrd = math.sqrt(g["w_rider"] * max(1.0 - land, 0.0))
             rows.append(wrd * GB); rhs.append(wrd * (wB_des - wB0))
             # neutral pose before touchdown: relative rotation decays to zero
             wl = math.sqrt(g["w_land"] * land)
