@@ -261,6 +261,12 @@ class Pipeline:
         return pull
 
     # ---------- landing and ride-away
+    def fly(self, take, x, T_air):
+        """The recorded flight: exactly the controller settings the optimiser scored."""
+        return self.A.run_control(take, self.target_fn(take, T_air, x), r0=math.radians(x[0]), p0=math.radians(x[1]),
+                                  dt=1.0 / 1200, rec_dt=1.0 / FPS_SIM, t_max=T_air + 0.6, T_land=T_air,
+                                  gains={"w_track_fn": self.track_weight(T_air)})
+
     def landing(self, recA, con, ride_time=2.6):
         S = self.S
         mA, mB, M = S.mb, S.mr, S.M
@@ -337,11 +343,10 @@ class Pipeline:
         x_real = np.array(res2.x, float)
         print(f"[3] whip optimised in {el:.0f}s: "
               f"{json.dumps({k: (round(float(v), 3) if isinstance(v, (int, float, np.floating)) else v) for k, v in det.items()})}")
-        recA, con = self.A.run_control(take, self.target_fn(take, T_air, x_real), r0=math.radians(x_real[0]),
-                                       p0=math.radians(x_real[1]), dt=1.0 / 1200, rec_dt=1.0 / FPS_SIM,
-                                       t_max=T_air + 0.6, T_land=T_air)
+        recA, con = self.fly(take, x_real, T_air)
         res.x = x_real
         log["lip_pull_N"] = pull
+        log["T_air_target"] = T_air
         rec_g2 = self.landing(recA, con)
         log.update(dict(mass_total=self.S.M, mass_bike=self.S.mb, mass_rider=self.S.mr, t_off=t_off, take=take, whip_x=list(map(float, res.x)), detail=det, contact_wheel=con["wheel"],
                         t_air=con["t"], L0=list(map(float, self.A.L0))))
@@ -383,6 +388,18 @@ if __name__ == "__main__":
         with open(f"{out}/records.pkl", "rb") as f:
             log, g1, ra, con, g2, T_face = pickle.load(f)
         pl.S.T_face = T_face
+        if "--refly" in sys.argv:
+            pl.S.lip_pull = log.get("lip_pull_N", 0.0)
+            T_air = float(sys.argv[sys.argv.index("--refly") + 1]) if len(sys.argv) > sys.argv.index("--refly") + 1 \
+                and not sys.argv[sys.argv.index("--refly") + 1].startswith("-") else log.get("T_air_target", log["t_air"])
+            ra, con = pl.fly(log["take"], np.array(log["whip_x"]), T_air)
+            g2 = pl.landing(ra, con)
+            log["detail"] = pl.objective(np.array(log["whip_x"]), log["take"], T_air, dt=1.0 / 1200, detail=True)
+            log.update(T_air_target=T_air, t_air=con["t"], contact_wheel=con["wheel"], L0=list(map(float, pl.A.L0)))
+            print("[refly]", json.dumps(_jsonable({k: (round(float(v), 3) if isinstance(v, (int, float, np.floating)) else v)
+                                                   for k, v in log["detail"].items()})))
+            with open(f"{out}/records.pkl", "wb") as f:
+                pickle.dump((log, g1, ra, con, g2, T_face), f)
     else:
         ft = float(sys.argv[sys.argv.index("--face-throttle") + 1]) if "--face-throttle" in sys.argv else None
         log, g1, ra, con, g2 = pl.run_all(out, face_throttle=ft)

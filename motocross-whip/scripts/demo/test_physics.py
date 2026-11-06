@@ -164,3 +164,16 @@ def test_full_whip_peak_is_flown(pl):
     d = pl.objective(np.array([0.0, -80.0, 15.0, 45.0, 25.0, -30.0]), take, 2.23, detail=True)
     assert d["peak_track_rms_deg"] < 10.0
     assert d["worst_overreach_m"] < 0.15
+
+
+def test_recorded_flight_matches_scored_flight(pl):
+    """The flight that is rendered must be the one the optimiser scored (same controller settings)."""
+    pl.S.T_face = 1344.4
+    t, st, sp, rec = pl.to_takeoff(14.873)
+    take = pl.take_from(st, sp, rec)
+    x = np.array([12.5, -44.4, 0.0, 36.9, 14.4, 0.0])
+    det = pl.objective(x, take, 2.2317, dt=1.0 / 1200, detail=True)
+    recA, con = pl.fly(take, x, 2.2317)
+    ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
+    assert abs(con["t"] - det["t_air"]) < 1e-9
+    assert abs(ya - det["land_yaw"]) < 1e-6 and abs(ra - det["land_roll"]) < 1e-6

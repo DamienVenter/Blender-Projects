@@ -145,7 +145,7 @@ inputs = (f"Lip inputs chosen by the optimiser\n\n"
           f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
           f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"
           f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg\n"
-          f"whip tracking error {det.get('track_rms_deg', 0):.1f} deg RMS")
+          f"peak tracking error {det.get('peak_track_rms_deg', 0):.1f} deg RMS")
 ax.text(0.0, 1.0, inputs, va="top", fontsize=10, color=INK, family="Inter")
 fig.suptitle(f"Whip physics demo: 2026 CRF250R, {P.GAP:.0f} m KOTW steel ramp, rider 185 cm", x=0.06, ha="left",
              fontsize=15, color=INK, fontweight="bold")
