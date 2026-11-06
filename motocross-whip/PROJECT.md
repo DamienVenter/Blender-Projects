@@ -12,7 +12,7 @@ No sound for now. **Sound gets added at the end. Do not forget.**
 Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single-cylinder four-stroke.
 
 ## Phase order
-0. Setup and research (current)
+0. Setup and research (done), physics demo (current: `scripts/demo/`, see its README)
 1. Bike: 2026 CRF250R, dimensionally exact, recreating Damien's own bike from his photos
 2. Rider: Damien, 185 cm, built from his photos; rig
 3. Kit and bike graphics: Leatt gear only; custom sticker kit from Damien's references; fabrics, materials, shading
@@ -39,6 +39,10 @@ Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single
 | 13 | 2026-11-06 | Look: photoreal with a cinematic colour grade | Damien |
 | 14 | 2026-11-06 | No skull, demon or occult imagery in any graphics | Claude, accepted |
 | 15 | 2026-11-06 | Approval cadence: decided case by case. No deadline | Damien |
+| 16 | 2026-11-06 | KOTW 2025 = Volkswagen Amarok King of the Whip, Montecasino, Fourways, Johannesburg, 29 Nov 2025: one steel ramp to a sculpted sand landing, 23 m gap (**awaiting Damien's confirmation**) | research/kotw-2025.md |
+| 17 | 2026-11-06 | Bike spec: South African (ED-type) 2026 CRF250R: rake 28.4 deg, trail 117 mm, wheelbase 1483 mm, 107 kg wet, Pirelli MX32 tyres. Identical to 2025 | research/crf250r-2026.md |
+| 18 | 2026-11-06 | Jump geometry: ramp 2.51 m lip, 9.1 m constant radius (43.6 deg), deck about 1.5 m wide; landing knuckle 4.0 m high at 22.86 m, 1.5 m table, 42 deg downslope into a 10.36 m radius. Touchdown at about lip height (**awaiting Damien's confirmation of decision 9**) | research/fmx-ramp-physics-whip.md, KOTW photo 07 |
+| 19 | 2026-11-06 | Physics demo built (scripts/demo): simulated, not hand-animated. Site gravity 9.786 m/s2 and air density 1.00 kg/m3 (Johannesburg) | skills/moto-jump-physics |
 
 ## Research
 - `research/whip-analysis-user-clips.md`: Damien's whip, phase by phase timing.
