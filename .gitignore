@@ -1,0 +1,24 @@
+# Blender autosave and backup files
+*.blend1
+*.blend2
+*.blend@
+*.blend.tmp
+quit.blend
+
+# Render output: only curated checkpoint renders are committed, into
+# <project>/renders/checkpoints/. Everything else stays local.
+**/renders/*
+!**/renders/.gitkeep
+!**/renders/checkpoints/
+!**/renders/checkpoints/**
+
+# Caches (simulation, bake, Python)
+**/cache/
+**/blendcache_*/
+__pycache__/
+*.pyc
+
+# Scratch
+**/tmp/
+.DS_Store
+Thumbs.db
