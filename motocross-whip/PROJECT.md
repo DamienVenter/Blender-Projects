@@ -45,6 +45,7 @@ Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single
 | 19 | 2026-11-06 | Physics demo built (scripts/demo): simulated, not hand-animated. Site gravity 9.786 m/s2 and air density 1.00 kg/m3 (Johannesburg) | skills/moto-jump-physics |
 | 20 | 2026-11-06 | Follow KOTW measurements: gap 23.0 m lip to knuckle (KOTW "twenty-three-metre competition ramp"); landing crest above the lip as at KOTW. Unpublished KOTW dimensions (lip height, landing shape) to be measured from event photos in the environment phase | Damien |
 | 21 | 2026-11-06 | Rider mass: 80 kg body plus about 8.5 kg of gear | Damien |
+| 22 | 2026-11-06 | The whip target is Damien's MEASURED whip (camera-matched, clip 1 shot A), not an estimate: 90 deg sideways and flat by 0.33 s, gyro nose-drop to hanging by 1.0 s, held crossed up to about 2.0 s, straightened in the last 0.2 s. The simulation matches what his camera saw and leaves unseen angles to physics | Damien ("nowhere near as big as my whip"), research/whip-attitude-measured.md |
 
 ## Research
 - `research/whip-analysis-user-clips.md`: Damien's whip, phase by phase timing.

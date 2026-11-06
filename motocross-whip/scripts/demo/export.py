@@ -185,10 +185,12 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     cams.append({"name": "CAM_DAMIEN", "lens": 35.0, "path": path_of(lambda i: dam_pos, rc_s)})
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
-    # matched to Damien's clip 1 shot A (research/whip-attitude-measured.md): about 25 m behind the lip, 1.5 m up,
-    # zoomed phone camera (1600 px focal on a 478 x 850 frame = 30 deg vertical field), panning with the rider
-    far_pos = np.array([-25.0, 1.0, 1.5])
-    cams.append({"name": "CAM_BEHIND_FAR", "lens": 18.0 / math.tan(math.atan(425.0 / 1600.0)), "path": path_of(lambda i: far_pos, rc_s)})
+    # matched to Damien's clip 1 shot A (research/whip-attitude-measured.md): zoomed phone camera (1600 px focal on a
+    # 478 x 850 frame = 30 deg vertical field) 1.5 m up behind the ramp; 22 m behind the lip so the side-on bike at
+    # 1.1 s has his clip's size; panning with the rider and holding him in the upper third like the operator did
+    far_pos = np.array([-22.0, 1.0, 1.5])
+    far_aim = [p - np.array([0.0, 0.0, 2.2]) for p in rc_s]
+    cams.append({"name": "CAM_BEHIND_FAR", "lens": 18.0 / math.tan(math.atan(425.0 / 1600.0)), "path": path_of(lambda i: far_pos, far_aim)})
     land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])
     cams.append({"name": "CAM_LAND", "lens": 28.0, "path": path_of(lambda i: land_pos, rc_s)})
 

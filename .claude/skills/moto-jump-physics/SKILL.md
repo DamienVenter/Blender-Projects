@@ -89,8 +89,17 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
   with the exact angular momentum of two bodies rotating differently.
 - Relative bike-to-rider rotation needed: about 55 to 85 deg (REL_MAX raised from 75 to 95 deg; the limb-by-limb
   reach check is the real limit). A torso held upright cannot reach the bars when the bike is flat and sideways.
+- Holding the cross-up: the jump's nose-down spin must live somewhere once the wheel axis has left the pitch
+  axis. If nothing holds the torso pitch, the light rider absorbs it and goes over the bars (head below the bike
+  by 1.5 s). Hold the torso pitch firmly (`lg_w_torso_pitch`); then the bike carries it, crossed up a bit less
+  than 90 deg (60 deg still looks side-on from behind: wheel roundness 0.87) with the throttle open, so the wheels
+  hold part of it.
+- An exact inverse (prescribe every visible angle, solve the hidden ones from L = const) blows up: noise in the
+  measured angles becomes impossible spin rates when differentiated. Fit within the measurement error instead.
+- Judge flights by drawing them over the real frames (`attitude_overlay.py --sim flight.npz`), not by numbers.
 - Search: CMA-ES (`pip install cma`) in coordinates normalised to each input's range; Nelder-Mead stalls on this
-  many-input, many-valley problem.
+  many-input, many-valley problem. The landscape is chaotic (tiny input changes flip clean and tumbling), so use
+  a population, several hundred evaluations, and restart from the best with a smaller step.
 
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |

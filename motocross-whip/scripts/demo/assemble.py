@@ -151,7 +151,7 @@ def main():
          f"[1:v]scale=-2:1080,setsar=1[b];[a][b]hstack=inputs=2:shortest=1,pad=1920:1080:(ow-iw)/2:0:color=0x101418,"
          f"drawtext=fontfile={FONT}:text='YOUR REAL WHIP':x=(w/2-tw)/2-150:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=10,"
          f"drawtext=fontfile={FONT}:text='SIMULATION':x=w/2+(w/2-tw)/2+150:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=10",
-         "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", f"{out}/whip_vs_damien.mp4"])
+         "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", f"{out}/whip_vs_damien.mp4"])
     print("ASSEMBLE OK")
 
 

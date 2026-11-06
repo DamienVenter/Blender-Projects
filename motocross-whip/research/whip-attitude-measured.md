@@ -73,3 +73,31 @@ Source of truth for the numbers: `scripts/demo/whip_measured.py` (with the frame
   physics (see `scripts/demo/sim.py`, `unseen_axis`).
 - Shot B (front) may be a different attempt; its straighten timing (0.2 s before touchdown) is used for the
   duration only.
+
+## Simulation against the measurement (2026-11-06)
+The simulated flight (`scripts/demo/sim.py`, best of a CMA-ES search, then refined in the pipeline) drawn over
+the same frames: `renders/checkpoints/2026-11-06_measured-whip/overlay_vs_clip_*.jpg`.
+
+| | simulation | Damien |
+|---|---|---|
+| Flat and fully sideways | about 0.5 s | 0.33 s |
+| Nose dropped to hanging | about 1.0 s, about 62 deg in the picture | 1.0 s, 78 deg |
+| Crossed up side-on until | about 1.9 s (crossed about 55 deg: wheel roundness 0.8) | about 2.0 s (roundness about 1) |
+| Nose angle while crossed up, 1.5 to 1.9 s | 45 to 50 deg | 58 to 30 deg |
+| Torso lean | left about 30 deg at the peak; right up to about 50 deg just before the straighten | left about 70 deg at the peak, upright from 1.1 s |
+| Head | above the hips the whole flight | same |
+| Touchdown | yaw -0.5, lean -1.1, pitch -48 on the 42 deg slope (front first) | nearly straight, front marginally first |
+
+Overall match from his camera: 30 deg RMS (features scaled by measurement precision), torso lean 16 deg RMS.
+
+Rider controls the search chose: rear wheel braked to a stop just after the lip, then revved to the limiter while
+crossed up; bars up to 5 deg; 1000 N lift on the bars at the lip (the cap).
+
+What is still different and why (open questions for Damien):
+- The lay-down is about 0.1 to 0.15 s late. Faster needs a bigger roll kick off the lip, which then over-rotates
+  the rider later in this model.
+- His nose comes back up to 30 deg while still fully crossed up; the simulation holds about 50 deg. The physical
+  levers are the throttle (revving the rear wheel while crossed up lifts the nose), the bars, and body motion
+  this rider model does not have (a leg off the peg, hips off the seat beyond 0.45 m).
+- His torso goes much further over with the bike (70 deg) than the simulation's (30 deg), and he is upright again
+  by 1.1 s. Leaning that far needs more roll from the lip than this model can then stop.
