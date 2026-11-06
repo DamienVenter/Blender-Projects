@@ -62,6 +62,13 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
      Real riders let the gyroscope bring the bike back instead of fighting it.
   3. **Define the peak in world angles** (how footage shows it). Composing the whip on top of the jump's
      own rotation over-flattens the apparent lean past -100 deg.
+  4. **Pitch at the peak is part of the look.** A flat whip seen from behind is flat AND level: the nose
+     drops fast during the lay-down (the gyro pushes it) to about level at the peak, then slowly to the
+     landing angle. A steady nose-down pitch target leaves the bike laid over but nose-up 35 deg: it reads
+     as a diagonal, not a whip. The extra nose-down from the flat phase must be paid for with a gentler
+     takeoff rotation (lip pull).
+  5. **Render exactly what was scored.** One code path (`Pipeline.fly`) for the optimiser and the recorded
+     flight; a regression test checks they match.
 - Momentum budget: any roll or yaw momentum given at the lip is still there at touchdown (wheels hold it
   only while the bike is crossed up or laid over). Lip kicks must be small or cancelled by body motion.
 

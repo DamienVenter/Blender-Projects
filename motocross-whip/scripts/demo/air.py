@@ -509,6 +509,11 @@ class AirSim:
         h00, h10, h01, h11 = 2 * s**3 - 3 * s**2 + 1, s**3 - 2 * s**2 + s, -2 * s**3 + 3 * s**2, s**3 - s**2
         pitch = h00 * prof["beta0"] + h10 * T * prof["beta_dot0"] + h01 * bL + h11 * T * bd1
         pitch = np.where(t > T, bL + bd1 * (t - T), pitch)
+        if "pitch_t" in prof:
+            # explicit pitch keyframes (deg), starting with the takeoff rate and ending on the landing slope
+            pitch = np.radians(pchip(prof["pitch_t"], prof["pitch"], np.minimum(t, prof["pitch_t"][-1]),
+                                     m0=math.degrees(prof["beta_dot0"]), m1=math.degrees(bd1)))
+            pitch = np.where(t > prof["pitch_t"][-1], bL + bd1 * (t - prof["pitch_t"][-1]), pitch)
         yaw = np.radians(pchip(prof["yaw_t"], prof["yaw"], np.minimum(t, prof["yaw_t"][-1]), m0=prof["r0"]))
         roll = np.radians(pchip(prof["roll_t"], prof["roll"], np.minimum(t, prof["roll_t"][-1]), m0=prof["p0"]))
         return yaw, pitch, roll

@@ -118,6 +118,10 @@ class Pipeline:
     PEAK_YAW = [0.0, 10.0, 40.0, 55.0, 58.0]
     PEAK_ROLL = [0.0, -25.0, -75.0, -85.0, -70.0]
     RETURN_T = [0.90, 1.50, 1.90, 2.05]
+    # bike pitch (nose up +, deg) through the lay-down: Damien's bike is about level at the peak (clips 2 and 3,
+    # seen from behind: flat and level, rear slightly high). The gyro drives this fast early nose drop.
+    PEAK_PITCH_T = [0.20, 0.45, 0.62]
+    PEAK_PITCH = [28.0, 8.0, 2.0]
 
     def whip_keys(self, x):
         """Keyframes (Damien's 2.05 s timeline). x[3] yaw held at 0.9 s, x[4] yaw at 1.5 s, x[5] lean at 0.9 s."""
@@ -131,8 +135,11 @@ class Pipeline:
         sc = T_air / self.RETURN_T[-1]
         t, yaw, roll = self.whip_keys(x)
         tk = [v * sc for v in t]
+        pitch_t = [0.0] + [v * sc for v in self.PEAK_PITCH_T] + [T_air]
+        pitch = [math.degrees(take["beta"])] + self.PEAK_PITCH + [self.landing_pitch]
         return dict(T=T_air, beta0=take["beta"], beta_dot0=take["W"], beta_land=math.radians(self.landing_pitch),
-                    yaw_t=tk, yaw=yaw, r0=x[0] / sc, roll_t=tk, roll=roll, p0=x[1] / sc)
+                    yaw_t=tk, yaw=yaw, r0=x[0] / sc, roll_t=tk, roll=roll, p0=x[1] / sc,
+                    pitch_t=pitch_t, pitch=pitch)
 
     RIDER_LEAN_SHARE = 0.35          # rider's torso leans with the bike by this share of the bike's lay-down
 
@@ -219,8 +226,8 @@ class Pipeline:
     #      lean at 0.9 s (deg)]; peak of the whip is fixed at Damien's full size
     LO = np.array([-100.0, -250.0, -10.0, 20.0, 0.0, -50.0])
     HI = np.array([150.0, 50.0, 19.0, 65.0, 55.0, 0.0])
-    STARTS = ([38.6, -67.4, 19.0, 62.9, 14.2, -0.8], [0.0, -44.8, 19.0, 45.0, 18.7, -17.0],
-              [20.0, -55.0, 19.0, 55.0, 16.0, -8.0], [0.0, -60.0, 17.0, 50.0, 20.0, -12.0])
+    STARTS = ([12.5, -44.4, 10.0, 37.0, 14.0, 0.0], [0.0, -50.0, 15.0, 40.0, 20.0, -10.0],
+              [10.0, -70.0, 19.0, 45.0, 20.0, -15.0], [0.0, -40.0, 19.0, 35.0, 15.0, 0.0])
 
     def optimise(self, take, T_air, maxiter=250, starts=None, fix_dW=None):
         """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline).
