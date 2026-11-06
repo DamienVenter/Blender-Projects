@@ -15,6 +15,7 @@ import numpy as np
 import params as P
 import bike as B
 import rider as RD
+import air
 from air import Ry
 
 LIMBS = {
@@ -65,21 +66,30 @@ class Poser:
         self.reach_violations = 0
         self.max_overreach = 0.0
 
-    def bike_parts(self, RA, pb, sf, sr, spin_f, spin_r):
-        """pb = bike CoM (world). Returns {name: (loc, R)} and bike-frame point mapper."""
+    def bike_parts(self, RA, pb, sf, sr, spin_f, spin_r, steer=0.0):
+        """pb = bike CoM (world). Returns {name: (loc, R)}, the frame point mapper and the steered
+        front-end point mapper (bars, grips). The steering axis is taken as the fork axis line through
+        the front axle at full extension (the 22 mm triple-clamp offset is ignored)."""
         cb = self.S.cb
+        Q = v3(P.FRONT_AXLE)
+        s_ax = v3(B.fork_axis())
+        Rs = air.expm_so3(s_ax * steer)
 
         def W(q):
             return pb + RA @ (np.asarray(q, float) - cb)
 
+        def Wf(q):                                     # point on the steered front end
+            return pb + RA @ (Q + Rs @ (np.asarray(q, float) - Q) - cb)
+
         out = {"frame": (W([0, 0, 0]), RA)}
-        out["fork_lower"] = (W(v3(B.fork_axis() * sf)), RA)
-        out["front_wheel"] = (W(v3(B.front_axle_at(sf))), RA @ Ry(spin_f))
+        out["front_end"] = (Wf([0, 0, 0]), RA @ Rs)
+        out["fork_lower"] = (Wf(v3(B.fork_axis() * sf)), RA @ Rs)
+        out["front_wheel"] = (Wf(v3(B.front_axle_at(sf))), RA @ Rs @ Ry(spin_f))
         out["swingarm"] = (W(v3(P.SWINGARM_PIVOT)), RA @ Ry(sr / B.SWINGARM_LEN))
         out["rear_wheel"] = (W(v3(B.rear_axle_at(sr))), RA @ Ry(spin_r))
-        return out, W
+        return out, W, Wf, RA @ Rs
 
-    def rider_parts(self, RA, RB, W, origin, look_at, crouch=0.0):
+    def rider_parts(self, RA, RB, W, origin, look_at, crouch=0.0, Wf=None, R_front=None):
         """origin: world position of the rider-frame origin (peg midpoint in the neutral pose).
         crouch: extra trunk lean (rad) applied about the pelvis."""
         lm = self.lm
@@ -99,7 +109,7 @@ class Poser:
             J[f"shoulder_{s}"] = U(lm[f"shoulder_{s}"])
             J[f"ball_{s}"] = W(self.S.peg + lm[f"ball_{s}"])
             J[f"ankle_target_{s}"] = W(self.S.peg + lm[f"ankle_{s}"])
-            J[f"grip_{s}"] = W(self.S.peg + lm[f"grip_{s}"])
+            J[f"grip_{s}"] = (Wf or W)(self.S.peg + lm[f"grip_{s}"])
         head_c = U(lm["head"])
         # head: look at the target, limited to 75 degrees from the trunk's forward axis
         fwd_trunk = RB @ lean @ np.array([1.0, 0.0, 0.0])
@@ -134,5 +144,5 @@ class Poser:
             out[f"foot_{s}"] = (ankle, frame_from_z(J[f"ball_{s}"] - ankle, RA @ np.array([0, 0, 1.0])))
             out[f"upper_arm_{s}"] = (J[f"shoulder_{s}"], frame_from_z(elbow - J[f"shoulder_{s}"], side))
             out[f"forearm_{s}"] = (elbow, frame_from_z(grip - elbow, side))
-            out[f"hand_{s}"] = (grip, RA)
+            out[f"hand_{s}"] = (grip, RA if R_front is None else R_front)
         return out

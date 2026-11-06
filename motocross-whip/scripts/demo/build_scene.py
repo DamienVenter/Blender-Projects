@@ -224,9 +224,21 @@ child("bike_tank_shrouds", merge(box((0.86, 0, 0.93), (0.42, 0.40, 0.18), Matrix
 child("bike_seat", box((0.42, 0, 0.96), (0.80, 0.24, 0.07), Matrix.Rotation(math.radians(3), 3, "Y")), RED)
 child("bike_sidepanels_fender", merge(box((0.18, 0, 0.86), (0.56, 0.30, 0.14), Matrix.Rotation(math.radians(-6), 3, "Y")),
                                       box((-0.18, 0, 0.98), (0.45, 0.22, 0.03), Matrix.Rotation(math.radians(-10), 3, "Y"))), RED)
-child("bike_front_fender", box((1.50, 0, 0.93), (0.48, 0.17, 0.03), Matrix.Rotation(math.radians(14), 3, "Y")), RED)
+# steered front end: the triple clamps are the animated root; bars, grips, fork uppers, number plate and
+# front fender ride on it (mesh coordinates stay in the bike frame)
+clamps = merge(box((F(0.82)[0], 0, F(0.82)[1]), (0.07, 0.26, 0.035), Matrix.Rotation(math.radians(G["rake_deg"]), 3, "Y")),
+               box((F(0.96)[0], 0, F(0.96)[1]), (0.07, 0.26, 0.035), Matrix.Rotation(math.radians(G["rake_deg"]), 3, "Y")))
+front_end = new_obj("bike_front_end", clamps, ALU)
+bike["front_end"] = front_end
+
+
+def front_child(name, bm, material):
+    return new_obj(name, bm, material, front_end)
+
+
+front_child("bike_front_fender", box((1.50, 0, 0.93), (0.48, 0.17, 0.03), Matrix.Rotation(math.radians(14), 3, "Y")), RED)
 plate_c = F(0.95)
-child("bike_number_plate", box((plate_c[0] + 0.07, 0, plate_c[1] - 0.06), (0.02, 0.26, 0.26),
+front_child("bike_number_plate", box((plate_c[0] + 0.07, 0, plate_c[1] - 0.06), (0.02, 0.26, 0.26),
                                Matrix.Rotation(math.radians(G["rake_deg"]), 3, "Y")), WHITE_PL)
 child("bike_muffler", tube((0.29, -0.15, 0.72), (-0.08, -0.15, 0.89), 0.058, x_hint=(0, 1, 0)), STEEL)
 child("bike_header", merge(tube((0.96, -0.02, 0.66), (0.98, -0.08, 0.45), 0.022),
@@ -236,18 +248,15 @@ uppers = []
 for s in (1, -1):
     a, b = F(0.45), F(0.97)
     uppers.append(tube((a[0], 0.095 * s, a[1]), (b[0], 0.095 * s, b[1]), 0.0245))
-child("bike_fork_uppers", merge(*uppers), GOLD)
-clamps = merge(box((F(0.82)[0], 0, F(0.82)[1]), (0.07, 0.26, 0.035), Matrix.Rotation(math.radians(G["rake_deg"]), 3, "Y")),
-               box((F(0.96)[0], 0, F(0.96)[1]), (0.07, 0.26, 0.035), Matrix.Rotation(math.radians(G["rake_deg"]), 3, "Y")))
-child("bike_clamps", clamps, ALU)
+front_child("bike_fork_uppers", merge(*uppers), GOLD)
 grip = G["grip"]
 gh = G["grip_half"]
 bar = merge(tube((grip[0], gh + 0.06, grip[1]), (grip[0] + 0.03, 0.15, grip[1] - 0.01), 0.011),
             tube((grip[0] + 0.03, 0.15, grip[1] - 0.01), (grip[0] + 0.05, -0.15, grip[1] - 0.01), 0.011),
             tube((grip[0] + 0.05, -0.15, grip[1] - 0.01), (grip[0], -gh - 0.06, grip[1]), 0.011),
             tube((grip[0] + 0.05, 0.0, grip[1] - 0.02), (F(0.97)[0], 0.0, F(0.97)[1]), 0.015))
-child("bike_bars", bar, ALU)
-child("bike_grips", merge(tube((grip[0], gh - 0.065, grip[1]), (grip[0], gh + 0.065, grip[1]), 0.017),
+front_child("bike_bars", bar, ALU)
+front_child("bike_grips", merge(tube((grip[0], gh - 0.065, grip[1]), (grip[0], gh + 0.065, grip[1]), 0.017),
                           tube((grip[0], -gh - 0.065, grip[1]), (grip[0], -gh + 0.065, grip[1]), 0.017)), BLACK)
 
 # fork lowers + front wheel (animated)

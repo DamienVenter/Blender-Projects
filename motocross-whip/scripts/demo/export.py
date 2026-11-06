@@ -52,6 +52,7 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     seq = [s for s in seq if t_start - 1e-6 <= s[0] <= t_end]
 
     last_rider = g1[-1]["rider"] if g1 else (0.0, 0.0)
+    last_steer = 0.0
     spin_f = spin_r = 0.0
     w_f = w_r = None
     prev_t = None
@@ -71,6 +72,8 @@ def build(pl, log, g1, recA, con, g2, out_dir):
             w_f, w_r = r["wf"], r["wr"]
             Vsys = r["V"]
             Csys = r["C"]
+            steer = r.get("steer", 0.0)
+            last_steer = steer
             loads = (0.0, 0.0)
             look = sweet
             phase = "AIR"
@@ -100,6 +103,7 @@ def build(pl, log, g1, recA, con, g2, out_dir):
             if r["cr"] or w_r is None:
                 w_r = vb / P.R_REAR
             Vsys = np.array([(mA * st[3] + mB * st[8]) / M, 0.0, (mA * st[4] + mB * st[9]) / M])
+            steer = last_steer * res if kind == "g2" else 0.0
             Csys = np.array([(mA * st[0] + mB * st[6]) / M, 0.0, (mA * st[1] + mB * st[7]) / M])
             loads = (r["Nf"], r["Nr"])
             if kind == "g1":
@@ -108,8 +112,8 @@ def build(pl, log, g1, recA, con, g2, out_dir):
                 phase = "LANDING" if r["t"] < 0.6 else "RIDE AWAY"
         spin_f += w_f * dt
         spin_r += w_r * dt
-        parts, Wb2 = poser.bike_parts(RA, pb, sf, sr, spin_f, spin_r)
-        rp = poser.rider_parts(RA, RB, Wb2, origin, look, crouch)
+        parts, Wb2, Wf2, Rfront = poser.bike_parts(RA, pb, sf, sr, spin_f, spin_r, steer)
+        rp = poser.rider_parts(RA, RB, Wb2, origin, look, crouch, Wf=Wf2, R_front=Rfront)
         allp = {**{f"bike:{k}": v for k, v in parts.items()}, **{f"rider:{k}": v for k, v in rp.items()}}
         if names is None:
             names = sorted(allp)
@@ -124,7 +128,8 @@ def build(pl, log, g1, recA, con, g2, out_dir):
                     "x": float(pb[0]), "phase": phase, "bike_yaw": math.degrees(ya), "bike_roll": math.degrees(ra),
                     "bike_pitch": math.degrees(pa), "rider_yaw": math.degrees(yb), "rider_roll": math.degrees(rb),
                     "sf": float(sf), "sr": float(sr), "cx": float(Csys[0]), "cz": float(Csys[2]),
-                    "Nf": float(loads[0]), "Nr": float(loads[1]), "crouch": float(crouch)})
+                    "Nf": float(loads[0]), "Nr": float(loads[1]), "crouch": float(crouch),
+                    "steer": math.degrees(steer), "wr": float(w_r)})
 
     # ---- quaternion sign continuity and frame numbers
     for i in range(1, len(frames)):

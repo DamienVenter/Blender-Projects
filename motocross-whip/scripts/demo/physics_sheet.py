@@ -30,8 +30,8 @@ C_BIKE, C_RIDER, C_TARGET, C_FORK, C_SHOCK = "#c8102e", "#1f3b63", "#9aa3ad", "#
 plt.rcParams.update({"font.family": "Inter", "font.size": 10, "axes.edgecolor": MUTED, "axes.labelcolor": INK,
                      "xtick.color": MUTED, "ytick.color": MUTED, "axes.grid": True, "grid.color": GRID,
                      "axes.spines.top": False, "axes.spines.right": False})
-fig = plt.figure(figsize=(16, 10), dpi=150)
-gs = fig.add_gridspec(3, 3, height_ratios=[1.25, 1, 1], hspace=0.45, wspace=0.28)
+fig = plt.figure(figsize=(16, 13), dpi=150)
+gs = fig.add_gridspec(4, 3, height_ratios=[1.25, 1, 1, 1], hspace=0.5, wspace=0.28)
 
 # 1. trajectory to scale
 ax = fig.add_subplot(gs[0, :])
@@ -49,7 +49,7 @@ ax.annotate(f"apex {cz[ia]:.2f} m\n(t = {t[ia]:.2f} s)", (cx[ia], cz[ia]), (cx[i
             arrowprops=dict(arrowstyle="-", color=MUTED), color=INK)
 ax.annotate("", (k["knuckle"], k["lip_height"] - 1.6), (0, k["lip_height"] - 1.6),
             arrowprops=dict(arrowstyle="<->", color=MUTED))
-ax.text(k["knuckle"] / 2, k["lip_height"] - 1.45, "75 ft (22.86 m) lip to knuckle", ha="center", color=MUTED)
+ax.text(k["knuckle"] / 2, k["lip_height"] - 1.45, f"{P.GAP:.2f} m ({P.GAP / 0.3048:.1f} ft) lip to knuckle, KOTW", ha="center", color=MUTED)
 ax.set_aspect("equal")
 ax.set_xlim(k["ramp_bottom"] - 3, k["landing_bottom"] + 3)
 ax.set_ylim(0, max(cz) + 1.5)
@@ -112,7 +112,36 @@ ax.axvspan(0, t_air, color="#f2f4f7", zorder=0)
 ax.set_title("Ground load on the tyres (g)", loc="left", color=INK, fontsize=11)
 ax.set_xlabel("time after lip (s)")
 ax.set_ylabel("g")
-fig.suptitle("Whip physics demo: 2026 CRF250R, 75 ft steel FMX ramp, rider 185 cm", x=0.06, ha="left",
+# 4. rider controls in the air and the chosen lip inputs
+ax = fig.add_subplot(gs[3, 0:2])
+ax.plot(t, [h.get("steer", 0.0) for h in hud], color=C_BIKE, lw=1.8, label="bars angle (deg, left +)")
+ax.set_ylabel("bars (deg)")
+ax.axvspan(0, t_air, color="#f2f4f7", zorder=0)
+ax2 = ax.twinx()
+ax2.plot(t, [h.get("wr", 0.0) * 60 / (2 * np.pi) for h in hud], color=C_SHOCK, lw=1.6, label="rear wheel (rpm)")
+ax2.set_ylabel("rear wheel (rpm)")
+ax2.spines["right"].set_visible(True)
+ax2.grid(False)
+ax.set_title("Rider's controls: bars and throttle / rear brake (wheel speed)", loc="left", color=INK, fontsize=11)
+ax.set_xlabel("time after lip (s)")
+h1, l1 = ax.get_legend_handles_labels()
+h2, l2 = ax2.get_legend_handles_labels()
+ax.legend(h1 + h2, l1 + l2, frameon=False, fontsize=8.5, loc="upper right")
+ax = fig.add_subplot(gs[3, 2])
+ax.axis("off")
+det = summ.get("detail", {})
+inputs = (f"Lip inputs chosen by the optimiser\n\n"
+          f"yaw kick  {x[0]:+.0f} deg/s\n"
+          f"roll kick  {x[1]:+.0f} deg/s (lean left -)\n"
+          f"lift on the bars at the lip  {summ.get('lip_pull_N', 0):.0f} N\n"
+          f"whip size vs your clip:  lean {x[3]*100:.0f} %,  swing {x[4]*100:.0f} %\n\n"
+          f"Touchdown\n"
+          f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
+          f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"
+          f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg\n"
+          f"whip tracking error {det.get('track_rms_deg', 0):.1f} deg RMS")
+ax.text(0.0, 1.0, inputs, va="top", fontsize=10, color=INK, family="Inter")
+fig.suptitle(f"Whip physics demo: 2026 CRF250R, {P.GAP:.0f} m KOTW steel ramp, rider 185 cm", x=0.06, ha="left",
              fontsize=15, color=INK, fontweight="bold")
 fig.savefig(out, bbox_inches="tight", facecolor="white")
 print("SHEET OK", out)

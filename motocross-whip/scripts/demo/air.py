@@ -273,6 +273,8 @@ class AirSim:
     REL_RATE_MAX = 6.0              # rad/s, fastest the rider can twist the bike under him
     WR_MAX_RATIO = 1.8              # rear wheel over-rev in the air vs takeoff (rev limiter, gearing; EST)
     WR_UP, WR_DOWN = 300.0, 400.0   # rad/s^2, throttle spin-up and rear-brake spin-down (EST)
+    STEER_MAX = math.radians(35)    # steering lock (EST, CRF250R about 35 to 40 deg)
+    STEER_RATE = 8.0                # rad/s, fast bar input (EST)
 
     def run_control(self, take, target_fn, r0=0.0, p0=0.0, dt=1.0 / 1200.0, t_max=3.5, rec_dt=1.0 / 120.0,
                     record=True, T_land=2.3, gains=None):
@@ -282,7 +284,7 @@ class AirSim:
         by weighted least squares on: steer the bike to target_fn(t); keep his torso facing forward and
         upright; stay inside reach; return to the neutral pose before touchdown. Angular momentum is
         conserved exactly (wheels' gyro included); the body rotation follows from it."""
-        g = dict(kp=9.0, w_track=1.0, w_rider=0.15, w_rate=0.02, w_wheel=2e-4, w_lim=4.0, w_land=3.0)
+        g = dict(kp=9.0, w_track=1.0, w_rider=0.15, w_rate=0.02, w_wheel=2e-4, w_steer=0.02, w_lim=4.0, w_land=3.0)
         g.update(gains or {})
         S = self.S
         If, Ir = P.WHEEL_SPIN_INERTIA_FRONT, P.WHEEL_SPIN_INERTIA_REAR
@@ -290,6 +292,8 @@ class AirSim:
         RB = RA.copy()
         wr = take["wr"]
         wr_max = take["wr"] * self.WR_MAX_RATIO
+        delta = 0.0                                       # steering angle (rad), + turns the front wheel left
+        s_ax = np.array([-math.sin(math.radians(P.RAKE_DEG)), 0.0, math.cos(math.radians(P.RAKE_DEG))])
         w0 = np.array([0.0, -take["W"], 0.0]) + r0 * EZ + p0 * (RA @ EX)
         D0 = RA @ self.p_rel + RB @ self.cB
         IAw0, IBw0 = RA @ self.IA @ RA.T, RB @ self.IB @ RB.T
@@ -298,20 +302,25 @@ class AirSim:
         self.L0 = L0
         shift = np.zeros(3)
 
-        def model(RA, RB, shift, shift_dot, wr):
+        def front_axis(delta):
+            return expm_so3(s_ax * delta) @ EY            # front wheel spin axis in the bike frame
+
+        def model(RA, RB, shift, shift_dot, wr, delta):
             IAw, IBw = RA @ self.IA @ RA.T, RB @ self.IB @ RB.T
             u = RA @ (self.p_rel + shift)
             D = u + RB @ self.cB
             Mt = IAw + IBw + self.mu * (np.dot(D, D) * np.eye(3) - np.outer(D, D))
             Mi = np.linalg.inv(Mt)
             a = RA @ EY
-            c = L0 - self.mu * cross(D, RA @ shift_dot) - (If * take["wf"] + Ir * wr) * a
+            af = RA @ front_axis(delta)
+            c = L0 - self.mu * cross(D, RA @ shift_dot) - If * take["wf"] * af - Ir * wr * a
             K = IAw + self.mu * (np.dot(D, u) * np.eye(3) - np.outer(u, D))
-            # omega_B = wB0 - MK w - h dwr ; omega_A = omega_B + w
-            return Mi @ c, Mi @ K, Mi @ (Ir * a), D
+            hs = Mi @ (If * take["wf"] * (RA @ cross(s_ax, front_axis(delta))))
+            # omega_B = wB0 - MK w - h dwr - hs ddelta ; omega_A = omega_B + w
+            return Mi @ c, Mi @ K, Mi @ (Ir * a), hs, D
 
-        def choose(RA, RB, shift, shift_dot, wr, t, dt_ctrl):
-            wB0, MK, h, D = model(RA, RB, shift, shift_dot, wr)
+        def choose(RA, RB, shift, shift_dot, wr, delta, t, dt_ctrl):
+            wB0, MK, h, hs, D = model(RA, RB, shift, shift_dot, wr, delta)
             RT, wT = target_fn(t)
             e = logm_so3(RT @ RA.T)
             wA_des = wT + g["kp"] * e
@@ -322,9 +331,9 @@ class AirSim:
             rel = logm_so3(RA @ RB.T)
             ang = np.linalg.norm(rel)
             rows, rhs = [], []
-            # unknowns x = [w (3), dwr (1)]
-            GA = np.hstack([np.eye(3) - MK, -h[:, None]])
-            GB = np.hstack([-MK, -h[:, None]])
+            # unknowns x = [w (3), dwr (1), ddelta (1)]
+            GA = np.hstack([np.eye(3) - MK, -h[:, None], -hs[:, None]])
+            GB = np.hstack([-MK, -h[:, None], -hs[:, None]])
             land = smoothstep((t - (T_land - 0.45)) / 0.3)
             wt = math.sqrt(g["w_track"])
             rows.append(wt * GA); rhs.append(wt * (wA_des - wB0))
@@ -332,18 +341,22 @@ class AirSim:
             rows.append(wrd * GB); rhs.append(wrd * (wB_des - wB0))
             # neutral pose before touchdown: relative rotation decays to zero
             wl = math.sqrt(g["w_land"] * land)
-            rows.append(wl * np.hstack([np.eye(3), np.zeros((3, 1))])); rhs.append(wl * (-4.0 * rel))
+            rows.append(wl * np.hstack([np.eye(3), np.zeros((3, 2))])); rhs.append(wl * (-4.0 * rel))
+            rows.append(np.array([[0, 0, 0, 0, wl]])); rhs.append(np.array([wl * (-4.0 * delta * dt_ctrl)]))
             # reach limit: oppose further twisting beyond 60 % of the limit
             if ang > 0.6 * self.REL_MAX:
                 f = math.sqrt(g["w_lim"]) * min((ang - 0.6 * self.REL_MAX) / (0.4 * self.REL_MAX), 1.5)
                 ax = rel / ang
-                rows.append(f * np.hstack([ax, [0.0]])[None, :]); rhs.append(np.array([-3.0 * (ang - 0.6 * self.REL_MAX)]) * f)
-            rows.append(math.sqrt(g["w_rate"]) * np.hstack([np.eye(3), np.zeros((3, 1))])); rhs.append(np.zeros(3))
-            rows.append(np.array([[0, 0, 0, math.sqrt(g["w_wheel"])]])); rhs.append(np.zeros(1))
+                rows.append(f * np.hstack([ax, [0.0, 0.0]])[None, :]); rhs.append(np.array([-3.0 * (ang - 0.6 * self.REL_MAX)]) * f)
+            rows.append(math.sqrt(g["w_rate"]) * np.hstack([np.eye(3), np.zeros((3, 2))])); rhs.append(np.zeros(3))
+            rows.append(np.array([[0, 0, 0, math.sqrt(g["w_wheel"]), 0]])); rhs.append(np.zeros(1))
+            # steering preference: cost on the bar rate (rad/s) plus a gentle pull back to straight (0.5 /s)
+            ws = math.sqrt(g["w_steer"])
+            rows.append(np.array([[0, 0, 0, 0, ws / dt_ctrl]])); rhs.append(np.array([-ws * 0.5 * delta]))
             A = np.vstack(rows)
             y = np.concatenate(rhs)
             x = np.linalg.lstsq(A, y, rcond=None)[0]
-            w, dwr = x[:3], x[3]
+            w, dwr, dd = x[:3], x[3], x[4]
             sp = np.linalg.norm(w)
             if sp > self.REL_RATE_MAX:
                 w *= self.REL_RATE_MAX / sp
@@ -351,8 +364,10 @@ class AirSim:
                 w -= np.dot(w, rel / ang) * (rel / ang)
             dwr = float(np.clip(dwr, -self.WR_DOWN * dt_ctrl, self.WR_UP * dt_ctrl))
             dwr = float(np.clip(wr + dwr, 0.0, wr_max) - wr)
-            wB = wB0 - MK @ w - h * dwr
-            return w, dwr, wB, wB + w, D, e
+            dd = float(np.clip(dd, -self.STEER_RATE * dt_ctrl, self.STEER_RATE * dt_ctrl))
+            dd = float(np.clip(delta + dd, -self.STEER_MAX, self.STEER_MAX) - delta)
+            wB = wB0 - MK @ w - h * dwr - hs * dd
+            return w, dwr, dd, wB, wB + w, D, e
 
         def acc(v):
             sp = math.sqrt(v[0] ** 2 + v[2] ** 2)
@@ -376,8 +391,9 @@ class AirSim:
             sp = np.linalg.norm(shift_dot)
             if sp > self.SHIFT_VMAX:
                 shift_dot *= self.SHIFT_VMAX / sp
-            w, dwr, wB, wA, D, e = choose(RA, RB, shift, shift_dot, wr, t, dt)
+            w, dwr, dd, wB, wA, D, e = choose(RA, RB, shift, shift_dot, wr, delta, t, dt)
             wr = wr + dwr
+            delta = delta + dd
             bike_c = C - (self.mB / self.M) * D
             hit = None
             if t > 0.3:
@@ -392,15 +408,16 @@ class AirSim:
                 rec.append({"t": t, "C": C.copy(), "V": V.copy(), "RA": RA.copy(), "RB": RB.copy(), "D": D.copy(),
                             "wB": wB.copy(), "wA": wA.copy(), "sf": sf, "sr": sr, "wf": take["wf"], "wr": wr,
                             "shift": shift.copy(), "reach_err": self.reach_errors(RrelT, shift),
-                            "track_err": float(np.linalg.norm(e)), "w_rel": w.copy()})
+                            "track_err": float(np.linalg.norm(e)), "w_rel": w.copy(), "steer": delta})
                 next_rec += rec_dt
             if hit:
                 contact = {"t": t, "wheel": hit, "C": C.copy(), "V": V.copy(), "RA": RA.copy(), "RB": RB.copy(),
-                           "D": D.copy(), "sf": sf, "sr": sr, "wr": wr, "wf": take["wf"], "shift": shift.copy()}
+                           "D": D.copy(), "sf": sf, "sr": sr, "wr": wr, "wf": take["wf"], "shift": shift.copy(),
+                           "steer": delta}
                 break
             # midpoint step: same rider action over the step, re-solve the conservation law at the midpoint
             RAh, RBh = expm_so3(wA * dt / 2) @ RA, expm_so3(wB * dt / 2) @ RB
-            wB0h, MKh, hh, _ = model(RAh, RBh, shift + shift_dot * dt / 2, shift_dot, wr)
+            wB0h, MKh, hh, _, _ = model(RAh, RBh, shift + shift_dot * dt / 2, shift_dot, wr, delta)
             wBh = wB0h - MKh @ w
             RA, RB = expm_so3((wBh + w) * dt) @ RA, expm_so3(wBh * dt) @ RB
             shift = shift + shift_dot * dt

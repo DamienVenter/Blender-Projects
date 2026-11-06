@@ -75,6 +75,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         txt = (f"{tl}\\N{h['kmh']:.1f} km/h\\Nrear tyre {h['height']:.2f} m above ground\\N"
                f"bike: yaw {h['bike_yaw']:+.0f}°  lean {h['bike_roll']:+.0f}°  pitch {h['bike_pitch']:+.0f}°\\N"
                f"rider: yaw {h['rider_yaw']:+.0f}°  lean {h['rider_roll']:+.0f}°\\N"
+               f"bars {h.get('steer', 0.0):+.0f}°   rear wheel {h.get('wr', 0.0) * 60 / 6.2832:.0f} rpm\\N"
                f"suspension: fork {h['sf']*1000:.0f} mm  shock {h['sr']*1000:.0f} mm")
         lines.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Hud,,0,0,0,,{txt}\n")
         lines.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Phase,,0,0,0,,{h['phase']}\n")
@@ -121,7 +122,7 @@ def main():
     card = f"{work}/title.mp4"
     run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x101418:s=1920x1080:r=60:d=3",
          "-vf", f"drawtext=fontfile={FONT}:text='WHIP PHYSICS DEMO':x=(w-tw)/2:y=h/2-90:fontsize=72:fontcolor=white,"
-                f"drawtext=fontfile={FONT}:text='2026 CRF250R  |  75 ft steel FMX ramp to dirt  |  rider 185 cm':"
+                f"drawtext=fontfile={FONT}:text='2026 CRF250R  |  23 m KOTW steel ramp to dirt  |  rider 185 cm':"
                 f"x=(w-tw)/2:y=h/2+10:fontsize=34:fontcolor=0xC8C8C8,"
                 f"drawtext=fontfile={FONT}:text='Proxy shapes only. Motion is simulated, not hand-animated.':"
                 f"x=(w-tw)/2:y=h/2+70:fontsize=28:fontcolor=0xFFD700",

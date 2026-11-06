@@ -36,7 +36,8 @@ RHO = air_density()              # about 1.00 kg/m^3
 CDA = 0.80                       # m^2, upright MX rider + bike (EST, 0.7 to 0.9 typical)
 
 # --- Jump geometry: research/fmx-ramp-physics-whip.md sections 1.5 and 2.3
-GAP = 22.86                      # m, 75 ft lip edge to knuckle (brief; KOTW quotes 23 m)
+GAP = 23.0                       # m lip edge to knuckle: KOTW's "twenty-three-metre competition ramp"
+                                 # (Damien: follow KOTW measurements; the brief's 75 ft is 22.86 m)
 LIP_HEIGHT = 2.51                # m, Destruction Ramps 8'3" comp ramp for 75 ft gaps; FIM 2.50 to 3.20
 RAMP_RADIUS = 9.1                # m, constant radius tangent to the ground ("Aussie/EU consistent radius")
 LIP_ANGLE_DEG = math.degrees(math.acos(1 - LIP_HEIGHT / RAMP_RADIUS))   # 43.6 deg, pure arc to the lip

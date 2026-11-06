@@ -32,17 +32,19 @@ Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single
 | 6 | 2026-11-06 | Sticker kit: designed by us from Damien's reference images (to come) | Damien |
 | 7 | 2026-11-06 | Rider: Damien, about 185 cm. Gear: Leatt only (sponsor). No goggle tear-offs. No neck brace | Damien |
 | 8 | 2026-11-06 | Whip: rear wheel to Damien's right; style and timing from his clips (see `research/whip-analysis-user-clips.md`). Clips' bike look and kit are not used | Damien |
-| 9 | 2026-11-06 | Ramp: steel FMX ramp. Landing: dirt, slightly below lip height. Physics-derived trajectory, cross-checked with footage | Damien |
+| 9 | 2026-11-06 | Ramp: steel FMX ramp. Landing: dirt. Physics-derived trajectory, cross-checked with footage. Landing height superseded by decision 20 | Damien |
 | 10 | 2026-11-06 | Setting: replicate King of the Whip 2025 exactly (scene, surroundings, dirt). Day first, night version later | Damien |
 | 11 | 2026-11-06 | Shot: 8 to 12 s (approach, takeoff, air, landing, ride-away). Several versions of the same moment (different cameras) | Damien |
 | 12 | 2026-11-06 | Output: 4K UHD landscape (3840x2160), 60 fps. Portrait version later | Damien |
 | 13 | 2026-11-06 | Look: photoreal with a cinematic colour grade | Damien |
 | 14 | 2026-11-06 | No skull, demon or occult imagery in any graphics | Claude, accepted |
 | 15 | 2026-11-06 | Approval cadence: decided case by case. No deadline | Damien |
-| 16 | 2026-11-06 | KOTW 2025 = Volkswagen Amarok King of the Whip, Montecasino, Fourways, Johannesburg, 29 Nov 2025: one steel ramp to a sculpted sand landing, 23 m gap (**awaiting Damien's confirmation**) | research/kotw-2025.md |
+| 16 | 2026-11-06 | KOTW 2025 = Volkswagen Amarok King of the Whip, Montecasino, Fourways, Johannesburg, 29 Nov 2025: one steel ramp to a sculpted sand landing, 23 m gap. **Confirmed by Damien** | research/kotw-2025.md, Damien |
 | 17 | 2026-11-06 | Bike spec: South African (ED-type) 2026 CRF250R: rake 28.4 deg, trail 117 mm, wheelbase 1483 mm, 107 kg wet, Pirelli MX32 tyres. Identical to 2025 | research/crf250r-2026.md |
-| 18 | 2026-11-06 | Jump geometry: ramp 2.51 m lip, 9.1 m constant radius (43.6 deg), deck about 1.5 m wide; landing knuckle 4.0 m high at 22.86 m, 1.5 m table, 42 deg downslope into a 10.36 m radius. Touchdown at about lip height (**awaiting Damien's confirmation of decision 9**) | research/fmx-ramp-physics-whip.md, KOTW photo 07 |
+| 18 | 2026-11-06 | Jump geometry: ramp 2.51 m lip, 9.1 m constant radius (43.6 deg), deck about 1.5 m wide; landing knuckle 4.0 m high, 1.5 m table, 42 deg downslope into a 10.36 m radius. Touchdown at about lip height. Gap per decision 20 | research/fmx-ramp-physics-whip.md, KOTW photo 07 |
 | 19 | 2026-11-06 | Physics demo built (scripts/demo): simulated, not hand-animated. Site gravity 9.786 m/s2 and air density 1.00 kg/m3 (Johannesburg) | skills/moto-jump-physics |
+| 20 | 2026-11-06 | Follow KOTW measurements: gap 23.0 m lip to knuckle (KOTW "twenty-three-metre competition ramp"); landing crest above the lip as at KOTW. Unpublished KOTW dimensions (lip height, landing shape) to be measured from event photos in the environment phase | Damien |
+| 21 | 2026-11-06 | Rider mass: 80 kg body plus about 8.5 kg of gear | Damien |
 
 ## Research
 - `research/whip-analysis-user-clips.md`: Damien's whip, phase by phase timing.

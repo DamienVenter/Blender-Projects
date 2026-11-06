@@ -155,11 +155,12 @@ class Pipeline:
         ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
         rel_c = math.degrees(np.linalg.norm(air.logm_so3(con["RB"].T @ con["RA"])))
         land = (ya / 4) ** 2 + (ra / 4) ** 2 + ((pa - self.landing_pitch) / 4) ** 2 + (rel_c / 10) ** 2
-        reg = (x[0] / 150) ** 2 + (x[1] / 250) ** 2 + (x[2] / 30) ** 2 + 4 * (1 - x[3]) ** 2 + 4 * (1 - x[4]) ** 2
-        J = (track_rms / 8) ** 2 + land + reach + 0.3 * (yaw_rms / 30) ** 2 + 0.3 * reg
+        reg = (x[0] / 150) ** 2 + (x[1] / 250) ** 2 + (x[2] / 30) ** 2
+        amp = 25.0 * ((1 - x[3]) ** 2 + (1 - x[4]) ** 2)   # prefer Damien's full whip: shrink only if physics forces it
+        J = (track_rms / 8) ** 2 + land + reach + 0.3 * (yaw_rms / 30) ** 2 + 0.3 * reg + amp
         if detail:
             return dict(J=J, track_rms_deg=track_rms, rider_yaw_rms_deg=yaw_rms, reach=reach, worst_overreach_m=worst,
-                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg,
+                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg, amp=amp,
                         t_air=con["t"], contact=con["wheel"])
         return J
 
@@ -172,10 +173,10 @@ class Pipeline:
             return 1e6
         return self.ctrl_cost(rec, con, x, detail)
 
-    LO = np.array([-200.0, -300.0, -10.0, 0.70, 0.60])
+    LO = np.array([-200.0, -300.0, -10.0, 0.50, 0.40])
     HI = np.array([200.0, 300.0, 19.0, 1.00, 1.10])
 
-    STARTS = ([0, -100, 19, 0.85, 0.8], [40, -100, 19, 1.0, 1.0], [0, -60, 15, 0.9, 0.9], [20, -150, 19, 0.8, 0.7])
+    STARTS = ([0, -54, 19, 0.70, 0.60], [0, -80, 19, 0.85, 0.8], [0, -60, 15, 0.6, 0.5], [20, -120, 19, 0.9, 0.9])
 
     def optimise(self, take, T_air, maxiter=250):
         """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline)."""
