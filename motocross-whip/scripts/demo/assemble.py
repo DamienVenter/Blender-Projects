@@ -15,8 +15,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 FONT = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
-DAMIEN_CLIP = os.path.join(REPO, "motocross-whip/reference/user-clips/clip3_back-wide_2026-11-06_102401k.mp4")
-DAMIEN_LIP_T = 0.94          # s, rear wheel leaves the lip in clip 3 (frame timestamps 0.906 / 0.940 / 0.973)
+DAMIEN_CLIP = os.path.join(REPO, "motocross-whip/reference/user-clips/clip1_back-and-front_2026-11-06_102139.mp4")
+DAMIEN_LIP_T = 0.967         # s, rear wheel leaves the lip in clip 1 shot A (frame 30, 30 fps)
+DAMIEN_SHOT_END = 3.10       # s, clip 1 cuts from the camera behind (shot A) to the landing camera after this
 FPS = 120
 
 
@@ -32,8 +33,10 @@ def views(fr):
     return {
         "side": dict(cam="CAM_SIDE", res=(1920, 1080), f0=1, f1=last, step=2,
                      title="SIDE VIEW  |  REAL TIME"),
-        "damien": dict(cam="CAM_DAMIEN", res=(1080, 1920), f0=f(toff - 1.0), f1=min(f(tl + 0.4), last), step=2,
-                       title="YOUR CLIP ANGLE  |  REAL TIME"),
+        "damien": dict(cam="CAM_BEHIND_FAR", res=(1080, 1920), f0=f(toff - 0.9), f1=min(f(toff + DAMIEN_SHOT_END - DAMIEN_LIP_T), last),
+                       step=2, title="YOUR CLIP 1 ANGLE  |  REAL TIME"),
+        "close": dict(cam="CAM_DAMIEN", res=(1080, 1920), f0=f(toff - 1.0), f1=min(f(tl + 0.4), last), step=2,
+                      title="CLOSE BEHIND THE RAMP  |  REAL TIME"),
         "track": dict(cam="CAM_TRACK", res=(1920, 1080), f0=f(toff - 0.15), f1=min(f(tl + 0.25), last), step=1,
                       title="TRACKING  |  HALF SPEED"),
         "land": dict(cam="CAM_LAND", res=(1920, 1080), f0=f(toff + 0.6), f1=min(f(tl + 2.0), last), step=2,

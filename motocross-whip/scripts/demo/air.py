@@ -315,7 +315,9 @@ class AirSim:
         return rec, contact
 
     # ------------------------------------------------------------------ closed-loop rider (used by the pipeline)
-    REL_MAX = math.radians(75)      # largest bike-to-rider rotation the body can hold (with the hip shift)
+    REL_MAX = math.radians(95)      # largest bike-to-rider rotation the body can hold. Damien's measured whip needs
+                                    # about 85 deg (flat and sideways under a torso facing forward); the limb-by-limb
+                                    # reach check (posture solver) is what really limits it
     REL_RATE_MAX = 6.0              # rad/s, fastest the rider can twist the bike under him
     WR_MAX_RATIO = 1.8              # rear wheel over-rev in the air vs takeoff (rev limiter, gearing; EST)
     WR_UP, WR_DOWN = 300.0, 400.0   # rad/s^2, throttle spin-up and rear-brake spin-down (EST)
@@ -323,13 +325,17 @@ class AirSim:
     STEER_RATE = 8.0                # rad/s, fast bar input (EST)
 
     def run_control(self, take, target_fn, r0=0.0, p0=0.0, dt=1.0 / 1200.0, t_max=3.5, rec_dt=1.0 / 120.0,
-                    record=True, T_land=2.3, gains=None):
+                    record=True, T_land=2.3, gains=None, kick_bike_only=False):
         """Closed-loop rider. Each step the rider chooses
           w   : how fast he twists the bike relative to his body (world frame, rad/s), and
           dwr : throttle/brake change of the rear-wheel spin,
         by weighted least squares on: steer the bike to target_fn(t); keep his torso facing forward and
         upright; stay inside reach; return to the neutral pose before touchdown. Angular momentum is
-        conserved exactly (wheels' gyro included); the body rotation follows from it."""
+        conserved exactly (wheels' gyro included); the body rotation follows from it.
+
+        r0, p0: yaw rate (about world Z) and roll rate (about the bike's long axis) the lip gives. With
+        kick_bike_only the bike alone leaves with them (the rider throws the bike out under a steady torso);
+        otherwise bike and rider leave the lip rotating together."""
         g = dict(kp=9.0, w_track=1.0, w_rider=0.15, w_rate=0.02, w_wheel=2e-4, w_steer=0.02, w_lim=4.0, w_land=3.0)
         g.update(gains or {})
         S = self.S
@@ -340,10 +346,15 @@ class AirSim:
         wr_max = take["wr"] * self.WR_MAX_RATIO
         delta = 0.0                                       # steering angle (rad), + turns the front wheel left
         s_ax = np.array([-math.sin(math.radians(P.RAKE_DEG)), 0.0, math.cos(math.radians(P.RAKE_DEG))])
-        w0 = np.array([0.0, -take["W"], 0.0]) + r0 * EZ + p0 * (RA @ EX)
-        D0 = RA @ self.p_rel + RB @ self.cB
+        w_sys = np.array([0.0, -take["W"], 0.0])
+        kick = r0 * EZ + p0 * (RA @ EX)
+        wA0 = w_sys + kick
+        wB0 = w_sys if kick_bike_only else w_sys + kick
+        u0 = RA @ self.p_rel
+        D0 = u0 + RB @ self.cB
         IAw0, IBw0 = RA @ self.IA @ RA.T, RB @ self.IB @ RB.T
-        L0 = (IAw0 + IBw0 + self.mu * (np.dot(D0, D0) * np.eye(3) - np.outer(D0, D0))) @ w0 \
+        # bodies' spin + relative motion of the two centres of mass (mu D x D') + wheel spin
+        L0 = IAw0 @ wA0 + IBw0 @ wB0 + self.mu * cross(D0, cross(wA0, u0) + cross(wB0, RB @ self.cB)) \
             + (If * take["wf"] + Ir * wr) * (RA @ EY)
         self.L0 = L0
         hip = np.zeros(3)                                 # hip shift, bike frame
@@ -373,6 +384,8 @@ class AirSim:
             tgt = target_fn(t)
             RT, wT = tgt[0], tgt[1]
             RB_pref = tgt[2] if len(tgt) > 2 else None
+            Wm = tgt[3] if len(tgt) > 3 else None          # sqrt tracking weights per world axis (3x3)
+            Wr = tgt[4] if len(tgt) > 4 else None          # sqrt weights on the rider's torso target (3x3)
             e = logm_so3(RT @ RA.T)
             wA_des = wT + g["kp"] * e
             # rider's preferred torso: facing the travel direction, pitched like the bike, no lean
@@ -387,9 +400,15 @@ class AirSim:
             GB = np.hstack([-MK, -h[:, None], -hs[:, None]])
             land = smoothstep((t - (T_land - 0.45)) / 0.3)
             wt = math.sqrt(g["w_track"] * (g["w_track_fn"](t) if "w_track_fn" in g else 1.0))
-            rows.append(wt * GA); rhs.append(wt * (wA_des - wB0))
+            if Wm is None:
+                rows.append(wt * GA); rhs.append(wt * (wA_des - wB0))
+            else:
+                rows.append(wt * (Wm @ GA)); rhs.append(wt * (Wm @ (wA_des - wB0)))
             wrd = math.sqrt(g["w_rider"] * max(1.0 - land, 0.0))
-            rows.append(wrd * GB); rhs.append(wrd * (wB_des - wB0))
+            if Wr is None:
+                rows.append(wrd * GB); rhs.append(wrd * (wB_des - wB0))
+            else:
+                rows.append(wrd * (Wr @ GB)); rhs.append(wrd * (Wr @ (wB_des - wB0)))
             # neutral pose before touchdown: relative rotation decays to zero
             wl = math.sqrt(g["w_land"] * land)
             rows.append(wl * np.hstack([np.eye(3), np.zeros((3, 2))])); rhs.append(wl * (-4.0 * rel))
@@ -418,7 +437,7 @@ class AirSim:
             dd = float(np.clip(dd, -self.STEER_RATE * dt_ctrl, self.STEER_RATE * dt_ctrl))
             dd = float(np.clip(delta + dd, -self.STEER_MAX, self.STEER_MAX) - delta)
             wB = wB0 - MK @ w - h * dwr - hs * dd
-            return w, dwr, dd, wB, wB + w, D, e
+            return w, dwr, dd, wB, wB + w, D, (e if Wm is None else Wm @ e)
 
         def acc(v):
             sp = math.sqrt(v[0] ** 2 + v[2] ** 2)

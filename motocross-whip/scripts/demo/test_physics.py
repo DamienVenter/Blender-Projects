@@ -123,14 +123,7 @@ def _target(pl, take, T, x):
     return pl.target_fn(take, T, x)
 
 
-def test_controller_conserves_L(pl):
-    """Closed-loop rider with hip shift and throttle: independent finite-difference check of L."""
-    take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-20), sf=0.0, sr=0.0,
-                wf=45.0, wr=47.0)
-    x = [0.0, -100.0, 0.0, 40.0, 20.0, -20.0]
-    dt = 1 / 1200
-    rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), r0=0.0, p0=math.radians(-100), dt=dt,
-                                rec_dt=dt / 2, t_max=1.2, T_land=2.2)
+def _check_L(pl, rec):
     L0 = pl.A.L0
     worst = 0.0
     for a, b in zip(rec[:-1], rec[1:]):
@@ -142,28 +135,54 @@ def test_controller_conserves_L(pl):
         Ddot = (b["D"] - a["D"]) / h
         L = _L(pl, RA, RB, wA, wB, D, Ddot, 0.5 * (a["wr"] + b["wr"]), a["wf"], 0.5 * (a["steer"] + b["steer"]))
         worst = max(worst, np.linalg.norm(L - L0) / np.linalg.norm(L0))
+    return worst
+
+
+@pytest.mark.parametrize("bike_only", [False, True])
+def test_controller_conserves_L(pl, bike_only):
+    """Closed-loop rider with hip shift, spine, throttle and steering: independent finite-difference check of L,
+    with the lip kick shared by bike and rider or given to the bike alone (the L0 formula must match the motion)."""
+    take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-20), sf=0.0, sr=0.0,
+                wf=45.0, wr=47.0)
+    x = pl.X0.copy()
+    dt = 1 / 1200
+    rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), r0=math.radians(120), p0=math.radians(-200), dt=dt,
+                                rec_dt=dt / 2, t_max=1.2, T_land=2.2, gains=pl.gains(2.2, x), kick_bike_only=bike_only)
+    worst = _check_L(pl, rec)
     assert worst < 1e-2, worst
 
 
-def test_controller_tracks_gentle_whip(pl, monkeypatch):
-    """A mild whip (30 % of Damien's peak) is well inside the body's limits: the bike must follow it closely."""
-    monkeypatch.setattr(pl, "PEAK_YAW", [v * 0.3 for v in pl.PEAK_YAW])
-    monkeypatch.setattr(pl, "PEAK_ROLL", [v * 0.3 for v in pl.PEAK_ROLL])
+def test_controller_tracks_feasible_motion(pl):
+    """A motion the physics can do (a free flight after a lip kick, the rider holding still) must be followed
+    closely when given as the target: the controller adds no error of its own."""
     take = dict(X=0.0, Z=4.0, VX=11.0, VZ=10.0, beta=math.radians(44), W=math.radians(-38), sf=0.0, sr=0.0,
                 wf=45.0, wr=47.0)
-    x = [0.0, 0.0, 0.0, 15.0, 8.0, -6.0]
-    rec, con = pl.A.run_control(take, _target(pl, take, 2.2, x), dt=1 / 1200, rec_dt=1 / 60, t_max=1.5, T_land=2.2)
-    assert max(math.degrees(r["track_err"]) for r in rec) < 6.0
+    hold = lambda t: (np.eye(3), np.zeros(3))
+    free, _ = pl.A.run_control(take, hold, r0=math.radians(60), p0=math.radians(-80), dt=1 / 1200, rec_dt=1 / 1200,
+                               t_max=1.2, T_land=9.0, gains={"w_track": 0.0, "w_rider": 0.0})
+    ts = np.array([r["t"] for r in free])
+
+    def target(t):
+        i = min(int(round(t * 1200)), len(free) - 2)
+        R0, R1 = free[i]["RA"], free[i + 1]["RA"]
+        return R0, air.logm_so3(R1 @ R0.T) * 1200, free[i]["RB"]
+    rec, _ = pl.A.run_control(take, target, r0=math.radians(60), p0=math.radians(-80), dt=1 / 1200, rec_dt=1 / 60,
+                              t_max=1.15, T_land=9.0, gains={"w_rider": 0.0})
+    assert ts[-1] > 1.1
+    assert max(math.degrees(r["track_err"]) for r in rec) < 2.0
 
 
-def test_full_whip_peak_is_flown(pl):
-    """Damien's full-size whip peak (bike flat at -85 deg, rear out 55 deg) is reached within 10 deg RMS."""
+def test_measured_whip_is_flown(pl):
+    """The flown solution matches Damien's measured whip as his camera sees it, with a human body."""
     pl.S.T_face = 1344.4
-    t, st, sp, rec = pl.to_takeoff(14.868)
+    t, st, sp, rec = pl.to_takeoff(14.873)
     take = pl.take_from(st, sp, rec)
-    d = pl.objective(np.array([0.0, -80.0, 15.0, 45.0, 25.0, -30.0]), take, 2.23, detail=True)
-    assert d["peak_track_rms_deg"] < 10.0
-    assert d["worst_overreach_m"] < 0.15
+    d = pl.objective(pl.X0, take, 2.23, detail=True)
+    assert d["seen_rms_deg"] < sim.Pipeline.SEEN_RMS_OK
+    assert d["worst_overreach_m"] < 0.20                 # arms at full stretch plus shoulder blades
+    assert d["rider_spin_max_deg_s"] < math.degrees(sim.Pipeline.RIDER_SPIN_MAX)
+    assert d["head_up_min"] > 0.15                        # never upside down
+    assert abs(d["land_yaw"]) < 5 and abs(d["land_roll"]) < 5
 
 
 def test_recorded_flight_matches_scored_flight(pl):
@@ -171,7 +190,8 @@ def test_recorded_flight_matches_scored_flight(pl):
     pl.S.T_face = 1344.4
     t, st, sp, rec = pl.to_takeoff(14.873)
     take = pl.take_from(st, sp, rec)
-    x = np.array([12.5, -44.4, 0.0, 36.9, 14.4, 0.0])
+    x = pl.X0.copy()
+    x[2] = 0.0
     det = pl.objective(x, take, 2.2317, dt=1.0 / 1200, detail=True)
     recA, con = pl.fly(take, x, 2.2317)
     ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))

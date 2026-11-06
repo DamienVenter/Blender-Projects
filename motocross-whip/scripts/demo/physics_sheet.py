@@ -71,32 +71,24 @@ axf.axis("off")
 axf.text(0.02, 0.95, facts, transform=axf.transAxes, ha="left", va="top", fontsize=10, color=INK, linespacing=1.6,
          bbox=dict(boxstyle="round,pad=0.8", fc="white", ec=GRID))
 
-# 2. bike angles vs Damien's target
+# 2. the whip as Damien's camera behind the ramp sees it: simulation against his clip (measured)
 ta = t[air_mask]
-sc = t_air / sim.TARGET["t"][-1]
-tt = np.array(sim.TARGET["t"]) * sc
 x = summ["whip_x"]
-for j, (key, lab) in enumerate((("bike_yaw", "yaw (nose left +)"), ("bike_roll", "lean (left -)"))):
+H = [h for h, a in zip(hud, air_mask) if a]
+panels = (("bike_img", "Bike angle in the picture (deg)", "0 = nose left, 90 = hanging nose-down"),
+          ("bike_side", "How side-on the bike looks", "0 = flat or edge-on, 1 = full profile"),
+          ("torso_lean", "Your torso lean (deg)", "head to your left -"))
+for j, (key, title, note) in enumerate(panels):
     ax = fig.add_subplot(gs[1, j])
-    full = np.array(sim.TARGET["yaw" if key == "bike_yaw" else "roll"])
-    kt, ky, kr = sim.Pipeline.whip_keys(sim.Pipeline, x)
-    ax.plot(tt, full, "o", mfc="none", mec=C_TARGET, ms=5, label="your clip (my estimate)")
-    ax.plot(np.array(kt) * t_air / sim.Pipeline.RETURN_T[-1], ky if key == "bike_yaw" else kr, "o", color=C_TARGET,
-            ms=4, label="target: your peak, physics-shaped return")
-    ax.plot(ta, [h[key] for h, a in zip(hud, air_mask) if a], color=C_BIKE, lw=2, label="bike (simulated)")
-    rk = "rider_yaw" if key == "bike_yaw" else "rider_roll"
-    ax.plot(ta, [h[rk] for h, a in zip(hud, air_mask) if a], color=C_RIDER, lw=1.6, label="rider torso (from physics)")
-    ax.set_title(f"Whip: {lab}", loc="left", color=INK, fontsize=11)
-    ax.set_xlabel("time after lip (s)")
-    ax.set_ylabel("degrees")
+    meas = np.array([h.get("meas_" + key, np.nan) for h in H], float)
+    sim_v = np.array([h[key] for h in H], float)
+    if key == "bike_img":                      # unwrap so the curve does not jump at +-180
+        meas, sim_v = np.degrees(np.unwrap(np.radians(meas))), np.degrees(np.unwrap(np.radians(sim_v)))
+    ax.plot(ta, meas, color=C_TARGET, lw=3, label="your clip (measured)")
+    ax.plot(ta, sim_v, color=C_BIKE if key != "torso_lean" else C_RIDER, lw=1.8, label="simulation")
+    ax.set_title(title, loc="left", color=INK, fontsize=11)
+    ax.set_xlabel(f"time after lip (s)   {note}", fontsize=8.5)
     ax.legend(frameon=False, fontsize=8.5)
-ax = fig.add_subplot(gs[1, 2])
-ax.plot(ta, [h["bike_pitch"] for h, a in zip(hud, air_mask) if a], color=C_BIKE, lw=2, label="bike pitch")
-ax.axhline(-P.LANDING_ANGLE_DEG, color=C_TARGET, ls="--", lw=1, label="landing slope")
-ax.set_title("Bike pitch (nose up +)", loc="left", color=INK, fontsize=11)
-ax.set_xlabel("time after lip (s)")
-ax.set_ylabel("degrees")
-ax.legend(frameon=False, fontsize=8.5)
 
 # 3. suspension, loads, rider absorption over the whole run
 ax = fig.add_subplot(gs[2, 0:2])
@@ -136,16 +128,16 @@ ax = fig.add_subplot(gs[3, 2])
 ax.axis("off")
 det = summ.get("detail", {})
 inputs = (f"Lip inputs chosen by the optimiser\n\n"
-          f"yaw kick  {x[0]:+.0f} deg/s\n"
-          f"roll kick  {x[1]:+.0f} deg/s (lean left -)\n"
+          f"rear thrown out (yaw)  {x[0]:+.0f} deg/s\n"
+          f"lay-down (roll)  {x[1]:+.0f} deg/s (left -)\n"
           f"lift on the bars at the lip  {summ.get('lip_pull_N', 0):.0f} N\n"
-          f"whip peak: 100 % of your clip (lean -85, swing 55 deg)\n"
-          f"return: swing {x[3]:.0f} deg at 0.9 s, {x[4]:.0f} deg at 1.5 s\n\n"
+          f"pulls it straight at  {x[3]:.2f} s (your clip: 1.8 to 2.0 s)\n\n"
+          f"Match to your clip, seen from behind\n"
+          f"bike  {det.get('seen_rms_deg', 0):.0f} deg RMS, torso lean  {det.get('torso_lean_rms_deg', 0):.0f} deg RMS\n\n"
           f"Touchdown\n"
           f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
           f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"
-          f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg\n"
-          f"peak tracking error {det.get('peak_track_rms_deg', 0):.1f} deg RMS")
+          f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg")
 ax.text(0.0, 1.0, inputs, va="top", fontsize=10, color=INK, family="Inter")
 fig.suptitle(f"Whip physics demo: 2026 CRF250R, {P.GAP:.0f} m KOTW steel ramp, rider 185 cm", x=0.06, ha="left",
              fontsize=15, color=INK, fontweight="bold")

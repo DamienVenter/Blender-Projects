@@ -24,6 +24,18 @@ def look_quat(pos, target, up=(0.0, 0.0, 1.0)):
     return quat_from_matrix(np.column_stack([x, y, z]))
 
 
+def seen_from_behind(RA, RB, lean=None):
+    """What a camera straight behind the ramp sees: the bike's axle line angle in the picture (deg, nose to the
+    left = 0, nose down = 90), how side-on the bike is (0 edge-on/flat, 1 full profile), the torso lean (deg)."""
+    n, yb = RA[:, 0], RA[:, 1]
+    out = {"bike_img": math.degrees(math.atan2(-n[2], n[1])), "bike_side": abs(float(yb[0]))}
+    if RB is not None:
+        z = RB[:, 2]
+        lean = math.degrees(math.atan2(-z[1], z[2]))
+    out["torso_lean"] = float(lean)
+    return out
+
+
 def smooth(series, tau, dt):
     out, a = [], None
     k = dt / (tau + dt)
@@ -42,6 +54,9 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     t_start, t_end = t_off - LEAD, t_off + t_c + TAIL
     sweet = np.array([pl.x_sweet, 0.0, T.ground(pl.x_sweet)])
     ya_c, _, ra_c = air.euler_of(con["RA"])
+    # what Damien's camera behind the ramp shows, simulated and measured (whip_measured.py)
+    T_air_t = log.get("T_air_target", con["t"])
+    seen_fn = pl.target_fn(log["take"], T_air_t, np.array(log["whip_x"])).seen
     pb_c = con["C"] - (mB / M) * con["D"]
     rel_c = air.logm_so3(con["RA"].T @ con["RB"])        # rider relative to bike at touchdown (bike frame)
 
@@ -129,7 +144,11 @@ def build(pl, log, g1, recA, con, g2, out_dir):
         height = max(rear_ax[2] - P.R_REAR - T.ground(rear_ax[0]), 0.0)
         ya, pa, ra = air.euler_of(RA)
         yb, pbb, rb = air.euler_of(RB)
-        hud.append({"t": tg - t_off, "kmh": float(np.linalg.norm(Vsys) * 3.6), "height": float(height),
+        seen = seen_from_behind(RA, RB)
+        if kind == "air":
+            Rm, lean_m = seen_fn(r["t"])
+            seen.update({f"meas_{k}": v for k, v in seen_from_behind(Rm, None, lean_m).items()})
+        hud.append({**seen, "t": tg - t_off, "kmh": float(np.linalg.norm(Vsys) * 3.6), "height": float(height),
                     "x": float(pb[0]), "phase": phase, "bike_yaw": math.degrees(ya), "bike_roll": math.degrees(ra),
                     "bike_pitch": math.degrees(pa), "rider_yaw": math.degrees(yb), "rider_roll": math.degrees(rb),
                     "sf": float(sf), "sr": float(sr), "cx": float(Csys[0]), "cz": float(Csys[2]),
@@ -166,6 +185,10 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     cams.append({"name": "CAM_DAMIEN", "lens": 35.0, "path": path_of(lambda i: dam_pos, rc_s)})
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
+    # matched to Damien's clip 1 shot A (research/whip-attitude-measured.md): about 25 m behind the lip, 1.5 m up,
+    # zoomed phone camera (1600 px focal on a 478 x 850 frame = 30 deg vertical field), panning with the rider
+    far_pos = np.array([-25.0, 1.0, 1.5])
+    cams.append({"name": "CAM_BEHIND_FAR", "lens": 18.0 / math.tan(math.atan(425.0 / 1600.0)), "path": path_of(lambda i: far_pos, rc_s)})
     land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])
     cams.append({"name": "CAM_LAND", "lens": 28.0, "path": path_of(lambda i: land_pos, rc_s)})
 

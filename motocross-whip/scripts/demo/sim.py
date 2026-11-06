@@ -22,18 +22,12 @@ import terrain
 import ground
 import air
 import rider as RD
+import whip_measured as WM
 from pose import Poser, quat_from_matrix
 
 FPS_SIM = 120
 DEG = math.pi / 180
 
-# Damien's whip (bike world orientation), times in seconds after the lip for a 2.05 s flight.
-# yaw: nose left +, roll: right lean + (so a left lay-down is negative).
-TARGET = {
-    "t":    [0.00, 0.10, 0.30, 0.45, 0.60, 0.90, 1.30, 1.70, 1.90, 2.05],
-    "yaw":  [0.0, 10.0, 40.0, 55.0, 60.0, 60.0, 50.0, 35.0, 12.0, 2.0],
-    "roll": [0.0, -25.0, -75.0, -85.0, -70.0, -25.0, -12.0, -5.0, 0.0, 0.0],
-}
 KNOT_F = [0.06, 0.16, 0.26, 0.42, 0.62, 0.82, 0.93]     # forward-model knot times (tests)
 
 
@@ -112,145 +106,240 @@ class Pipeline:
         v = brentq(miss, 10.0, 24.0, xtol=0.005)
         return v
 
-    # ---------- whip optimisation (inverse: bike motion prescribed, rider from conservation)
-    # Whip shape: lip to peak is Damien's (fixed, 100 %); the return is shaped by physics within his clip's range.
-    PEAK_T = [0.00, 0.10, 0.30, 0.45, 0.60]
-    PEAK_YAW = [0.0, 10.0, 40.0, 55.0, 58.0]
-    PEAK_ROLL = [0.0, -25.0, -75.0, -85.0, -70.0]
-    RETURN_T = [0.90, 1.50, 1.90, 2.05]
-    # bike pitch (nose up +, deg) through the lay-down: Damien's bike is about level at the peak (clips 2 and 3,
-    # seen from behind: flat and level, rear slightly high). The gyro drives this fast early nose drop.
-    PEAK_PITCH_T = [0.20, 0.45, 0.62]
-    PEAK_PITCH = [28.0, 8.0, 2.0]
+    # ---------- whip: Damien's whip as measured from his clips (whip_measured.py)
+    # What his camera behind the ramp shows is fixed: how the bike turns in the picture, how side-on it is, and
+    # how far his torso leans. What it cannot show is solved so that angular momentum is conserved and his body
+    # stays human: the bike tipping toward or away from the camera, and how far he turns and pitches his torso.
+    # Those hidden angles are smooth curves through knots the optimiser places; the closed-loop rider then flies
+    # the combined target with the full physics (gyro, throttle, steering, reach, momentum).
+    HID_T = (0.20, 0.40, 0.65, 0.90, 1.15, 1.50)       # hidden-angle knot times, Damien's timeline (s)
+    _n = len(HID_T)
+    X_NAMES = (("yaw_kick", "roll_kick", "dW", "t_straight")
+               + tuple(f"depth_{t:.2f}" for t in HID_T) + tuple(f"torso_yaw_{t:.2f}" for t in HID_T)
+               + tuple(f"torso_pitch_{t:.2f}" for t in HID_T)
+               + ("lg_w_bike_drop", "lg_w_hidden", "lg_w_torso", "lg_w_bike_hold", "lg_w_torso_pitch"))
+    #   yaw_kick, roll_kick : rotation rates (deg/s) the lip gives as he throws the rear out and lays the bike over
+    #   dW                  : takeoff pitch-rate change (deg/s), realised afterwards as a lift on the bars at the lip
+    #   t_straight          : when he starts pulling it straight (s, Damien's timeline), within what his cameras allow
+    #   depth_*             : bike tipped toward (+) or away from the camera, about the unseen axis (deg)
+    #   torso_yaw_*, torso_pitch_*: his torso turned left (+) and pitched nose-up (+) in the world (deg)
+    #   lg_w_bike_drop      : log10 how firmly he steers the bike while the gyro drops the nose (peak to 1.1 s)
+    #   lg_w_bike_hold      : log10 how firmly he steers it while holding the cross-up (1.1 s to the straighten)
+    #   lg_w_torso_pitch    : log10 how firmly he keeps his torso from pitching over the bars (relative to his lean)
+    #   lg_w_hidden         : log10 how firmly the hidden angles are held at their knots (low = physics decides)
+    #   lg_w_torso          : log10 how firmly he holds his torso lean
+    LO = np.array([-150.0, -450.0, -10.0, WM.T_STRAIGHT_RANGE[0]] + [-60.0] * _n + [-70.0] * _n + [-85.0] * _n
+                  + [-2.0, -2.0, -1.0, -2.0, -2.0])
+    HI = np.array([350.0, 100.0, 19.0, WM.T_STRAIGHT_RANGE[1]] + [60.0] * _n + [70.0] * _n + [60.0] * _n
+                  + [0.0, 0.0, 1.0, 0.5, 0.5])
+    X0 = np.array([5.398, -59.721, 18.970, 1.824, 43.342, -59.624, -57.841, -57.758, 10.989, 5.118, -67.286,
+                   -28.839, -40.090, 2.441, -6.712, 64.657, -4.385, 4.703, -4.190, 57.930, -23.601, -15.308,
+                   -1.231, -1.829, -0.113, -0.997, 0.498])   # best flight of the full CMA-ES search (2026-11-06)
+    SEEN_RMS_OK = 35.0       # regression bound for the match to Damien's footage (best search result 29.9 deg)
+    HOLD_START = 1.10        # s, Damien's timeline: the nose has dropped to hanging; he holds and lifts it
+    PEAK_END = 0.45          # s, Damien's timeline: lay-down and flat peak are steered firmly up to here (f43)
 
-    def whip_keys(self, x):
-        """Keyframes (Damien's 2.05 s timeline). x[3] yaw held at 0.9 s, x[4] yaw at 1.5 s, x[5] lean at 0.9 s."""
-        t = self.PEAK_T + self.RETURN_T
-        yaw = self.PEAK_YAW + [x[3], x[4], min(12.0, x[4]), 2.0]
-        roll = self.PEAK_ROLL + [x[5], -6.0, 0.0, 0.0]
-        return t, yaw, roll
+    def keys(self, take, x):
+        """Measured key table on Damien's timeline (target_fn scales it to this jump's airtime)."""
+        return WM.table(math.degrees(take["beta"]), self.landing_pitch, t_straight=float(x[3]))
 
-    def profile(self, take, T_air, x):
-        """Whip keyframes time-scaled to this airtime. x: r0, p0 (deg/s), dW, yaw_hold, yaw_late, roll_up."""
-        sc = T_air / self.RETURN_T[-1]
-        t, yaw, roll = self.whip_keys(x)
-        tk = [v * sc for v in t]
-        pitch_t = [0.0] + [v * sc for v in self.PEAK_PITCH_T] + [T_air]
-        pitch = [math.degrees(take["beta"])] + self.PEAK_PITCH + [self.landing_pitch]
-        return dict(T=T_air, beta0=take["beta"], beta_dot0=take["W"], beta_land=math.radians(self.landing_pitch),
-                    yaw_t=tk, yaw=yaw, r0=x[0] / sc, roll_t=tk, roll=roll, p0=x[1] / sc,
-                    pitch_t=pitch_t, pitch=pitch)
-
-    RIDER_LEAN_SHARE = 0.35          # rider's torso leans with the bike by this share of the bike's lay-down
+    @staticmethod
+    def unseen_axis(R):
+        """World axis the camera behind cannot see the bike rotate about: perpendicular to the line of sight (x)
+        and to the bike's long axis as projected in the picture."""
+        n = np.array([0.0, R[1, 0], R[2, 0]])
+        nn = np.linalg.norm(n)
+        n = n / nn if nn > 1e-6 else np.array([0.0, 1.0, 0.0])
+        return np.cross([1.0, 0.0, 0.0], n)
 
     def target_fn(self, take, T_air, x):
-        """Damien's whip as the controller's target: f(t) -> (R_bike, omega_bike, R_rider_preferred).
-
-        Angles are world angles as read from Damien's footage. Only the lay-down/peak and the landing are
-        tracked firmly (see track_weight); in between, the gyroscopic bike/rider system shapes the return.
-        """
-        prof = self.profile(take, T_air, x)
+        """Controller target f(t) -> (R_bike, omega_bike, R_torso). f.seen(t) -> (R_bike_measured, torso_lean_deg):
+        what the footage shows, used to score the flight."""
+        sc = T_air / WM.T_DAMIEN
+        tab = self.keys(take, x)
+        tab[:, 0] *= sc
+        rate0 = math.degrees(take["W"])
+        b0, b1 = math.degrees(take["beta"]), self.landing_pitch
+        n = self._n
+        t_s = float(x[3]) * sc
+        t_ok = min(t_s + WM.STRAIGHTEN * sc, T_air - 0.02)
+        kt = np.array([0.0] + [v * sc for v in self.HID_T] + [t_s, t_ok, T_air])
+        dep = np.array([0.0] + list(x[4:4 + n]) + [0.0, 0.0, 0.0])
+        tyaw = np.array([0.0] + list(x[4 + n:4 + 2 * n]) + [float(x[4 + 2 * n - 1]), 0.0, 0.0])
+        tpit = np.array([b0] + list(x[4 + 2 * n:4 + 3 * n]) + [float(x[4 + 3 * n - 1]), b1, b1])
+        w_drop, w_hid, w_hold = 10.0 ** float(x[4 + 3 * n]), 10.0 ** float(x[5 + 3 * n]), 10.0 ** float(x[7 + 3 * n])
+        w_pit = 10.0 ** float(x[8 + 3 * n])
+        t_peak, t_hold = self.PEAK_END * sc, self.HOLD_START * sc
         h = 1e-3
 
+        def seen(t):
+            d, y, p, r, rr = (float(v) for v in WM.params_at(t, tab, pitch_rate0=rate0, yaw_rate0=float(x[0]),
+                                                             roll_rate0=float(x[1])))
+            return WM.attitude(d, y, p, r), rr
+
         def parts(t):
-            y, p, r = self.A.bike_angles(prof, np.array([t]))
-            # bike: world angles as measured from the footage (yaw about vertical, pitch, lean about the long
-            # axis); rider's preferred torso: facing the travel direction, pitched with the bike, partly leaned
-            return air.euler_from(y[0], p[0], r[0]), air.Ry(-p[0]) @ air.Rx(self.RIDER_LEAN_SHARE * r[0])
+            Rm, rr = seen(t)
+            tc = min(max(t, 0.0), T_air)
+            dd = math.radians(float(air.pchip(kt, dep, tc)))
+            RA = air.expm_so3(dd * self.unseen_axis(Rm)) @ Rm
+            ty = math.radians(float(air.pchip(kt, tyaw, tc)))
+            tp = math.radians(float(air.pchip(kt, tpit, tc, m0=rate0)))
+            return RA, air.Rz(ty) @ air.Ry(-tp) @ air.Rx(math.radians(rr))
 
         def f(t):
             R0, RB0 = parts(t)
             R1, _ = parts(t + h)
-            return R0, air.logm_so3(R1 @ R0.T) / h, RB0
+            whip = t < t_s
+            Wb = self.soft_axis(self.unseen_axis(R0), w_hid) if whip else np.eye(3)
+            if whip and t > t_peak:
+                Wb = math.sqrt(w_drop if t < t_hold else w_hold) * Wb
+            # torso: lean (about the travel direction) as filmed; pitch held at w_pit; turn (yaw) loosely
+            Wr = (np.diag([1.0, 0.0, 0.0]) + math.sqrt(w_pit) * np.outer(RB0[:, 1], RB0[:, 1])
+                  + math.sqrt(w_hid) * np.diag([0.0, 0.0, 1.0])) if whip else np.eye(3)
+            return R0, air.logm_so3(R1 @ R0.T) / h, RB0, Wb, Wr
+        f.seen = seen
+        f.t_straight = t_s
         return f
 
-    PEAK_END = 0.62          # s on Damien's timeline: lay-down and peak are tracked firmly up to here
-    LAND_WINDOW = 0.60       # s before touchdown: firm tracking again for a straight landing
+    @staticmethod
+    def soft_axis(w, weight):
+        """sqrt weight matrix: full weight except `weight` about axis w."""
+        return np.eye(3) - (1.0 - math.sqrt(weight)) * np.outer(w, w)
 
-    def track_weight(self, T_air):
-        sc = T_air / self.RETURN_T[-1]
-        t_peak, t_land = self.PEAK_END * sc, T_air - self.LAND_WINDOW
+    def gains(self, T_air, x):
+        """Controller settings: one place, used by the optimiser and the recorded flight."""
+        return {"w_rider": 10.0 ** float(x[6 + 3 * self._n])}
 
-        def w(t):
-            if t <= t_peak:
-                return 1.0
-            if t >= t_land:
-                return 1.0
-            return 0.05                                   # light touch: the gyroscope shapes the return
-        return w
+    @staticmethod
+    def torso_lean(RB):
+        """His torso lean as seen from behind (deg, head to his left negative) and how clearly it shows (0..1)."""
+        z = RB[:, 2]
+        return math.degrees(math.atan2(-z[1], z[2])), math.hypot(z[1], z[2])
 
-    def ctrl_cost(self, rec, con, x, T_air, detail=False):
-        """Peak matches Damien's whip, the landing is straight, the body stays human in between."""
+    RIDER_SPIN_MAX = 6.0     # rad/s: faster body rotation than this is a tumble, not riding
+    DEPTH_WEIGHT = 0.05      # scoring weight on bike rotation the camera behind cannot see
+
+    # How precisely the footage shows each feature (research/whip-attitude-measured.md, Uncertainty)
+    SD_IMG, SD_ROUND, SD_LEAN = 10.0, 0.15, 15.0
+
+    @staticmethod
+    def features(RA, RB=None):
+        """What the camera straight behind sees: axle-line angle in the picture (deg), wheel roundness (0 edge-on,
+        1 side-on), which way the seat faces in the picture (deg), torso lean (deg) and whether his head is up."""
+        n, yb, zb = RA[:, 0], RA[:, 1], RA[:, 2]
+        f = {"img": math.degrees(math.atan2(-n[2], n[1])), "round": abs(float(yb[0])),
+             "top": math.degrees(math.atan2(-zb[1], zb[2]))}
+        if RB is not None:
+            z = RB[:, 2]
+            f["lean"] = math.degrees(math.atan2(-z[1], z[2]))
+            f["lean_vis"] = math.hypot(z[1], z[2])
+            f["head_up"] = float(z[2])
+        return f
+
+    @staticmethod
+    def wrap(a):
+        return (a + 180.0) % 360.0 - 180.0
+
+    def seen_error(self, Fm, Fs):
+        """Feature mismatch in 'degrees of picture angle' (each feature scaled by how precisely it is measured).
+        The axle-line angle is ambiguous by 180 deg only when the bike points straight at the camera; the seat
+        direction resolves it."""
+        e_img = self.wrap(Fs["img"] - Fm["img"])
+        e_round = (Fs["round"] - Fm["round"]) / self.SD_ROUND * self.SD_IMG
+        e_top = self.wrap(Fs["top"] - Fm["top"]) * 0.5
+        return e_img, e_round, e_top
+
+    def ctrl_cost(self, rec, con, x, T_air, detail=False, take=None, f=None):
+        """The whole whip looks like Damien's from his camera, the landing is straight, the body stays human."""
         arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
         leg = RD.L_THIGH + RD.L_SHANK
         Lmax = np.array([arm + RD.SCAPULA_REACH, arm + RD.SCAPULA_REACH, leg, leg])
-        sc = T_air / self.RETURN_T[-1]
-        reach = peak = body = 0.0
-        n_peak = 0
+        reach = seen = lean = body = 0.0
+        n_s = 0
         worst = -1.0
+        spin = 0.0
+        head_min = 1.0
         for r in rec:
             d = self.A.att_L + r["reach_err"]
             reach += float((np.maximum(d - 0.97 * Lmax, 0) ** 2).sum() + (np.maximum(0.40 * Lmax - d, 0) ** 2).sum())
             worst = max(worst, float((d - Lmax).max()))
-            if r["t"] <= self.PEAK_END * sc:
-                peak += math.degrees(r["track_err"]) ** 2
-                n_peak += 1
-            yb, _, rb = (math.degrees(v) for v in air.euler_of(r["RB"]))
-            body += max(abs(rb) - 45.0, 0) ** 2 + max(abs(yb) - 45.0, 0) ** 2   # torso lean/turn beyond 45 deg
+            Fs = self.features(r["RA"], r["RB"])
+            if r["t"] <= T_air:
+                Rm, rr = f.seen(r["t"])
+                if r["t"] < f.t_straight:
+                    Fm = self.features(Rm)
+                    seen += sum(e * e for e in self.seen_error(Fm, Fs))
+                else:                                   # straighten and landing: full 3D attitude
+                    seen += math.degrees(float(np.linalg.norm(air.logm_so3(Rm @ r["RA"].T)))) ** 2
+                lean += Fs["lean_vis"] * (self.wrap(Fs["lean"] - rr) / self.SD_LEAN * self.SD_IMG) ** 2
+                n_s += 1
+            head_min = min(head_min, Fs["head_up"])
+            yb, pb, rb = (math.degrees(v) for v in air.euler_of(r["RB"]))
+            # head stays above his hips (he never goes upside down), torso turned at most 70 deg; no tumbling
+            body += max(0.35 - Fs["head_up"], 0) ** 2 * 4e4 + max(abs(yb) - 70.0, 0) ** 2
+            ws = float(np.linalg.norm(r["wB"]))
+            spin = max(spin, ws)
+            body += (max(ws - self.RIDER_SPIN_MAX, 0) * 20.0) ** 2
         n = len(rec)
         reach = reach / n / 0.02 ** 2
-        peak_rms = math.sqrt(peak / max(n_peak, 1))
+        seen_rms = math.sqrt(seen / max(n_s, 1))
+        lean_rms = math.sqrt(lean / max(n_s, 1))
         body = body / n / 10.0 ** 2
         ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
         rel_c = math.degrees(np.linalg.norm(air.logm_so3(con["RB"].T @ con["RA"])))
-        land = (ya / 4) ** 2 + (ra / 4) ** 2 + ((pa - self.landing_pitch) / 4) ** 2 + (rel_c / 10) ** 2
-        reg = (x[0] / 150) ** 2 + (x[1] / 250) ** 2 + (x[2] / 30) ** 2
-        J = (peak_rms / 5) ** 2 + land + reach + body + 0.3 * reg
+        land = (ya / 4) ** 2 + (ra / 4) ** 2 + ((pa - self.landing_pitch) / 3) ** 2 + (rel_c / 10) ** 2
+        reg = (x[0] / 300) ** 2 + (x[1] / 400) ** 2 + (x[2] / 40) ** 2
+        J = (seen_rms / 5) ** 2 + (lean_rms / 10) ** 2 + land + reach + body + 0.3 * reg
         if detail:
-            return dict(J=J, peak_track_rms_deg=peak_rms, body=body, reach=reach, worst_overreach_m=worst,
-                        land_yaw=ya, land_pitch=pa, land_roll=ra, rider_rel_at_contact_deg=rel_c, reg=reg,
-                        t_air=con["t"], contact=con["wheel"])
+            return dict(J=J, seen_rms_deg=seen_rms, torso_lean_rms_deg=lean_rms, body=body, reach=reach,
+                        worst_overreach_m=worst, head_up_min=head_min, land_yaw=ya, land_pitch=pa, land_roll=ra,
+                        rider_rel_at_contact_deg=rel_c, reg=reg, rider_spin_max_deg_s=math.degrees(spin),
+                        t_air=con["t"], contact=con["wheel"], x={k: float(v) for k, v in zip(self.X_NAMES, x)})
         return J
+
+    KICK_BIKE_ONLY = False   # the lip sends bike and rider off rotating together (he rolls left with the bike)
 
     def objective(self, x, take, T_air, dt=1.0 / 600, detail=False):
         tk = dict(take)
         tk["W"] = take["W"] + math.radians(x[2])
-        rec, con = self.A.run_control(tk, self.target_fn(tk, T_air, x), r0=math.radians(x[0]), p0=math.radians(x[1]),
+        f = self.target_fn(tk, T_air, x)
+        rec, con = self.A.run_control(tk, f, r0=math.radians(x[0]), p0=math.radians(x[1]),
                                       dt=dt, rec_dt=1.0 / 30, t_max=T_air + 0.6, T_land=T_air,
-                                      gains={"w_track_fn": self.track_weight(T_air)})
+                                      gains=self.gains(T_air, x), kick_bike_only=self.KICK_BIKE_ONLY)
         if con is None:
             return 1e6
-        return self.ctrl_cost(rec, con, x, T_air, detail)
+        return self.ctrl_cost(rec, con, x, T_air, detail, take=tk, f=f)
 
-    # x = [yaw kick, roll kick (deg/s), takeoff rotation change (deg/s), yaw held at 0.9 s, yaw at 1.5 s,
-    #      lean at 0.9 s (deg)]; peak of the whip is fixed at Damien's full size
-    LO = np.array([-100.0, -250.0, -10.0, 20.0, 0.0, -50.0])
-    HI = np.array([150.0, 50.0, 19.0, 65.0, 55.0, 0.0])
-    STARTS = ([12.5, -44.4, 10.0, 37.0, 14.0, 0.0], [0.0, -50.0, 15.0, 40.0, 20.0, -10.0],
-              [10.0, -70.0, 19.0, 45.0, 20.0, -15.0], [0.0, -40.0, 19.0, 35.0, 15.0, 0.0])
-
-    def optimise(self, take, T_air, maxiter=250, starts=None, fix_dW=None):
-        """Nelder-Mead from several starts, one per CPU core (fork shares this pipeline).
-        fix_dW: hold the takeoff-rotation change at this value (used once the lip pull is realised)."""
+    def optimise(self, take, T_air, x0, sigma=0.25, gens=60, fix_dW=None, seed=1):
+        """CMA-ES over the inputs, normalised to their allowed ranges; the population is evaluated on all
+        cores (fork shares this pipeline). fix_dW holds the takeoff-rotation change (once the lip pull is real)."""
+        import cma
         import concurrent.futures as cf
         import multiprocessing as mp
         global _OPT_CTX
-        starts = starts or self.STARTS
         lo, hi = self.LO.copy(), self.HI.copy()
         if fix_dW is not None:
             lo[2] = hi[2] = fix_dW
-        _OPT_CTX = (self, take, T_air, maxiter, lo, hi)
+        free = np.where(hi - lo > 1e-9)[0]
+        span = hi - lo
+        u0 = np.clip((np.asarray(x0, float) - lo) / np.where(span > 0, span, 1.0), 0.0, 1.0)[free]
+        _OPT_CTX = (self, take, T_air, lo, hi, free)
+        es = cma.CMAEvolutionStrategy(list(u0), sigma, {"bounds": [0.0, 1.0], "seed": seed, "verbose": -9,
+                                                         "popsize": 16, "maxiter": gens, "tolfun": 1e-3})
         t0 = time.time()
-        with cf.ProcessPoolExecutor(max_workers=min(4, len(starts)), mp_context=mp.get_context("fork")) as ex:
-            results = list(ex.map(_opt_worker, starts))
-        for x0, (fun, x) in zip(starts, results):
-            print(f"      start {x0} -> J {fun:.3f} x {[round(float(v), 2) for v in x]}", flush=True)
-        fun, x = min(results, key=lambda r: r[0])
+        with cf.ProcessPoolExecutor(max_workers=4, mp_context=mp.get_context("fork")) as ex:
+            while not es.stop():
+                U = es.ask()
+                es.tell(U, list(ex.map(_opt_worker, U)))
+                if es.countiter % 5 == 0:
+                    xb = _u_to_x(es.result.xbest, lo, hi, free)
+                    print(f"      gen {es.countiter:3d}: best J {es.result.fbest:.3f} (median now {float(np.median(es.fit.fit)):.1f},"
+                          f" sigma {es.sigma:.3f}) x {[round(float(v), 2) for v in xb]}", flush=True)
 
         class Res:
             pass
         res = Res()
-        res.fun, res.x = fun, np.clip(np.array(x), lo, hi)
+        res.fun, res.x = float(es.result.fbest), _u_to_x(es.result.xbest, lo, hi, free)
         return res, time.time() - t0
 
     def solve_lip_pull(self, v, W_target):
@@ -272,7 +361,7 @@ class Pipeline:
         """The recorded flight: exactly the controller settings the optimiser scored."""
         return self.A.run_control(take, self.target_fn(take, T_air, x), r0=math.radians(x[0]), p0=math.radians(x[1]),
                                   dt=1.0 / 1200, rec_dt=1.0 / FPS_SIM, t_max=T_air + 0.6, T_land=T_air,
-                                  gains={"w_track_fn": self.track_weight(T_air)})
+                                  gains=self.gains(T_air, x), kick_bike_only=self.KICK_BIKE_ONLY)
 
     def landing(self, recA, con, ride_time=2.6):
         S = self.S
@@ -294,7 +383,11 @@ class Pipeline:
         t, st, sp, rec = self.G.run(st, s0, 0.0, lambda t, s, c: t >= t_end, "coast", 0.0)
         return rec
 
-    def run_all(self, out_dir, maxiter=120, face_throttle=None):
+    # CMA-ES refinement around X0 (the best flight found by the full search, see research/whip-attitude-measured.md;
+    # a fresh full search is sigma 0.25 and about 100 generations)
+    SIGMA0, GENS = 0.06, 20
+
+    def run_all(self, out_dir, face_throttle=None):
         log = {}
         tw = time.time()
         if face_throttle is None:
@@ -315,8 +408,9 @@ class Pipeline:
         # optimise rider inputs with the closed-loop rider; iterate the landing time to the actual contact
         el = 0.0
         take_nom = take
+        x0, sigma, gens = self.X0.copy(), self.SIGMA0, self.GENS
         for it in range(4):
-            res, e = self.optimise(take_nom, T_air, maxiter=maxiter)
+            res, e = self.optimise(take_nom, T_air, x0, sigma=sigma, gens=gens, seed=it + 1)
             el += e
             det = self.objective(res.x, take_nom, T_air, dt=1.0 / 1200, detail=True)
             print(f"    pass {it}: T_air {T_air:.4f} -> contact {det['t_air']:.4f}, J {det['J']:.3f}, "
@@ -326,27 +420,28 @@ class Pipeline:
             if abs(det["t_air"] - T_air) < 0.01:
                 break
             T_air = float(det["t_air"])
+            x0, sigma, gens = res.x, 0.04, max(gens // 2, 10)
         # realise the takeoff rotation change in the ground model (rider lifts on the bars at the lip)
         pull = self.solve_lip_pull(v, take_nom["W"] + math.radians(res.x[2]))
         t_off, st, sp, rec_g1 = self.to_takeoff(v)
         take = self.take_from(st, sp, rec_g1)
         print(f"    lip pull {pull:.0f} N -> takeoff rotation {math.degrees(take['W']):.2f} deg/s "
               f"(wanted {math.degrees(take_nom['W']) + res.x[2]:.2f})", flush=True)
-        # final stage: re-optimise the remaining lip inputs on the REAL takeoff state (rotation change now
-        # physically inside the takeoff), iterating the landing time to the actual contact
+        # final stage: re-optimise the remaining inputs on the REAL takeoff state (rotation change now physically
+        # inside the takeoff), iterating the landing time to the actual contact
         x0 = np.array(res.x, float)
         x0[2] = 0.0
-        starts = [list(x0), list(x0 + [0, -15, 0, 5, 5, 0]), list(x0 + [0, 15, 0, -5, -5, 5]), list(x0 + [15, 0, 0, 0, 5, -5])]
+        sigma, gens = 0.05, self.GENS
         for it in range(4):
-            res2, e = self.optimise(take, T_air, maxiter=maxiter, starts=starts, fix_dW=0.0)
+            res2, e = self.optimise(take, T_air, x0, sigma=sigma, gens=gens, fix_dW=0.0, seed=11 + it)
             el += e
             det = self.objective(res2.x, take, T_air, dt=1.0 / 1200, detail=True)
             print(f"    final pass {it}: T_air {T_air:.4f} -> contact {det['t_air']:.4f}, J {det['J']:.3f}, "
                   f"x {[round(float(v), 3) for v in res2.x]}", flush=True)
-            starts = [list(res2.x)] + starts[1:]
             if abs(det["t_air"] - T_air) < 0.01:
                 break
             T_air = float(det["t_air"])
+            x0, sigma, gens = res2.x, 0.04, max(self.GENS // 2, 10)
         x_real = np.array(res2.x, float)
         print(f"[3] whip optimised in {el:.0f}s: "
               f"{json.dumps({k: (round(float(v), 3) if isinstance(v, (int, float, np.floating)) else v) for k, v in det.items()})}")
@@ -363,13 +458,15 @@ class Pipeline:
 _OPT_CTX = None
 
 
-def _opt_worker(x0):
-    pl, take, T_air, maxiter, lo, hi = _OPT_CTX
-    span = np.maximum(hi - lo, 1e-6)
-    f = lambda z: pl.objective(np.clip(z, lo, hi), take, T_air) + 1e3 * np.sum(((z - np.clip(z, lo, hi)) / span) ** 2)
-    res = minimize(f, np.array(x0, float), method="Nelder-Mead",
-                   options=dict(maxiter=maxiter, xatol=0.5, fatol=1e-3, adaptive=True))
-    return float(res.fun), [float(v) for v in res.x]
+def _u_to_x(u, lo, hi, free):
+    x = lo.copy()
+    x[free] = lo[free] + np.clip(np.asarray(u, float), 0.0, 1.0) * (hi - lo)[free]
+    return x
+
+
+def _opt_worker(u):
+    pl, take, T_air, lo, hi, free = _OPT_CTX
+    return float(pl.objective(_u_to_x(u, lo, hi, free), take, T_air))
 
 
 def _jsonable(o):
@@ -412,6 +509,8 @@ if __name__ == "__main__":
         log, g1, ra, con, g2 = pl.run_all(out, face_throttle=ft)
         with open(f"{out}/records.pkl", "wb") as f:
             pickle.dump((log, g1, ra, con, g2, pl.S.T_face), f)
+    np.savez(f"{out}/flight.npz", t=np.array([r["t"] for r in ra]), RA=np.array([r["RA"] for r in ra]),
+             RB=np.array([r["RB"] for r in ra]))         # for scripts/analysis/attitude_overlay.py --sim
     info = export.build(pl, log, g1, ra, con, g2, out)
     log["export"] = info
     with open(f"{out}/summary.json", "w") as f:
