@@ -4,9 +4,10 @@ Damien's Blender work. Each project lives in its own folder with a `PROJECT.md`
 (brief, phase plan, decisions log). Read the project's `PROJECT.md` before doing anything.
 
 ## Session start (every time; the container is wiped between sessions)
-1. `tools/setup_blender.sh` installs the pinned Blender (5.2.3 LTS) and the headless libraries.
-2. For compatibility checks: `BLENDER_VERSION=5.2.0 SET_DEFAULT=0 tools/setup_blender.sh` (Damien runs 5.2.0 LTS).
-3. Read `.claude/skills/*/SKILL.md` for what has already been learned. Do not relearn it.
+1. `git lfs install --local && git lfs pull`. A fresh clone holds only LFS pointer files (about 130 bytes each) until this runs.
+2. `tools/setup_blender.sh` installs the pinned Blender (5.2.3 LTS) and the headless libraries.
+3. For compatibility checks: `BLENDER_VERSION=5.2.0 SET_DEFAULT=0 tools/setup_blender.sh` (Damien runs 5.2.0 LTS).
+4. Read `.claude/skills/*/SKILL.md` for what has already been learned. Do not relearn it.
 
 ## Standards
 - Detail over quantity. Do less, do it better. Model the details nobody notices.
