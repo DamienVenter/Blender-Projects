@@ -35,7 +35,13 @@ if [[ "${SET_DEFAULT:-1}" == "1" ]]; then
   ln -sf "${DEST}/${NAME}/blender" /usr/local/bin/blender
 fi
 
-# 3. Verify.
+# 3. Python packages for the simulation scripts (system python3, not Blender's).
+REQ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/requirements.txt"
+if [[ -f "$REQ" ]] && ! python3 -c "import numpy, scipy, matplotlib, cma, pytest" 2>/dev/null; then
+  python3 -m pip install -q -r "$REQ" 2>&1 | grep -v "WARNING: Running pip as the 'root' user" || true
+fi
+
+# 4. Verify.
 B="/usr/local/bin/blender-${BLENDER_VERSION}"
 "$B" --version 2>/dev/null | head -1
 "$B" -b --factory-startup --python-expr \

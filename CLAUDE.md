@@ -5,7 +5,8 @@ Damien's Blender work. Each project lives in its own folder with a `PROJECT.md`
 
 ## Session start (every time; the container is wiped between sessions)
 1. `git lfs install --local && git lfs pull`. A fresh clone holds only LFS pointer files (about 130 bytes each) until this runs.
-2. `tools/setup_blender.sh` installs the pinned Blender (5.2.3 LTS) and the headless libraries.
+2. `tools/setup_blender.sh` installs the pinned Blender (5.2.3 LTS), the headless libraries and the Python
+   packages in `requirements.txt` (numpy, scipy, matplotlib, cma, pytest).
 3. For compatibility checks: `BLENDER_VERSION=5.2.0 SET_DEFAULT=0 tools/setup_blender.sh` (Damien runs 5.2.0 LTS).
 4. Read `.claude/skills/*/SKILL.md` for what has already been learned. Do not relearn it.
 

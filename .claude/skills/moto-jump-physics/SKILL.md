@@ -72,6 +72,26 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
 - Momentum budget: any roll or yaw momentum given at the lip is still there at touchdown (wheels hold it
   only while the bike is crossed up or laid over). Lip kicks must be small or cancelled by body motion.
 
+## Damien's MEASURED whip (2026-11-06, research/whip-attitude-measured.md)
+- Real size: bike fully sideways (90 deg) and flat by 0.33 s after the lip, held to 0.45 s; the nose then drops
+  until the bike hangs nose-down (about 78 deg in the picture) at 1.0 s; nose back up to about 30 deg while still
+  fully crossed up until about 2.0 s; pulled straight in the last 0.2 s. His torso leans left about 70 deg at
+  the peak (goes WITH the bike) and is upright by 1.0 s.
+- The nose drop is the gyroscope: once the bike is flat and sideways, the wheels' momentum leaves the pitch axis
+  and the bodies must carry it. A rigid hold from the peak reproduces his nose drop to within a few degrees for
+  0.45 to 1.0 s. His own input is stopping it, lifting the nose and the late straighten.
+- Tracking every axis of a measured attitude makes the rider tumble: the bike is heavier than the rider, so
+  every degree forced on the bike spins him further the other way. Track only what the camera saw (bike: turn in
+  the picture and side-on amount; torso: lean) and solve the hidden angles (bike tipping toward the camera, torso
+  turn and pitch) so momentum is conserved: `sim.Pipeline.target_fn`, knots `HID_T`.
+- The lip kick: the system leaves the lip already rolling left with the bike (he rolls with it), so the kick is
+  shared by rider and bike (`KICK_BIKE_ONLY = False`); `run_control(kick_bike_only=True)` exists for comparison,
+  with the exact angular momentum of two bodies rotating differently.
+- Relative bike-to-rider rotation needed: about 55 to 85 deg (REL_MAX raised from 75 to 95 deg; the limb-by-limb
+  reach check is the real limit). A torso held upright cannot reach the bars when the bike is flat and sideways.
+- Search: CMA-ES (`pip install cma`) in coordinates normalised to each input's range; Nelder-Mead stalls on this
+  many-input, many-valley problem.
+
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |
 |---|---|---|
