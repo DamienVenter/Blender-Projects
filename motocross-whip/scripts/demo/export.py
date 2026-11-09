@@ -36,6 +36,35 @@ def seen_from_behind(RA, RB, lean=None):
     return out
 
 
+def resample(frames, hud, rider_c, t_start, t_end):
+    """Positions linearly and rotations by slerp onto t_start + k / FPS; HUD and rider centre to the nearest record."""
+    T = np.array([f["t"] for f in frames])
+    keep = np.concatenate([[True], np.diff(T) > 1e-6])
+    frames = [f for f, k in zip(frames, keep) if k]
+    hud = [h for h, k in zip(hud, keep) if k]
+    rider_c = [c for c, k in zip(rider_c, keep) if k]
+    T = T[keep]
+    TF = np.array([f["tf"] for f in frames])                # (n, objects, 7)
+    out_f, out_h, out_c = [], [], []
+    for k in range(int(math.floor((t_end - t_start) * FPS + 1e-6)) + 1):
+        t = t_start + k / FPS
+        i = int(np.clip(np.searchsorted(T, t) - 1, 0, len(T) - 2))
+        a = float(np.clip((t - T[i]) / (T[i + 1] - T[i]), 0.0, 1.0))
+        p = (1 - a) * TF[i, :, :3] + a * TF[i + 1, :, :3]
+        q0, q1 = TF[i, :, 3:], TF[i + 1, :, 3:]
+        dot = np.clip((q0 * q1).sum(axis=1), -1.0, 1.0)
+        th = np.arccos(dot)
+        s0 = np.where(th > 1e-6, np.sin((1 - a) * th) / np.maximum(np.sin(th), 1e-9), 1 - a)
+        s1 = np.where(th > 1e-6, np.sin(a * th) / np.maximum(np.sin(th), 1e-9), a)
+        q = s0[:, None] * q0 + s1[:, None] * q1
+        q /= np.linalg.norm(q, axis=1, keepdims=True)
+        out_f.append({"t": t, "tf": np.concatenate([p, q], axis=1).tolist()})
+        j = i if a < 0.5 else i + 1
+        out_h.append(dict(hud[j], t=hud[j]["t"] + (t - T[j])))
+        out_c.append((1 - a) * np.asarray(rider_c[i]) + a * np.asarray(rider_c[i + 1]))
+    return out_f, out_h, out_c
+
+
 def smooth(series, tau, dt):
     out, a = [], None
     k = dt / (tau + dt)
@@ -46,7 +75,7 @@ def smooth(series, tau, dt):
     return out
 
 
-def build(pl, log, g1, recA, con, g2, out_dir):
+def build(pl, log, g1, recA, con, g2, out_dir, seen_fn=None, lip_fn=None):
     S, T = pl.S, pl.T
     poser = Poser(S)
     mA, mB, M = S.mb, S.mr, S.M
@@ -56,7 +85,8 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     ya_c, _, ra_c = air.euler_of(con["RA"])
     # what Damien's camera behind the ramp shows, simulated and measured (whip_measured.py)
     T_air_t = log.get("T_air_target", con["t"])
-    seen_fn = pl.target_fn(log["take"], T_air_t, np.array(log["whip_x"])).seen
+    if seen_fn is None:
+        seen_fn = pl.target_fn(log["take"], T_air_t, np.array(log["whip_x"])).seen
     pb_c = con["C"] - (mB / M) * con["D"]
     rel_c = air.logm_so3(con["RA"].T @ con["RB"])        # rider relative to bike at touchdown (bike frame)
 
@@ -103,18 +133,36 @@ def build(pl, log, g1, recA, con, g2, out_dir):
                 res = 1.0 - air.smoothstep(r["t"] / 0.15)
                 RA = Rz(ya_c * res) @ Ry(-st[2]) @ Rx(ra_c * res)
                 pb = np.array([st[0], pb_c[1] * res, st[1]])
-                look = np.array([st[0] + 20.0, 0.0, 0.0])
+                look = sweet * res + np.array([st[0] + 20.0, 0.0, 0.0]) * (1 - res)
             else:
                 RA = Ry(-st[2])
                 pb = np.array([st[0], 0.0, st[1]])
                 look = sweet
+                ini = log.get("lip_initiation")
+                if ini and lip_fn is not None and tg - t_off > -2.0 * ini["T"]:
+                    # whip started on the lip: the bike follows the replica's one smooth attitude curve through the
+                    # lip, pivoting about the rear tyre contact (blended in from 2 x INIT_T before the lip)
+                    tl = tg - t_off
+                    sI = min(max((tl + 2.0 * ini["T"]) / ini["T"], 0.0), 1.0)
+                    sI = sI * sI * (3 - 2 * sI)
+                    Rnew = air.expm_so3(sI * air.logm_so3(lip_fn(tl) @ RA.T)) @ RA
+                    O = Rnew @ RA.T
+                    rax = pb + RA @ (np.array([B.rear_axle_at(r["sr"])[0], 0.0, B.rear_axle_at(r["sr"])[1]]) - S.cb)
+                    c = rax - np.array([0.0, 0.0, P.R_REAR])
+                    pb = c + O @ (pb - c)
+                    RA = Rnew
             RB = RA @ air.expm_so3(rel_c * res) if kind == "g2" else RA
+            if kind == "g1" and log.get("lip_initiation"):
+                RB = Ry(-st[2]) @ air.expm_so3(0.0 * rel_c)      # torso keeps the ramp attitude until the lip
+                RB = RA if tg - t_off <= -log["lip_initiation"]["T"] else RB
             spine = last_spine * res if kind == "g2" else np.zeros(3)
             du, dw = r["rider"]
             if kind == "g1":
                 last_rider = (du, dw)
             Wb = lambda q: pb + RA @ (np.asarray(q, float) - S.cb)
             origin = Wb(S.peg) + RA @ np.array([du, 0.0, dw])
+            if kind == "g2":                        # hips slide back from the air position over the first 0.15 s
+                origin = origin + RA @ (np.asarray(con.get("shift", np.zeros(3))) * res)
             crouch = float(np.clip(-dw * 0.9, -0.08, 0.25))
             sf, sr = r["sf"], r["sr"]
             vb = math.hypot(st[3], st[4])
@@ -155,14 +203,16 @@ def build(pl, log, g1, recA, con, g2, out_dir):
                     "Nf": float(loads[0]), "Nr": float(loads[1]), "crouch": float(crouch),
                     "steer": math.degrees(steer), "wr": float(w_r)})
 
-    # ---- quaternion sign continuity and frame numbers
+    # ---- quaternion sign continuity, then resample every object onto whole frames (even spacing: no pops at the
+    # ground-to-air and air-to-ground joins, where the two simulations' record times do not line up)
     for i in range(1, len(frames)):
         for j in range(len(names)):
             q0, q1 = frames[i - 1]["tf"][j][3:], frames[i]["tf"][j][3:]
             if sum(a * b for a, b in zip(q0, q1)) < 0:
                 frames[i]["tf"][j][3:] = [-v for v in q1]
+    frames, hud, rider_c = resample(frames, hud, rider_c, t_start, t_end)
     for fr in frames:
-        fr["f"] = (fr["t"] - t_start) * FPS + 1.0
+        fr["f"] = round((fr["t"] - t_start) * FPS) + 1.0
 
     # ---- cameras
     dtf = 1.0 / FPS
@@ -185,12 +235,12 @@ def build(pl, log, g1, recA, con, g2, out_dir):
     cams.append({"name": "CAM_DAMIEN", "lens": 35.0, "path": path_of(lambda i: dam_pos, rc_s)})
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
-    # matched to Damien's clip 1 shot A (research/whip-attitude-measured.md): zoomed phone camera (1600 px focal on a
-    # 478 x 850 frame = 30 deg vertical field) 1.5 m up behind the ramp; 22 m behind the lip so the side-on bike at
-    # 1.1 s has his clip's size; panning with the rider and holding him in the upper third like the operator did
-    far_pos = np.array([-22.0, 1.0, 1.5])
-    far_aim = [p - np.array([0.0, 0.0, 2.2]) for p in rc_s]
-    cams.append({"name": "CAM_BEHIND_FAR", "lens": 18.0 / math.tan(math.atan(425.0 / 1600.0)), "path": path_of(lambda i: far_pos, far_aim)})
+    # matched to Damien's two phones on the clips 2 and 3 jump (research/whip-attitude-3d/cams_clips23.json): both
+    # behind and left of the jump line, zoomed (focal length from the bike's pixel size at the flat peak), panning
+    # with the rider; lens for a portrait frame (36 mm across the long side)
+    for name, cpos, fpx in (("CAM_CLIP3", (-16.0, 4.0, 1.5), 1200.0), ("CAM_CLIP2", (-6.0, 2.5, 1.0), 1300.0)):
+        cposa = np.array(cpos)
+        cams.append({"name": name, "lens": 18.0 * fpx / 425.0, "path": path_of(lambda i, c=cposa: c, rc_s)})
     land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])
     cams.append({"name": "CAM_LAND", "lens": 28.0, "path": path_of(lambda i: land_pos, rc_s)})
 

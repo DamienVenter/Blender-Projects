@@ -42,12 +42,22 @@ def _unit(v):
     return v / n if n > 1e-12 else v
 
 
+SOFT_IK = 0.04          # fraction of the limb length over which the reach eases into full extension
+
+
 def two_bone(root, target, l1, l2, pole):
-    """Analytic two-bone IK. Returns (mid_joint, end, reached)."""
+    """Analytic two-bone IK with a soft limit (the joint does not snap straight at full extension: the reach is
+    eased over the last SOFT_IK of the limb length). Returns (mid_joint, end, reached)."""
     d = target - root
     dist = np.linalg.norm(d)
-    reached = dist <= (l1 + l2) * 0.999
-    dist_c = np.clip(dist, abs(l1 - l2) + 1e-4, (l1 + l2) * 0.999)
+    L = (l1 + l2) * 0.999
+    reached = dist <= L
+    knee = L * (1.0 - SOFT_IK)
+    if dist > knee:                               # exponential ease toward L (continuous value and slope)
+        dist_s = knee + (L - knee) * (1.0 - np.exp(-(dist - knee) / (L - knee)))
+    else:
+        dist_s = dist
+    dist_c = max(dist_s, abs(l1 - l2) + 1e-4)
     u = d / max(dist, 1e-9)
     a = (l1 * l1 + dist_c * dist_c - l2 * l2) / (2 * dist_c)
     h = np.sqrt(max(l1 * l1 - a * a, 0.0))

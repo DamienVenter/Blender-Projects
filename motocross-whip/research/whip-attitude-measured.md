@@ -101,3 +101,59 @@ What is still different and why (open questions for Damien):
   this rider model does not have (a leg off the peg, hips off the seat beyond 0.45 m).
 - His torso goes much further over with the bike (70 deg) than the simulation's (30 deg), and he is upright again
   by 1.1 s. Leaning that far needs more roll from the lip than this model can then stop.
+
+## 3D from two phones (2026-11-09)
+Damien: "Whip is still too small ... my bike is way more sideways. Think 3D ... Replicate it exactly."
+
+Clips 2 and 3 are the same jump filmed by two phones at once (poses match frame for frame, lip at frame 29 in
+both). Two lines of sight give the true 3D attitude, including the tilt toward or away from the camera that one
+view cannot see.
+
+Method (`scripts/analysis/`):
+1. Cameras: both phones are behind and LEFT of the jump line (calibrated on the frames on the ramp, where the
+   bike's attitude is known: at the lip the bike appears tilted about 30 deg left in clip 2, which only a camera
+   about 2.5 m left of the line gives). Clip 3: (-16, 4, 1.5) m from the lip, about 1200 px focal; clip 2:
+   (-6, 2.5, 1.0) m, about 1300 px (zoomed, from the bike's pixel length at the flat peak).
+2. Every frame: the bike's red plastics are segmented (`bikebox.py`, `redpca.py`); their principal axis gives the
+   bike's angle in the picture in each phone to about 1 deg (both phones agree within 5 deg).
+3. Wheel roundness (front wheel ellipse) read off close crops: edge-on at the peak, opening from 0.53 s, full
+   profile (both wheels round in both phones) from 1.2 s. The plastics' length is NOT used: the rider's body
+   covers the middle of the bike, which made an early solve wrong.
+4. `fit3d.py` solves the attitude per frame from both phones' angles plus the roundness (smoothness prior, weak
+   prior from the clip 1 table). Result: `whip-attitude-3d/fit_clips23.json`. Checked by drawing the solved bike
+   from each phone's position next to the real frames (`twoview.py`): it matches through the whole flight.
+
+| t (s) | what the two phones show (3D solve) |
+|---|---|
+| 0.00 | already turning on the lip: about 27 deg of yaw at the lip frame |
+| 0.27 to 0.30 | flat and about 80 deg sideways; laid PAST flat (about 107 deg, seat facing back and down) |
+| 0.33 to 0.47 | held flat; rear starts rising (picture angle 6, 16, 27 deg) |
+| 0.53 to 1.07 | nose drops (37, 57, 69, 77 deg in the picture) while the bike rolls up into profile (roundness 0.25 to 0.9) |
+| 1.07 to 1.2 | hanging nose-down about 78 deg, full profile |
+| 1.2 to 1.95 | full profile (crossed up about 90 deg to the cameras); nose comes back up: 72, 60, 50, 43, 37, 32 deg |
+| after 1.95 | straightened in the last about 0.2 s (clip 1), touchdown about 2.2 s |
+
+## Differences between Damien's whip and the previous demo (checkpoint 2026-11-06)
+| | Damien (3D) | previous demo |
+|---|---|---|
+| Initiation | on the lip, bike already 20 to 27 deg turned | after takeoff |
+| Flat and sideways | by 0.27 to 0.30 s, laid past flat (about 107 deg) | about 0.5 s, laid about 75 deg |
+| Sideways at the peak | about 80 deg | 65 to 75 deg |
+| Nose drop | to about 78 deg in the picture by 1.0 s | about 62 deg |
+| Cross-up | full profile 1.1 to 1.95 s (90 deg to the cameras) | about 55 deg (roundness 0.8) |
+| Nose while crossed up | back up to about 32 deg by 1.8 s | 45 to 50 deg |
+| Torso | leans about 70 deg with the bike at the peak, upright from 1.1 s | about 30 deg, then leaning 50 deg the other way |
+| Motion | smooth | jerky: controller corrections, elbow IK flips, uneven keys at the takeoff and landing joins |
+
+## Replica (scripts/demo/replicate.py)
+The bike's attitude in the air is the 3D measurement through a smooth quaternion spline (knots every 0.10 s:
+within 3.2 deg RMS of the measurement, inside its noise). The whip starts on the lip: one curve through the lip,
+pivoting about the rear tyre in the last 0.1 s on the ramp. Run-in, ramp, takeoff, centre-of-mass flight,
+suspension and landing are the physics simulation. The rider's lean is as filmed; his torso turn and pitch, hip
+shift, spine and rear-wheel speed are solved to keep hands and feet on the bike (worst gap under 1 cm) and the
+angular momentum as constant as possible.
+
+Physics check: along the measured motion my two-body rider model cannot conserve angular momentum: mismatch about
+75 kg m2/s RMS against about 80 at the lip (the calculation is verified on a simulated flight: constant to 1 to 2).
+The real body does more than the model has (legs and arms moving mass, hips sliding further, throttle and brake
+used harder). Closing that gap needs a fuller body model; it is an open item, not hidden.

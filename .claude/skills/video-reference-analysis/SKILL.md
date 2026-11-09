@@ -41,3 +41,15 @@ description: How to study reference video frame by frame (riding clips, event fo
   timing only for durations.
 - Locate the rider automatically in sky frames (`scripts/analysis/find.py`: dark or red blob) before cropping;
   grid crops at fixed offsets miss a moving rider.
+
+## True 3D from two phones (learned 2026-11-09)
+- Check whether two clips are the same moment from two phones (matching poses at matching frame numbers; same
+  WhatsApp timestamp). Clips 2 and 3 were: two lines of sight make the attitude fully determined.
+- Calibrate each phone on frames where the attitude is KNOWN (bike on the ramp, straight, pitched along the face):
+  the in-picture tilt of the bike there fixes the camera's side offset (both phones were LEFT of the line, not one
+  each side as it first looked). Focal length from the bike's pixel length when fully side-on.
+- Automatic per-frame cue: segment the red plastics (saturated red; rust and trees are not), take the principal
+  axis: in-picture angle to about 1 deg. The plastics' LENGTH and THICKNESS are not usable (the rider's body covers
+  the middle); wheel roundness read off close crops is the reliable side-on cue.
+- Solve per frame (`scripts/analysis/fit3d.py`), then check by drawing the solved bike from each phone next to its
+  real frames (`twoview.py`). Never trust a 3D solve that has not been drawn back over the footage.

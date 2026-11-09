@@ -7,7 +7,8 @@ before any detailed modelling. Every number lives in `params.py` with its source
 | Step | Command | Output |
 |---|---|---|
 | Tests | `python3 -m pytest -q test_physics.py` | must pass first |
-| Simulate | `python3 -u sim.py OUT [--face-throttle N] [--reuse]` | `frames.json`, `scene.json`, `hud.json`, `summary.json`, `records.pkl` |
+| Replicate (current demo) | `python3 -u replicate.py OUT` | same files: Damien's measured 3D whip, smooth, with physics around it |
+| Simulate (physics-flown whip) | `python3 -u sim.py OUT [--face-throttle N] [--reuse]` | `frames.json`, `scene.json`, `hud.json`, `summary.json`, `records.pkl` |
 | Render + assemble | `python3 assemble.py OUT WORK VIDEOS` | `whip_demo.mp4`, `whip_vs_damien.mp4` (clip 1 shot A angle) |
 | Overlay on his frames | `../analysis/attitude_overlay.py out.jpg FRAMES 30 -25,1,1.5,1600 40 52 64 --sim OUT/flight.npz` | simulated flight drawn next to his real frames |
 | Physics sheet | `python3 physics_sheet.py OUT sheet.png` | one-page plots and key numbers |
@@ -26,7 +27,11 @@ before any detailed modelling. Every number lives in `params.py` with its source
   his camera saw (bike angle in the picture, how side-on, torso lean); the angles that camera cannot see are knots the
   CMA-ES search places (`pip install cma`), held softly so angular momentum decides. Lip pull, landing, export.
   The pipeline refines around `Pipeline.X0` (best full search); a fresh search is `SIGMA0 = 0.25`, about 100 generations.
-- `pose.py`, `export.py`: per-frame transforms for every part, cameras, data overlay.
+- `replicate.py`: the replica: bike attitude from `research/whip-attitude-3d/fit_clips23.json` (two-phone 3D
+  measurement) through a quaternion spline, one smooth curve through the lip (pivot on the rear tyre); rider's unseen
+  angles solved for reach and momentum (mismatch reported); physics for everything else.
+- `pose.py`, `export.py`: per-frame transforms for every part, cameras (two matched to Damien's phones), data overlay.
+  Smoothness: soft IK, joint and twist continuity, head smoothing, every object resampled onto whole frames.
 - `build_scene.py`, `render_view.py`: Blender 5.2 scene (Workbench) and per-camera renders.
 
 ## Known simplifications (demo only)

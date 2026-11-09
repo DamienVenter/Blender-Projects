@@ -197,3 +197,59 @@ def test_recorded_flight_matches_scored_flight(pl):
     ya, pa, ra = (math.degrees(v) for v in air.euler_of(con["RA"]))
     assert abs(con["t"] - det["t_air"]) < 1e-9
     assert abs(ya - det["land_yaw"]) < 1e-6 and abs(ra - det["land_roll"]) < 1e-6
+
+
+# ---------------------------------------------------------------- replica of the measured 3D whip (replicate.py)
+@pytest.fixture(scope="module")
+def rep(pl):
+    import replicate as RP
+    pl.S.T_face = 1344.4
+    t, st, sp, rec = pl.to_takeoff(14.873)
+    take = pl.take_from(st, sp, rec)
+    return RP.Replicator(pl, take, 2.232)
+
+
+def test_replica_follows_3d_measurement(rep):
+    """The replica's bike attitude is the two-phone 3D measurement (within its noise) from 0.15 s after the lip."""
+    ts, Rs = rep.bike.samples
+    err = [math.degrees(np.linalg.norm(air.logm_so3(rep.bike.R(t) @ R.T))) for t, R in zip(ts, Rs) if t > 0.15]
+    assert math.sqrt(np.mean(np.square(err))) < 4.0
+
+
+def test_replica_motion_is_smooth(rep):
+    """No jerks: bike angular acceleration stays below 15000 deg/s2 up to the straighten, spin rate continuous
+    through the lip."""
+    tg = np.arange(-0.2, rep.bike.t_s, 1 / 120)
+    Rg = [rep.bike.R(t) for t in tg]
+    w = np.array([np.degrees(air.logm_so3(Rg[i + 1] @ Rg[i].T)) * 120 for i in range(len(Rg) - 1)])
+    a = np.linalg.norm(np.diff(w, axis=0), axis=1) * 120
+    assert a.max() < 15000.0
+
+
+def test_momentum_calculation_matches_simulation(pl, rep, monkeypatch):
+    """The replica's angular momentum calculation is constant on a flight the simulator produced (which conserves
+    it by construction): validates the physics check reported for the replica (bars straight, as in the replica)."""
+    monkeypatch.setattr(pl.A, "STEER_MAX", 0.0)
+    take = rep.take
+    f = lambda t: (air.Ry(-take["beta"]) @ air.Rx(math.radians(-30) * min(t / 0.4, 1.0)), np.zeros(3), air.Ry(-take["beta"]))
+    rec, _ = pl.A.run_control(take, f, r0=math.radians(40), p0=math.radians(-60), dt=1 / 1200, rec_dt=1 / 120,
+                              t_max=1.0, T_land=9.0, gains={"w_rider": 0.1})
+    tg = np.array([r["t"] for r in rec])
+    ser = [(r["RA"], r["RB"], r["shift"], r["spine"], r["wr"]) for r in rec]
+    L, _, _ = rep.momentum(ser, tg)
+    dev = np.linalg.norm(L[3:-3] - pl.A.L0, axis=1).max()
+    assert dev < 0.03 * np.linalg.norm(pl.A.L0), dev
+
+
+def test_soft_ik_has_no_snap():
+    """The elbow moves continuously as the arm reaches full extension (no square-root snap)."""
+    import rider as RD
+    root, pole = np.zeros(3), np.array([0.0, 0.0, 1.0])
+    L = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
+    prev, worst = None, 0.0
+    for d in np.linspace(0.85 * L, 1.05 * L, 400):
+        mid, end, ok = RD.two_bone(root, np.array([d, 0.0, 0.0]), RD.L_UPPER_ARM, RD.L_FOREARM + RD.L_HAND_GRIP, pole)
+        if prev is not None:
+            worst = max(worst, np.linalg.norm(mid - prev))
+        prev = mid
+    assert worst < 0.004          # m per 0.5 mm step of reach

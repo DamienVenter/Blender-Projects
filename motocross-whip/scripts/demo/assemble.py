@@ -15,9 +15,11 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 FONT = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
-DAMIEN_CLIP = os.path.join(REPO, "motocross-whip/reference/user-clips/clip1_back-and-front_2026-11-06_102139.mp4")
-DAMIEN_LIP_T = 0.967         # s, rear wheel leaves the lip in clip 1 shot A (frame 30, 30 fps)
-DAMIEN_SHOT_END = 3.10       # s, clip 1 cuts from the camera behind (shot A) to the landing camera after this
+CLIPS = os.path.join(REPO, "motocross-whip/reference/user-clips")
+# the clips 2 and 3 jump (two phones), rear wheel leaving the lip at frame 29 in both
+DAMIEN = {"clip3": (os.path.join(CLIPS, "clip3_back-wide_2026-11-06_102401k.mp4"), 0.9396, "CAM_CLIP3"),
+          "clip2": (os.path.join(CLIPS, "clip2_back-close_2026-11-06_102401.mp4"), 0.9333, "CAM_CLIP2")}
+CMP_LEAD, CMP_AFTER = 0.8, 2.15          # s before / after the lip in the comparison (clip 3 loses him at 2.0 s)
 FPS = 120
 
 
@@ -33,10 +35,10 @@ def views(fr):
     return {
         "side": dict(cam="CAM_SIDE", res=(1920, 1080), f0=1, f1=last, step=2,
                      title="SIDE VIEW  |  REAL TIME"),
-        "damien": dict(cam="CAM_BEHIND_FAR", res=(1080, 1920), f0=f(toff - 0.9), f1=min(f(toff + DAMIEN_SHOT_END - DAMIEN_LIP_T), last),
-                       step=2, title="YOUR CLIP 1 ANGLE  |  REAL TIME"),
-        "close": dict(cam="CAM_DAMIEN", res=(1080, 1920), f0=f(toff - 1.0), f1=min(f(tl + 0.4), last), step=2,
-                      title="CLOSE BEHIND THE RAMP  |  REAL TIME"),
+        "clip3": dict(cam="CAM_CLIP3", res=(1080, 1920), f0=f(toff - CMP_LEAD), f1=min(f(toff + CMP_AFTER), last), step=2,
+                      title="YOUR CLIP 3 PHONE  |  REAL TIME"),
+        "clip2": dict(cam="CAM_CLIP2", res=(1080, 1920), f0=f(toff - CMP_LEAD), f1=min(f(toff + CMP_AFTER), last), step=2,
+                      title="YOUR CLIP 2 PHONE  |  REAL TIME"),
         "track": dict(cam="CAM_TRACK", res=(1920, 1080), f0=f(toff - 0.15), f1=min(f(tl + 0.25), last), step=1,
                       title="TRACKING  |  HALF SPEED"),
         "land": dict(cam="CAM_LAND", res=(1920, 1080), f0=f(toff + 0.6), f1=min(f(tl + 2.0), last), step=2,
@@ -131,7 +133,7 @@ def main():
          "-vf", f"drawtext=fontfile={FONT}:text='WHIP PHYSICS DEMO':x=(w-tw)/2:y=h/2-90:fontsize=72:fontcolor=white,"
                 f"drawtext=fontfile={FONT}:text='2026 CRF250R  |  23 m KOTW steel ramp to dirt  |  rider 185 cm':"
                 f"x=(w-tw)/2:y=h/2+10:fontsize=34:fontcolor=0xC8C8C8,"
-                f"drawtext=fontfile={FONT}:text='Proxy shapes only. Motion is simulated, not hand-animated.':"
+                f"drawtext=fontfile={FONT}:text='Proxy shapes only. Whip angles from your two phones in 3D. Flight, ramp and landing simulated.':"
                 f"x=(w-tw)/2:y=h/2+70:fontsize=28:fontcolor=0xFFD700",
          "-c:v", "libx264", "-crf", "17", "-pix_fmt", "yuv420p", card])
     lst = f"{work}/concat.txt"
@@ -139,19 +141,21 @@ def main():
         for c in [card] + clips:
             f.write(f"file '{c}'\n")
     run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", f"{out}/whip_demo.mp4"])
-    # side by side with Damien's clip, synced at lip departure
-    dv = V["damien"]
-    sim_lip = (fr["t_off"] - (fr["t_start"] + (dv["f0"] - 1) / FPS))
-    start_d = max(DAMIEN_LIP_T - sim_lip, 0.0)
-    pad_sim = max(sim_lip - DAMIEN_LIP_T, 0.0)
-    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start_d:.3f}", "-i", DAMIEN_CLIP,
-         "-framerate", "60", "-pattern_type", "glob", "-i", f"{work}/frames_damien/f_*.png",
-         "-filter_complex",
-         f"[0:v]fps=60,scale=-2:1080,setsar=1,tpad=start_duration={pad_sim:.3f}:start_mode=clone[a];"
-         f"[1:v]scale=-2:1080,setsar=1[b];[a][b]hstack=inputs=2:shortest=1,pad=1920:1080:(ow-iw)/2:0:color=0x101418,"
-         f"drawtext=fontfile={FONT}:text='YOUR REAL WHIP':x=(w/2-tw)/2-150:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=10,"
-         f"drawtext=fontfile={FONT}:text='SIMULATION':x=w/2+(w/2-tw)/2+150:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=10",
-         "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", f"{out}/whip_vs_damien.mp4"])
+    # Damien's two phones next to the replica from the same spots, synced at the lip: 4 portrait panels
+    ins, filt = [], []
+    for k, (name, lab) in enumerate((("clip3", "CLIP 3"), ("clip2", "CLIP 2"))):
+        path, lip_t, cam = DAMIEN[name]
+        v = V[name]
+        sim_lip = fr["t_off"] - (fr["t_start"] + (v["f0"] - 1) / FPS)
+        ins += ["-ss", f"{max(lip_t - sim_lip, 0.0):.3f}", "-i", path,
+                "-framerate", "60", "-pattern_type", "glob", "-i", f"{work}/frames_{name}/f_*.png"]
+        filt.append(f"[{2 * k}:v]fps=60,scale=-2:850,setsar=1,drawtext=fontfile={FONT}:text='YOU  {lab}':x=12:y=12:"
+                    f"fontsize=26:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=6[r{k}]")
+        filt.append(f"[{2 * k + 1}:v]scale=-2:850,setsar=1,drawtext=fontfile={FONT}:text='REPLICA':x=12:y=12:"
+                    f"fontsize=26:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=6[s{k}]")
+    filt.append("[r0][s0][r1][s1]hstack=inputs=4:shortest=1,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101418")
+    run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(filt), "-an",
+         "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", f"{out}/whip_vs_damien.mp4"])
     print("ASSEMBLE OK")
 
 

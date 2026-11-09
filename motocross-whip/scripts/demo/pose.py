@@ -65,6 +65,22 @@ class Poser:
         self.lm = RD.neutral_landmarks()
         self.reach_violations = 0
         self.max_overreach = 0.0
+        self.prev = {}               # previous frame's elbows, knees and head: bend directions stay continuous
+
+    def limb_frame(self, name, z_dir, x_hint):
+        """Segment frame along z_dir. The twist follows the previous frame (parallel transport) and is pulled gently
+        toward the anatomical hint, so a limb never spins about its own axis when it lines up with the hint."""
+        key = "x_" + name
+        if key in self.prev:
+            z = z_dir / np.linalg.norm(z_dir)
+            xp = self.prev[key] - np.dot(self.prev[key], z) * z
+            xh = x_hint - np.dot(x_hint, z) * z
+            if np.linalg.norm(xh) > 0.3 and np.linalg.norm(xp) > 1e-6:
+                xp = xp / np.linalg.norm(xp) + 0.05 * xh / np.linalg.norm(xh)
+            x_hint = xp if np.linalg.norm(xp) > 1e-6 else x_hint
+        R = frame_from_z(z_dir, x_hint)
+        self.prev[key] = R[:, 0]
+        return R
 
     def bike_parts(self, RA, pb, sf, sr, spin_f, spin_r, steer=0.0):
         """pb = bike CoM (world). Returns {name: (loc, R)}, the frame point mapper and the steered
@@ -127,19 +143,29 @@ class Poser:
         up = RB @ lean @ np.array([0.0, 0.0, 1.0])
         z = up - np.dot(up, look) * look
         z /= np.linalg.norm(z)
-        out["head"] = (head_c, np.column_stack([look, np.cross(z, look), z]))
+        Rh = np.column_stack([look, np.cross(z, look), z])
+        if "head" in self.prev:                     # the head turns smoothly (no snap when the look target moves)
+            Rh = air.expm_so3(0.25 * air.logm_so3(Rh @ self.prev["head"].T)) @ self.prev["head"]
+        self.prev["head"] = Rh
+        out["head"] = (head_c, Rh)
         for s, sign in (("l", 1.0), ("r", -1.0)):
-            knee, ankle, ok1 = RD.two_bone(J[f"hip_{s}"], J[f"ankle_target_{s}"], RD.L_THIGH, RD.L_SHANK,
-                                           J[f"hip_{s}"] + RA @ np.array([0.6, sign * 0.18, 0.0]))
+            # bend direction: the default pole, or the previous frame's joint (keeps elbows and knees from flipping)
+            kpole = self.prev.get(f"knee_{s}", J[f"hip_{s}"] + RA @ np.array([0.6, sign * 0.18, 0.0]))
+            knee, ankle, ok1 = RD.two_bone(J[f"hip_{s}"], J[f"ankle_target_{s}"], RD.L_THIGH, RD.L_SHANK, kpole)
+            self.prev[f"knee_{s}"] = knee + (knee - 0.5 * (J[f"hip_{s}"] + ankle)) * 2.0
             # shoulder blade slides toward the bar when the arm is near full stretch (up to SCAPULA_REACH)
             arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
             to_grip = J[f"grip_{s}"] - J[f"shoulder_{s}"]
             dist = np.linalg.norm(to_grip)
             slide = min(max(dist - 0.95 * arm, 0.0), RD.SCAPULA_REACH)
             J[f"shoulder_{s}"] = J[f"shoulder_{s}"] + to_grip / max(dist, 1e-9) * slide
+            epole = self.prev.get(f"elbow_{s}", J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15]))
             elbow, grip, ok2 = RD.two_bone(J[f"shoulder_{s}"], J[f"grip_{s}"], RD.L_UPPER_ARM,
-                                           RD.L_FOREARM + RD.L_HAND_GRIP,
-                                           J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15]))
+                                           RD.L_FOREARM + RD.L_HAND_GRIP, epole)
+            # remember the bend direction, blended with the default so it can recover after a straight arm
+            default = J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15])
+            mid = 0.5 * (J[f"shoulder_{s}"] + grip)
+            self.prev[f"elbow_{s}"] = 0.85 * (elbow + (elbow - mid) * 2.0) + 0.15 * default
             for ok, a, b in ((ok1, J[f"hip_{s}"], J[f"ankle_target_{s}"]), (ok2, J[f"shoulder_{s}"], J[f"grip_{s}"])):
                 if not ok:
                     self.reach_violations += 1
@@ -147,10 +173,10 @@ class Poser:
             over_arm = np.linalg.norm(J[f"grip_{s}"] - J[f"shoulder_{s}"]) - (RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP)
             self.max_overreach = max(self.max_overreach, over_leg, over_arm)
             side = RA @ np.array([0.0, sign, 0.0])
-            out[f"thigh_{s}"] = (J[f"hip_{s}"], frame_from_z(knee - J[f"hip_{s}"], RA @ np.array([1.0, 0, 0])))
-            out[f"shank_{s}"] = (knee, frame_from_z(ankle - knee, RA @ np.array([1.0, 0, 0])))
-            out[f"foot_{s}"] = (ankle, frame_from_z(J[f"ball_{s}"] - ankle, RA @ np.array([0, 0, 1.0])))
-            out[f"upper_arm_{s}"] = (J[f"shoulder_{s}"], frame_from_z(elbow - J[f"shoulder_{s}"], side))
-            out[f"forearm_{s}"] = (elbow, frame_from_z(grip - elbow, side))
+            out[f"thigh_{s}"] = (J[f"hip_{s}"], self.limb_frame(f"thigh_{s}", knee - J[f"hip_{s}"], RA @ np.array([1.0, 0, 0])))
+            out[f"shank_{s}"] = (knee, self.limb_frame(f"shank_{s}", ankle - knee, RA @ np.array([1.0, 0, 0])))
+            out[f"foot_{s}"] = (ankle, self.limb_frame(f"foot_{s}", J[f"ball_{s}"] - ankle, RA @ np.array([0, 0, 1.0])))
+            out[f"upper_arm_{s}"] = (J[f"shoulder_{s}"], self.limb_frame(f"upper_arm_{s}", elbow - J[f"shoulder_{s}"], side))
+            out[f"forearm_{s}"] = (elbow, self.limb_frame(f"forearm_{s}", grip - elbow, side))
             out[f"hand_{s}"] = (grip, RA if R_front is None else R_front)
         return out

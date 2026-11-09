@@ -101,6 +101,23 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
   many-input, many-valley problem. The landscape is chaotic (tiny input changes flip clean and tumbling), so use
   a population, several hundred evaluations, and restart from the best with a smaller step.
 
+## Replica of the measured whip and smooth animation (2026-11-09)
+- Damien asked for his whip replicated EXACTLY. `replicate.py`: bike attitude = two-phone 3D measurement through
+  a quaternion spline (knots 0.10 s: inside the measurement noise, half the jerk of 0.07 s); physics for run-in,
+  ramp, takeoff, CoM flight, suspension, landing; rider lean as filmed, the unseen body angles solved for reach
+  and momentum. Momentum mismatch is REPORTED (about 75 kg m2/s RMS): the two-body rider cannot reproduce it.
+- He starts the whip on the lip. Use ONE attitude curve through the lip (ramp attitude until 0.1 s before, the
+  measured lip attitude at it) and pivot about the rear tyre contact. Two pieces joined at the lip rock the bike.
+- Sources of "choppy" motion found and fixed (audit every object's angular velocity and acceleration from
+  frames.json, `max ang acc` and p99):
+  1. Closed-loop controller corrections and step changes in its phase weights: the bike wobbles.
+  2. Elbow IK flips when the pole lines up with the arm: use the previous frame's joint as the pole.
+  3. Limb twist flips when the limb lines up with its reference axis: parallel-transport the twist.
+  4. IK snap at full extension (square root): soft IK eases the reach over the last 4 %.
+  5. Uneven keys at the ground-to-air and air-to-ground joins (1 ms apart): resample all objects to whole frames.
+  6. Head look target switching: blend the target, smooth the head rotation.
+  7. Hip shift dropping to zero at touchdown: carry it and blend it out over 0.15 s.
+
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |
 |---|---|---|

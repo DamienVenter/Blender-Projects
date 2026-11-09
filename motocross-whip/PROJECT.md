@@ -46,6 +46,7 @@ Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single
 | 20 | 2026-11-06 | Follow KOTW measurements: gap 23.0 m lip to knuckle (KOTW "twenty-three-metre competition ramp"); landing crest above the lip as at KOTW. Unpublished KOTW dimensions (lip height, landing shape) to be measured from event photos in the environment phase | Damien |
 | 21 | 2026-11-06 | Rider mass: 80 kg body plus about 8.5 kg of gear | Damien |
 | 22 | 2026-11-06 | The whip target is Damien's MEASURED whip (camera-matched, clip 1 shot A), not an estimate: 90 deg sideways and flat by 0.33 s, gyro nose-drop to hanging by 1.0 s, held crossed up to about 2.0 s, straightened in the last 0.2 s. The simulation matches what his camera saw and leaves unseen angles to physics | Damien ("nowhere near as big as my whip"), research/whip-attitude-measured.md |
+| 23 | 2026-11-09 | Replicate Damien's whip EXACTLY and smoothly: the bike's attitude in the air comes from the two-phone 3D measurement (clips 2 and 3, one jump, two phones), not from a controller; physics drives run-in, ramp, takeoff, flight path, suspension and landing; the rider's unseen body angles are solved for reach and momentum and the momentum mismatch is reported. The previous demo was only 25 to 40 deg sideways against his 80 to 90 | Damien ("still too small ... way more sideways ... replicate it exactly ... super smooth"), research/whip-attitude-measured.md |
 
 ## Research
 - `research/whip-analysis-user-clips.md`: Damien's whip, phase by phase timing.

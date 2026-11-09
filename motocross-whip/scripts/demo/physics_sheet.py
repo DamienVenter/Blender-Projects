@@ -73,7 +73,7 @@ axf.text(0.02, 0.95, facts, transform=axf.transAxes, ha="left", va="top", fontsi
 
 # 2. the whip as Damien's camera behind the ramp sees it: simulation against his clip (measured)
 ta = t[air_mask]
-x = summ["whip_x"]
+x = summ.get("whip_x")
 H = [h for h, a in zip(hud, air_mask) if a]
 panels = (("bike_img", "Bike angle in the picture (deg)", "0 = nose left, 90 = hanging nose-down"),
           ("bike_side", "How side-on the bike looks", "0 = flat or edge-on, 1 = full profile"),
@@ -84,7 +84,7 @@ for j, (key, title, note) in enumerate(panels):
     sim_v = np.array([h[key] for h in H], float)
     if key == "bike_img":                      # unwrap so the curve does not jump at +-180
         meas, sim_v = np.degrees(np.unwrap(np.radians(meas))), np.degrees(np.unwrap(np.radians(sim_v)))
-    ax.plot(ta, meas, color=C_TARGET, lw=3, label="your clip (measured)")
+    ax.plot(ta, meas, color=C_TARGET, lw=3, label="your clips (measured, 3D)")
     ax.plot(ta, sim_v, color=C_BIKE if key != "torso_lean" else C_RIDER, lw=1.8, label="simulation")
     ax.set_title(title, loc="left", color=INK, fontsize=11)
     ax.set_xlabel(f"time after lip (s)   {note}", fontsize=8.5)
@@ -127,17 +127,33 @@ ax.legend(h1 + h2, l1 + l2, frameon=False, fontsize=8.5, loc="upper right")
 ax = fig.add_subplot(gs[3, 2])
 ax.axis("off")
 det = summ.get("detail", {})
-inputs = (f"Lip inputs chosen by the optimiser\n\n"
-          f"rear thrown out (yaw)  {x[0]:+.0f} deg/s\n"
-          f"lay-down (roll)  {x[1]:+.0f} deg/s (left -)\n"
-          f"lift on the bars at the lip  {summ.get('lip_pull_N', 0):.0f} N\n"
-          f"pulls it straight at  {x[3]:.2f} s (your clip: 1.8 to 2.0 s)\n\n"
-          f"Match to your clip, seen from behind\n"
-          f"bike  {det.get('seen_rms_deg', 0):.0f} deg RMS, torso lean  {det.get('torso_lean_rms_deg', 0):.0f} deg RMS\n\n"
-          f"Touchdown\n"
-          f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
-          f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"
-          f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg")
+if summ.get("mode") == "replicated":
+    rep = summ["replication"]
+    inputs = (f"Replica of your clips 2 and 3 jump\n\n"
+              f"Bike attitude in the air: your two phones, solved\n"
+              f"in 3D frame by frame, smoothed (spline).\n"
+              f"Simulated: run-in, ramp, takeoff, flight path,\n"
+              f"suspension, landing, ride-away.\n"
+              f"Your body: lean as filmed; turn, pitch, hips and\n"
+              f"throttle solved to keep hands and feet on the bike\n"
+              f"(worst gap {rep['worst_overreach_m'] * 100:.1f} cm).\n\n"
+              f"Physics check: my two-body rider cannot conserve\n"
+              f"angular momentum along your motion: mismatch\n"
+              f"{rep['L_mismatch_rms']:.0f} kg m2/s RMS (lip momentum {rep['L0_norm']:.0f}).\n"
+              f"Your body does more than the model has.\n\n"
+              f"Touchdown pitch {det.get('land_pitch', float('nan')):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})")
+else:
+    inputs = (f"Lip inputs chosen by the optimiser\n\n"
+              f"rear thrown out (yaw)  {x[0]:+.0f} deg/s\n"
+              f"lay-down (roll)  {x[1]:+.0f} deg/s (left -)\n"
+              f"lift on the bars at the lip  {summ.get('lip_pull_N', 0):.0f} N\n"
+              f"pulls it straight at  {x[3]:.2f} s (your clip: 1.8 to 2.0 s)\n\n"
+              f"Match to your clip, seen from behind\n"
+              f"bike  {det.get('seen_rms_deg', 0):.0f} deg RMS, torso lean  {det.get('torso_lean_rms_deg', 0):.0f} deg RMS\n\n"
+              f"Touchdown\n"
+              f"bike yaw {det.get('land_yaw', 0):+.1f} deg, lean {det.get('land_roll', 0):+.1f} deg\n"
+              f"bike pitch {det.get('land_pitch', 0):+.1f} deg (slope -{P.LANDING_ANGLE_DEG:.0f})\n"
+              f"rider back in line within {det.get('rider_rel_at_contact_deg', 0):.1f} deg")
 ax.text(0.0, 1.0, inputs, va="top", fontsize=10, color=INK, family="Inter")
 fig.suptitle(f"Whip physics demo: 2026 CRF250R, {P.GAP:.0f} m KOTW steel ramp, rider 185 cm", x=0.06, ha="left",
              fontsize=15, color=INK, fontweight="bold")

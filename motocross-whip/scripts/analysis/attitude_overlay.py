@@ -178,6 +178,11 @@ def main():
             label = f"drop {drop:.0f} yaw {yaw:.0f} pitch {pitch:.0f} roll {roll:.0f}"
         t = (fr - lip) / FPS_CLIP
         pb = np.array([np.interp(t, ts, pbs[:, k]) for k in range(3)])
+        if t < 0 and not spec.endswith(":SIM"):          # on the ramp: known position and attitude
+            from multiview import ground_state
+            pb, RA = ground_state(t)
+            RB = RA.copy()
+            label = "on the ramp (known attitude)"
         real = Image.open(f"{clip}/f_{int(fr):03d}.png").convert("RGB")
         size = real.size
         dw = ov.draw(RA, RB, pb, cam, f, size)
