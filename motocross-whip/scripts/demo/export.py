@@ -9,6 +9,7 @@ import params as P
 import bike as B
 import rider as RD
 import air
+import whip_measured as WM
 from air import Rz, Ry, Rx
 from pose import Poser, quat_from_matrix, matrix_from_quat as R_of_quat
 
@@ -391,14 +392,17 @@ def build(pl, log, g1, recA, con, g2, out_dir, seen_fn=None, debug=None):
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
     # matched to Damien's two phones on the clips 2 and 3 jump (research/whip-attitude-3d/cams_clips23.json): both
-    # behind and left of the jump line, zoomed (f_size: the focal length at which the bike comes out its measured size
-    # in his frames), panning with the rider; lens for a portrait frame (36 mm across the long side, 850 px)
+    # behind and left of the jump line, panning with the rider and zooming as his phones did (f_track: the focal
+    # length that gives the bike its measured size in each of his frames; clip 2 zooms in 1.4x in the air); lens for
+    # a portrait frame (36 mm across the long side, 850 px); his clock runs at T_DAMIEN / airtime of the replica
     with open(CAMS23) as f:
         c23 = json.load(f)
+    sc = log.get("T_air_target", con["t"]) / WM.T_DAMIEN
     for name, view in (("CAM_CLIP3", "clip3"), ("CAM_CLIP2", "clip2")):
-        cpos, fpx = c23[view]["cam"], float(c23[view]["f_size"])
-        cposa = np.array(cpos)
-        cams.append({"name": name, "lens": 18.0 * fpx / 425.0, "path": path_of(lambda i, c=cposa: c, rc_s)})
+        cposa = np.array(c23[view]["cam"])
+        tr = c23[view]["f_track"]
+        lens = [[fr["f"], 18.0 * float(np.interp((fr["t"] - t_off) / sc, tr["t"], tr["f"])) / 425.0] for fr in frames]
+        cams.append({"name": name, "lens": lens[0][1], "lens_path": lens, "path": path_of(lambda i, c=cposa: c, rc_s)})
     land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])
     cams.append({"name": "CAM_LAND", "lens": 28.0, "path": path_of(lambda i: land_pos, rc_s)})
 

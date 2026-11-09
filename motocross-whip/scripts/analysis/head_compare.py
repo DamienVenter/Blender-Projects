@@ -34,7 +34,8 @@ def replica_offsets(frames_path, sc, cams, lip=29, frames=range(29, 77)):
         pos = red.mean(axis=0)
         res = {}
         for v in ("clip2", "clip3"):
-            cam, fl = np.array(cams[v]["cam"]), cams[v]["f_size"]
+            cam = np.array(cams[v]["cam"])
+            fl = float(np.interp((f - lip) / 30.0, cams[v]["f_track"]["t"], cams[v]["f_track"]["f"]))
             # the phone's position relative to the jump: the replica flies the physics path, the phone stands where
             # it stood relative to the lip
             p_red = project(cam, pos, fl, red)

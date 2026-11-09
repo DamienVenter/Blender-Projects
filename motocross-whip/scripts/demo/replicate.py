@@ -147,7 +147,9 @@ class Replicator:
         cams = json.load(open(os.path.join(R3D, "cams_clips23.json")))
         pts, _ = red_points()
         self.red_pts = pts                                   # bike frame (x fwd, y left, z up), ground origin
-        self.cams = {v: (np.array(cams[v]["cam"]), float(cams[v]["f_size"])) for v in HELMET}   # pixel scale
+        # pixel scale: each phone's focal length over its own clock (clip 2 zooms in the air)
+        self.cams = {v: (np.array(cams[v]["cam"]), (np.array(cams[v]["f_track"]["t"]) * self.sc,
+                                                     np.array(cams[v]["f_track"]["f"]))) for v in HELMET}
         self.helmet = {}
         lip = cams["lip_frame"]
         for v, (path, f_last) in HELMET.items():
@@ -183,7 +185,8 @@ class Replicator:
             red = org + (RA @ self.red_pts.T).T
             head = org + head_rel
             look = red.mean(axis=0)
-            for v, (cam, fl) in self.cams.items():
+            for v, (cam, (ft, ff)) in self.cams.items():
+                fl = float(np.interp(t, ft, ff))
                 fwd = look - cam
                 fwd /= np.linalg.norm(fwd)
                 right = np.cross(fwd, [0.0, 0.0, 1.0])

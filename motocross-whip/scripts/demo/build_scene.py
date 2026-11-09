@@ -460,6 +460,18 @@ for cam in SC["cameras"]:
     co = bpy.data.objects.new(cam["name"], cd)
     scn.collection.objects.link(co)
     co.rotation_mode = "QUATERNION"
+    if "lens_path" in cam:                     # zooming camera (Damien's clip 2 phone zooms in the air)
+        lact = bpy.data.actions.new(f"lens_{cam['name']}")
+        lslot = lact.slots.new(id_type="CAMERA", name=cam["name"])
+        cd.animation_data_create()
+        cd.animation_data.action = lact
+        cd.animation_data.action_slot = lslot
+        lcb = anim_utils.action_ensure_channelbag_for_slot(lact, lslot)
+        lfc = lcb.fcurves.new("lens")
+        lfc.keyframe_points.add(len(cam["lens_path"]))
+        lfc.keyframe_points.foreach_set("co", [v for p in cam["lens_path"] for v in p])
+        lfc.keyframe_points.foreach_set("interpolation", [bpy.types.Keyframe.bl_rna.properties["interpolation"].enum_items["LINEAR"].value] * len(cam["lens_path"]))
+        lfc.update()
     if "path" in cam:
         act = bpy.data.actions.new(f"act_{cam['name']}")
         slot = act.slots.new(id_type="OBJECT", name=cam["name"])

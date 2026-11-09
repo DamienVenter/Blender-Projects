@@ -67,7 +67,8 @@ description: How to study reference video frame by frame (riding clips, event fo
   centre) and add that to the solve (`replicate.Replicator.head_pixels`, `scripts/analysis/head_compare.py` for
   the chart). The body model supplies the depth.
 - Check the pixel SCALE before fitting anything in pixels: the attitude fit used angles only and its clip 2
-  focal length was half the true one (bike size says 1645 px, not 900). Even after that, the bike's size in his
-  frames drifts 1.5x to 2x against the model over the flight: scale per frame from the bike's own size, and an
-  anchor that is not half hidden (the red plastics are, off the lip). Fitting the body at 6 px on top of that
-  stretched the legs to 154 %: a measurement must be consistent before it drives a solve.
+  focal length was half the true one. Phones ZOOM while filming: measure the focal length frame by frame from
+  the bike's own size (`head3d.zoom_track`; clip 2 zooms 1.4x in the air) and animate the matched render camera's
+  lens with it (`lens_path` in scene.json). An anchor half hidden in the trees off the lip biases offsets too.
+  Fitting the body at 6 px before this was sorted stretched the legs to 154 %: a measurement must be consistent
+  before it drives a solve.

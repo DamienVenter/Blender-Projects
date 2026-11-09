@@ -55,6 +55,39 @@ def size_focal(view, frames=range(33, 57)):
     return f * float(np.median(ratios))
 
 
+def zoom_track(view, f_first=30, f_last=87, min_px=None, start=0.13):
+    """The phone's focal length frame by frame (it zooms: clip 2 goes from about 1300 to 1840 px between 0.3 and
+    0.8 s), from the bike's red plastics' size in each frame against the model at the fit's focal length. Frames
+    where little red shows (off the lip, in the trees; late clip 3) are left out; the track is a smoothing spline
+    held flat before START and after the last good frame. Returns (t, f) every 1/30 s from 0 to the last frame."""
+    from scipy.interpolate import UnivariateSpline
+    from attitude_overlay import trajectory
+    cams = json.load(open(os.path.join(R3D, "cams_clips23.json")))
+    fit = json.load(open(os.path.join(R3D, "fit_clips23.json")))
+    box = json.load(open(os.path.join(R3D, f"box_c{view[-1]}.json")))
+    pts, _ = red_points()
+    m = pts.mean(axis=0)
+    ts, pbs = trajectory()
+    cam, f = np.array(cams[view]["cam"]), float(cams[view]["f"])
+    min_px = min_px if min_px is not None else (400 if view == "clip2" else 140)
+    T, Fv = [], []
+    for fr in range(f_first, f_last + 1):
+        if str(fr) not in fit or str(fr) not in box or box[str(fr)][4] < min_px:
+            continue
+        t = (fr - cams["lip_frame"]) / 30.0
+        if t < start:
+            continue
+        pos = np.array([np.interp(t, ts, pbs[:, k]) for k in range(3)])
+        uv = project(cam, pos, f, pos + (np.array(fit[str(fr)]["R"]) @ (pts - m).T).T)
+        size = np.percentile(uv, 98, axis=0) - np.percentile(uv, 2, axis=0)
+        T.append(t)
+        Fv.append(np.hypot(*box[str(fr)][2:4]) / np.hypot(*size) * f)
+    T, Fv = np.array(T), np.array(Fv)
+    spl = UnivariateSpline(T, Fv, k=3, s=len(T) * (0.03 * np.median(Fv)) ** 2)
+    grid = np.arange(0.0, (f_last - cams["lip_frame"]) / 30.0 + 1e-9, 1 / 30)
+    return grid, np.array([float(spl(min(max(t, T[0]), T[-1]))) for t in grid])
+
+
 def project(cam, look, f, P):
     fwd = look - cam
     fwd = fwd / np.linalg.norm(fwd)
