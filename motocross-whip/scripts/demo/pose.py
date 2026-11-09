@@ -18,6 +18,8 @@ import rider as RD
 import air
 from air import Ry
 
+TWIST_PULL = 0.05       # per frame: how strongly a limb's twist is drawn back toward its anatomical reference
+
 LIMBS = {
     "thigh": (RD.L_THIGH, "hip", "knee"),
     "shank": (RD.L_SHANK, "knee", "ankle"),
@@ -84,8 +86,12 @@ class Poser:
             z = z_dir / np.linalg.norm(z_dir)
             xp = self.prev[key] - np.dot(self.prev[key], z) * z
             xh = x_hint - np.dot(x_hint, z) * z
-            if np.linalg.norm(xh) > 0.3 and np.linalg.norm(xp) > 1e-6:
-                xp = xp / np.linalg.norm(xp) + 0.05 * xh / np.linalg.norm(xh)
+            nh = np.linalg.norm(xh)
+            # the pull fades in and out with how well defined the hint is (a pull switched on at a threshold
+            # started the twist at full speed in one frame: a visible snap)
+            w = TWIST_PULL * air.smoothstep(min(max((nh - 0.15) / 0.30, 0.0), 1.0))
+            if w > 0.0 and np.linalg.norm(xp) > 1e-6:
+                xp = xp / np.linalg.norm(xp) + w * xh / nh
             x_hint = xp if np.linalg.norm(xp) > 1e-6 else x_hint
         R = frame_from_z(z_dir, x_hint)
         self.prev[key] = R[:, 0]

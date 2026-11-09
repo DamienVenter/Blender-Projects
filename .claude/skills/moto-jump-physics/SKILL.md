@@ -106,7 +106,7 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
   a quaternion spline (knots 0.10 s: inside the measurement noise, half the jerk of 0.07 s); physics for run-in,
   ramp, takeoff, CoM flight, suspension, landing; rider lean as filmed, the unseen body angles solved for reach
   and momentum. Momentum mismatch is REPORTED (about 75 kg m2/s RMS): the two-body rider cannot reproduce it.
-- He starts the whip on the lip (export.LIP_T = 0.2 s): the ramp simulation's attitude is bent onto the measured
+- He starts the whip on the lip (export.LIP_T = 0.25 s): the ramp simulation's attitude is bent onto the measured
   lip attitude with the same join blend as everything else. The bike turns about its CENTRE OF MASS (the ramp
   path), moves opposite the rider's body as in the air, and the ramp holds the rear tyre: lift by however far the
   turn pushes it into the face (face continued past the lip along its tangent, rear tyre only). NEVER pivot about
@@ -135,7 +135,15 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
 - Audit with `scripts/demo/smoothness.py frames.json` over the WHOLE clip, rotations AND positions. Its wobble
   (a frame's velocity against the mean of its neighbours) separates pops from fast motion: pops read 400 to
   3000 deg/s or more than 2 m/s; the fastest smooth limb motion in the whip reads about 150 to 180 deg/s.
-  test_exported_animation_has_no_pops runs it on the full export pipeline in 12 s (hidden angles at zero).
+  test_exported_animation_has_no_pops runs it on the full export pipeline with the stored solution
+  (scripts/demo/replica_solution.json, written by each solve: copy OUT/solution.json there). Do not test with the
+  hidden angles at zero: that posture overstretches the arms and exaggerates everything.
+- Lip window 0.25 s, joins matched to the acceleration (not the jerk: higher-order fades swing the arms harder
+  mid-window, measured). Re-check after any change with `smoothness.py` and the spike list (a frame far above
+  its neighbours); remaining flagged frames should be real events (fork topping out as the front leaves the
+  ramp, rear shock unloading at the lip, fork compressing at touchdown, an arm locking straight in the flick).
+- Limb twist pull toward the anatomical hint must fade in with how defined the hint is: switched on at a
+  threshold, it started forearms twisting at 346 deg/s in one frame.
 
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |

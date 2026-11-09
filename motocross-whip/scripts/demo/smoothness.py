@@ -8,7 +8,8 @@ For each object, from its world transforms at the export rate (120 fps):
 - the same for position (m/s): a body that jumps sideways for a frame.
 Also the time step (frames must be evenly spaced).
 
-python3 smoothness.py frames.json [N]      prints the N worst objects for each measure
+python3 smoothness.py frames.json [N]                      prints the N worst objects for each measure
+python3 smoothness.py --plot OUT.png LABEL=frames.json ...  chart: worst wobble of any rider or bike part per frame
 """
 import json
 import sys
@@ -29,6 +30,54 @@ def logm(R):
     if a < 1e-9:
         return np.zeros(3)
     return a / (2 * np.sin(a)) * np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])
+
+
+def series(frames_json, skip=("wheel",)):
+    """Per frame: time after the lip, the worst rotation wobble (deg/s) and position wobble (m/s) of any part."""
+    fr = json.load(open(frames_json))
+    names, F = fr["objects"], fr["frames"]
+    T = np.array([f["t"] for f in F]) - fr["t_off"]
+    dt = np.diff(T)
+    rot, pos = [], []
+    for j, n in enumerate(names):
+        if any(s in n for s in skip):
+            continue
+        P = np.array([f["tf"][j][:3] for f in F])
+        R = [q2R(f["tf"][j][3:]) for f in F]
+        w = np.array([logm(R[i + 1] @ R[i].T) / dt[i] for i in range(len(R) - 1)])
+        v = np.diff(P, axis=0) / dt[:, None]
+        rot.append(np.degrees(np.linalg.norm(w[1:-1] - 0.5 * (w[:-2] + w[2:]), axis=1)))
+        pos.append(np.linalg.norm(v[1:-1] - 0.5 * (v[:-2] + v[2:]), axis=1))
+    return T[1:-2] + 0.5 * dt[1:-1], np.max(rot, axis=0), np.max(pos, axis=0)
+
+
+def plot(out, runs):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({"font.family": "Inter", "font.size": 10, "axes.edgecolor": "#6b7380", "axes.grid": True,
+                         "grid.color": "#e6e8eb", "axes.spines.top": False, "axes.spines.right": False})
+    fig, axs = plt.subplots(2, 1, figsize=(13, 7.5), dpi=150, sharex=True)
+    cols = ["#c8102e", "#1f3b63", "#c9a24a"]
+    for (lab, path), c in zip(runs, cols):
+        t, r, p = series(path)
+        axs[0].plot(t, r, color=c, lw=1.4, label=lab)
+        axs[1].plot(t, p, color=c, lw=1.4, label=lab)
+    axs[0].set_title("Worst joint in each frame: how much its spin differs from the frames either side (deg/s)",
+                     loc="left", fontsize=11, color="#1d232b")
+    axs[1].set_title("Worst part in each frame: how much its movement differs from the frames either side (m/s)",
+                     loc="left", fontsize=11, color="#1d232b")
+    for ax in axs:
+        ax.axvline(0.0, color="#6b7380", lw=0.8, ls="--")
+        ax.set_yscale("log")
+    axs[0].text(0.01, 0.92, "lip", transform=axs[0].get_xaxis_transform(), color="#6b7380")
+    axs[1].set_xlabel("time after the lip (s)   smooth motion stays low; a spike is a pop you can see", color="#6b7380")
+    axs[0].legend(frameon=False)
+    fig.suptitle("Choppiness, frame by frame: before and after the fix", x=0.06, ha="left", fontsize=14,
+                 fontweight="bold", color="#1d232b")
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out, facecolor="white")
+    print("saved", out)
 
 
 def audit(frames_json, skip=("wheel",)):
@@ -55,6 +104,8 @@ def audit(frames_json, skip=("wheel",)):
 
 
 def main():
+    if sys.argv[1] == "--plot":
+        return plot(sys.argv[2], [a.split("=", 1) for a in sys.argv[3:]])
     res, (dmin, dmax) = audit(sys.argv[1])
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 12
     print(f"time step {dmin * 1000:.3f} .. {dmax * 1000:.3f} ms")

@@ -147,10 +147,10 @@ Method (`scripts/analysis/`):
 
 ## Replica (scripts/demo/replicate.py)
 The bike's attitude in the air is the 3D measurement through a smooth quaternion spline (knots every 0.10 s:
-within 3.2 deg RMS of the measurement, inside its noise). The whip starts on the lip: in the last 0.2 s on the ramp
+within 3.2 deg RMS of the measurement, inside its noise). The whip starts on the lip: in the last 0.25 s on the ramp
 the ramp simulation's attitude is bent onto the measured lip attitude (23 deg away) and its turn rate; the bike turns
 about its centre of mass (the rear end steps out), moves opposite the rider's body, and the ramp holds the rear tyre
-up, so it leaves the lip about 20 cm higher than a straight bike and settles onto the physics path over 0.8 s.
+up (and the front, while it is still on the ramp), so it leaves the lip about 20 cm higher than a straight bike and settles onto the physics path over 0.8 s.
 Run-in, ramp, takeoff, centre-of-mass flight,
 suspension and landing are the physics simulation. The rider's lean is as filmed; his torso turn and pitch, hip
 shift, spine and rear-wheel speed are solved to keep hands and feet on the bike (worst gap under 1 cm) and the

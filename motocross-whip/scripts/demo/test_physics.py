@@ -301,12 +301,16 @@ def test_join_blend_is_smooth():
 
 
 @pytest.fixture(scope="module")
-def export_unsolved(pl, rep, tmp_path_factory):
-    """The full export pipeline (ramp, lip join, air, touchdown join, landing) on the replica with its hidden angles at
-    zero (no 6-minute solve): what export does at the joins does not depend on them."""
+def export_replica(pl, rep, tmp_path_factory):
+    """The full export pipeline (ramp, lip join, air, touchdown join, landing) on the replica with the hidden body
+    angles of the last solve (replicate.SOLUTION; solving takes 6 minutes, exporting 10 s)."""
+    import json
     import export
     import replicate as RP
-    rep.x = np.zeros(rep.n_x())
+    with open(RP.SOLUTION) as f:
+        sol = json.load(f)
+    assert sol["n_x"] == rep.n_x() and abs(sol["T_air"] - rep.T_air) < 1e-3
+    rep.x = np.array(sol["x"])
     recA, con = rep.records()
     g2 = pl.landing(recA, con)
     t, st, sp, g1 = pl.to_takeoff(14.873)
@@ -318,11 +322,11 @@ def export_unsolved(pl, rep, tmp_path_factory):
     return out, info, dbg["drivers"], log
 
 
-def test_exported_animation_has_no_pops(export_unsolved):
+def test_exported_animation_has_no_pops(export_replica):
     """Over the whole clip, every part moves smoothly: no one-frame pops at the first frame, the lip or touchdown
     (before the fix: 3150 deg/s arm pops and a 33 cm whole-bike jump at the lip, a head flip after touchdown)."""
     import smoothness
-    out, info, D, log = export_unsolved
+    out, info, D, log = export_replica
     res, (dmin, dmax) = smoothness.audit(f"{out}/frames.json")
     assert dmax - dmin < 1e-9                                    # even frames
     for name, r in res.items():
@@ -331,12 +335,12 @@ def test_exported_animation_has_no_pops(export_unsolved):
     assert res["bike:frame"]["vwobble_max"] < 0.6
 
 
-def test_tyres_stay_out_of_the_ramp_on_the_lip(pl, export_unsolved):
-    """While the whip is thrown on the lip the ramp holds the rear tyre: it never sinks into the ramp face."""
+def test_tyres_stay_out_of_the_ramp_on_the_lip(pl, export_replica):
+    """While the whip is thrown on the lip the ramp holds the tyres: neither sinks into the ramp face."""
     import export
-    out, info, D, log = export_unsolved
+    out, info, D, log = export_replica
     S, T = pl.S, pl.T
     for d in D:
-        if -0.3 < d["t"] - log["t_off"] < 0.0:
-            c = export.tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, T.ground, ("rear",))
-            assert c > -0.01, (d["t"] - log["t_off"], c)
+        if -0.4 < d["t"] - log["t_off"] < 0.05:
+            c = export.tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, T.ground)
+            assert c > -0.002, (d["t"] - log["t_off"], c)

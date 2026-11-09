@@ -34,6 +34,7 @@ from pose import quat_from_matrix, matrix_from_quat
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIT = os.path.join(HERE, "..", "..", "research", "whip-attitude-3d", "fit_clips23.json")
 FPS_OUT = 120
+SOLUTION = os.path.join(HERE, "replica_solution.json")   # last solve's hidden angles (tests reuse them; 6 min to solve)
 
 # Damien's torso lean seen from behind (deg, head to his left negative) on the clips 2 and 3 jump, read off the
 # frames (rider horizontal at the flat peak, upright once the bike hangs in profile)
@@ -325,6 +326,8 @@ def main():
           f"{math.degrees(take['W']):.1f} deg/s, airtime {T_air:.3f} s", flush=True)
     rp = Replicator(pl, take, T_air)
     rep = rp.solve()
+    with open(f"{out}/solution.json", "w") as f:        # the solved hidden angles (copy to SOLUTION to reuse)
+        json.dump({"x": list(map(float, rp.x)), "T_air": T_air, "n_x": rp.n_x(), "report": rep}, f, indent=1)
     print("[2] hidden angles solved:", json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in rep.items()}), flush=True)
     recA, con = rp.records()
     rec_g2 = pl.landing(recA, con)

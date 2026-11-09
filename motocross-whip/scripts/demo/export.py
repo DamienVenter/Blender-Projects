@@ -18,7 +18,7 @@ PREROLL = 0.5                  # s posed before the first shown frame, so the el
 # Joins between the simulations (record sets that do not meet exactly) are made continuous in value, rate and
 # curvature. Per channel: which side is bent onto the other ("before": the earlier records anticipate the later ones;
 # "after": inertialization, the later records start where the earlier ones were going) and over how long (s).
-LIP_T = 0.20                   # s on the lip in which the whip is started (bike turns, rider moves into the air posture)
+LIP_T = 0.25                   # s on the lip in which the whip is started (bike turns, rider moves into the air posture)
 LIP_PLAN_RIDER = {k: ("before", LIP_T) for k in ("RA", "R_rel", "o_rel", "spine", "crouch", "look")}
 LIP_PLAN_BIKE = {
             # bike position: the ramp holds the rear tyre up as the bike pitches up on the lip (export lifts it to
@@ -276,6 +276,10 @@ def build(pl, log, g1, recA, con, g2, out_dir, seen_fn=None, debug=None):
         d["pb"] = pb0 - (mB / M) * (rel_com(d) - Db)
         d["pb"][2] += tyre_clearance(RA0, pb0, d["sf"], d["sr"], S.cb, face, ("rear",)) \
             - tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, face, ("rear",))
+        # while the front is still on the ramp the turn can push it in too: lift by that, through a smooth
+        # maximum (softplus, 2 mm), so the lift never switches abruptly between the two tyres
+        pen = -tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, T.ground, ("front",))
+        d["pb"][2] += 0.002 * np.logaddexp(0.0, pen / 0.002)
     joins["lip_bike"] = blend_join(D, t_off, LIP_PLAN_BIKE, ("air", "g2"))
     joins["touchdown"] = blend_join(D, t_off + t_c, LAND_PLAN, ("g2",))
     for d in D:                                                # rider pose back in the world
