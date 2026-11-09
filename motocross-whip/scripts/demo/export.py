@@ -1,5 +1,6 @@
 """Convert simulation records into Blender keyframe data (frames.json, scene.json, summary.json)."""
 import json
+import os
 import math
 import numpy as np
 from scipy.interpolate import CubicSpline, PchipInterpolator
@@ -13,6 +14,8 @@ from pose import Poser, quat_from_matrix, matrix_from_quat as R_of_quat
 
 FPS = 120
 LEAD, TAIL = 2.2, 2.4          # seconds shown before the lip and after touchdown
+CAMS23 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "research", "whip-attitude-3d",
+                      "cams_clips23.json")
 LOOK_AHEAD = 10.0              # m: how far up the track he looks once the landing is reached
 PREROLL = 0.5                  # s posed before the first shown frame, so the elbow, knee and head memory has settled
 # Joins between the simulations (record sets that do not meet exactly) are made continuous in value, rate and
@@ -388,9 +391,12 @@ def build(pl, log, g1, recA, con, g2, out_dir, seen_fn=None, debug=None):
     cams.append({"name": "CAM_TRACK", "lens": 45.0,
                  "path": path_of(lambda i: rc_slow[i] + np.array([3.0, 9.0, 0.8]), rc_s)})
     # matched to Damien's two phones on the clips 2 and 3 jump (research/whip-attitude-3d/cams_clips23.json): both
-    # behind and left of the jump line, zoomed (focal length from the bike's pixel size at the flat peak), panning
-    # with the rider; lens for a portrait frame (36 mm across the long side)
-    for name, cpos, fpx in (("CAM_CLIP3", (-16.0, 4.0, 1.5), 1200.0), ("CAM_CLIP2", (-6.0, 2.5, 1.0), 1300.0)):
+    # behind and left of the jump line, zoomed (f_size: the focal length at which the bike comes out its measured size
+    # in his frames), panning with the rider; lens for a portrait frame (36 mm across the long side, 850 px)
+    with open(CAMS23) as f:
+        c23 = json.load(f)
+    for name, view in (("CAM_CLIP3", "clip3"), ("CAM_CLIP2", "clip2")):
+        cpos, fpx = c23[view]["cam"], float(c23[view]["f_size"])
         cposa = np.array(cpos)
         cams.append({"name": name, "lens": 18.0 * fpx / 425.0, "path": path_of(lambda i, c=cposa: c, rc_s)})
     land_pos = np.array([k["landing_bottom"] + 7.0, 6.0, 1.3])

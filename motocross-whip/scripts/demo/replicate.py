@@ -34,7 +34,11 @@ from pose import quat_from_matrix, matrix_from_quat
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIT = os.path.join(HERE, "..", "..", "research", "whip-attitude-3d", "fit_clips23.json")
 FPS_OUT = 120
-SOLUTION = os.path.join(HERE, "replica_solution.json")   # last solve's hidden angles (tests reuse them; 6 min to solve)
+SOLUTION = os.path.join(HERE, "replica_solution.json")
+R3D = os.path.join(HERE, "..", "..", "research", "whip-attitude-3d")
+# Damien's helmet tracked in both phones (scripts/analysis/helmet.py): offset (px) from the red plastics' bbox centre.
+# Clip 3 loses the helmet against the body after its frame 70.
+HELMET = {"clip2": (os.path.join(R3D, "helmet_c2.json"), 76), "clip3": (os.path.join(R3D, "helmet_c3.json"), 70)}   # last solve's hidden angles (tests reuse them; 6 min to solve)
 
 # Damien's torso lean seen from behind (deg, head to his left negative) on the clips 2 and 3 jump, read off the
 # frames (rider horizontal at the flat peak, upright once the bike hangs in profile)
@@ -133,6 +137,64 @@ class Replicator:
         self.Lmax = np.array([arm + RD.SCAPULA_REACH, arm + RD.SCAPULA_REACH, leg, leg])
         self.knots = np.linspace(0.0, T_air, int(round(T_air / 0.15)) + 1)
         self.n = len(self.knots)
+        self.last_rider = np.zeros(2)       # ramp simulation's hip offset (du, dw) at the lip (export fades it out)
+        self._load_helmet()
+
+    # ---- his head as the phones saw it
+    def _load_helmet(self):
+        sys.path.insert(0, os.path.join(HERE, "..", "analysis"))
+        from fit3d import red_points
+        cams = json.load(open(os.path.join(R3D, "cams_clips23.json")))
+        pts, _ = red_points()
+        self.red_pts = pts                                   # bike frame (x fwd, y left, z up), ground origin
+        self.cams = {v: (np.array(cams[v]["cam"]), float(cams[v]["f_size"])) for v in HELMET}   # pixel scale
+        self.helmet = {}
+        lip = cams["lip_frame"]
+        for v, (path, f_last) in HELMET.items():
+            h = json.load(open(path))
+            fs = sorted(int(f) for f in h if h[f][3] and int(f) <= f_last)
+            self.helmet[v] = (np.array([(f - lip) / 30.0 * self.sc for f in fs]), np.array([h[str(f)][:2] for f in fs]))
+        lm = RD.neutral_landmarks()
+        self.lm_pel, self.lm_head = lm["pelvis"], lm["head"]
+
+    def helmet_targets(self, tg):
+        """Measured helmet offsets interpolated onto the grid tg (only where a measurement is within 0.05 s)."""
+        out = {}
+        for v, (tm, xy) in self.helmet.items():
+            near = np.array([np.min(np.abs(tm - t)) < 0.05 for t in tg])
+            out[v] = (near, np.stack([np.interp(tg, tm, xy[:, 0]), np.interp(tg, tm, xy[:, 1])], axis=1))
+        return out
+
+    def head_pixels(self, ser, tg):
+        """Where the replica's helmet appears in each phone (px from the red plastics' bbox centre), as
+        scripts/analysis/head_compare.py measures it on an export (same head as export.py places it)."""
+        S, A = self.S, self.A
+        W_, H_ = 478, 850
+        ts, pbs = self._path
+        out = {v: [] for v in self.cams}
+        for i, (t, (RA, RB, hip, spine, wr)) in enumerate(zip(tg, ser)):
+            fade = math.exp(-t / 0.12)
+            crouch = float(np.clip(-self.last_rider[1] * 0.9, -0.08, 0.25)) * fade
+            lean = air.expm_so3(np.asarray(spine, float)) @ Ry(crouch)
+            head_rel = RA @ (S.peg + hip + np.array([self.last_rider[0], 0.0, self.last_rider[1]]) * fade) \
+                + RB @ (self.lm_pel + lean @ (self.lm_head - self.lm_pel))      # from the bike-frame origin
+            pos = np.array([np.interp(t, ts, pbs[:, k]) for k in range(3)])  # bike CoM (no-whip path)
+            org = pos - RA @ S.cb
+            red = org + (RA @ self.red_pts.T).T
+            head = org + head_rel
+            look = red.mean(axis=0)
+            for v, (cam, fl) in self.cams.items():
+                fwd = look - cam
+                fwd /= np.linalg.norm(fwd)
+                right = np.cross(fwd, [0.0, 0.0, 1.0])
+                right /= np.linalg.norm(right)
+                up = np.cross(right, fwd)
+                P = np.vstack([red, head]) - cam
+                z = P @ fwd
+                uv = np.stack([W_ / 2 + fl * (P @ right) / z, H_ / 2 - fl * (P @ up) / z], axis=1)
+                lo, hi = np.percentile(uv[:-1], 2, axis=0), np.percentile(uv[:-1], 98, axis=0)
+                out[v].append(uv[-1] - 0.5 * (lo + hi))
+        return {v: np.array(o) for v, o in out.items()}
 
     # ---- hidden angles: x = [L0 kick (3)] + yaw knots + pitch knots + lean offset knots + rear wheel knots
     def unpack(self, x):
@@ -210,6 +272,13 @@ class Replicator:
     # kept as close as that allows.
     SIG_L = 40.0            # kg m^2/s
     SIG_REACH = 0.004       # m
+    # His helmet in both phones (head_pixels) is measured and REPORTED (helmet_rms_px), not yet fitted: the bike's
+    # apparent size in his frames drifts 1.5x to 2x against the model over the flight and the red-plastics anchor is
+    # partly hidden off the lip, so pixel offsets carry 10 px and more of bias. Fitted at 6 px it stretched the legs
+    # to 154 % and doubled the momentum mismatch (2026-11-09). Needs per-frame scale and a better anchor first.
+    FIT_HELMET = False
+    SIG_HEAD_PX = 6.0       # px, when fitted
+    SIG_LEAN = 8.0          # deg: the lean as read off the frames
     def residuals(self, x, tg):
         ser = self.series(x, tg)
         L, W, Ds = self.momentum(ser, tg)
@@ -224,7 +293,11 @@ class Replicator:
         r.append(np.concatenate(reach))
         rel_end = air.logm_so3(ser[-1][0] @ ser[-1][1].T)
         r.append(np.degrees(rel_end) / 3.0)                      # back in the attack position at touchdown
-        r.append(dle / 8.0)                                       # lean as filmed
+        r.append(dle / self.SIG_LEAN)                             # lean as filmed
+        if self.FIT_HELMET:                                       # his head where both phones saw it
+            hp = self.head_pixels(ser, tg)
+            for v, (near, xy) in self._head_t.items():
+                r.append(((hp[v] - xy)[near] / self.SIG_HEAD_PX).ravel())
         r.append(yaw / 45.0)                                      # torso facing the travel direction
         r.append(pit / 40.0)
         r.append(np.diff(yaw, 2) / 12.0); r.append(np.diff(pit, 2) / 12.0); r.append(np.diff(dle, 2) / 8.0)
@@ -232,8 +305,15 @@ class Replicator:
         r.append(kick / 150.0)
         return np.concatenate(r)
 
+    def _prepare(self, tg):
+        rec, con = self.pl.no_whip(self.take, dt=1.0 / 1200)
+        S = self.S
+        self._path = (np.array([r["t"] for r in rec]), np.array([r["C"] - (S.mr / S.M) * r["D"] for r in rec]))
+        self._head_t = self.helmet_targets(tg)
+
     def solve(self, dt=1.0 / 50, max_nfev=60):
         tg = np.arange(0.0, self.T_air + 1e-9, dt)
+        self._prepare(tg)
         x0 = np.zeros(self.n_x())
         t0 = time.time()
         sol = least_squares(self.residuals, x0, args=(tg,), method="trf", x_scale=1.0, max_nfev=max_nfev,
@@ -246,7 +326,10 @@ class Replicator:
         err = np.linalg.norm(L - L0, axis=1)
         over = max(float((np.sqrt((self.A.limb_vectors(RA.T @ RB, hip, sp) ** 2).sum(axis=1)) - self.Lmax).max())
                    for RA, RB, hip, sp, wr in ser)
+        hp = self.head_pixels(ser, tg)
+        head_rms = {v: float(np.sqrt((((hp[v] - xy)[near]) ** 2).sum(axis=1).mean())) for v, (near, xy) in self._head_t.items()}
         self.report = dict(solve_s=round(time.time() - t0, 1), cost=float(sol.cost), L0=list(map(float, L0)),
+                           helmet_rms_px=head_rms,
                            lip_kick=list(map(float, kick)), L_mismatch_rms=float(np.sqrt((err ** 2).mean())),
                            L_mismatch_max=float(err.max()), L0_norm=float(np.linalg.norm(L0)),
                            worst_overreach_m=over)
@@ -325,6 +408,7 @@ def main():
     print(f"[1] run-in {v:.3f} m/s, takeoff pitch {math.degrees(take['beta']):.1f} deg, rotation "
           f"{math.degrees(take['W']):.1f} deg/s, airtime {T_air:.3f} s", flush=True)
     rp = Replicator(pl, take, T_air)
+    rp.last_rider = np.array(rec_g1[-1]["rider"], float)
     rep = rp.solve()
     with open(f"{out}/solution.json", "w") as f:        # the solved hidden angles (copy to SOLUTION to reuse)
         json.dump({"x": list(map(float, rp.x)), "T_air": T_air, "n_x": rp.n_x(), "report": rep}, f, indent=1)

@@ -53,3 +53,21 @@ description: How to study reference video frame by frame (riding clips, event fo
   the middle); wheel roundness read off close crops is the reliable side-on cue.
 - Solve per frame (`scripts/analysis/fit3d.py`), then check by drawing the solved bike from each phone next to its
   real frames (`twoview.py`). Never trust a 3D solve that has not been drawn back over the footage.
+
+## The rider's body from two phones (learned 2026-11-09)
+- Compare the RIDER too, not only the bike: a strip of his frames against the replica at the same times showed his
+  body laid flat along the bike from the lip while the replica sat upright (the bike already matched).
+- Helmet tracking (`scripts/analysis/helmet.py`): white, low-saturation blob of the expected radius, nearest the
+  previous frame's helmet, offset from the red plastics' bbox centre (the phones pan). Seed it by eye on the lip
+  frame from a gridded crop. Hold the last fix when nothing qualifies (never extrapolate: it drifts). Always
+  check the tracking sheet: clip 2 held 46 of 48 frames; clip 3 loses the helmet against the body after frame 70.
+- Do NOT triangulate a free 3D point from these two phones: they stand only about 14 deg apart, so depth along the
+  travel direction is weak and the solution jumped between two answers (10 px inconsistencies amplified 4x).
+  Fit the body MODEL instead: predict where the replica's helmet lands in each picture (same anchor: red bbox
+  centre) and add that to the solve (`replicate.Replicator.head_pixels`, `scripts/analysis/head_compare.py` for
+  the chart). The body model supplies the depth.
+- Check the pixel SCALE before fitting anything in pixels: the attitude fit used angles only and its clip 2
+  focal length was half the true one (bike size says 1645 px, not 900). Even after that, the bike's size in his
+  frames drifts 1.5x to 2x against the model over the flight: scale per frame from the bike's own size, and an
+  anchor that is not half hidden (the red plastics are, off the lip). Fitting the body at 6 px on top of that
+  stretched the legs to 154 %: a measurement must be consistent before it drives a solve.

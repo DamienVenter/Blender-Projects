@@ -171,3 +171,26 @@ tyre on the ramp, dragging it 34 cm sideways, then the flight started back on th
 an arm stutter at full stretch, rate flips at every filmed-lean reading, and a frozen last frame. After the fixes
 (skill moto-jump-physics, smoothness list) the worst frame-to-frame wobble anywhere is about 175 deg/s on the arms
 during the flick itself (the bike turns at 745 deg/s there) and no part jumps (largest 1.1 m/s, a forearm).
+
+### His body from the two phones (2026-11-09)
+The bike matched; his body did not. A strip of his frames against the replica showed him laid flat along the bike
+from the lip (head down by the front fender, legs out behind) while the replica sat upright until about 0.35 s.
+
+- Helmet tracked in every frame of both phones (`scripts/analysis/helmet.py`; `whip-attitude-3d/helmet_c2.json`,
+  `helmet_c3.json`): clip 2 on 46 of 48 frames (0 to 1.57 s), clip 3 to frame 70 (it loses the helmet against the
+  body after that). Offsets are from the red plastics' bbox centre (the phones pan).
+- Scale check: the attitude fit only used angles, so its focal lengths had never been checked for size. Making the
+  bike's red plastics come out their measured size gives 1645 px for the clip 2 phone (the fit's 900 was half) and
+  1393 px for clip 3 (1280): `f_size` in `cams_clips23.json` (`head3d.size_focal`). Every pixel distance uses it,
+  and so do the replica's matched cameras (the replica was framed smaller than his phones).
+- Free 3D triangulation of the helmet is not reliable here: the phones stand only about 14 deg apart, so depth
+  along the travel direction is weak (the answer jumped between two solutions).
+- The replica's helmet, placed where its body puts it, was off his by 32 px across and 72 px up the picture (RMS)
+  in clip 2 and 15 and 34 px in clip 3: at the lip his head is far lower (crouched over the bars) and through
+  0.4 s it stays low along the bike (`head_compare.py`, chart in the checkpoint).
+- Fitting the replica's body to it (`replicate.Replicator.head_pixels`, 6 px) failed: the solve stretched the legs
+  to 154 % and doubled the momentum mismatch. The measurement is not yet good enough to drive it: the bike's size
+  in his frames drifts 1.5x to 2x against the model over the flight (so a single pixel scale per phone is wrong
+  by up to 15 %), and off the lip the red plastics are half hidden in the trees, so the anchor is biased. The fit
+  is switched off (`FIT_HELMET`); the helmet error is reported. Next: per-frame scale from the bike's own size,
+  a second body point (hips or boots) and an anchor on the wheels.

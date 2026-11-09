@@ -314,6 +314,7 @@ def export_replica(pl, rep, tmp_path_factory):
     recA, con = rep.records()
     g2 = pl.landing(recA, con)
     t, st, sp, g1 = pl.to_takeoff(14.873)
+    rep.last_rider = np.array(g1[-1]["rider"], float)
     log = dict(mode="replicated", t_off=t, take=rep.take, t_air=con["t"], T_air_target=rep.T_air, whip_x=None)
     out = str(tmp_path_factory.mktemp("export"))
     dbg = {}
@@ -344,3 +345,23 @@ def test_tyres_stay_out_of_the_ramp_on_the_lip(pl, export_replica):
         if -0.4 < d["t"] - log["t_off"] < 0.05:
             c = export.tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, T.ground)
             assert c > -0.002, (d["t"] - log["t_off"], c)
+
+
+def test_helmet_model_matches_export(rep, export_replica):
+    """The solver's helmet (where it appears in each phone) is where the exported animation puts it: what is fitted
+    to Damien's phones is what is rendered."""
+    import json
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "analysis"))
+    import head_compare
+    out, info, D, log = export_replica
+    cams = json.load(open(os.path.join(head_compare.R3D, "cams_clips23.json")))
+    frames = range(30, 76, 3)
+    exp = head_compare.replica_offsets(f"{out}/frames.json", rep.sc, cams, frames=frames)
+    tg = np.array([(f - 29) / 30.0 * rep.sc for f in frames])
+    rep._prepare(tg)
+    hp = rep.head_pixels(rep.series(rep.x, tg), tg)
+    for v in ("clip2", "clip3"):
+        e = np.array([hp[v][i] - np.array(exp[f][v]) for i, f in enumerate(frames)])
+        assert np.abs(e).max() < 4.0, (v, e)            # px (the export smooths hips and spine slightly)
