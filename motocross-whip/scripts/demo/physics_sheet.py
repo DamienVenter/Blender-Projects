@@ -129,14 +129,19 @@ ax.axis("off")
 det = summ.get("detail", {})
 if summ.get("mode") == "replicated":
     rep = summ["replication"]
+    air_h = [h for h in hud if h.get("phase") == "AIR"]
+    min_lean = min(h["torso_lean"] for h in air_h)
+    min_film = min(h.get("meas_torso_lean", 0.0) for h in air_h)
     inputs = (f"Replica of your clips 2 and 3 jump\n\n"
               f"Bike attitude in the air: your two phones, solved\n"
               f"in 3D frame by frame, smoothed (spline).\n"
               f"Simulated: run-in, ramp, takeoff, flight path,\n"
               f"suspension, landing, ride-away.\n"
-              f"Your body: lean as filmed; turn, pitch, hips and\n"
+              f"Your body: lean guided by the film (reaches\n"
+              f"{-min_lean:.0f} of your {-min_film:.0f} deg); turn, pitch, hips and\n"
               f"throttle solved to keep hands and feet on the bike\n"
-              f"(worst gap {rep['worst_overreach_m'] * 100:.1f} cm).\n\n"
+              f"(worst gap {rep['worst_overreach_m'] * 100:.1f} cm). Not yet matched:\n"
+              f"you lie flat and low from the lip; mine sits up.\n\n"
               f"Physics check: my two-body rider cannot conserve\n"
               f"angular momentum along your motion: mismatch\n"
               f"{rep['L_mismatch_rms']:.0f} kg m2/s RMS (lip momentum {rep['L0_norm']:.0f}).\n"
