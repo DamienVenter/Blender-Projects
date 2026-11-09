@@ -106,17 +106,36 @@ Tests: `python3 -m pytest -q test_physics.py` must pass before any render.
   a quaternion spline (knots 0.10 s: inside the measurement noise, half the jerk of 0.07 s); physics for run-in,
   ramp, takeoff, CoM flight, suspension, landing; rider lean as filmed, the unseen body angles solved for reach
   and momentum. Momentum mismatch is REPORTED (about 75 kg m2/s RMS): the two-body rider cannot reproduce it.
-- He starts the whip on the lip. Use ONE attitude curve through the lip (ramp attitude until 0.1 s before, the
-  measured lip attitude at it) and pivot about the rear tyre contact. Two pieces joined at the lip rock the bike.
-- Sources of "choppy" motion found and fixed (audit every object's angular velocity and acceleration from
-  frames.json, `max ang acc` and p99):
+- He starts the whip on the lip (export.LIP_T = 0.2 s): the ramp simulation's attitude is bent onto the measured
+  lip attitude with the same join blend as everything else. The bike turns about its CENTRE OF MASS (the ramp
+  path), moves opposite the rider's body as in the air, and the ramp holds the rear tyre: lift by however far the
+  turn pushes it into the face (face continued past the lip along its tangent, rear tyre only). NEVER pivot about
+  the rear tyre contact: it dragged the whole bike 34 cm sideways at 4 m/s, then the flight started back on the
+  physics path: a 33 cm one-frame jump at the lip that the rotation-only audit missed.
+- Sources of "choppy" motion found and fixed:
   1. Closed-loop controller corrections and step changes in its phase weights: the bike wobbles.
   2. Elbow IK flips when the pole lines up with the arm: use the previous frame's joint as the pole.
   3. Limb twist flips when the limb lines up with its reference axis: parallel-transport the twist.
-  4. IK snap at full extension (square root): soft IK eases the reach over the last 4 %.
-  5. Uneven keys at the ground-to-air and air-to-ground joins (1 ms apart): resample all objects to whole frames.
-  6. Head look target switching: blend the target, smooth the head rotation.
-  7. Hip shift dropping to zero at touchdown: carry it and blend it out over 0.15 s.
+  4. Arm snap at full extension (square root). Do not soften the IK on the arms: the shoulder blade takes a
+     smoothstep-growing share of the reach (rider.scapula_slide), so the elbow speeds up then eases straight in
+     one hump. A share that rises and falls (a smoothstep slide) makes the arm PAUSE then restart: a stutter.
+  5. Joins between simulations (ramp to air, air to landing): blend the pose DRIVERS (bike attitude and position,
+     rider attitude and hips relative to the bike, spine, crouch, gaze), never the posed parts, with fades that
+     match value, rate and acceleration (export.blend_join). Choose per channel which side bends: rider "before"
+     the lip (anticipation; the air phase is the measurement), bike position "after" the lip, all "after"
+     touchdown. Split the two sides by simulation KIND, not by time: the air's last record sits exactly at the
+     touchdown time.
+  6. Pose on the even frame grid (C2 splines of the drivers; monotone PCHIP for suspension and wheel speed):
+     the elbow, knee and head memories are per frame, and records 1.2 ms apart made them jump. Drop records
+     closer than 3 ms. Pre-roll the poser 0.5 s so the first frame has settled memories.
+  7. Gaze: look at the landing, then a smooth maximum moves the target 10 m ahead. A target left behind the
+     rider after touchdown flipped the head through the neck limit (2300 deg/s).
+  8. Table readings (the filmed lean) joined by straight lines flip the rate at every reading: use PCHIP.
+  9. Hip shift dropping to zero at touchdown: carry it and blend it out over 0.15 s.
+- Audit with `scripts/demo/smoothness.py frames.json` over the WHOLE clip, rotations AND positions. Its wobble
+  (a frame's velocity against the mean of its neighbours) separates pops from fast motion: pops read 400 to
+  3000 deg/s or more than 2 m/s; the fastest smooth limb motion in the whip reads about 150 to 180 deg/s.
+  test_exported_animation_has_no_pops runs it on the full export pipeline in 12 s (hidden angles at zero).
 
 ## Validated numbers (researched geometry: 2.51 m lip, 9.1 m radius, 43.6 deg; 4.0 m knuckle, 42 deg)
 | Quantity | Simulation | Independent check |

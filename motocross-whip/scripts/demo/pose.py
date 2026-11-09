@@ -45,6 +45,14 @@ def quat_from_matrix(R):
     return q / np.linalg.norm(q)
 
 
+def matrix_from_quat(q):
+    """Rotation matrix of a (w, x, y, z) quaternion (normalised first)."""
+    w, x, y, z = np.asarray(q, float) / np.linalg.norm(q)
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+
+
 def frame_from_z(z_dir, x_hint):
     z = z_dir / np.linalg.norm(z_dir)
     x = x_hint - np.dot(x_hint, z) * z
@@ -66,6 +74,7 @@ class Poser:
         self.reach_violations = 0
         self.max_overreach = 0.0
         self.prev = {}               # previous frame's elbows, knees and head: bend directions stay continuous
+        self.max_ratio = {"arm": 0.0, "scapula_m": 0.0, "leg": 0.0}   # deepest reach (fraction of length)
 
     def limb_frame(self, name, z_dir, x_hint):
         """Segment frame along z_dir. The twist follows the previous frame (parallel transport) and is pulled gently
@@ -137,6 +146,8 @@ class Poser:
         lim = math.radians(75)
         if ang > lim:
             axis = np.cross(fwd_trunk, look)
+            if np.linalg.norm(axis) < 1e-6:          # target straight behind: turn about the trunk's up axis
+                axis = RB @ lean @ np.array([0.0, 0.0, 1.0])
             axis /= np.linalg.norm(axis)
             K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
             look = (np.eye(3) + math.sin(lim) * K + (1 - math.cos(lim)) * K @ K) @ fwd_trunk
@@ -153,24 +164,27 @@ class Poser:
             kpole = self.prev.get(f"knee_{s}", J[f"hip_{s}"] + RA @ np.array([0.6, sign * 0.18, 0.0]))
             knee, ankle, ok1 = RD.two_bone(J[f"hip_{s}"], J[f"ankle_target_{s}"], RD.L_THIGH, RD.L_SHANK, kpole)
             self.prev[f"knee_{s}"] = knee + (knee - 0.5 * (J[f"hip_{s}"] + ankle)) * 2.0
-            # shoulder blade slides toward the bar when the arm is near full stretch (up to SCAPULA_REACH)
-            arm = RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP
+            # shoulder blade slides toward the bar as the arm nears full stretch (rider.scapula_slide)
+            l1, l2 = RD.L_UPPER_ARM, RD.L_FOREARM + RD.L_HAND_GRIP
             to_grip = J[f"grip_{s}"] - J[f"shoulder_{s}"]
             dist = np.linalg.norm(to_grip)
-            slide = min(max(dist - 0.95 * arm, 0.0), RD.SCAPULA_REACH)
+            slide = RD.scapula_slide(dist, l1, l2)
             J[f"shoulder_{s}"] = J[f"shoulder_{s}"] + to_grip / max(dist, 1e-9) * slide
+            leg = np.linalg.norm(J[f"ankle_target_{s}"] - J[f"hip_{s}"]) / (RD.L_THIGH + RD.L_SHANK)
+            self.max_ratio["arm"] = max(self.max_ratio["arm"], (dist - slide) / (l1 + l2))
+            self.max_ratio["scapula_m"] = max(self.max_ratio["scapula_m"], slide)
+            self.max_ratio["leg"] = max(self.max_ratio["leg"], leg)
             epole = self.prev.get(f"elbow_{s}", J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15]))
-            elbow, grip, ok2 = RD.two_bone(J[f"shoulder_{s}"], J[f"grip_{s}"], RD.L_UPPER_ARM,
-                                           RD.L_FOREARM + RD.L_HAND_GRIP, epole)
+            elbow, grip, ok2 = RD.two_bone(J[f"shoulder_{s}"], J[f"grip_{s}"], l1, l2, epole, soft=False)
             # remember the bend direction, blended with the default so it can recover after a straight arm
             default = J[f"shoulder_{s}"] + RB @ np.array([-0.25, sign * 0.55, 0.15])
             mid = 0.5 * (J[f"shoulder_{s}"] + grip)
             self.prev[f"elbow_{s}"] = 0.85 * (elbow + (elbow - mid) * 2.0) + 0.15 * default
-            for ok, a, b in ((ok1, J[f"hip_{s}"], J[f"ankle_target_{s}"]), (ok2, J[f"shoulder_{s}"], J[f"grip_{s}"])):
+            for ok in (ok1, ok2 and slide <= RD.SCAPULA_REACH + 1e-9):
                 if not ok:
                     self.reach_violations += 1
             over_leg = np.linalg.norm(J[f"ankle_target_{s}"] - J[f"hip_{s}"]) - (RD.L_THIGH + RD.L_SHANK)
-            over_arm = np.linalg.norm(J[f"grip_{s}"] - J[f"shoulder_{s}"]) - (RD.L_UPPER_ARM + RD.L_FOREARM + RD.L_HAND_GRIP)
+            over_arm = slide - RD.SCAPULA_REACH         # shoulder blade forward of its estimated limit
             self.max_overreach = max(self.max_overreach, over_leg, over_arm)
             side = RA @ np.array([0.0, sign, 0.0])
             out[f"thigh_{s}"] = (J[f"hip_{s}"], self.limb_frame(f"thigh_{s}", knee - J[f"hip_{s}"], RA @ np.array([1.0, 0, 0])))

@@ -11,6 +11,7 @@ What comes from where:
   The remaining momentum mismatch is reported: it is the physics check of the whole reconstruction.
 
 python3 replicate.py OUT_DIR       (writes the same files as sim.py: frames.json, hud.json, summary.json, ...)
+python3 replicate.py OUT_DIR --reexport   (export again from OUT_DIR/records.pkl, skipping the solve)
 """
 import json
 import math
@@ -19,7 +20,7 @@ import sys
 import time
 
 import numpy as np
-from scipy.interpolate import LSQUnivariateSpline, CubicSpline
+from scipy.interpolate import LSQUnivariateSpline, CubicSpline, PchipInterpolator
 from scipy.optimize import least_squares
 
 import params as P
@@ -28,7 +29,7 @@ import air
 import sim
 import whip_measured as WM
 from air import Rx, Ry, Rz, EY
-from pose import quat_from_matrix
+from pose import quat_from_matrix, matrix_from_quat
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIT = os.path.join(HERE, "..", "..", "research", "whip-attitude-3d", "fit_clips23.json")
@@ -38,14 +39,19 @@ FPS_OUT = 120
 # frames (rider horizontal at the flat peak, upright once the bike hangs in profile)
 LEAN_T = [0.00, 0.10, 0.20, 0.30, 0.40, 0.53, 0.67, 0.80, 0.93, 1.07, 1.20, 2.20]
 LEAN = [0.0, -25.0, -50.0, -65.0, -70.0, -55.0, -40.0, -25.0, -15.0, -5.0, 0.0, 0.0]
+_LEAN = PchipInterpolator(LEAN_T, LEAN)
+
+
+def lean_filmed(t_damien):
+    """Filmed torso lean (deg) at Damien's time: a smooth monotone curve through the readings (straight lines between
+    them would flip the lean rate at every reading, a visible jerk at his deepest lean)."""
+    return _LEAN(np.clip(t_damien, LEAN_T[0], LEAN_T[-1]))
+
+
 T_HOLD_END = 1.97        # s, Damien's timeline: still crossed up (clip 1 f89; clip 3 loses him at about 2.0 s)
 
 
-def R_of_q(q):
-    w, x, y, z = q / np.linalg.norm(q)
-    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+R_of_q = matrix_from_quat
 
 
 class BikeAttitude:
@@ -66,10 +72,9 @@ class BikeAttitude:
             return air.expm_so3(air.logm_so3(R1 @ R0.T) * s) @ R0
 
         ease = lambda s: s * s * (3 - 2 * s)
-        # takeoff: the attitude and rotation rate the ramp gives (the bike leaves the lip straight)
         # he starts the whip on the lip itself (clips 2 and 3: already turning at the lip frame). The air phase starts
-        # at the measured lip attitude; the last INIT_T on the ramp pivots the bike about the rear tyre into it
-        # (export applies initiation()).
+        # at the measured lip attitude. The samples before the lip only shape the curve's rate through it (the air
+        # phase uses t >= 0); on the ramp, export bends the ramp simulation's attitude onto this one (export.LIP_T).
         R_lip = np.array(fit[str(min(map(int, fit)))]["R"])
         self.R_lip, self.R_ramp0 = R_lip, Ry(-beta0)
         # one curve through the lip: the ramp's attitude until INIT_T before it, the measured lip attitude at it
@@ -152,7 +157,7 @@ class Replicator:
         kick, yaw, pit, dle, whl = self.unpack(x)
         cs = lambda v: CubicSpline(self.knots, v, bc_type="clamped")
         fy, fp, fd, fw = cs(yaw), cs(pit), cs(dle), cs(whl)
-        lean = np.interp(tg / self.sc, LEAN_T, LEAN)
+        lean = lean_filmed(np.asarray(tg) / self.sc)
         out = []
         q = np.zeros(6)
         wr0 = self.take["wr"]
@@ -283,10 +288,31 @@ class Replicator:
         return ip(C), ip(V), np.interp(tg, ts, sfv), np.interp(tg, ts, srv)
 
 
+def reexport(out):
+    """Export again from OUT/records.pkl (no 6-minute re-solve): for changes to export.py, pose.py or rider.py."""
+    import export
+    import pickle
+    with open(f"{out}/records.pkl", "rb") as f:
+        log, rec_g1, recA, con, rec_g2, T_face = pickle.load(f)
+    pl = sim.Pipeline()
+    pl.S.T_face = T_face
+    T_air = log["T_air_target"]
+    bike = BikeAttitude(log["take"]["beta"], log["take"]["W"], pl.landing_pitch, T_air)
+    sc = T_air / WM.T_DAMIEN
+    info = export.build(pl, log, rec_g1, recA, con, rec_g2, out,
+                        seen_fn=lambda t: (bike.R(t), float(lean_filmed(t / sc))))
+    log["export"] = info
+    with open(f"{out}/summary.json", "w") as f:
+        json.dump(sim._jsonable(log), f, indent=1)
+    print("[3] export", json.dumps(sim._jsonable(info)))
+
+
 def main():
     import export
     import pickle
     out = sys.argv[1]
+    if "--reexport" in sys.argv:
+        return reexport(out)
     os.makedirs(out, exist_ok=True)
     pl = sim.Pipeline()
     pl.S.T_face = 1344.4                       # solved face throttle (sim.py records it)
@@ -302,7 +328,7 @@ def main():
     print("[2] hidden angles solved:", json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in rep.items()}), flush=True)
     recA, con = rp.records()
     rec_g2 = pl.landing(recA, con)
-    log_init = {"T": rp.bike.INIT_T}
+    log_init = {"T": export.LIP_T}
     ya, pa, ra = (math.degrees(a) for a in air.euler_of(con["RA"]))
     detail = dict(land_yaw=ya, land_pitch=pa, land_roll=ra, t_air=con["t"], contact=con["wheel"],
                   rider_rel_at_contact_deg=math.degrees(float(np.linalg.norm(air.logm_so3(con["RB"].T @ con["RA"])))))
@@ -313,8 +339,8 @@ def main():
         pickle.dump((log, rec_g1, recA, con, rec_g2, pl.S.T_face), f)
     np.savez(f"{out}/flight.npz", t=np.array([r["t"] for r in recA]), RA=np.array([r["RA"] for r in recA]),
              RB=np.array([r["RB"] for r in recA]))
-    info = export.build(pl, log, rec_g1, recA, con, rec_g2, out, lip_fn=rp.bike.R,
-                        seen_fn=lambda t: (rp.bike.R(t), float(np.interp(t / rp.sc, LEAN_T, LEAN))))
+    info = export.build(pl, log, rec_g1, recA, con, rec_g2, out,
+                        seen_fn=lambda t: (rp.bike.R(t), float(lean_filmed(t / rp.sc))))
     log["export"] = info
     with open(f"{out}/summary.json", "w") as f:
         json.dump(sim._jsonable(log), f, indent=1)

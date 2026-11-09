@@ -253,3 +253,90 @@ def test_soft_ik_has_no_snap():
             worst = max(worst, np.linalg.norm(mid - prev))
         prev = mid
     assert worst < 0.004          # m per 0.5 mm step of reach
+
+
+def test_shoulder_blade_eases_the_arm_straight():
+    """Near full stretch the shoulder blade takes a smoothly growing share of the reach: the elbow speeds up and then
+    eases into the straight arm in one hump (no pause and restart: a stutter), never faster than 0.5 deg per mm of
+    reach, and the hand reaches the grip all the way to the arm plus the shoulder blade's reach."""
+    import rider as RD
+    l1, l2 = RD.L_UPPER_ARM, RD.L_FOREARM + RD.L_HAND_GRIP
+    A = l1 + l2
+    ds = np.linspace(0.7 * A, A + RD.SCAPULA_REACH, 4000)
+    sl = np.array([RD.scapula_slide(d, l1, l2) for d in ds])
+    r = ds - sl
+    assert np.all(np.diff(sl) >= -1e-12)                          # the shoulder blade only slides forward
+    assert np.all(np.diff(r) >= -1e-12)                           # the arm only extends
+    assert r.max() < A and sl.max() <= RD.SCAPULA_REACH + 0.001   # reachable (the elbow keeps its 5 deg: 0.7 mm)
+    bend = np.degrees(np.arccos(np.clip((r * r - l1 * l1 - l2 * l2) / (2 * l1 * l2), -1, 1)))
+    rate = -np.diff(bend) / np.diff(ds) / 1000.0                   # deg per mm of reach
+    assert rate.max() < 0.5
+    k = int(np.argmax(rate))
+    assert np.all(np.diff(rate[:k]) >= -1e-6) and np.all(np.diff(rate[k:]) <= 1e-6)    # one hump
+    assert abs(bend[-1] - RD.ELBOW_MIN_BEND_DEG) < 0.01
+
+
+def test_join_blend_is_smooth():
+    """Two records that meet with a jump in value, rate and acceleration are joined smoothly: after the blend (either
+    side bent onto the other) all three agree at the join, measured from each side."""
+    import export
+    tj, h = 1.0, 3e-6
+    f_a = lambda t: np.array([np.sin(3 * t), 0.2 * t ** 3])            # earlier simulation
+    f_b = lambda t: np.array([0.3 + np.cos(2 * t), -t ** 2 + 0.5])      # later one (jumps in every derivative)
+    # records every 1/120 s, plus three either side of the join a few microseconds apart, so that the derivatives
+    # read from each side are exact enough to show what is left of the jumps
+    ts = [t for t in np.arange(0.5, 1.5, 1 / 120) if abs(t - tj) > 0.01] + [tj - k * h for k in (1, 2, 3)] \
+        + [tj + k * h for k in (0, 1, 2)]
+    for side in ("before", "after"):
+        D = [{"t": t, "kind": "a" if t < tj else "b", "v": (f_a if t < tj else f_b)(t)} for t in sorted(ts)]
+        ia = [i for i, d in enumerate(D) if d["kind"] == "a"][::-1][:3]
+        ib = [i for i, d in enumerate(D) if d["kind"] == "b"][:3]
+        jumps0 = [np.abs(x - y) for x, y in zip(export._side_state(D, ia, "v", False, tj),
+                                                 export._side_state(D, ib, "v", False, tj))]
+        export.blend_join(D, tj, {"v": (side, 0.2)}, ("b",))
+        jumps = [np.abs(x - y) for x, y in zip(export._side_state(D, ia, "v", False, tj),
+                                                export._side_state(D, ib, "v", False, tj))]
+        for k, (j0, j1) in enumerate(zip(jumps0, jumps)):
+            assert np.all(j1 <= 0.02 * j0 + 1e-6), (side, k, j0, j1)     # value, rate, acceleration
+
+
+@pytest.fixture(scope="module")
+def export_unsolved(pl, rep, tmp_path_factory):
+    """The full export pipeline (ramp, lip join, air, touchdown join, landing) on the replica with its hidden angles at
+    zero (no 6-minute solve): what export does at the joins does not depend on them."""
+    import export
+    import replicate as RP
+    rep.x = np.zeros(rep.n_x())
+    recA, con = rep.records()
+    g2 = pl.landing(recA, con)
+    t, st, sp, g1 = pl.to_takeoff(14.873)
+    log = dict(mode="replicated", t_off=t, take=rep.take, t_air=con["t"], T_air_target=rep.T_air, whip_x=None)
+    out = str(tmp_path_factory.mktemp("export"))
+    dbg = {}
+    info = export.build(pl, log, g1, recA, con, g2, out, debug=dbg,
+                        seen_fn=lambda tt: (rep.bike.R(tt), float(RP.lean_filmed(tt / rep.sc))))
+    return out, info, dbg["drivers"], log
+
+
+def test_exported_animation_has_no_pops(export_unsolved):
+    """Over the whole clip, every part moves smoothly: no one-frame pops at the first frame, the lip or touchdown
+    (before the fix: 3150 deg/s arm pops and a 33 cm whole-bike jump at the lip, a head flip after touchdown)."""
+    import smoothness
+    out, info, D, log = export_unsolved
+    res, (dmin, dmax) = smoothness.audit(f"{out}/frames.json")
+    assert dmax - dmin < 1e-9                                    # even frames
+    for name, r in res.items():
+        assert r["wobble_max"] < 400.0, (name, r)                # deg/s
+        assert r["vwobble_max"] < 2.0, (name, r)                 # m/s
+    assert res["bike:frame"]["vwobble_max"] < 0.6
+
+
+def test_tyres_stay_out_of_the_ramp_on_the_lip(pl, export_unsolved):
+    """While the whip is thrown on the lip the ramp holds the rear tyre: it never sinks into the ramp face."""
+    import export
+    out, info, D, log = export_unsolved
+    S, T = pl.S, pl.T
+    for d in D:
+        if -0.3 < d["t"] - log["t_off"] < 0.0:
+            c = export.tyre_clearance(d["RA"], d["pb"], d["sf"], d["sr"], S.cb, T.ground, ("rear",))
+            assert c > -0.01, (d["t"] - log["t_off"], c)

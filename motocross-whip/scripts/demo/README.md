@@ -28,10 +28,17 @@ before any detailed modelling. Every number lives in `params.py` with its source
   CMA-ES search places (`pip install cma`), held softly so angular momentum decides. Lip pull, landing, export.
   The pipeline refines around `Pipeline.X0` (best full search); a fresh search is `SIGMA0 = 0.25`, about 100 generations.
 - `replicate.py`: the replica: bike attitude from `research/whip-attitude-3d/fit_clips23.json` (two-phone 3D
-  measurement) through a quaternion spline, one smooth curve through the lip (pivot on the rear tyre); rider's unseen
-  angles solved for reach and momentum (mismatch reported); physics for everything else.
+  measurement) through a quaternion spline; rider's unseen angles solved for reach and momentum (mismatch reported);
+  physics for everything else. `python3 replicate.py OUT --reexport` exports again from OUT/records.pkl in seconds
+  (for changes to export.py, pose.py or rider.py; the solve takes 6 minutes).
 - `pose.py`, `export.py`: per-frame transforms for every part, cameras (two matched to Damien's phones), data overlay.
-  Smoothness: soft IK, joint and twist continuity, head smoothing, every object resampled onto whole frames.
+  Smoothness: the pose drivers (bike attitude and position, rider attitude and hips relative to the bike, spine,
+  gaze) are joined across the ramp, air and landing simulations with fades matched in value, rate and acceleration,
+  splined onto the even 120 fps grid and posed there (0.5 s pre-roll); the whip starts on the lip, the bike turning
+  about its centre of mass while the ramp holds the rear tyre; the shoulder blade eases the arms straight; joint and
+  twist continuity; the gaze moves smoothly ahead after the landing spot.
+- `smoothness.py frames.json`: audit of every object over the whole clip (pops show as a frame whose velocity differs
+  from its neighbours' mean: 400 deg/s or 2 m/s and up; fast smooth limb motion reads about 150 to 180 deg/s).
 - `build_scene.py`, `render_view.py`: Blender 5.2 scene (Workbench) and per-camera renders.
 
 ## Known simplifications (demo only)

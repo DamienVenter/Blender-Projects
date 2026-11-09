@@ -147,13 +147,27 @@ Method (`scripts/analysis/`):
 
 ## Replica (scripts/demo/replicate.py)
 The bike's attitude in the air is the 3D measurement through a smooth quaternion spline (knots every 0.10 s:
-within 3.2 deg RMS of the measurement, inside its noise). The whip starts on the lip: one curve through the lip,
-pivoting about the rear tyre in the last 0.1 s on the ramp. Run-in, ramp, takeoff, centre-of-mass flight,
+within 3.2 deg RMS of the measurement, inside its noise). The whip starts on the lip: in the last 0.2 s on the ramp
+the ramp simulation's attitude is bent onto the measured lip attitude (23 deg away) and its turn rate; the bike turns
+about its centre of mass (the rear end steps out), moves opposite the rider's body, and the ramp holds the rear tyre
+up, so it leaves the lip about 20 cm higher than a straight bike and settles onto the physics path over 0.8 s.
+Run-in, ramp, takeoff, centre-of-mass flight,
 suspension and landing are the physics simulation. The rider's lean is as filmed; his torso turn and pitch, hip
 shift, spine and rear-wheel speed are solved to keep hands and feet on the bike (worst gap under 1 cm) and the
 angular momentum as constant as possible.
 
 Physics check: along the measured motion my two-body rider model cannot conserve angular momentum: mismatch about
-75 kg m2/s RMS against about 80 at the lip (the calculation is verified on a simulated flight: constant to 1 to 2).
+69 kg m2/s RMS against 78 at the lip (2026-11-09 solve; the calculation is verified on a simulated flight: constant
+to 1 to 2).
 The real body does more than the model has (legs and arms moving mass, hips sliding further, throttle and brake
 used harder). Closing that gap needs a fuller body model; it is an open item, not hidden.
+
+### Smoothness audit of the replica (2026-11-09, scripts/demo/smoothness.py)
+Damien: "your movement is super choppy". The first audit only looked at rotations in the air. Over the whole clip,
+rotations and positions, the delivered replica had: arm pops of 3150 deg/s 0.1 s before the lip (the torso
+switched attitude), a 33 cm one-frame jump of the whole bike and rider at the lip (the bike pivoted about the rear
+tyre on the ramp, dragging it 34 cm sideways, then the flight started back on the physics path), the rear tyre
+16 cm inside the lip edge for two frames, a head flip after touchdown (the look target ended up behind him),
+an arm stutter at full stretch, rate flips at every filmed-lean reading, and a frozen last frame. After the fixes
+(skill moto-jump-physics, smoothness list) the worst frame-to-frame wobble anywhere is about 175 deg/s on the arms
+during the flick itself (the bike turns at 745 deg/s there) and no part jumps (largest 1.1 m/s, a forearm).

@@ -8,6 +8,7 @@ Rider frame: origin at the peg midpoint (between the two foot contacts),
 x forward, y left, z up. In the neutral pose the rider frame coincides with
 the bike frame (translated to the pegs).
 """
+import math
 import numpy as np
 import params as P
 
@@ -43,17 +44,40 @@ def _unit(v):
 
 
 SOFT_IK = 0.04          # fraction of the limb length over which the reach eases into full extension
+ELBOW_MIN_BEND_DEG = 5.0   # the elbow bend reached when the shoulder blade is fully forward (arm all but straight)
 
 
-def two_bone(root, target, l1, l2, pole):
+def scapula_slide(dist, l1, l2):
+    """How far the shoulder blade slides toward the grip (m) for a shoulder-to-grip distance dist.
+
+    A real arm never snaps straight: near full stretch the shoulder blade protracts and takes a growing share of any
+    extra reach. That share rises smoothly (smoothstep) from none to all of it over a reach window 2 x SCAPULA_REACH
+    wide that ends with the shoulder blade fully forward (SCAPULA_REACH) and the elbow at ELBOW_MIN_BEND_DEG. So the
+    elbow speeds up and then eases into the straight arm in one smooth hump (at most about 0.4 deg per mm of reach),
+    with no pause and no square-root snap. Beyond the window (reach the solver allows only by millimetres) the shoulder
+    keeps sliding, so the hand stays on the grip."""
+    th = math.radians(ELBOW_MIN_BEND_DEG)
+    r_m = math.sqrt(l1 * l1 + l2 * l2 + 2.0 * l1 * l2 * math.cos(th))
+    width = 2.0 * SCAPULA_REACH
+    d2 = r_m + SCAPULA_REACH
+    d1 = d2 - width
+    if dist <= d1:
+        return 0.0
+    if dist >= d2:
+        return SCAPULA_REACH + (dist - d2)
+    u = (dist - d1) / width
+    return width * (u ** 3 - 0.5 * u ** 4)              # integral of the smoothstep share
+
+
+def two_bone(root, target, l1, l2, pole, soft=True):
     """Analytic two-bone IK with a soft limit (the joint does not snap straight at full extension: the reach is
     eased over the last SOFT_IK of the limb length). Returns (mid_joint, end, reached)."""
     d = target - root
     dist = np.linalg.norm(d)
     L = (l1 + l2) * 0.999
-    reached = dist <= L
+    reached = dist <= (L if soft else l1 + l2)
     knee = L * (1.0 - SOFT_IK)
-    if dist > knee:                               # exponential ease toward L (continuous value and slope)
+    if soft and dist > knee:                      # exponential ease toward L (continuous value and slope)
         dist_s = knee + (L - knee) * (1.0 - np.exp(-(dist - knee) / (L - knee)))
     else:
         dist_s = dist
