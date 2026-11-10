@@ -46,7 +46,7 @@ def test_fork_tubes_spacing_and_diameters(built):
     gold = verts(built["fork"], "fork_gold")
     t = (gold - parts.TUBE0) @ parts.UP
     for side in (1, -1):
-        g = gold[(side * gold[:, 1] > 0) & (t > 0.41) & (t < 0.605)]                       # lower clamp to the guards
+        g = gold[(side * gold[:, 1] > 0) & (t > 0.395) & (t < 0.605)]                       # lower clamp to the guards
         assert abs(g[:, 1].mean() - side * parts.FORK_HALF) < 0.0005                      # centres 198 mm apart
         across = np.ptp(g[:, 1])
         assert 0.048 <= across <= 0.053                                                   # photos: 48 to 53 mm
@@ -81,3 +81,69 @@ def test_steering_parts_and_budget(built):
     for m in built.values():
         assert np.isfinite(np.asarray(m.V, float)).all()
         assert max(max(f) for f in m.F) < len(m.V)
+
+
+def test_grips_close_onto_the_bar(built):
+    grip = verts(built["bars"], "grip")
+    for side in (1, -1):
+        sd = df._Side(side)
+        g = grip[grip[:, 1] * side > 0] - sd.T
+        r = np.linalg.norm(g - np.outer(g @ sd.d, sd.d), axis=1)
+        assert 0.0111 < r[r > 0.001].min() < 0.0116                                       # 22.2 mm bar, 0.3 mm short
+
+
+def test_only_the_stem_is_inside_the_head_tube(built):
+    v = verts(built["clamps"]) - parts.STEER0
+    s = v @ parts.UP
+    rad = np.linalg.norm(v - np.outer(s, parts.UP), axis=1)
+    near = rad < 0.030                                                                    # the head tube's radius
+    assert not (near & (s > df.FACE_LO + 0.0005) & (s < df.FACE_UP - 0.0005) & (rad > df.STEM_R + 1e-6)).any()
+    stem = near & (rad > df.STEM_R - 0.0012) & (rad < df.STEM_R + 1e-6)
+    assert s[stem].min() < df.FACE_LO and s[stem].max() > df.FACE_UP
+
+
+def test_fender_bosses_stop_short_of_the_fender(built):
+    v = verts(built["clamps"])
+    for side in (1, -1):
+        top = v[np.hypot(v[:, 0] - 1.236, v[:, 1] - side * 0.024) < 0.0080]
+        skin = min(df._fender_skin(q[0], q[1]) for q in top[top[:, 2] > top[:, 2].max() - 0.0005])
+        gap = skin - df.FENDER_T - top[:, 2].max()
+        assert 0.0002 < gap < 0.004, gap
+
+
+def test_top_clamp_bosses_clear_the_number_plate():
+    import plastics
+    v = np.asarray(plastics.number_plate().V, float)
+    rel = v - parts.TUBE0
+    t, f = rel @ parts.UP, -(rel @ parts.BACK)
+    for side in (1, -1):
+        rad = np.hypot(f, v[:, 1] * side - parts.FORK_HALF)
+        assert rad[(t > df.T_UP[0]) & (t < df.T_UP[1])].min() > df.R_BOSS_UP + 0.0003
+
+
+def test_cables_end_on_the_engine_s_anchors():
+    import detail_engine as de
+    q = df.clutch_path()
+    arm = getattr(de, "CLUTCH_ARM_END", None)
+    assert np.linalg.norm(q[-1] - (df.CLUTCH_JOIN if arm is None else np.asarray(arm, float))) < 0.004
+    mid = de.TB0 + 0.062 * de.TB_DIR
+    for path in df.throttle_paths():
+        r = np.hypot(path[-1][0] - mid[0], path[-1][2] - mid[2])
+        if not hasattr(de, "THROTTLE_DRUM"):
+            assert 0.019 + 0.0035 < r < 0.019 + 0.0045                                    # lying on the drum, clear
+            assert -(de.TB_BORE / 2 + 0.008 + 0.016) < path[-1][1] < -(de.TB_BORE / 2 + 0.008)
+
+
+def test_throttle_cables_never_run_through_each_other():
+    a, b = df.throttle_paths()
+    assert np.linalg.norm(a[:, None, :] - b[None, :, :], axis=2).min() > 0.0072          # two 7 mm cables
+
+
+def test_bar_pad_closes_onto_the_bar(built):
+    pad = verts(built["bars"], "barpad")
+    path = df.bar_path()
+    for side in (1, -1):
+        end = pad[pad[:, 1] * side > 0.0945]
+        c = path[np.argmin(np.abs(path[:, 1] - 0.095))]
+        r = np.hypot(end[:, 0] - c[0], end[:, 2] - c[2])
+        assert 0.0138 < r.min() < 0.0150                                                  # bore 0.4 mm off the bar
