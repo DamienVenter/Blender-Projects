@@ -245,7 +245,8 @@ def shroud_bolts():
         fn = lambda a, b, s=side: plastics.shroud_point(s, a, b)
         m.add(_fastener(fn(u, v), _normal(fn, u, v, side), "plastic_red"))
         q = TOP.on_plane(np.array([1826.0]), np.array([1219.0 if side > 0 else 1030.0]), "z", 1.0)[0]
-        m.add(_fastener(plastics.deck_point(side, q[0], q[1]) + np.array([0, 0, 0.003]), (0, 0, 1), "plastic_red"))
+        # the plate's modelled surface is its top (its 3 mm of plastic is underneath)
+        m.add(_fastener(plastics.deck_point(side, q[0], q[1]), (0, 0, 1), "plastic_red"))
     return m
 
 

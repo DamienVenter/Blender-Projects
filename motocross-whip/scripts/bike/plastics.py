@@ -366,231 +366,454 @@ def _shroud_plan(side):
     return lambda q: float(np.polyval(sol.x, min(max(q, 0.60), 1.093) - 0.85))
 
 
-LIP = 0.012          # FRONT: the leading edge shows as a red rim outside the radiator, 10 mm wide at mid height
-SKIN_LIP = 0.005     # roll of the outer skin's own edge where it stops short over the inner wall (EST)
-WALL_STEP = 0.008    # the inner wall ahead of the skin's edge sits this far in (FRONT: the rim it and the skin's edge
-#                      make is 10 to 18 mm wide; the step itself is not measurable: EST)
-WALL_TIP = 0.004     # and this much deeper at the lower tip, where the radiator's louvres show in the gap between
-#                      the two layers (LEFT rows 1070..1170, u 1630..1690; depth EST: 12 mm put the wall inside
-#                      parts.radiators, whose outer face is at 0.177)
-SHOULDER_H, SHOULDER_IN = 0.038, 0.028      # FRONT: silhouette 0.198 at z 0.899, 0.188 at 0.917, 0.175 at 0.933,
-#                                             on the section whose top edge is at 0.937: a flat facet (the three
-#                                             readings are on one line), 38 mm tall, leaning in 28 mm
-# The shoulder's lower crease behind the vents. LEFT columns 1800..1980: the surface is brighter below a line through
-# rows 845, 821, 813, 803 (steps of +20 to +42 in r+g), 100 to 63 px under the top edge. Ahead of the vents the
-# facet is the 38 mm of the front photo.
-SHOULDER_PX = [(1800, 845), (1860, 821), (1920, 813), (1980, 803), (2012, 798)]
-# The two air outlets behind the "CRF" decal. LEFT rows 900..1060: dark from u 1729..1767 (row 900), 1735..1774
-# (940), 1742..1778 (980), 1747..1787 (1020), 1754..1783 (1060); column 1740: rows 861..948; a red bar between them
-# at rows 949..977. Built as pockets, not holes: the real ones are open to the radiator's black louvres, and a dark
-# part inside the shroud's outline is what the intruder test forbids.
-VENTS_PX = [[(1731, 864), (1760, 864), (1770, 945), (1741, 948)],
-            [(1745, 978), (1775, 975), (1785, 1040), (1772, 1092), (1764, 1092), (1752, 1035)]]
-VENT_DEPTH = 0.010   # EST
-# 1: the first pass's shroud: one surface, stepped in at the skin's edge, hollow shoulder 38 mm under the top edge.
-# 2: skin and inner wall as two shells with the gap between them, the shoulder's measured crease behind the vents
-#    and the two vent pockets. Close-up renders of 2 (2026-11-10) showed a saw-toothed leading edge, spikes along
-#    the top edge and ragged pockets, not yet traced to their cause: 1 is built until 2 is clean.
-SHROUD_LAYERS = 1
+def smooth_pieces(px, corners, knot=40.0, step=4.5):
+    """A traced outline as a few smooth pieces. px: the traced closed curve (photo pixels). corners: (u, v, radius)
+    in order round the curve, the outline's corners as read in the photo (radius 0: sharp; otherwise the corner is
+    rounded to about that radius, in px; a fourth value True: the trace from this corner to the next is not the
+    plastic's edge, draw a straight line). Between two corners the traced points are fitted with a cubic B-spline
+    whose knots are KNOT px apart, so the curve cannot wiggle on a shorter scale than about 1.5 knots (45 mm), and
+    with a robust loss, so that a notch where a cable or a bracket crosses the plastic's edge is bridged instead of
+    followed. Returns the closed curve sampled every STEP px and the index of each corner in it (corner 0 first)."""
+    from scipy.interpolate import make_lsq_spline
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.spatial import cKDTree
+    D = resample(px, 1.0)
+    C = np.array([c[:2] for c in corners], float)
+    idx = cKDTree(D).query(C)[1]
+    if (np.diff(np.concatenate([idx, idx[:1]])) % len(D)).sum() != len(D):    # listed against the curve's direction
+        D = D[::-1]
+        idx = len(D) - 1 - idx
+    out, at = [], []
+    for k in range(len(C)):
+        i, j = int(idx[k]), int(idx[(k + 1) % len(C)])
+        seg = D[i:j + 1] if j > i else np.vstack([D[i:], D[:j + 1]])
+        seg = np.vstack([C[k], seg[2:-2], C[(k + 1) % len(C)]])               # a piece starts and ends ON its corners
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(seg, axis=0), axis=1))])
+        ok = np.concatenate([[True], np.diff(s) > 1e-6])
+        seg, s = seg[ok], s[ok]
+        q = np.linspace(0.0, s[-1], max(int(round(s[-1] / step)), 2) + 1)[:-1]
+        at.append(sum(len(o) for o in out))
+        if s[-1] < 15.0 or len(seg) < 8 or (len(corners[k]) > 3 and corners[k][3]):
+            out.append(seg[0] + (seg[-1] - seg[0]) * (q / s[-1])[:, None])
+            continue
+        t = np.concatenate([[0.0] * 4, np.linspace(0.0, s[-1], max(int(s[-1] // knot), 1) + 1)[1:-1], [s[-1]] * 4])
+        w = np.ones(len(s))
+        for _ in range(5):
+            w[0] = w[-1] = 1e3
+            spl = make_lsq_spline(s, seg, t, k=3, w=w)
+            w = 1.0 / (1.0 + (np.linalg.norm(spl(s) - seg, axis=1) / 2.5) ** 2)
+        out.append(spl(q))
+    P = np.vstack(out)
+    n = len(P)
+    for c, a in zip(corners, at):
+        r = c[2]
+        if r > 0:
+            Ps = np.stack([gaussian_filter1d(P[:, 0], 0.8 * r / step, mode="wrap"),
+                           gaussian_filter1d(P[:, 1], 0.8 * r / step, mode="wrap")], axis=1)
+            d = np.abs((np.arange(n) - a + n // 2) % n - n // 2) * step
+            P = P + np.exp(-0.5 * (d / (1.5 * r)) ** 2)[:, None] * (Ps - P)
+    return P, at
+
+
+def conforming_mesh(outer, rings=(), rows=(), step=9.0):
+    """Triangles over the closed curve OUTER (2D) that keep its points exactly as given: rows of vertices parallel
+    to the boundary at the distances RINGS inside it (for a rim that rolls), the points of ROWS as given (creases,
+    pocket rims), a staggered grid of STEP elsewhere, Delaunay. Every edge of the boundary must come out as an edge
+    of the triangulation (otherwise the outline would be notched or webbed): checked, and an error if not.
+    Returns (points, triangles, number of boundary points); the boundary points come first, in order."""
+    from scipy.spatial import Delaunay, cKDTree
+    B = np.asarray(outer, float)
+    nb = len(B)
+    btree = cKDTree(_dense(B, closed=True)[:-1])
+    t = np.roll(B, -1, axis=0) - np.roll(B, 1, axis=0)
+    n = np.stack([t[:, 1], -t[:, 0]], axis=1)
+    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+    if inside(B, (B + 1.0 * n)[::3]).mean() < 0.5:                 # normals point into the shape
+        n = -n
+    sp = float(np.median(np.linalg.norm(np.diff(B, axis=0), axis=1)))
+    pts, d0 = [B], 0.0
+    for d in rings:
+        Q = B + d * n
+        Q = Q[inside(B, Q) & (btree.query(Q)[0] > 0.93 * d)]       # not folded over at a corner or across a thin tip
+        if len(Q):
+            Q = Q[cKDTree(np.vstack(pts)).query(Q)[0] > 0.7 * (d - d0)]
+        keep = []
+        for p in Q:                                                # thinned where a hollow bend crowds the row
+            if not keep or np.hypot(*(p - keep[-1])) > 0.6 * sp:
+                keep.append(p)
+        if keep:
+            pts.append(np.array(keep))
+        d0 = d
+    reach = (max(rings) if len(rings) else 0.0)
+    feats = []
+    for R in rows:                                                 # earlier rows win where two come close
+        R = np.asarray(R, float)
+        R = R[inside(B, R)]
+        if len(R):
+            R = R[btree.query(R)[0] > reach + 2.0]
+        if len(R) and feats:
+            R = R[cKDTree(np.vstack(feats)).query(R)[0] > 2.2]
+        if len(R):
+            feats.append(R)
+    pts += feats
+    feat = np.vstack(pts[1:]) if len(pts) > 1 else np.zeros((0, 2))
+    lo, hi = B.min(axis=0), B.max(axis=0)
+    G = []
+    for j, v in enumerate(np.arange(lo[1], hi[1], step * 0.866)):
+        us = np.arange(lo[0] + (0.5 * step if j % 2 else 0.0), hi[0], step)
+        G.append(np.stack([us, np.full(len(us), v)], axis=1))
+    G = np.vstack(G)
+    G = G[inside(B, G)]
+    G = G[btree.query(G)[0] > reach + 0.6 * step]
+    if len(feat) and len(G):
+        G = G[cKDTree(feat).query(G)[0] > 0.6 * step]
+    P = np.vstack(pts + [G])
+    tri = Delaunay(P).simplices
+    tri = tri[inside(B, P[tri].mean(axis=1))]
+    a, b, c = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = 0.5 * ((b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0]))
+    tri = tri[np.abs(area) > 1e-9]
+    edges = {tuple(sorted(e)) for f in tri for e in ((f[0], f[1]), (f[1], f[2]), (f[2], f[0]))}
+    missing = [i for i in range(nb) if (min(i, (i + 1) % nb), max(i, (i + 1) % nb)) not in edges]
+    if missing:
+        raise RuntimeError("boundary edges missing from the mesh at %s" % [tuple(P[i].round(1)) for i in missing[:6]])
+    return P, tri, nb
+
+
+def shell(P, tri, nb, to3d, thickness, sgn, mat):
+    """A shell from a conforming mesh: outer face on the surface (to3d(u, v) -> 3D), inner face THICKNESS further
+    toward the centre plane (sgn: +1 left, -1 right), a rim round the boundary. Faces wound so that every normal
+    points out of the plastic. Returns the mesh and the outer face's points (in the order of P)."""
+    X = np.array([to3d(u, v) for u, v in P])
+    m = Mesh()
+    top = m.verts(X)
+    bot = m.verts(X - np.array([0.0, sgn * thickness, 0.0]))
+    third = {}
+    for a, b, c in tri:
+        if np.cross(X[b] - X[a], X[c] - X[a])[1] * sgn < 0:
+            b, c = c, b
+        m.face((top + a, top + b, top + c), mat)
+        m.face((bot + a, bot + c, bot + b), mat)
+        for p, q, r in ((a, b, c), (b, c, a), (c, a, b)):
+            third[(min(p, q), max(p, q))] = r
+    for i in range(nb):
+        j = (i + 1) % nb
+        k = third[(min(i, j), max(i, j))]
+        f = (top + i, top + j, bot + j, bot + i)
+        if np.cross(X[j] - X[i], np.array([0.0, -sgn, 0.0])) @ (X[k] - X[i]) > 0:    # pointing at the panel: turn
+            f = f[::-1]
+        m.face(f, mat)
+    return m, X
+
+
+# Both shrouds are described once, in LEFT photo pixels, and built through each side's own camera (the right photo is
+# the left one mirrored about column 1999.5: _mpx). Checked on both photos, 2026-11-10: the skin's leading and bottom
+# edges (first bright-red pixel of 31 rows, last of 13 columns) are the same within 1 px, the traced outlines within
+# 1 px (median) and 2.7 px (90 %); they differ where a cable (u 1676..1687) or the fork tube (wall apex) hides the
+# edge on one side. The plastic is symmetric; the plan widths are each side's own (TOP).
+#
+# Corners of the traced outline (LEFT, read at 4x to 7x zoom): A the skin's top front corner; B1, B2 foot and top of
+# the 25 px step where the bolt plate beside the tank starts (TOP: its front edge at x 0.93); D, E the blunt rear
+# end under the seat; F0, F the round lower tip of the skin and its lowest point; G the inner wall's lower tip; H
+# the wall's apex, where its leading edge meets the fork tube's rear edge (the wall runs on behind the tube, unseen;
+# the trace's 12 px hook down the tube from there is not in the right photo: left out). Between F and G the trace
+# follows the radiator's grey bracket in and out (outlines.py closes the louvre gap there): a straight line.
+SHROUD_CORNERS = [(1531, 848, 0), (1775, 773, 0), (1772, 748, 0), (2197, 886, 6), (2203, 915, 6), (1786, 1157, 8),
+                  (1765, 1186, 6, True), (1684, 1201, 3), (1475, 967, 0)]
+# The outer skin's own edge. LEFT rows 850..1150: first bright-red pixel (r > 200) behind the shadowed wall, every
+# 30 rows; then its bottom edge, columns 1690..1765: last bright-red row (under it the louvres and the bracket).
+SKIN_FRONT_PX = [(1530, 850), (1535, 880), (1548, 910), (1561, 940), (1574, 970), (1589, 1000), (1608, 1030),
+                 (1628, 1060), (1648, 1090), (1668, 1120), (1691, 1150)]
+SKIN_BOTTOM_PX = [(1690, 1150), (1706, 1159), (1722, 1168), (1738, 1176), (1754, 1185), (1765, 1186)]
+# The crease between the upright side face and the top face ("roof"). Behind the vents it is a brightness step in
+# the LEFT photo: columns 1800..2012, rows 845, 821, 813, 803, 798 (steps of +20 to +42 in r+g; at 6x it leaves the
+# vent pocket's top rear corner, (1799, 840)). Along the pocket's top it is the pocket's rim (rows 848 to 840).
+# Ahead of the vents nothing marks it (the shoulder is round there): placed where the roof below gives the FRONT
+# photo's silhouette (see ROOF_R), 29 px under the top edge at column 1600.
+CREASE_PX = [(1531, 877), (1600, 854), (1660, 847), (1721, 845), (1760, 845), (1800, 843), (1860, 822), (1920, 812),
+             (1980, 803), (2012, 798)]
+# Roof: above the crease the surface leans in at 45 deg, with a fillet of radius ROOF_R at the crease: lean =
+# hh^2 / (hh + r), hh = height above the crease + r. That one rule against the other photos (model values printed
+# from the built surface, 2026-11-10):
+#   FRONT, section whose top edge is at z 0.937: the silhouette leans 0 / 10 / 23 mm at z 0.899 / 0.917 / 0.933.
+#          Model at column 1600 (x 1.053, r 15 mm): 0 / 10 / 24.5, and 26 at its top edge (z 0.934)
+#   FRONT, upper silhouette further back: 0.150 off the centre line at z 0.950, 0.128 at 0.963.
+#          Model at x 0.965: 0.151 at 0.950, top edge 0.135 at 0.961
+#   TOP, inner edge of the blade ahead of the vents: 0.147 at x 0.98, 0.116 at 0.932. Model: 0.144 at 0.987, 0.120
+#          at 0.925 (foot of the step)
+#   TOP, outer edge of the bolt plate at x 0.928: 0.100. Model (top of the step): 0.102
+# Behind the vents the crease is crisp in the photo (r 1.5 mm, EST: a moulded edge).
+ROOF_R = (0.015, 0.0015)
+ROOF_R_U = (1660.0, 1820.0)      # columns over which the fillet tightens (across the vent pocket)
+# Rims. Every free edge turns in over its last 8 mm (rows of vertices parallel to the edge carry it):
+LIP = 0.012          # the wall's leading edge. FRONT: a red rim outside the radiator, 10 mm wide at mid height
+SKIN_LIP = 0.003     # the skin's own edge over the wall (EST: it lands on the wall, WALL_STEP minus the 3 mm shell)
+TOP_LIP = 0.006      # the blade's inner top edge. TOP: the blade is 35 mm wide in plan at x 1.05 where the roof
+#                      leans 26 mm
+EDGE_LIP = 0.0025    # lower and rear edges (EST: a moulded panel's turned edge)
+TAIL_U = 2140.0      # behind this column the tail lies flat on the side panel: no lip (it cut 2.6 mm into the panel)
+RIM_W = 0.008
+RINGS_PX = (2.0, 4.5, 7.5, 11.0)
+WALL_STEP = 0.006    # the inner wall sits this far inside the skin (FRONT: the rim it and the skin's edge make is
+#                      10 to 18 mm wide; the step itself is not measurable: EST). With its 1.5 mm shell it stays
+#                      outside the radiator grille's wing, which detail_engine puts 8 mm inside the plan envelope:
+#                      8 mm deep (and 12 mm at the lower tip, to open the louvre gap of the photo) ran 6 mm into it
+WALL_T = 0.0015
+WALL_TUCK = 12.0     # px of wall under the skin's edge
+# The vent pocket behind the "CRF" decal (LEFT, 6x): a recess with a rounded rim. Its rear wall runs down from
+# (1811, 887) by (1825, 973) to a tip at (1767, 1100); its front edge is a straight line up to (1722, 850). In the
+# photo its top rim is the crease itself (rows 848 to 840); here it is 14 px lower, so that the rim and the crease
+# each keep their own rows of vertices (6 px apart they made one wavy ridge). The two outlets in it are open to the
+# radiator's louvres on the bike; here the pocket has a floor (a dark part inside the shroud's outline is what the
+# intruder test forbids, and the outline closes them). Depth and wall width EST.
+POCKET_PX = [(1726, 861), (1760, 857), (1797, 854), (1811, 890), (1822, 937), (1825, 973), (1807, 1028), (1770, 1100),
+             (1764, 1100), (1757.6, 1060), (1744.1, 975), (1735.4, 920)]
+POCKET_DEPTH = 0.007
+POCKET_WALL = 5.0    # px
+# Bolt plate (deck) beside the tank. TOP: red from the roof's top edge in to the gap around the tank, 0.053 to 0.060
+# off the centre line, from the plate's front edge (x 0.93) back under the seat's nose.
+DECK_X = [0.790, 0.854, 0.929, 0.960]
+DECK_Y = [0.053, 0.055, 0.060, 0.075]
+DECK_END_U = 1950.0  # LEFT column where the plate ends under the seat's nose (x 0.792)
+DECK_DROP = 0.003    # the plate's inner edge lies this much lower than its outer edge (EST)
+
+
+@functools.lru_cache(maxsize=None)
+def _shroud_px():
+    """A shroud in LEFT photo pixels: outline in smooth pieces, the skin's and the wall's boundaries with the lip of
+    each boundary point, the crease, the pocket."""
+    from types import SimpleNamespace
+    from scipy.interpolate import CubicSpline
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.spatial import cKDTree
+    raw = np.stack(cams.linear_to_px("left", *np.asarray(OUT["shroud"], float).T), axis=1)
+    P, at = smooth_pieces(raw, SHROUD_CORNERS)
+    A, B1, B2, D, E, F0, F, G, H = at
+    assert A == 0
+    step = 4.5
+    # the skin's own edge: A down the leading edge to its bottom corner, along the bottom to F
+    fr, bt = np.array(SKIN_FRONT_PX, float), np.array(SKIN_BOTTOM_PX, float)
+    cf, cb = np.polyfit((fr[:, 1] - 1000.0) / 100.0, fr[:, 0], 4), np.polyfit((bt[:, 0] - 1725.0) / 40.0, bt[:, 1], 2)
+    front = lambda v: np.polyval(cf, (np.asarray(v, float) - 1000.0) / 100.0)
+    bottom = lambda u: np.polyval(cb, (np.asarray(u, float) - 1725.0) / 40.0)
+    vk = 1151.0
+    for _ in range(8):                                             # the corner: where the two fitted edges meet
+        uk = float(front(vk))
+        vk = float(bottom(uk))
+    v1 = np.arange(P[A, 1], vk, 1.0)
+    u2 = np.arange(uk, P[F, 0], 1.0)
+    edge = np.vstack([P[A:A + 1], np.stack([front(v1), v1], axis=1)[3:], [[uk, vk]],
+                      np.stack([u2, bottom(u2)], axis=1)[1:-2], P[F:F + 1]])
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(edge, axis=0), axis=1))])
+    q = np.linspace(0.0, s[-1], int(round(s[-1] / step)) + 1)
+    edge = np.stack([np.interp(q, s, edge[:, 0]), np.interp(q, s, edge[:, 1])], axis=1)
+    k2 = int(np.argmin(np.hypot(edge[:, 0] - uk, edge[:, 1] - vk)))
+    sm = np.stack([gaussian_filter1d(edge[:, 0], 0.9, mode="nearest"), gaussian_filter1d(edge[:, 1], 0.9, mode="nearest")], 1)
+    wk = np.exp(-0.5 * ((np.arange(len(edge)) - k2) / 2.0) ** 2)[:, None]
+    wk[0] = wk[-1] = 0.0
+    edge = edge + wk * (sm - edge)                                 # the bottom corner rounded to about 4 px
+    skin = np.vstack([P[A:F], edge[::-1][:-1]])
+    # lips along the skin's boundary: none where the bolt plate carries the skin on (B1 over the step to the plate's end)
+    n_top = F - A
+    deck_end = B2 + int(np.argmin(np.abs(P[B2:D, 0] - DECK_END_U)))
+    lip = np.full(len(skin), EDGE_LIP)
+    lip[A:B1] = TOP_LIP
+    lip[n_top:] = SKIN_LIP
+    lip = gaussian_filter1d(lip, 2.0, mode="wrap")
+    i = np.arange(len(skin))
+    lip *= np.clip(np.maximum(B1 - i, i - deck_end) / 6.0, 0.0, 1.0)
+    lip *= np.clip((TAIL_U - skin[:, 0]) / 30.0, 0.0, 1.0)
+    # the wall: everything in the outline ahead of and under the skin's edge, and WALL_TUCK px under the edge itself
+    t = np.gradient(edge, axis=0)
+    nrm = np.stack([t[:, 1], -t[:, 0]], axis=1) / np.linalg.norm(t, axis=1)[:, None]
+    if inside(skin, (edge + 3.0 * nrm)[2:-2:3]).mean() < 0.5:
+        nrm = -nrm
+    tuck = edge + WALL_TUCK * nrm
+    tuck = tuck[inside(skin, tuck) & (cKDTree(_dense(edge)).query(tuck)[0] > 0.95 * WALL_TUCK)
+                & (cKDTree(_dense(P, closed=True)).query(tuck)[0] > 8.0)]
+    a3, f3 = A + 3, F - 3                                           # the tuck's ends, on the outline
+    tk = np.vstack([P[a3], tuck, P[f3]])
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(tk, axis=0), axis=1))])
+    q = np.linspace(0.0, s[-1], int(round(s[-1] / step)) + 1)
+    tk = np.stack([np.interp(q, s, tk[:, 0]), np.interp(q, s, tk[:, 1])], axis=1)
+    wall = np.vstack([P[f3:], P[A:a3], tk[:-1]])
+    wlip = np.zeros(len(wall))
+    g, h = G - f3, H - f3
+    wlip[:g] = EDGE_LIP
+    wlip[g:h] = LIP
+    wlip[h:len(P) - f3] = EDGE_LIP
+    wlip = gaussian_filter1d(wlip, 2.0, mode="wrap")
+    wlip[len(P) - f3 + 3:] = 0.0
+    # crease: a smooth curve through the readings, straight on beyond them
+    cr = np.array(CREASE_PX, float)
+    cs = CubicSpline(cr[:, 0], cr[:, 1], bc_type="natural")
+    s0, s1 = float(cs(cr[0, 0], 1)), float(cs(cr[-1, 0], 1))
+
+    def crease(u):
+        if u < cr[0, 0]:
+            return cr[0, 1] + s0 * (u - cr[0, 0])
+        if u > cr[-1, 0]:
+            return cr[-1, 1] + s1 * (u - cr[-1, 0])
+        return float(cs(u))
+    # pocket rim: a closed smooth curve through its points
+    pk = np.array(POCKET_PX, float)
+    pk = np.vstack([pk, pk[:1]])
+    ps = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pk, axis=0), axis=1))])
+    pc = CubicSpline(ps, pk, bc_type="periodic")
+    pocket = pc(np.linspace(0.0, ps[-1], int(round(ps[-1] / 4.0)), endpoint=False))
+    return SimpleNamespace(outline=P, at=at, skin=skin, lip=lip, wall=wall, wlip=wlip, edge=edge, crease=crease,
+                           crease_u=(float(P[A, 0]) + 30.0, float(cr[-1, 0]) + 30.0), pocket=pocket,
+                           top=(B2, deck_end))
+
+
+def _offset_loop(loop, d):
+    """A closed curve moved by d along its normals (positive: inward)."""
+    t = np.roll(loop, -1, axis=0) - np.roll(loop, 1, axis=0)
+    n = np.stack([t[:, 1], -t[:, 0]], axis=1) / np.linalg.norm(t, axis=1)[:, None]
+    if inside(loop, (loop + 1.0 * n)[::3]).mean() < 0.5:
+        n = -n
+    return loop + d * n
 
 
 @functools.lru_cache(maxsize=None)
 def _shroud(side):
-    """A shroud's outline, its two layers and their surfaces.
+    """A shroud's two shells as conforming meshes in its own photo's pixels, with their surfaces.
     Side face: upright, at the plan envelope of the top photo (TOP). Checked against the front photo through the
     refitted camera: its outer silhouette is 0.200 m off the centre line at z 0.83..0.88 (top photo: 0.199 to 0.202),
     0.193 at z 0.74 and 0.185 at 0.68, which is the plan envelope at the x where the leading edge is at those heights.
-    Two layers (LEFT and RIGHT photos, zoomed): the outer skin stops 35 to 80 mm short of the front edge between
-    z 0.68 and 0.88; under it a separate inner wall, in shadow in the photos, runs on to the true front edge, which
-    is rolled in by LIP (FRONT: red rim outside the black louvres). The wall lies WALL_STEP inside the skin, more at
-    the lower tip, and tucks 11 mm under the skin's edge.
-    Shoulder: a flat facet leaning in from a crease to the top edge (FRONT, LEFT). Inboard of it the top deck is
-    built separately (shroud_decks)."""
+    Roof: above the crease (CREASE_PX, ROOF_R). Two layers (LEFT and RIGHT photos, zoomed): the outer skin stops 35 to
+    80 mm short of the front edge; under it a separate inner wall, in shadow in the photos, runs on to the true front
+    edge, whose rim is rolled in by LIP. Every height is a smooth function of the pixel with those few parameters;
+    only the rims' last 8 mm depend on the distance to the boundary, and they are carried by rows of vertices
+    parallel to it."""
     from types import SimpleNamespace
-    from scipy.signal import medfilt
     from scipy.spatial import cKDTree
-    name = "shroud" if side > 0 else "shroud_R"
+    S = _shroud_px()
     view = "left" if side > 0 else "right"
-    fwd = -1.0 if view == "left" else 1.0
-    px = clean_outline(view, OUT[name])
-    E = Edges(view, px)
+    cam = cams.CAMS[view]
     plan = _shroud_plan(side)
-    # edge of the outer skin (outlines.py 'shroud_skin') as a column per row of the photo; beyond its ends the line
-    # curves forward and runs out through the leading edge
-    sk = np.asarray(OUT["shroud_skin" + ("" if side > 0 else "_R")], float)
-    su, sv = cams.linear_to_px(view, sk[:, 0], sk[:, 1])
-    o = np.argsort(sv)
-    sv, su = sv[o], _gauss(medfilt(su[o], 5), 3.0)
-    sv_all, su_all = sv, su
-    # the traced line's ends can run along the rows (it follows the decal's edge there): keep the part that runs
-    # down the shroud (on the right side the stray end put a wedge of inner wall 150 px behind the leading edge)
-    g = np.abs(np.gradient(su, sv))
-    i0, i1 = 0, len(sv)
-    while i0 < i1 - 12 and g[i0:i0 + 3].max() > 1.5:
-        i0 += 1
-    while i1 > i0 + 12 and g[i1 - 3:i1].max() > 1.5:
-        i1 -= 1
-    sv, su = sv[i0:i1], su[i0:i1]
+    mir = (lambda u: u) if side > 0 else (lambda u: 3999.0 - u)    # this side's photo column <-> LEFT column
 
-    def skin_u(v):
-        # beyond the line's ends: straight on along the rows, curving forward (extrapolated along its end slope,
-        # which is nearly along the rows at the top, the line ran 150 px back into the skin and cut a wedge out)
-        v = np.asarray(v, float)
-        u = np.interp(v, sv, su)
-        u = np.where(v < sv[0], su[0] + fwd * 0.035 * (sv[0] - v) ** 2, u)
-        return np.where(v > sv[-1], su[-1] + fwd * 0.035 * (v - sv[-1]) ** 2, u)
+    def roof(u, v):
+        h = (S.crease(u) - v) * MPP
+        r = ROOF_R[0] + (ROOF_R[1] - ROOF_R[0]) * smoothstep((u - ROOF_R_U[0]) / (ROOF_R_U[1] - ROOF_R_U[0]))
+        hh = h + r
+        return hh * hh / (hh + r) if hh > 0 else 0.0
 
-    def ahead(u, v):                                   # px ahead of the skin's edge
-        return fwd * (np.asarray(u, float) - skin_u(v))
-    if SHROUD_LAYERS == 2:
-        skin_px = _cut(px, lambda uu, vv: ahead(uu, vv) <= 0.0)
-        wall_px = _cut(px, lambda uu, vv: (ahead(uu, vv) > -14.0) & (vv > sv[0] - 70.0) & (vv < sv[-1] + 70.0))
-    else:
-        skin_px, wall_px = px, None
-    vd = np.arange(sv[0] - 70.0, sv[-1] + 70.0, 0.5)
-    etree = cKDTree(np.stack([skin_u(vd), vd], axis=1))     # the skin's own edge, densely
-    # shoulder crease: 38 mm under the top edge ahead of the vents, the measured line behind them
-    top = px[E.top]
-    ub = np.arange(px[:, 0].min(), px[:, 0].max() + 6.0, 6.0)
-    tv = np.array([top[np.abs(top[:, 0] - q) < 6.0, 1].min() if (np.abs(top[:, 0] - q) < 6.0).any() else np.nan
-                   for q in ub])
-    ok = np.isfinite(tv)
-    ub, tv = ub[ok], _gauss(tv[ok], 2.0)
-    ul = ub if view == "left" else 3999.0 - ub
-    sp = np.array(SHOULDER_PX, float)
-    w = np.clip((ul - 1760.0) / 40.0, 0.0, 1.0)
-    cv = _gauss((1 - w) * (tv + SHOULDER_H / MPP) + w * np.interp(ul, sp[:, 0], sp[:, 1]), 1.5)
-    ok = ul <= sp[-1, 0]
-    cr = np.stack([ub[ok], cv[ok]], axis=1)
-    cr = cr[np.argsort(cr[:, 0])]
-    ctree = cKDTree(_dense(cr))
+    def rim(boundary, lips):
+        k = 12
+        f = np.linspace(0.0, 1.0, k, endpoint=False)[None, :, None]
+        nxt, ln = np.roll(boundary, -1, axis=0), np.roll(lips, -1)
+        tree = cKDTree((boundary[:, None, :] + (nxt - boundary)[:, None, :] * f).reshape(-1, 2))
+        amp = (lips[:, None] + (ln - lips)[:, None] * f[0, :, 0]).ravel()
 
-    def inset(u):                                      # how far the shoulder leans in at the top edge, column u
-        if SHROUD_LAYERS == 1:
-            return SHOULDER_IN
-        if u < cr[0, 0] or u > cr[-1, 0]:
-            return 0.0
-        band = float(np.interp(u, cr[:, 0], cr[:, 1]) - np.interp(u, ub, tv))
-        return min(SHOULDER_IN, 0.74 * max(band, 0.0) * MPP)
-
-    def shoulder(u, v):
-        if SHROUD_LAYERS == 1:
-            dt = E.d_top(u, v)
-            return SHOULDER_IN * (1.0 - dt / SHOULDER_H) ** 2 if dt < SHOULDER_H else 0.0
-        if u < cr[0, 0] or u > cr[-1, 0] or v >= float(np.interp(u, cr[:, 0], cr[:, 1])):
-            return 0.0
-        dc, dt = ctree.query((u, v))[0], E.d_top(u, v) / MPP
-        t = dc / max(dc + dt, 1e-6)
-        # ahead of the vents the facet is flat (FRONT); behind them, where it is up to 100 px tall, only the crease
-        # line is measured: most of the lean is put near the top edge (EST; a flat facet there cut into the top of
-        # parts.radiators at y 0.177), with a 10 deg change of angle left on the crease
-        # (and ahead of the vents a mix of 0.35 flat and 0.65 hollow: against FRONT it gives 23 / 9 / 0 mm where the
-        # photo has 25 / 12 / 2; the flat facet that fits best, 25 / 13 / 0, cuts the top corner of parts.radiators)
-        # Close-ups of a flat facet with the deck on top of it showed a torn top edge, so ahead of the vents the
-        # section is the first pass's hollow one (t squared: 22 / 6 / 0 mm), with the crease kept only behind them.
-        k = 0.3 * sat((dc + dt - SHOULDER_H / MPP) / 30.0)
-        return inset(u) * (k * t + (1.0 - k) * t * t)
-    vents = [_mpx(view, p) for p in VENTS_PX]
-    vtree = [cKDTree(_dense(p, closed=True)) for p in vents]
+        def fn(u, v):
+            d, i = tree.query((u, v))
+            d *= MPP
+            return amp[i] * (1.0 - d / RIM_W) ** 2 if d < RIM_W else 0.0
+        return fn
+    rim_skin, rim_wall = rim(S.skin, S.lip), rim(S.wall, S.wlip)
+    ptree = cKDTree(_dense(S.pocket, closed=True))
 
     def pocket(u, v):
-        for p, tr in zip(vents if SHROUD_LAYERS == 2 else (), vtree):
-            if p[:, 0].min() < u < p[:, 0].max() and p[:, 1].min() < v < p[:, 1].max() \
-                    and inside(p, np.array([[u, v]]))[0]:
-                return VENT_DEPTH * smoothstep(tr.query((u, v))[0] / 3.0)
-        return 0.0
+        if not (1715.0 < u < 1832.0 and 845.0 < v < 1106.0) or not inside(S.pocket, np.array([[u, v]]))[0]:
+            return 0.0
+        return POCKET_DEPTH * smoothstep(ptree.query((u, v))[0] / POCKET_WALL)
 
-    def surf_skin(u, v):
-        # rolls: LIP toward the shroud's true leading edge, SKIN_LIP toward the skin's own edge; both are functions
-        # of the distance to a smooth curve (a roll switched by zones along the edge came out frilled)
-        df, wall = E.d_front(u, v), 0.0
-        lip = LIP * (1.0 - df / LIP) ** 2 if df < LIP else 0.0
-        if SHROUD_LAYERS == 2:
-            de = float(etree.query((u, v))[0]) * MPP
-            if de < SKIN_LIP:
-                lip = max(lip, SKIN_LIP * (1.0 - de / SKIN_LIP) ** 2)
-        else:                                                         # one stepped surface (the first pass)
-            a = fwd * (u - float(np.interp(v, sv_all, su_all))) * MPP
-            wall = WALL_STEP * smoothstep(a / 0.005 + 0.5) * smoothstep((v - sv_all[0]) / 25.0) \
-                * smoothstep((sv_all[-1] + 20.0 - v) / 25.0)
-        sh, pk = shoulder(u, v), pocket(u, v)
+    def off_skin(u, v):                                # metres inside the plan envelope, at a LEFT photo pixel
+        return roof(u, v) + rim_skin(u, v) + pocket(u, v)
 
-        def f(x, z):                                                  # no shoulder behind x 0.72: the shroud lies
-            return side * (plan(x) - wall - lip - sh * smoothstep((x - 0.72) / 0.15) - pk)  # on the frame spar there
-        return f
+    def off_wall(u, v):
+        return WALL_STEP + roof(u, v) + rim_wall(u, v)
 
-    def surf_wall(u, v):
-        df = E.d_front(u, v)
-        lip = LIP * (1.0 - df / LIP) ** 2 if df < LIP else 0.0
-        depth = WALL_STEP + WALL_TIP * smoothstep((v - (sv[-1] - 220.0)) / 220.0)
-        sh = shoulder(u, v)
+    def point(off, u, v):                              # 3D point of a surface at a pixel of THIS side's photo
+        o = off(mir(u), v)
+        return _on_surface(cam, u, v, lambda x, z: side * (plan(x) - o), side * 0.15)
+    # rows of vertices on the crease and either side of it; on the pocket's rim, just outside it, and on the foot of
+    # its wall and just inside that
+    us = np.arange(S.crease_u[0], S.crease_u[1], 4.5)
+    cv = np.array([S.crease(u) for u in us])
 
-        def f(x, z):
-            return side * (plan(x) - depth - lip - sh * smoothstep((x - 0.72) / 0.15))
-        return f
-    return SimpleNamespace(view=view, px=px, E=E, plan=plan, skin_px=skin_px, wall_px=wall_px, surf=surf_skin,
-                           surf_wall=surf_wall, crease=cr, vents=vents, inset=inset, top_env=(ub, tv))
+    def ring(d):                                       # the pocket's rim moved in by d px (not folded at its tip)
+        Q = _offset_loop(S.pocket, d)
+        return Q[ptree.query(Q)[0] > 0.9 * abs(d)]
+    rows = [S.pocket, ring(POCKET_WALL), ring(-2.5), ring(POCKET_WALL + 2.5)]
+    rows += [np.stack([us, cv + d], axis=1) for d in (0.0, -2.5, 3.0, -6.0)]
+    out = SimpleNamespace(view=view, cam=cam, plan=plan, mir=mir, px=S, off_skin=off_skin, off_wall=off_wall,
+                          off_roof=roof, point=point)
+    for name, poly, r in (("skin", S.skin, rows), ("wall", S.wall, rows[4:])):
+        P, tri, nb = conforming_mesh(poly, rings=RINGS_PX, rows=r, step=9.0)
+        P = P.copy()
+        P[:, 0] = mir(P[:, 0])
+        setattr(out, name, (P, tri, nb))
+    return out
+
+
+def shroud_roof(side, under=0.0):
+    """For photo_panel: a shroud's side face and roof without rims or pocket, defined beyond its outline too, or the
+    surface UNDER metres inside it."""
+    S = _shroud(side)
+    return lambda u, v: (lambda x, z, o=S.off_roof(S.mir(u), v) + under: side * (S.plan(x) - o))
 
 
 def shroud_point(side, u, v):
     """3D point of a shroud's outer skin at a pixel of its profile photo."""
     S = _shroud(side)
-    return _on_surface(cams.CAMS[S.view], u, v, S.surf(u, v), side * 0.15)
-
-
-# inner edge of the shrouds' top decks (TOP: gap between the two shrouds around the tank and the steering head)
-DECK_X = [0.790, 0.854, 0.929, 0.960, 1.060]
-DECK_Y = [0.053, 0.055, 0.060, 0.075, 0.092]
+    return S.point(S.off_skin, u, v)
 
 
 @functools.lru_cache(maxsize=None)
-def _deck(side):
-    from scipy.signal import medfilt
+def _shroud_shells(side):
     S = _shroud(side)
-    cam = cams.CAMS[S.view]
-    # height: the outline's UPPER envelope per 6 px of column, with the bumps where cables and the tank's cap cross
-    # the top edge taken out by a median over 54 px. (All top-facing points of the outline in order of x, as in the
-    # first pass, mixed the top edge with lower edges that also face up: the decks came out wrinkled.)
-    # Outer edge: the shroud's own surface 1 px under that envelope, so the deck follows the panel's top edge also
-    # where that edge is steep and rolls in with the leading edge's lip (a deck placed by the shoulder alone cut
-    # through the panel there), 0.3 mm inside the inner face of the panel's 3 mm shell (2 mm outside the edge, as in
-    # the first pass, it cut through the shoulder all along: 1066 face pairs in the audit).
-    ub, tv = S.top_env
-    T = np.array([_on_surface(cam, u, v + 1.0, S.surf(u, v + 1.0), side * 0.15) for u, v in zip(ub, tv)])
-    o = np.argsort(T[:, 0])
-    tx = T[o, 0]
-    from scipy.ndimage import minimum_filter1d
-    # the edge's innermost reach over 54 px, smoothed: where the edge rolls in and out the deck stays inside it
-    ty = _gauss(minimum_filter1d(np.abs(T[o, 1]), 9, mode="nearest"), 2.0)
-    tz = _gauss(medfilt(T[o, 2], 9), 3.0)
-    xs = np.linspace(0.792, min(1.062, float(tx.max()) - 0.075), 40)
+    skin, X = shell(*S.skin, lambda u, v: S.point(S.off_skin, u, v), 0.003, side, "plastic_red")
+    wall, _ = shell(*S.wall, lambda u, v: S.point(S.off_wall, u, v), WALL_T, side, "plastic_red")
+    b2, end = S.px.top
+    return skin.add(wall), X[b2:end + 1]
 
-    def edges(x):
-        y_out = float(np.interp(x, tx, ty)) - 0.0033
-        return float(np.interp(x, tx, tz)), y_out, min(float(np.interp(x, DECK_X, DECK_Y)), y_out - 0.004)
-    return xs, edges
+
+def _deck(side):
+    """The bolt plate's rows: from each point of the skin's top edge (the roof's own vertices) in to the tank."""
+    edge = _shroud_shells(side)[1]
+    rows = []
+    for p in edge:
+        y_in = min(float(np.interp(p[0], DECK_X, DECK_Y)), abs(p[1]) - 0.004)
+        k = np.linspace(0.0, 1.0, 9)
+        rows.append(np.stack([np.full(9, p[0]), side * (abs(p[1]) + (y_in - abs(p[1])) * k), p[2] - DECK_DROP * k * k],
+                             axis=1))
+    return rows
 
 
 def deck_point(side, x, y):
-    """Point on a shroud's top deck at (x, |y|)."""
-    zt, y_out, y_in = _deck(side)[1](x)
-    return np.array([x, side * abs(y), zt - 0.001 - 0.003 * sat((y_out - abs(y)) / (y_out - y_in))])
+    """Point on a shroud's bolt plate at (x, |y|)."""
+    rows = _deck(side)
+    o = np.argsort([r[0, 0] for r in rows])
+    xs = np.array([rows[i][0, 0] for i in o])
+    y_out = float(np.interp(x, xs, [abs(rows[i][0, 1]) for i in o]))
+    y_in = float(np.interp(x, xs, [abs(rows[i][-1, 1]) for i in o]))
+    zt = float(np.interp(x, xs, [rows[i][0, 2] for i in o]))
+    return np.array([x, side * abs(y), zt - DECK_DROP * sat((y_out - abs(y)) / (y_out - y_in)) ** 2])
 
 
 def shroud_decks():
-    """Top decks of the shrouds: from the shoulder's top edge in to the edge at the tank (TOP: red from the plan
-    envelope in to the gap around the tank, +-0.053 to 0.060 m beside the filler cap, opening to 0.092 at the
-    steering head). Level with the shoulder's top edge, 3 mm lower at the inner edge (edge-on in the profile photos,
-    so its height comes from the shroud outline's top edge; cross slope EST)."""
+    """The bolt plates beside the tank (TOP): from the roof's top edge in to the edge at the tank. Each plate's
+    outer edge IS the row of vertices along the skin's top edge, so the roof and the plate are one skin: no slit and
+    no overlap. Edge-on in the profile photos, so its height is the outline's top edge; the 3 mm fall inward is EST.
+    Ahead of the plate (x > 0.93) the shroud's top is open, as in the top photo (the radiator's cap shows there)."""
     m = Mesh()
     for side in (1, -1):
-        xs, edges = _deck(side)
-        rings = []
-        for x in xs:
-            zt, y_out, y_in = edges(x)
-            rings.append(np.array([(x, side * (y_out + (y_in - y_out) * k), zt - 0.001 - 0.003 * k)
-                                   for k in np.linspace(0, 1, 9)]))
-        m.add(grid(Mesh(), rings, "plastic_red", closed_u=False))
+        g = grid(Mesh(), _deck(side), "plastic_red", closed_u=False)
+        V = np.asarray(g.V)
+        a, b, c = (V[list(g.F[0])[i]] for i in range(3))
+        if np.cross(b - a, c - a)[2] < 0:                          # normals up: the 3 mm of plastic is underneath
+            g.F = [f[::-1] for f in g.F]
+        m.add(g)
+    return m
+
+
+def shrouds():
+    m = Mesh()
+    for side in (1, -1):
+        m.add(_shroud_shells(side)[0])
     return m
 
 
@@ -624,40 +847,6 @@ def _vent_holes(view, name, min_area=120):
         if len(P) >= 6:
             holes.append(np.array(P))
     return holes
-
-
-def shrouds():
-    m = Mesh()
-    for side in (1, -1):
-        S = _shroud(side)
-        lines = [S.crease] if SHROUD_LAYERS == 2 else []
-        for p in S.vents if SHROUD_LAYERS == 2 else ():    # pocket edge and a row 3.5 px inside it (the pocket's wall)
-            q = _inset_convex(p, 3.5)
-            lines += [np.vstack([p, p[:1]]), np.vstack([q, q[:1]])]
-        # rows of vertices along the outline through the rolled edge (16 px) and the shoulder (50 px)
-        m.add(photo_panel(S.view, S.skin_px, S.surf, 0.003, "plastic_red", step=7.0,
-                          rings=(2.5, 5.5, 9, 13, 18, 24, 31, 39, 48), lines=lines, line_step=4.0))
-        if S.wall_px is not None:
-            m.add(photo_panel(S.view, S.wall_px, S.surf_wall, 0.0025, "plastic_red", step=7.0,
-                              rings=(2.5, 5.5, 9, 13)))
-    return m
-
-
-def _inset_convex(p, d):
-    """A convex polygon moved in by d on every side (so a pocket's wall is the same width all round)."""
-    P = np.asarray(p, float)
-    c = P.mean(axis=0)
-    edges = []
-    for i in range(len(P)):
-        a, b = P[i], P[(i + 1) % len(P)]
-        t = (b - a) / np.linalg.norm(b - a)
-        n = np.array([-t[1], t[0]])
-        edges.append((a + (n if n @ (c - a) > 0 else -n) * d, t))
-    out = []
-    for i in range(len(P)):
-        (a1, t1), (a2, t2) = edges[i - 1], edges[i]
-        out.append(a1 + t1 * np.linalg.solve(np.stack([t1, -t2], axis=1), a2 - a1)[0])
-    return np.array(out)
 
 
 # ---------------------------------------------------------------- side panels
@@ -761,7 +950,12 @@ def side_panels():
         m.add(photo_panel(view, Pn.px, Pn.surf, 0.003, "plastic_red", holes_px=holes, step=9.0, rings=(2.5, 5.0),
                           lines=[Pn.crease, Pn.ridge], line_step=5.0))
         for piece in Pn.extra:
-            m.add(photo_panel(view, piece, Pn.surf, 0.003, "plastic_red", step=9.0))
+            # the red triangle under the seat's nose, between the seat and the shroud's traced top edge: outlines.py
+            # hands it to the side panel (its hand-drawn seam), but it is the shroud's roof running on under the
+            # seat. On the panel's own surface it stood 6 to 9 mm clear of everything as a fin (audit: floating); on
+            # the roof itself it lay in the skin where the two traces overlap (audit: 3 mm). So: 6 mm under the
+            # roof, below the skin's 3 mm shell and its turned edge.
+            m.add(photo_panel(view, piece, shroud_roof(side, 0.006), 0.003, "plastic_red", step=9.0))
         for h in holes:
             # air intake: the opening's edge turns in 16 mm (LEFT, zoomed: a lighter lip 8 px wide above the
             # opening; depth EST) onto a dark panel (the photo shows the filter's dark green behind it)
