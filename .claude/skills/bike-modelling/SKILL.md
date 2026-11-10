@@ -296,3 +296,16 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   first version flagged such bolts and an agent "fixed" them with zero-area triangles. An audit that can be
   satisfied by a trick will be. Say in the brief: no tricks to satisfy the audit.
 - Nesting is not a clash (axle in hub, stem in its bore): name it in the report. Seats of 1 mm or less are fine.
+
+### Running agents and renders: small things that cost an hour each
+- An agent can hang: no transcript event and no process for over an hour, and messages only queue. Look at its
+  worktree (`git -C <worktree> status`, newest file times) and `ps`; if nothing moves, stop it and send it a
+  message, which resumes it from its transcript with the worktree intact. Tell it to commit first.
+- A broad brief gets the hard item skipped (the plastics agent did ten things and left the shrouds crumpled). The
+  shrouds were fixed by a fresh agent with that one job, the required method written out, and a cap on render runs.
+- Tell every modelling agent to LOOK at close-ups of its own parts: scores and tests passed with a crumpled frame,
+  bolts through the bar pad and mirrored lettering.
+- `BIKE_STUDIO_RES` is "W,H" (two numbers). A `BIKE_CLOSEUPS` camera is named exactly as written and must be in
+  the views list under that name (use `cu_...` names). A wrong name renders nothing and exits 0: count the PNGs.
+- Viewer model: `glb2json.py IN.glb OUT.json 12` splits it into files under the host's limit; the page loads the
+  list in `MODEL_FILES`. Test with the headless browser before publishing.
