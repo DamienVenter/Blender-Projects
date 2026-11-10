@@ -6,6 +6,7 @@ Writes research/bike-plastics.json:
                   of the seat (its cover is a lighter red: green channel above 45), and of the gap between the
                   shrouds at the tank
   front_plate_px  number plate outline in the front photo (polygon, px)
+  front_plate_rt  the plate's top right corner in that photo: right edge per row, top row, inner column
 Everything else read from the front and rear photos (shroud rims, fender, flap, fork guards, mudguard, the walls
 under the tail) is quoted row by row in the builders' docstrings and can be reprinted with rowscan.py.
 
@@ -85,6 +86,18 @@ def main():
     plate = ndimage.binary_fill_holes(lab == k)
     plate = ndimage.binary_opening(plate, iterations=2)
     out["front_plate_px"] = np.round(contour(plate), 1).tolist()
+    # the plate's top right corner (the bike's left). The mask above stops at row 299, the top edge of the plate's
+    # left half; on the right the red runs on above it beside the bar pad (rows 268..296: u 2125..2186, with a 5 px
+    # dark gap to the pad at u 2119..2123), and the corner is square where the left one is cut off
+    rt = {"left": 2124, "edge": []}
+    v = 300
+    while v > 200 and red[v, 2124:2200].sum() > 30:
+        v -= 1
+    rt["top"] = v + 1
+    for vv in range(rt["top"], 352, 4):
+        cols = np.nonzero(red[vv, 2100:2215])[0]
+        rt["edge"].append([vv, int(2100 + cols.max())])
+    out["front_plate_rt"] = rt
     json.dump(out, open(sys.argv[1], "w"))
     print("top columns", len(top), "| plate pts", len(out["front_plate_px"]))
     if len(sys.argv) > 2:

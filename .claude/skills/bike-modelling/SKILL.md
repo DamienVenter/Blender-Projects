@@ -171,6 +171,59 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   another part poking through, a notch in the outline, a mirror-like facet. Do not guess.
 - Scores, plastics pass start to end (red overlap): left 0.78 to 0.87, right 0.80 to 0.88, front 0.52 to 0.75,
   rear 0.40 to 0.53, top 0.76 to 0.82. Rear stays low: the fender's underside tunnel is only stood in for.
+- `audit.py` (run on the .blend): clashes between objects and loose pieces more than 4 mm from anything. Collars and
+  bolts stand ON a panel's face along its normal (finite differences of the surface), bosses start behind its 3 mm
+  shell; a part that "fixes to" another stops 0.5 mm short of it. A lap strip laid across a crease dips under the
+  ridge between its own vertices (3 mm): keep it inside one facet. The fenders' shells are the 3 mm ABOVE their
+  modelled surface (their faces point down, solidify offset -1).
+
+## Plastics, second pass (2026-11-10): seat, creases, bolts, tail, fork guards
+- **The traced outline `side_panel` takes in the seat's skirt** (the first pass split it from the seat along the
+  foam's edge). The real seam is a dark line 8 px wide, read per column as a pair of steps in r + g (`SEAM_PX`): the
+  "HONDA" is printed on the seat's skirt, not on the panel. `_panel` cuts the outline at the seam (`_cut`: polygon
+  to mask to contour); the seat is a loft of top, foam radius and skirt down to that seam.
+- Finding creases: per column (or row), steps of smoothed r + g across 8 px where both sides are red plastic; a line
+  is real when it shows at the same place in neighbouring columns. Decals, bolts and seams give the big steps
+  (over 80), creases the small ones (20 to 60). Build a crease as a change of the surface's angle on a row of
+  vertices: `plate_lines(..., lines=)`; pockets get their edge and a second row inside it (`_inset_convex`).
+- `smooth_poly` on a polygon of a few corner points moves the corners: the tail wall's top edge fell 24 rows (17 mm)
+  and both corners were cut off (the first pass's stand-in plate had it too). Resample every few px, then smooth.
+- Never extend a traced line along its end slope: the shroud skin line's ends run along the rows, and the extension
+  cut a wedge 150 px back into the skin. Go straight on along the rows and curve out through the edge.
+- A seat base flush with the skirt showed as a black band along the seam, came through the foam's edge over the tail
+  and failed the intruder test: recess it 4 mm above the skirt's lower edge and 6 mm inside the cover everywhere.
+- The intruder test counts every non-red part inside a plastic's outline over 2 cm2 per view and part (only the side
+  panel's intake is exempt). The 8 body bolts are three parts (shroud, seat, panel: 1.4 cm2 a view each). The
+  shroud's two air outlets can only be red pockets, not openings onto black louvres, until that test knows them.
+- The number plate is symmetric within 2 px wherever the hose does not cross it; only the top corners differ (left
+  one cut off, right one square). The red above its right top corner (rows 224..299, u 2124..2186, beside the bar
+  pad) is not identified: not built.
+- **The shroud's saw-toothed leading edge is in the traced outline**: the fork tube and the cables cross the edge in
+  the profile photos and the mask follows them. The first pass has the same teeth (rendered side by side). Next:
+  replace that stretch of the outline (count the reversals) by a smooth curve before any more work on the shroud.
+- `plastics.SHROUD_LAYERS = 2` builds skin and inner wall as two shells, the shoulder's measured crease and the vent
+  pockets. Its close-ups were not clean (teeth as above, ragged pockets): 1 (the first pass's surface) is built.
+- Parts estimated by other passes that the measured plastics run into: `parts.tank` (rear end wider and higher
+  than the seat's nose, 0.10 wide under the shroud decks where the top photo shows 0.055), `parts.radiators` (top
+  outer corner at y 0.177, z 0.939 inside the shoulder the front photo measures), the subframe rails of
+  `parts.frame` through the tail wall, the seat and the side panels.
+- **After merging the other modules** (2026-11-10): mounts aimed at a first-pass part were wrong at once (a fender
+  pad sat 48 mm inside the new lower clamp; 22 mm bosses behind the body bolts ran into the new radiators and
+  subframe). Read the other module's mounting points first: the plate's boss and pegs now end 0.3 mm short of the
+  bridges of `detail_front`'s clamps (`fk`, `T_LO`, `FACE_UP`), leaving the plate and meeting the clamp square to
+  each face (a slanted tube end cuts into both); the tail wall takes its x from the subframe's rear cross member.
+- Which side of a single surface Blender's 3 mm shell lies on follows the ring order, and other modules assume
+  one: `detail_front` puts the fender nose's bosses 0.3 mm under the fender's INNER skin, so the front fender's
+  rings run left to right (shell under the surface). Check with `contact.py`-style full distances, not by reasoning.
+- `audit.py` calls a piece floating when none of about 40 sampled vertices is within 4 mm of another object, and its
+  clash depth is the size of the crossing faces, not the penetration. A big panel on small mounts reads as floating
+  (front fender 11.7 mm by the audit, 1.0 mm from the clamp's bosses over all vertices; number plate 7.5 against
+  0.5 mm). Measure true gaps from every vertex before adding geometry for the audit's sake.
+- Shroud decks: take the deck's height and outer edge from the shroud's own surface along the UPPER envelope of its
+  outline (all top-facing points in order of x mixed in lower edges that face up: wrinkled decks), and keep the
+  edge inside the inner face of the panel's shell.
+- Scores after this pass (red overlap, before to after): left 0.871 to 0.894, right 0.883 to 0.899, front 0.749 to
+  0.755, rear 0.531 to 0.537, top 0.822 to 0.819.
 - Blender: `honda_left|right|front|rear|top` cameras reproduce Honda's cameras (parented to the bike's root so they
   follow the tilt onto the ground). They render on a transparent film with a shadow-catching floor (put the PNG on
   white) and with the Standard view transform: AgX turns brightly lit red plastics salmon in the studio set-up.
