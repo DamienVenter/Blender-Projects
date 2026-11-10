@@ -34,7 +34,7 @@ from scipy.spatial import ConvexHull, cKDTree
 
 import cams
 from geom import Mesh, bolt, box, circle, frame_z, grid, plate2d, resample, rounded_rect, smooth_poly, tube
-from parts import CHAIN_Y, P2, PEG, PIVOT, RA, R_REAR, STEER0, T_BOT_CLAMP, T_TOP_CLAMP, UP
+from parts import CHAIN_Y, P2, PEG, PIVOT, RA, R_REAR, STEER0, UP, chain_top
 
 REPLACES = ["frame", "swingarm", "shock", "exhaust", "controls"]
 MATERIALS = {"shock_spring": dict(rgb=(28, 28, 30), metal=0.7, rough=0.4)}   # EST: dark behind the plate (LEFT col 2360)
@@ -140,14 +140,19 @@ def through(c, half, af, head=-1, mat="bolt", seat=-0.0004):
 # ---------------------------------------------------------------- frame
 T_SPAR = 0.026            # TOP col 2150 (left plate 0.112..0.132) and col 2200 (right 0.110..0.142)
 Y_PLATE = 0.137           # outer face of the pivot plates: TOP cols 2150/2200, REAR row 1360 col 1813 (0.141)
-HEAD_LO = STEER0 + (T_BOT_CLAMP + 0.03) * UP
-HEAD_L = (T_TOP_CLAMP - 0.02) - (T_BOT_CLAMP + 0.03)
+# head tube along the steering axis (t from STEER0, as in detail_front.py): from 1 mm above the lower clamp's top face
+# (its T_LO[1] 0.716) to 1 mm under the top clamp's bridge (T_UP[1] - 0.015 = 0.913). Stem r 14.5, seals r 26.
+HEAD_T = (0.717, 0.912)
+HEAD_LO = STEER0 + HEAD_T[0] * UP
+HEAD_L = HEAD_T[1] - HEAD_T[0]
+STEM_BORE = 0.019
+R_PIV = 0.0175            # pivot boss: the chain's top run passes 30 mm above the axis (parts.chain_top), slider 3.5 mm
 F_LINK = np.array([0.5195, 0.0, 0.369])         # LEFT px (2298,1558), RIGHT px (1702,1557) cast at |y| 0.045
 SHOCK_U = np.array([0.585, 0.0, 0.790])         # EST: upper eye; the adjuster seen at RIGHT px (1733,1109) lies beside it
 SHOCK_A = np.array([0.448, 0.0, 0.329])         # LEFT px (2386,1607), RIGHT px (1611,1606): lower clevis bolt
 LINK_T = np.array([0.385, 0.0, 0.375])          # LEFT px (2469,1552), RIGHT px (1524,1551): arm on the swingarm
 LINK_B = np.array([0.382, 0.0, 0.326])          # LEFT px (2471,1617), RIGHT px (1524,1608): arm to link
-CROSS_LO = np.array([0.545, 0.0, 0.388])        # EST: lower cross member behind the engine
+CROSS_LO = np.array([0.545, 0.0, 0.380])        # EST: lower cross member behind the engine, 6 mm under the lower chain run
 CROSS_UP = np.array([0.632, 0.0, 0.805])        # EST: upper cross member that carries the shock
 PEG_ROOT_Z = 0.4065                             # top of the teeth at the root. REAR row 1313 at y 0.14: 0.401; LEFT px
 # (2257,1520): 0.413; SPEC footpeg height 422 on the ground: 0.405. The mean of the two photos
@@ -159,8 +164,10 @@ PEG_PIN = (PEG_Y0 - 0.006, PEG_ROOT_Z - 0.012)   # EST: hinge pin under the peg'
 
 def _spar_y(x):
     """Outer face of the frame in plan: pivot plates measured (TOP, REAR); the spars run in to the head under the
-    tank and shrouds, where no photo shows them (EST)."""
-    return float(np.interp(x, [0.45, 0.62, 0.72, 0.82, 0.92, 1.00, 1.066], [0.137, 0.137, 0.128, 0.110, 0.084, 0.058, 0.040]))
+    tank and shrouds, where no photo shows them (EST): 4 mm inside the shroud's skin (0.118 at x 0.74, 0.136 at
+    0.82), outside the tank (0.072 at x 0.78, 0.099 at 0.86, 0.048 at 0.94), under the shroud deck at x 0.94."""
+    return float(np.interp(x, [0.45, 0.62, 0.70, 0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.066],
+                           [0.137, 0.137, 0.123, 0.113, 0.114, 0.120, 0.127, 0.122, 0.102, 0.080, 0.062, 0.050, 0.040]))
 
 
 def _frame_outline():
@@ -186,10 +193,12 @@ def _bracket_outline():
 def _sub_rails(s):
     """Subframe rails of side S: hidden under the seat and side panels in every photo (EST), kept under the seat's
     base and inside the side panels of the model; the mounts are measured: LEFT px (2313,1259) on the plate's rear
-    edge and (2172,963) on its ear. On the right the lower rail passes outside the exhaust's mid pipe."""
-    lower = spline([(0.522, s * 0.1015, 0.600), (0.495, s * 0.1005, 0.640), (0.470, s * 0.093, 0.676), (0.433, s * 0.088, 0.717),
-                    (0.378, s * 0.095, 0.760), (0.30, s * 0.094, 0.800), (0.213, s * 0.082, 0.842)], 20)
-    upper = spline([(0.612, s * 0.1015, 0.840), (0.590, s * 0.090, 0.856), (0.553, s * 0.070, 0.874), (0.482, s * 0.069, 0.876),
+    edge and (2172,963) on its ear. The airbox panel's inner skin (0.084..0.105) runs between the plates and the
+    rails: the rails stay 4 mm inside it; the lower rail hangs on a bracket that reaches the plate under the panel's
+    lower edge, the upper mount is the lug on the ear alone. On the right the exhaust passes under the lower rail."""
+    lower = spline([(0.522, s * 0.081, 0.652), (0.495, s * 0.082, 0.672), (0.470, s * 0.083, 0.690), (0.433, s * 0.086, 0.722),
+                    (0.378, s * 0.093, 0.762), (0.30, s * 0.094, 0.800), (0.213, s * 0.082, 0.842)], 20)
+    upper = spline([(0.615, s * 0.070, 0.838), (0.585, s * 0.070, 0.858), (0.553, s * 0.070, 0.872), (0.482, s * 0.069, 0.876),
                     (0.409, s * 0.070, 0.882), (0.336, s * 0.070, 0.888), (0.262, s * 0.069, 0.894), (0.213, s * 0.068, 0.897)], 20)
     return lower, upper
 
@@ -198,24 +207,26 @@ def frame():
     m = Mesh()
     # steering head: tube with its two bearing cups (parts.py: between the clamps)
     L = HEAD_L
-    m.add(turned(HEAD_LO, UP, [(-0.004, 0.026), (-0.004, 0.0335), (0.012, 0.0335), (0.016, 0.0305), (L - 0.016, 0.0305),
-                               (L - 0.012, 0.0335), (L + 0.004, 0.0335), (L + 0.004, 0.026)], "alu_frame", 28))
+    m.add(turned(HEAD_LO, UP, [(0.0035, STEM_BORE), (0.0035, 0.027), (0.0, 0.027), (0.0, 0.0335), (0.016, 0.0335), (0.020, 0.0305),
+                               (L - 0.020, 0.0305), (L - 0.016, 0.0335), (L, 0.0335), (L, 0.027), (L - 0.003, 0.027),
+                               (L - 0.003, STEM_BORE), (0.0035, STEM_BORE)], "alu_frame", 28, False, False))
     o = _frame_outline()
     br = _bracket_outline()
     for s in (1, -1):
         # spar and pivot plate: the photo outline, 26 mm deep with rounded edges, on the spar's path in plan
         m.add(slab(o, lambda x, z, s=s: s * (_spar_y(x) - T_SPAR / 2), T_SPAR, "alu_frame", r=0.005, step=0.009, to=_xz))
         # the spar under the shroud, up to the head (EST): 80 mm deep box, the visible part's top edge continued
-        xs = np.array([0.74, 0.82, 0.90, 0.98, 1.035, 1.066])
-        path = np.stack([xs, s * (np.array([_spar_y(x) for x in xs]) - T_SPAR / 2), _spar_top(xs) - 0.047], axis=1)
-        m.add(bar(path, 0.0245, np.linspace(0.080, 0.088, len(xs)), "alu_frame"))
+        xs = np.array([0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.058])
+        low = np.interp(xs, [0.86, 0.92, 1.058], [0.0, 0.004, 0.004])        # top 8 mm lower under the shroud deck (z 0.961)
+        path = np.stack([xs, s * (np.array([_spar_y(x) for x in xs]) - T_SPAR / 2), _spar_top(xs) - 0.047 - low], axis=1)
+        m.add(bar(path, 0.0245, np.linspace(0.080, 0.088, len(xs)) - 2 * low, "alu_frame"))
         # gusset between the spar's underside, the head and the down tube (EST)
-        m.add(slab(np.array([(1.058, 0.940), (0.955, 0.888), (1.012, 0.800)]), s * 0.0245, 0.005, "alu_frame", r=0.002,
+        m.add(slab(np.array([(1.058, 0.940), (0.992, 0.906), (1.030, 0.850)]), s * 0.0245, 0.005, "alu_frame", r=0.002,
                    step=0.012, to=_xz))
         # pivot: boss on the plate (the plate's own front edge there is the extraction's cut line), pad, bolt
-        m.add(slab(circle(0.040, 40, PIVOT[0], PIVOT[2]), s * (Y_PLATE - T_SPAR / 2 + 0.0004), T_SPAR + 0.0008, "alu_frame",
+        m.add(slab(circle(0.026, 30, PIVOT[0], PIVOT[2]), s * (Y_PLATE - T_SPAR / 2 + 0.0004), T_SPAR + 0.0008, "alu_frame",
                    r=0.005, step=0.009, to=_xz))
-        m.add(turned(PIVOT + s * (Y_PLATE - 0.0005) * Y3, s * Y3, [(0, 0.030), (0.003, 0.0285), (0.004, 0.022)], "alu_frame", 28))
+        m.add(turned(PIVOT + s * (Y_PLATE - 0.0005) * Y3, s * Y3, [(0, 0.025), (0.003, 0.0235), (0.004, 0.019)], "alu_frame", 28))
         m.add(turned(PIVOT + s * 0.052 * Y3, s * Y3, [(0, 0.0085), (0.086, 0.0085)], "steel", 14))
         # footpeg bracket with the black socket bolt (LEFT px (2228,1562), RIGHT px (1770,1561)) and the hinge boss
         m.add(slab(br, s * 0.130, 0.022, "alu_cast", r=0.003, step=0.007, to=_xz))
@@ -243,18 +254,20 @@ def frame():
     m.add(bolt(PIVOT - (Y_PLATE + 0.0033) * Y3, -Y3, af=0.022, head_h=0.010, flange_d=0.032, mat="steel"))
     m.add(turned(PIVOT - (Y_PLATE + 0.0033) * Y3, -Y3, [(0, 0.0075), (0.013, 0.0075)], "steel", 12))
     # down tube: its front and rear edges in the left photo (rows 1280..1440: x 0.954..0.923 down to 0.925..0.904)
-    dt = spline([(1.078, 0, 0.952), (1.050, 0, 0.870), (1.020, 0, 0.775), (0.990, 0, 0.690), (0.962, 0, 0.625), (0.938, 0, 0.576),
+    dt = spline([(1.056, 0, 0.945), (1.040, 0, 0.870), (1.015, 0, 0.775), (0.990, 0, 0.690), (0.962, 0, 0.625), (0.938, 0, 0.576),
                  (0.9145, 0, 0.452)], 18)
     m.add(bar(dt, 0.044, np.linspace(0.042, 0.030, len(dt)), "alu_frame"))
     # cross members between the plates (EST) and the lower chain roller (LEFT px (2298,1558))
     m.add(tube([CROSS_LO - 0.121 * Y3, CROSS_LO + 0.121 * Y3], 0.013, 16, "alu_frame"))
     m.add(tube([CROSS_UP - 0.115 * Y3, CROSS_UP + 0.115 * Y3], 0.015, 16, "alu_frame"))
+    # roller r 12.5 (LEFT zoom: 32..34 px across), 1.7 mm under the lower run; its lug stands inboard of the chain
     ro = np.array([0.521, CHAIN_Y, 0.376])
-    m.add(slab(hull([(ro[0], ro[2], 0.011), (CROSS_LO[0], CROSS_LO[2], 0.012)]), CHAIN_Y - 0.0155, 0.007, "alu_frame", r=0.002,
+    m.add(slab(hull([(ro[0], ro[2], 0.009), (CROSS_LO[0], CROSS_LO[2], 0.012)]), CHAIN_Y - 0.0165, 0.007, "alu_frame", r=0.002,
                step=0.005, to=_xz))
-    m.add(turned(ro - 0.012 * Y3, Y3, [(0, 0.008), (0.0005, 0.016), (0.004, 0.017), (0.008, 0.015), (0.014, 0.015), (0.018, 0.017),
-                                      (0.0215, 0.016), (0.022, 0.008)], "plastic_black", 24))
-    m.add(bolt(ro + 0.0098 * Y3, Y3, af=0.010, head_h=0.006, flange_d=0.018))
+    m.add(turned(ro - 0.013 * Y3, Y3, [(0, 0.006), (0.0025, 0.006), (0.0025, 0.0115), (0.0035, 0.0125), (0.007, 0.0125), (0.009, 0.011),
+                                      (0.017, 0.011), (0.019, 0.0125), (0.0225, 0.0125), (0.0235, 0.0115), (0.0235, 0.005)],
+                 "plastic_black", 24))
+    m.add(bolt(ro + 0.0103 * Y3, Y3, af=0.010, head_h=0.006, flange_d=0.016))
     return m
 
 
@@ -265,8 +278,12 @@ def subframe():
         m.add(bar(lower, 0.018, 0.022, "alu_frame"))
         m.add(bar(upper, 0.018, 0.022, "alu_frame"))
         m.add(bar([lower[-1], upper[-1]], 0.016, 0.018, "alu_frame"))                  # tail strut
+        # bracket of the lower mount: 3 mm leg between the pipe and the panel, foot to the plate under the panel's edge
+        m.add(slab(np.array([(0.513, 0.597), (0.529, 0.597), (0.529, 0.655), (0.513, 0.655)]), s * 0.0885, 0.003, "alu_frame",
+                   r=0.001, step=0.006, to=_xz))
+        m.add(bar([(0.521, s * 0.090, 0.603), (0.521, s * 0.100, 0.603), (0.521, s * 0.1105, 0.603)], 0.014, 0.012, "alu_frame"))
         # lug on the frame's ear, 0.2 mm inside the plate's inner face (the lower rail starts under the plate)
-        m.add(slab(hull([(0.624, 0.833, 0.012), (0.603, 0.846, 0.010)]), s * 0.1068, 0.008, "alu_frame", r=0.002, step=0.005,
+        m.add(slab(hull([(0.624, 0.833, 0.012), (0.603, 0.846, 0.010)]), s * 0.1058, 0.008, "alu_frame", r=0.002, step=0.005,
                    to=_xz))
     lo_l, up_l = _sub_rails(1)
     for p, r in ((up_l[-1], 0.009), (lo_l[-1], 0.008)):                                 # cross tubes at the tail
@@ -295,6 +312,24 @@ def _arm_w(x):
     return np.interp(x, [-0.04, 0.06, 0.25, 0.50], [0.031, 0.031, 0.038, 0.040])    # REAR: 0.098..0.129 at the axle
 
 
+def _arm_zt(x):
+    """Top of the arm: the photo line, kept 13.5 mm under the chain's top run where the chain closes on it."""
+    return float(min(_arm_top(x), chain_top(x) - 0.0135))
+
+
+def _arm_zb(x):
+    """Underside: the photo line, then up to the pivot boss."""
+    if x <= 0.468:
+        return float(_arm_bot(x))
+    k = min((x - 0.468) / (0.548 - 0.468), 1.0)
+    return (1 - k) * 0.421 + k * (PIVOT[2] - R_PIV)
+
+
+def slider_top(x):
+    """Upper face of the chain slider: 9 mm under the chain's centre line from x 0.44 on, on the arm behind."""
+    return float(_arm_top(x)) + 0.0065 if x < 0.44 else float(chain_top(x)) - 0.009
+
+
 def swingarm():
     m = Mesh()
     sec = resample(rounded_rect(1.0, 1.0, 0.16, 3), 0.118)
@@ -303,17 +338,13 @@ def swingarm():
         mat = "swing_L" if s > 0 else "swing_R"
         rings = []
         for x in xs:
-            zt, zb = float(_arm_top(x)), float(_arm_bot(x))
-            if x > 0.468:                                    # forged front end closing on the pivot tube
-                k = (x - 0.468) / (0.548 - 0.468)
-                zt = (1 - k) * float(_arm_top(0.468)) + k * (PIVOT[2] + 0.0265)
-                zb = (1 - k) * 0.421 + k * (PIVOT[2] - 0.0265)
+            zt, zb = _arm_zt(x), _arm_zb(x)
             w = float(_arm_w(x))
             yc = float(_arm_yo(x)) - w / 2
             ring = np.stack([np.full(len(sec), x), s * (yc + sec[:, 0] * w), (zt + zb) / 2 + sec[:, 1] * (zt - zb)], 1)
             rings.append(ring if s > 0 else ring[::-1])
         m.add(grid(Mesh(), rings, mat, cap0=True, cap1=True))
-        m.add(hollow(PIVOT + s * 0.056 * Y3, s * Y3, 0.0265, 0.0105, 0.054, "alu_swingarm", 24))
+        m.add(hollow(PIVOT + s * 0.056 * Y3, s * Y3, R_PIV, 0.0105, 0.054, "alu_swingarm", 24))
         # machined end with the axle slot (LEFT px 2913..3022 x 1584..1663; OUT2 rear end x 0.052, z 0.300..0.371)
         end = np.array([(0.062, 0.3745), (-0.022, 0.3500), (-0.033, 0.3405), (-0.036, 0.3264), (-0.031, 0.309), (-0.012, 0.3005),
                         (0.062, 0.3000)])
@@ -339,41 +370,47 @@ def swingarm():
     zc = (float(_arm_top(0.40)) + float(_arm_bot(0.40))) / 2
     yi = float(_arm_yo(0.40)) - float(_arm_w(0.40)) + 0.002
     m.add(bar([(0.400, -yi, zc), (0.400, 0.0, zc), (0.400, yi, zc)], 0.042, 0.056, "alu_swingarm"))
-    # chain slider: black strip under and over the left arm's front and round the pivot
-    # (LEFT zoom: top px 2332..2625, bottom px 2310..2454)
-    lowr = [(x, float(_arm_bot(min(x, 0.468))) + max(x - 0.468, 0) * 0.175 - 0.0035) for x in np.linspace(0.41, 0.54, 6)]
-    arc = [(PIVOT[0] + 0.0305 * math.cos(a), PIVOT[2] + 0.0305 * math.sin(a)) for a in np.radians(np.arange(-75, 76, 15))]
-    topr = [(x, min(float(_arm_top(x)), float(_arm_top(0.468)) + (PIVOT[2] + 0.0265 - float(_arm_top(0.468))) *
-                    max(x - 0.468, 0) / 0.08) + 0.0035) for x in np.linspace(0.54, 0.28, 12)]
-    sl = np.array([(x, CHAIN_Y, z) for x, z in lowr + arc + topr])
-    hs = np.full(len(sl), 0.006)
-    hs[-3:] = (0.008, 0.011, 0.011)                           # thicker rub block at the strip's rear end
-    m.add(bar(sl, 0.024, hs, "plastic_black"))
+    # chain slider (black): strip A on the arm's top and over the pivot boss, its upper face slider_top(x); strip B
+    # under the arm and round the boss's front, 3 mm thick there (the 13T sprocket's teeth pass 5 mm from the boss)
+    xa = np.concatenate([np.linspace(0.28, 0.44, 7), np.linspace(0.458, 0.590, 12)])
+    ha = np.interp(xa, [0.28, 0.44, 0.468, 0.548, 0.560, 0.590], [0.006, 0.006, 0.0045, 0.0045, 0.0035, 0.003])
+    za = np.array([slider_top(x) for x in xa]) - ha / 2
+    m.add(bar(np.stack([xa, np.full(len(xa), CHAIN_Y), za], axis=1), 0.022, ha, "plastic_black"))
+    lowr = [(x, _arm_zb(x) - 0.003) for x in np.linspace(0.41, 0.545, 6)]
+    arc = [(PIVOT[0] + (R_PIV + 0.0015) * math.cos(a), PIVOT[2] + (R_PIV + 0.0015) * math.sin(a))
+           for a in np.radians(np.arange(-90, 61, 15))]
+    sb = np.array([(x, CHAIN_Y, z) for x, z in lowr + arc])
+    m.add(bar(sb, 0.022, np.concatenate([np.full(len(lowr), 0.006), np.full(len(arc), 0.003)]), "plastic_black"))
     return m
+
+
+GUIDE_SLOT = (0.150, 0.2554, 0.39, 0.0165)      # x, z of the slot's centre line, its slope, half its height
 
 
 def chain_guide():
     """Chain guide under the left arm: two aluminium plates hung 0.3 mm under the arm, tied by two bolts with their
-    spacers, and the two wear blocks the chain runs between (LEFT px 2735..2834 x 1624..1752: x 0.107..0.185,
-    z 0.229..0.328). Centred on parts.CHAIN_Y."""
+    spacers ahead of the 50T sprocket's teeth (r 0.131), and two wear blocks 33 mm apart round the lower run (LEFT px
+    2735..2834 x 1624..1752: x 0.107..0.185, z 0.229..0.328). The slot takes the chain (15 mm tall, 21 wide) wherever
+    it runs between the photo's straight line to (0.171, 0.270) and the tangent onto the sprocket."""
     m = Mesh()
 
     def zt(x):
         return float(_arm_bot(x)) - 0.0003
-    ties = ((0.192, zt(0.196) - 0.0085), (0.122, zt(0.122) - 0.0085))
-    gp = np.array([(0.196, ties[0][1]), (0.196, zt(0.196)), (0.112, zt(0.112)), (0.100, 0.300), (0.103, 0.240), (0.120, 0.226),
-                   (0.184, 0.243), (0.196, 0.275)])
+    ties = ((0.192, zt(0.196) - 0.0085), (0.142, zt(0.142) - 0.0085))
+    gp = np.array([(0.196, ties[0][1]), (0.196, zt(0.196)), (0.112, zt(0.112)), (0.100, 0.300), (0.103, 0.232), (0.120, 0.212),
+                   (0.188, 0.238), (0.196, 0.270)])
     for dy in (-0.0185, 0.0185):
-        m.add(slab(gp, CHAIN_Y + dy, 0.003, "alu_machined", r=0.001, step=0.007, holes=[circle(0.011, 20, 0.150, 0.312)], to=_xz))
+        m.add(slab(gp, CHAIN_Y + dy, 0.003, "alu_machined", r=0.001, step=0.007, holes=[circle(0.011, 20, 0.150, 0.318)], to=_xz))
     for x, z in ties:
         m.add(tube([(x, CHAIN_Y - 0.0205, z), (x, CHAIN_Y + 0.0205, z)], 0.004, 10, "bolt"))
         m.add(bolt((x, CHAIN_Y + 0.0198, z), Y3, af=0.010, head_h=0.005))
         m.add(bolt((x, CHAIN_Y - 0.0198, z), -Y3, af=0.010, head_h=0.005))
-    a = math.radians(19.0)                                    # the lower chain run's slope there
-    e = np.array([math.cos(a), 0.0, math.sin(a)])
-    for dz in (-0.017, 0.017):
-        c = np.array([0.158, CHAIN_Y, 0.2585 + dz])
-        m.add(bar([c + e * q for q in np.linspace(-0.033, 0.033, 9)], 0.0336, 0.010, "plastic_black"))
+    x0, z0, slope, half = GUIDE_SLOT
+    a = math.atan(slope)
+    e, nrm = np.array([math.cos(a), 0.0, math.sin(a)]), np.array([-math.sin(a), 0.0, math.cos(a)])
+    for q in (-1, 1):
+        c = np.array([0.158, CHAIN_Y, z0 + slope * (0.158 - x0)]) + nrm * q * (half * math.cos(a) + 0.004)
+        m.add(bar([c + e * w for w in np.linspace(-0.027, 0.035, 9)], 0.0336, 0.008, "plastic_black"))
     return m
 
 
@@ -444,16 +481,18 @@ def shock():
 # ---------------------------------------------------------------- exhaust
 PORT = (0.903, 0.0, 0.613)                                    # exhaust port flange face of detail_engine.py (coordinator)
 PORT_DIR = (0.970, 0.0, -0.242)                               # its outward direction
+PORT_Y = -0.030                                               # the hidden first 60 mm start right of it: elbow 3 mm off the down tube
 WELDS = ((0.913, -0.146, 0.545), (0.690, -0.124, 0.624))      # RIGHT px (2213,1344) and (1916,1240)
-CLAMPS = ((0.635, -0.116, 0.626), (0.376, -0.128, 0.6435))    # RIGHT px (1844,1238) and (1500,1223)
+CLAMPS = ((0.635, -0.116, 0.626), (0.380, -0.090, 0.6425))    # RIGHT px (1844,1238) and (1500,1223)
 HEADER = [
-    PORT,
-    (0.9146, 0.000, 0.6101),  # 12 mm along PORT_DIR
-    (0.9200, -0.012, 0.6085), # EST: hard right in the 30 mm between the head and the down tube (hidden by the radiator)
-    (0.9235, -0.031, 0.605),  # EST
-    (0.936, -0.050, 0.598),   # EST
-    (0.957, -0.061, 0.588),   # RIGHT px (2274,1277): the pipe comes out from behind the radiator, front edge x 0.985
-    (0.967, -0.064, 0.568),
+    (0.9125, PORT_Y, 0.6106),   # 10 mm off the engine's flange face and right of its centre: the flange (its part) reaches
+                                # x 0.909 at y -0.038, and the down tube stands 30 mm ahead of the port
+    (0.9185, -0.0325, 0.6090),  # EST (hidden by the radiator)
+    (0.9245, -0.0395, 0.6065),  # EST
+    (0.934, -0.0535, 0.601),  # EST
+    (0.950, -0.0625, 0.592),  # EST
+    (0.9625, -0.065, 0.578),  # RIGHT px (2274,1277): the pipe comes out from behind the radiator
+    (0.968, -0.066, 0.560),
     (0.970, -0.068, 0.523),   # RIGHT px (2287,1356); LEFT px (1699,1400): front edge x 0.989; FRONT row 1260 cols 1913..1939
     (0.964, -0.086, 0.480),
     (0.948, -0.112, 0.462),   # RIGHT px (2277,1436): bottom of the bend, outer edge row 1460; LEFT row 1445
@@ -464,21 +503,23 @@ HEADER = [
     (0.757, -0.124, 0.607),   # RIGHT px (2005,1262); TOP col 2000 row 969: outer edge -0.141
     (0.690, -0.124, 0.624),   # RIGHT px (1916,1240): weld; TOP col 2050 row 966: -0.144
     (0.635, -0.116, 0.626),   # RIGHT px (1844,1238): clamp; TOP col 2100 row 975: -0.136
-    (0.585, -0.088, 0.627),   # EST: behind the right pivot plate (its inner face is at -0.111)
-    (0.530, -0.068, 0.626),   # EST: between the subframe's lower rail and the shock's spring
-    (0.470, -0.072, 0.628),   # EST
-    (0.420, -0.100, 0.636),   # EST
-    (0.376, -0.128, 0.6435),  # RIGHT px (1500,1223): clamp at the muffler's inlet
-    (0.352, -0.127, 0.649),   # into the muffler's nose
+    (0.585, -0.086, 0.626),   # EST: behind the right pivot plate (its inner face is at -0.111)
+    (0.530, -0.0645, 0.616),  # EST: between the subframe's bracket (y -0.087) and the shock's spring (r 41.5)
+    (0.470, -0.068, 0.613),   # EST: under the subframe's lower rail
+    (0.440, -0.074, 0.620),   # EST: 4 mm inside the airbox panel's skin (0.102 at x 0.45, 0.113 at 0.39, 0.123 at 0.36)
+    (0.410, -0.081, 0.632),   # EST
+    (0.380, -0.090, 0.6425),  # RIGHT px (1500,1223): clamp at the muffler's inlet
+    (0.352, -0.096, 0.648),   # into the muffler's nose
 ]
 # muffler: lower edge and rear face from OUT2 'muffler' (right photo, cast at y -0.14); top edge seen at the rear only
-# (0.893 at x 0..0.024), then hidden by the side panel: it is run 3 mm above the panel's edge in the photo
-# ((0.152,0.844) (0.224,0.805) (0.267,0.746)), the lowest line the photo allows, EST; nose at the rivets seen at
+# (0.893 at x 0..0.024; a seam rivet at RIGHT px (1114,924): z 0.862 at x 0.095), then hidden: it is kept 4 mm under
+# the right side panel of the model (outer skin's edge 0.815 - 1.3 (x - 0.21); inner lip 0.848 at x 0.12, 0.833 at
+# 0.15, 0.804 at 0.21, over the can's inner half: _muf_drop), EST. From x 0.30 the can is inside the skin; nose at the rivets seen at
 # RIGHT px (1431,1181) and (1408,1220)
 MUF_LOW = ([-0.008, -0.0065, -0.004, 0.0, 0.008, 0.018, 0.029, 0.07, 0.113, 0.195, 0.245, 0.301, 0.350],
            [0.818, 0.813, 0.811, 0.806, 0.797, 0.787, 0.775, 0.757, 0.731, 0.688, 0.664, 0.640, 0.628])
-MUF_TOP = ([-0.008, -0.0065, -0.004, 0.0, 0.008, 0.018, 0.029, 0.152, 0.224, 0.267, 0.350],
-           [0.886, 0.8905, 0.893, 0.8945, 0.8935, 0.890, 0.8865, 0.847, 0.808, 0.750, 0.672])
+MUF_TOP = ([-0.008, -0.0065, -0.004, 0.0, 0.008, 0.018, 0.029, 0.120, 0.150, 0.180, 0.210, 0.224, 0.267, 0.300, 0.350],
+           [0.886, 0.8905, 0.893, 0.8945, 0.8935, 0.890, 0.8865, 0.857, 0.837, 0.828, 0.808, 0.792, 0.736, 0.706, 0.668])
 MUF_X = [-0.008, -0.0065, -0.004, 0.0, 0.004, 0.008, 0.013, 0.018, 0.0235, 0.029] + list(np.arange(0.036, 0.345, 0.007)) + [0.350]
 MUF_CONE = (0.235, 0.350)
 # end cap seen from behind (REAR rows 710..890 at x 0: z 0.896 y -0.099..-0.157; 0.869: -0.087..-0.181;
@@ -493,9 +534,14 @@ MUF_AXIS = np.array([-0.927, 0.0, 0.375])                     # rearward along t
 def _muf(x):
     zl, zt = float(np.interp(x, *MUF_LOW)), float(np.interp(x, *MUF_TOP))
     # plan: TOP cols 2640..2840: outer flank -0.194 at x 0.05, -0.180 at x 0.175; REAR: inner flank -0.082
-    yc = float(np.interp(x, [-0.008, MUF_CONE[0], MUF_CONE[1]], [-0.138, -0.127, -0.127]))
+    yc = float(np.interp(x, [-0.008, MUF_CONE[0], MUF_CONE[1]], [-0.138, -0.127, -0.096]))
     hw = float(np.interp(x, [-0.008, -0.0065, -0.004, MUF_CONE[0], MUF_CONE[1]], [0.050, 0.054, 0.056, 0.046, 0.023]))
     return zl, zt, yc, hw
+
+
+def _muf_drop(x):
+    """How far the can's inner top corner sits below its outer one, under the side panel's inner wall."""
+    return float(np.interp(x, [0.09, 0.115, 0.215, 0.235], [0.0, 0.020, 0.020, 0.0]))
 
 
 def _muf_ring(x):
@@ -503,7 +549,8 @@ def _muf_ring(x):
     k = min(max((x - MUF_CONE[0]) / (MUF_CONE[1] - MUF_CONE[0]), 0.0), 1.0)    # the cone turns the section into a circle
     ang = np.arctan2(MUF_SEC[:, 1], MUF_SEC[:, 0])
     S = (1 - k) * MUF_SEC + k * np.stack([np.cos(ang), np.sin(ang)], axis=1)
-    return np.stack([np.full(len(S), x), yc - S[:, 0] * hw, (zl + zt) / 2 + S[:, 1] * (zt - zl) / 2], axis=1)
+    z = (zl + zt) / 2 + S[:, 1] * (zt - zl) / 2 - _muf_drop(x) * np.clip((0.3 - S[:, 0]) / 1.3, 0, 1) * np.clip(S[:, 1], 0, None)
+    return np.stack([np.full(len(S), x), yc - S[:, 0] * hw, z], axis=1)
 
 
 def _muf_side(x, z):
@@ -535,13 +582,6 @@ def exhaust():
     def at(p):
         i = int(np.argmin(np.linalg.norm(hp - np.asarray(p, float), axis=1)))
         return hp[i], tan[i], rr[i]
-    # flange at the port with its two nuts
-    c, d, r = np.array(PORT), np.array(PORT_DIR) / np.linalg.norm(PORT_DIR), rr[0]
-    m.add(turned(c, d, [(0.0, 0.033), (0.006, 0.033), (0.006, r)], "steel", 6))
-    side = np.cross(d, [0, 0, 1.0])
-    side /= np.linalg.norm(side)
-    for q in (-1, 1):
-        m.add(bolt(c + d * 0.0058 + side * q * 0.0265, d, af=0.010, head_h=0.006, flange_d=0.012))
     for w in WELDS:                                             # the two welds seen in the right photo
         c, d, r = at(w)
         m.add(turned(c - d * 0.003, d, [(0, r), (0.0015, r + 0.0016), (0.0045, r + 0.0016), (0.006, r)], "header_steel", 18, False,
@@ -564,18 +604,16 @@ def exhaust():
             p = _px("right", u, v, "y", y)
             y = _muf_side(p[0], p[2])
         m.add(bolt((p[0], y + 0.0004, p[2]), -Y3, af=0.007, head_h=0.002, mat="steel", kind="cap"))
-    # mounts: two straps from the can's inner top edge to the underside of the right subframe rail, bolted
-    # (hidden by the side panel, EST)
+    # mounts: two straps from the can's inner flank up to the underside of the right subframe rail, inboard of the
+    # side panel's lip (y -0.090), each with a bolt (hidden, EST)
     low = _sub_rails(-1)[0][::-1]
     for x in (0.220, 0.255):
-        ry, rz = float(np.interp(x, low[:, 0], low[:, 1])), float(np.interp(x, low[:, 0], low[:, 2]))
+        rz = float(np.interp(x, low[:, 0], low[:, 2]))
         zl, zt, yc, hw = _muf(x)
-        k = min(max((x - MUF_CONE[0]) / (MUF_CONE[1] - MUF_CONE[0]), 0.0), 1.0)
-        fy, fz = yc + 0.5 * hw, zt - (0.006 + 0.03 * k)
-        zr = rz - 0.011 - 0.0065                                 # strap 4 mm thick, just under the sloping rail
-        m.add(bar([(x, fy, fz), (x, fy + 0.3 * (ry - fy), fz + 0.75 * (zr - fz)), (x, ry - 0.006, zr), (x, ry + 0.006, zr)],
-                  0.012, 0.004, "steel"))
-        m.add(bolt((x, ry, zr - 0.0018), (0, 0, -1), af=0.010, head_h=0.005))
+        z1 = rz - 0.0122 - 0.0034                                # 0.5 mm under the sloping rail's lowest point there
+        strap = np.array([(x - 0.006, (zl + zt) / 2), (x + 0.006, (zl + zt) / 2), (x + 0.006, z1), (x - 0.006, z1)])
+        m.add(slab(strap, yc + hw - 0.0025, 0.004, "steel", r=0.001, step=0.005, to=_xz))
+        m.add(bolt((x, yc + hw - 0.0007, z1 - 0.007), Y3, af=0.008, head_h=0.004))
     return m
 
 
