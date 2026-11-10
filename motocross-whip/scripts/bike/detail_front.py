@@ -44,10 +44,8 @@ T_BAR = 0.985                                         # bar centre: pad top z 1.
 F_BAR = F_STEER + 0.003                               # TOP rows 1045, 1180: pad centred on x 0.988
 YC = 0.152                                            # TOP rows 1270..1360: the bar is straight across out to here
 R_GRIP = 0.0155
-# The bar ends sit on the shared cams.BAR_END (0.93, 0.4135, 1.217). The photos put them at about (0.914, 0.4135,
-# 1.207): TOP rows 685..1585 (grip axis x 0.9165 at y 0.404, slope 0.288), FRONT cols 1485..1575 and 2430..2520 (grip
-# centre z 1.205..1.213), LEFT grip end face about (1778, 458). FRONT_TIP=0.914,1.207 builds that bar for comparison:
-# top silhouette 0.8587 -> 0.8682, front 0.8487 -> 0.8536. BAR_END is kept until cams.py changes.
+# The bar ends sit on the shared cams.BAR_END, measured in the top and both side photos (see cams.py).
+# FRONT_TIP=x,z builds another bar end for comparison.
 _TXZ = (cams.BAR_END[0], cams.BAR_END[2])
 if os.environ.get("FRONT_TIP"):                       # experiment only: another bar end "x,z"
     _TXZ = tuple(float(v) for v in os.environ["FRONT_TIP"].split(","))

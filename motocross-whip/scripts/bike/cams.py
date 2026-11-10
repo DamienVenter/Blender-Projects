@@ -101,7 +101,9 @@ def _tyre(x_axle, radius):
     return np.stack([x_axle + radius * np.cos(ang), 0 * ang, R_REAR + radius * np.sin(ang)], axis=1)
 
 
-BAR_END = (0.93, 0.4135, 1.217)                    # left bar end (side photos; bar 827 mm wide)
+BAR_END = (0.910, 0.4135, 1.207)                   # left grip's end cap centre. z: cap at rows 454.5 and 455 of the
+# side photos. x: the side photos give 0.903 and 0.904, the top photo 0.917 (cap spans columns 1797..1830): the mean,
+# +-7 mm. y: bar 827 mm wide (spec; 949 px between the caps' outer points in the top photo is 829 mm)
 
 
 def front_camera():

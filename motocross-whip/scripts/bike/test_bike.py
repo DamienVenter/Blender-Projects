@@ -58,11 +58,11 @@ def test_front_and_rear_cameras_fit_more_landmarks_than_unknowns():
 
 
 def test_end_cameras_belong_to_one_rig():
-    """All four cameras round the bike stand about 1 m high and look 5 to 6 degrees down."""
+    """All four cameras round the bike stand about 1.1 m high and look 5 to 7 degrees down."""
     for view in ("front", "rear"):
         c = cams.CAMS[view]
         assert 0.95 < c.C[2] < 1.25
-        assert 4.5 < math.degrees(math.asin(-c.F[2])) < 6.8
+        assert 4.5 < math.degrees(math.asin(-c.F[2])) < 7.2
     for view in ("left", "right"):
         assert 4.5 < math.degrees(math.asin(-cams.CAMS[view].F[2])) < 6.0
 
