@@ -43,7 +43,8 @@ FACE_UP = T_UP[1] - 0.015                             # top clamp's underside: b
 STEM_R = 0.0145                                       # EST: the stem is the only part inside the frame's head tube
 FENDER_T = 0.003                                      # build_bike.py solidifies the fender 3 mm inwards
 R_INNER = 0.0245                                      # SPEC: 49 mm inner tubes
-T_BAR = 0.980                                         # bar centre: pad top z 1.2095 (FRONT cols 1980, 2115), pad 60 tall
+T_BAR = 0.968                                         # bar centre, EST: the holders' caps and bolts reach 27 mm above
+#   it and must stay under the bar pad's measured top (PAD_T)
 F_BAR = F_STEER + 0.003                               # TOP rows 1045, 1180: pad centred on x 0.988
 YC = 0.152                                            # TOP rows 1270..1360: the bar is straight across out to here
 R_GRIP = 0.0155
@@ -82,8 +83,30 @@ def fk(f, y, t):
     return TUBE0 + f * FWD + y * Y + t * UP
 
 
-PAD_HALF = (0.028, 0.030)                             # bar pad's section: 56 mm fore-aft, 60 mm tall
-PAD_C = fk(F_BAR, 0, T_BAR) + np.array([0.001, 0, 0.0045])    # its centre (axle-line frame)
+# Bar pad, in the fork frame: it leans with the steering axis and its section is the same along its length.
+PAD_F = (-0.0545, 0.0315)     # rear face: LEFT rows 505..560 and RIGHT rows 510..560 on the end plane y +-0.106, the
+#   cap's rear edge stays 53..57 mm behind the tubes' plane from t 0.947 to 0.995 (so the lean is the fork's, RAKE);
+#   front face: the mirror of it about the top face's centre, and TOP u 1662..1684 (second line of lettering)
+PAD_T = (0.945, 1.001)        # underside: LEFT / RIGHT axis scans (cap black from t 0.946), corners at 0.947, REAR col
+#   2000 (red down to row 345, 0.941); top: FRONT cols 1960..2040 (rows 250..258, z 1.208..1.203) with TOP u 1708
+PAD_SHOULDER = (0.0185, 0.013)                        # rounded shoulders, deep and high: TOP emblem band u 1708..1762,
+#   lettering bands u 1684..1708 and 1762..1775, rear edge u 1775 (x 0.951); REAR col 2000 lettering rows 276..294
+PAD_Y = (0.0875, 0.106)       # red body, and with the grey end caps: TOP cols 1712..1744 (red v 1025..1225, dark to
+#   1001 and 1244), REAR rows 290..310 (red u 1890..2109, dark caps outside)
+PAD_HALF = ((PAD_F[1] - PAD_F[0]) / 2, (PAD_T[1] - PAD_T[0]) / 2)        # 86 mm fore-aft, 56 mm tall
+PAD_C = fk((PAD_F[0] + PAD_F[1]) / 2, 0, (PAD_T[0] + PAD_T[1]) / 2)      # its centre (axle-line frame)
+PAD_TILT = P.RAKE                                     # lean back, radians
+
+
+def pad_section():
+    """The pad's section (f, t), counter-clockwise from the front lower corner."""
+    (f0, f1), (t0, t1), (a, b) = PAD_F, PAD_T, PAD_SHOULDER
+    ph = np.linspace(0, math.pi / 2, 7)
+    front = [(f1 - a + a * math.cos(q), t1 - b + b * math.sin(q)) for q in ph]
+    rear = [(f0 + a - a * math.cos(q), t1 - b + b * math.sin(q)) for q in ph[::-1]]
+    return np.array([(f1 - 0.003, t0), (f1, t0 + 0.003)] + front + rear + [(f0, t0 + 0.003), (f0 + 0.003, t0)])
+
+
 
 
 def fyz(f, y, z):
@@ -335,7 +358,7 @@ class _Side:
 def bar_path():
     """Centre line of the left half of the Fatbar, clamp to bar end. TOP: straight across to y 0.15, then swept
     back in one line to the bar end (bar centre x 0.980 at y 0.168, 0.969 at 0.207, 0.9165 at 0.404). FRONT cols
-    2205..2340: it rises between y 0.085 and 0.235 (centre z 1.189 at y 0.153, 1.199 at 0.186) and is level beyond."""
+    2205..2340: it rises between y 0.075 and 0.225 (centre z 1.189 at y 0.153, 1.199 at 0.186) and is level beyond."""
     c0 = fk(F_BAR, 0, T_BAR)
     k, w = math.tan(SWEEP), 0.020                                  # w: softness of the plan bend (EST)
     q = (c0[0] - TIP[0]) / k
@@ -343,7 +366,7 @@ def bar_path():
     ys = np.append(np.arange(0.0, TIP[1] - 0.004, 0.008), TIP[1])
     v = ys - yc
     x = c0[0] - k * (v + np.sqrt(v * v + w * w)) / 2
-    s = np.clip((ys - 0.085) / 0.150, 0, 1)
+    s = np.clip((ys - 0.075) / 0.150, 0, 1)
     z = c0[2] + (TIP[2] - c0[2]) * s * s * (3 - 2 * s)
     return np.stack([x, ys, z], axis=1)
 
@@ -393,7 +416,7 @@ def bars():
     for side in (-1, 1):
         yh = side * HOLDER_Y
         m.add(cyl(fk(F_BAR, yh, T_UP[1]), fk(F_BAR, yh, T_UP[1] + 0.006), 0.017, "rubber_black", 24, 0.001))
-        lev = [(T_UP[1] + 0.006, 0.52), (T_UP[1] + 0.022, 0.52), (T_BAR - 0.016, 1.0), (T_BAR - 0.0003, 1.0)]
+        lev = [(T_UP[1] + 0.006, 0.52), (T_UP[1] + 0.012, 0.52), (T_BAR - 0.016, 1.0), (T_BAR - 0.0003, 1.0)]
         rings = [np.array([fk(F_BAR + p[0] * k, yh + p[1], t) for p in cradle]) for t, k in lev]
         m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
         lev = [(T_BAR + 0.0003, 1.0, 1.0), (T_BAR + 0.0185, 1.0, 1.0), (T_BAR + 0.0215, 0.94, 0.86)]
@@ -401,18 +424,21 @@ def bars():
         m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
         for df in (-0.0205, 0.0205):
             m.add(bolt(fk(F_BAR + df, yh, T_BAR + 0.0215), UP, af=0.010, flange_d=0.013))
-    # ---- bar pad: FRONT "RENTHAL" face y -0.088..0.092, top z 1.214; TOP rows 1045, 1180: x 0.958..1.015
-    c0 = PAD_C
-    sec = rounded_rect(2 * PAD_HALF[0], 2 * PAD_HALF[1], 0.017, 6)
-    rings = [np.array([c0 + np.array([p[0] * k, yy, p[1] * k]) for p in sec])
-             for yy, k in ((-0.095, 0.80), (-0.088, 1.0), (0.088, 1.0), (0.095, 0.80))]
-    bore = []                                                      # the bar leaves the pad through a bore at each end
-    for ring in (rings[0], rings[-1]):
-        j = int(np.argmin(np.abs(path[:, 1] - ring[0][1])))
-        d = (ring - path[j]) * [1, 0, 1]
-        bore.append(path[j] * [1, 0, 1] + [0, ring[0][1], 0]
+    # ---- bar pad (PAD_F, PAD_T, PAD_Y): red body, dark grey end caps, the bar leaving through a bore in each cap.
+    # It sits over the holders and hides them and their bolts (DET 475835)
+    sec = pad_section()
+    cs = sec.mean(axis=0)
+    ring = lambda yy, k=1.0: np.array([fk(q[0], yy, q[1]) for q in cs + (sec - cs) * k])
+    y0, y1 = PAD_Y
+    rings = [ring(-y1, 0.96), ring(-y1 + 0.002), ring(-y0), ring(y0), ring(y1 - 0.002), ring(y1, 0.96)]
+    bore = []
+    for r_ in (rings[0], rings[-1]):
+        j = int(np.argmin(np.abs(path[:, 1] - r_[0][1])))
+        d = (r_ - path[j]) * [1, 0, 1]
+        bore.append(path[j] * [1, 0, 1] + [0, r_[0][1], 0]
                     + (rr[j] + 0.0004) * d / np.linalg.norm(d, axis=1, keepdims=True))
-    m.add(_outward(grid(Mesh(), [bore[0]] + rings + [bore[1]], "barpad")))
+    m.add(_outward(grid(Mesh(), [bore[0]] + rings + [bore[1]], "barpad",
+                        mats=["barpad", "pad_cap", "pad_cap", "barpad", "pad_cap", "pad_cap", "barpad"])))
     # ---- both grips: FRONT flange at |y| 0.3115 (102 mm of y), 31 mm across; DET 475829
     grip = [(R_GRIP, 0.0), (0.0165, 0.003), (0.0158, 0.009), (0.0155, 0.094), (0.0165, 0.0985), (0.0225, 0.0995),
             (0.0225, 0.1035), (0.0165, 0.105), (0.0140, 0.106), (0.0114, 0.1063)]      # closes onto the bar
@@ -446,8 +472,10 @@ def bars():
         g, ge = 0.004 + 0.008 * k, THROTTLE_F[k]
         m.add(sweep([R.p(0.124, g, 0.016), R.p(0.127, g, 0.0245), R.p(0.137, (g + ge) / 2, 0.028),
                      R.p(0.156, ge, 0.029)], 0.0032, "steel", 8))
-        b0, q0 = R.p(0.156, ge, 0.029), throttle_paths()[k][0]     # the boot stops 0.3 mm short of the cable's end
-        m.add(cyl(b0, q0 - 0.0003 * unit(q0 - b0), 0.0048, "rubber_black", 10))
+        b0, tp = R.p(0.156, ge, 0.029), throttle_paths()[k]        # the boot stops 0.3 mm short of the cable's end
+        ax = unit(tp[0] - b0)                                      # (whose first ring is square to the cable)
+        gap = 0.0003 + 0.0035 * math.sqrt(max(0.0, 1.0 - float(unit(tp[1] - tp[0]) @ ax) ** 2))
+        m.add(cyl(b0, tp[0] - gap * ax, 0.0048, "rubber_black", 10))
     # ---- right: start button and its lead
     m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
     m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
@@ -649,7 +677,8 @@ def throttle_end():
 
 
 def clutch_path():
-    """Clutch cable, perch adjuster to the engine: through the plate's loop, over the left fork cap, between the
+    """Clutch cable, perch adjuster to the engine: past the plate's left corner, across the front of the pad's left end (FRONT row 270: black at y 0.080..0.089,
+    z 1.193), down behind the plate, between the
     left tube and the head, down the left of the steering head (LEFT by eye: (0.996, 1.10) to (1.019, 1.04), with
     the in-line adjuster), then under the tank's left edge to the upper end of the engine module's own cable
     (CLUTCH_JOIN), or all the way to detail_engine.CLUTCH_ARM_END once that exists."""
@@ -658,8 +687,9 @@ def clutch_path():
     w = unit(np.array([0.815, 0.074, 0.795]) - CLUTCH_JOIN)
     route = _engine("CLUTCH_CABLE")                      # the engine module's own route, from CLUTCH_JOIN to its last guide
     tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
-    pts = [a0 + 0.0463 * ad, (1.045, 0.160, 1.205), (1.058, 0.118, 1.190), fk(0.030, 0.090, 0.957),
-           fk(0.036, 0.062, 0.925), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
+    pts = [a0 + 0.0466 * ad, a0 + 0.062 * ad, (1.045, 0.160, 1.205),      # leaves along the adjuster
+           (1.058, 0.118, 1.190), fk(0.041, 0.095, 0.972),
+           fk(0.042, 0.072, 0.968), fk(0.043, 0.060, 0.945), fk(0.040, 0.057, 0.915), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),
            (0.951, 0.068, 0.849), (0.909, 0.075, 0.824), (0.866, 0.077, 0.801), (0.815, 0.074, 0.795)] + tail
     return spline(pts, 190)
@@ -677,7 +707,8 @@ def throttle_paths():
     sd = _Side(-1)
     pts = [sd.p(0.168, 0.0, 0.029), sd.p(0.200, 0.0, 0.030), sd.p(0.236, 0.004, 0.030),
            (1.035, -0.150, 1.238), (1.060, -0.100, 1.230), (1.066, -0.060, 1.2195), (1.066, 0.000, 1.206),
-           (1.060, 0.055, 1.203), (1.048, 0.112, 1.199), (1.022, 0.108, 1.164), (0.989, 0.100, 1.144),
+           (1.060, 0.055, 1.203), (1.048, 0.118, 1.199), (1.022, 0.118, 1.164), (0.989, 0.118, 1.134),
+           (0.978, 0.105, 1.108),                     # round the pad's left end and under its rear lower corner
            (0.974, 0.062, 1.101), (0.983, 0.038, 1.039), (0.995, 0.014, 0.974), (0.995, 0.003, 0.907),
            (0.996, -0.006, 0.840), (0.953, -0.019, 0.805), (0.902, -0.028, 0.784), (0.845, -0.031, 0.783),
            (0.789, -0.035, 0.781), end + np.array([0.030, 0.0, 0.004]), end]
@@ -718,8 +749,9 @@ PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "front_brake": front_brak
 REPLACES = ["fork", "clamps", "bars", "cables", "disc_guard"]
 FRONT_END = ["fork", "clamps", "bars", "front_brake", "disc_guard"]
 MATERIALS = {"btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
-             "btn_green": dict(rgb=(20, 140, 60), rough=0.4)}
-CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black"}
+             "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65)}
+CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
-UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=0.105)}
+UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
+                     tilt=float(PAD_TILT))}
