@@ -29,11 +29,11 @@ Normals point out of every solid and parts that only touch a neighbour stop 0.2 
 import math
 
 import numpy as np
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.spatial import ConvexHull, cKDTree
 
 import cams
-from geom import Mesh, bolt, box, circle, frame_z, grid, plate2d, resample, rounded_rect, smooth_poly, tube
+from geom import Mesh, bolt, box, circle, frame_z, grid, inside, plate2d, resample, rounded_rect, smooth_poly, tube
 from parts import CHAIN_Y, P2, PEG, PIVOT, RA, R_REAR, STEER0, UP, chain_top
 
 REPLACES = ["frame", "swingarm", "shock", "exhaust", "controls"]
@@ -76,24 +76,44 @@ def bar(path, w, h, mat, cap0=True, cap1=True):
     return tube(P, wh, len(sec), mat, cap0, cap1, section=sec)
 
 
-def slab(outline, mid, t, mat, r=0.003, step=0.007, holes=(), to=None, mirror=True):
+def _edge_dist(loops):
+    """Exact distance from a 2D point to the nearest edge of closed polygons. (Taken to sample points of the outline
+    it was up to 0.75 mm off, and the quarter-round edge is steep there: the rim's height changed from vertex to
+    vertex and the plates' edges came out serrated.)"""
+    A = np.vstack(loops)
+    AB = np.vstack([np.roll(q, -1, axis=0) for q in loops]) - A
+    L2 = np.maximum((AB * AB).sum(axis=1), 1e-18)
+
+    def f(u, v):
+        ap = np.array([u, v]) - A
+        d = ap - AB * np.clip((ap * AB).sum(axis=1) / L2, 0.0, 1.0)[:, None]
+        return math.sqrt(float((d * d).sum(axis=1).min()))
+    return f
+
+
+def slab(outline, mid, t, mat, r=0.003, step=0.007, holes=(), to=None, mirror=True, fine=False):
     """Plate cut to OUTLINE (2D) with rounded edges: mid(u, v) is the mid-surface's offset along the normal, T the
     thickness, R the edge radius, to(u, v, w) the map to 3D (MIRROR: it swaps handedness, as (u, v, w) -> (x, w, v)
-    does). The side view stays the outline exactly; faces are turned so that every normal points out."""
+    does). The side view stays the outline exactly; faces are turned so that every normal points out.
+    FINE: three rows of vertices follow the outline through the quarter-round edge (at 0.2, 0.6 and 1.0 R), with
+    the grid fine enough for plate2d to keep every one of them; without it plate2d thins the second row wherever
+    the rows are closer than 0.45 STEP and the rounding turns into irregular facets (the frame's crumpled look)."""
     o = np.asarray(outline, float)
     r = min(r, 0.4 * t)
     ccw = float(np.sum(o[:, 0] * np.roll(o[:, 1], -1) - np.roll(o[:, 0], -1) * o[:, 1])) > 0
     holes = [np.asarray(h, float) if ccw else np.asarray(h, float)[::-1] for h in holes]     # circle() runs counter-clockwise
-    dense = np.vstack([resample(o, 0.0015)] + [resample(h, 0.0015) for h in holes])
-    tree = cKDTree(dense)
+    dist = _edge_dist([o] + holes)
+    rings = (0.3 * r, r)
+    if fine:
+        step, rings = min(step, 0.85 * r), (0.2 * r, 0.6 * r, r)
     mid_f = mid if callable(mid) else (lambda u, v: mid)
 
     def f(u, v, w):
-        d = tree.query((u, v))[0]
+        d = dist(u, v)
         k = 0.0 if d >= r else r - math.sqrt(max(r * r - (r - d) ** 2, 0.0))
         half = t / 2 - k
         return to(u, v, mid_f(u, v) + (half if w > 0 else -half))
-    m = plate2d(o, holes, 1.0, mat, f, step=step, rings=(0.3 * r, r))
+    m = plate2d(o, holes, 1.0, mat, f, step=step, rings=rings)
     flip_rim = mirror == ccw
     m.F = [q[::-1] if (mirror if len(q) == 3 else flip_rim) else q for q in m.F]
     return m
@@ -162,22 +182,48 @@ PEG_Y0 = 0.152
 PEG_PIN = (PEG_Y0 - 0.006, PEG_ROOT_Z - 0.012)   # EST: hinge pin under the peg's root (y, z)
 
 
+_SPAR = PchipInterpolator([0.45, 0.62, 0.74, 0.82, 0.86, 0.90, 0.94, 0.98, 1.03, 1.066],
+                          [0.137, 0.137, 0.113, 0.120, 0.127, 0.122, 0.080, 0.062, 0.050, 0.040])
+
+
 def _spar_y(x):
-    """Outer face of the frame in plan: pivot plates measured (TOP, REAR); the spars run in to the head under the
-    tank and shrouds, where no photo shows them (EST): 4 mm inside the shroud's skin (0.118 at x 0.74, 0.136 at
-    0.82), outside the tank (0.072 at x 0.78, 0.099 at 0.86, 0.048 at 0.94), under the shroud deck at x 0.94."""
-    return float(np.interp(x, [0.45, 0.62, 0.70, 0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.066],
-                           [0.137, 0.137, 0.123, 0.113, 0.114, 0.120, 0.127, 0.122, 0.102, 0.080, 0.062, 0.050, 0.040]))
+    """Outer face of the frame in plan, one smooth curve (a polyline put a crease across the spar at every knot):
+    pivot plates measured (TOP, REAR); the spars run in to the head under the tank and shrouds, where no photo
+    shows them (EST): 4 mm inside the shroud's skin (0.118 at x 0.74, 0.136 at 0.82), outside the tank (0.072 at
+    x 0.78, 0.099 at 0.86, 0.048 at 0.94), under the shroud deck at x 0.94."""
+    return float(_SPAR(min(max(x, 0.45), 1.066)))
+
+
+def _clean(o, step=0.00235, sigma=0.0039):
+    """plastics.clean_outline for an outline in metres: resampled evenly every 3 px (2.35 mm) and smoothed along the
+    closed curve with a Gaussian of 5 px (3.9 mm). The traced outline's pixel steps serrated the plates' edges."""
+    from scipy.ndimage import gaussian_filter1d
+    P = resample(o, step)
+    k = sigma / step
+    return np.stack([gaussian_filter1d(P[:, 0], k, mode="wrap"), gaussian_filter1d(P[:, 1], k, mode="wrap")], axis=1)
 
 
 def _frame_outline():
-    """OUT2 'frame' (left photo) cast on the plate's mid plane. The frame is symmetric: the right photo's outline
-    has the header, the hanger and the brake pedal fused into it and lacks the plate's rear half (hidden by the
-    master cylinder), so both sides use this one; where both are clean they agree within 5 mm."""
+    """OUT2 'frame' (left photo) cast on the plate's mid plane and cleaned. The frame is symmetric: the right photo's
+    outline has the header, the hanger and the brake pedal fused into it and lacks the plate's rear half (hidden by
+    the master cylinder), so both sides use this one; where both are clean they agree within 5 mm.
+    Three stretches of the traced outline are not the frame's own edge and are replaced:
+    the notch of the extraction's cut line at the pivot cap; the footpeg standing in front of the plate's foot
+    (hidden behind the bracket); and, ahead of x 0.705, the shroud's rear tip lying over the spar: there the spar
+    is carried on as the box it is (top edge continued, 94 mm deep at x 0.81) and ends under the shroud."""
     o = P2("frame", Y_PLATE - T_SPAR / 2)
-    # the extraction's cut line and the dark ring of the pivot cap left a notch at the pivot: close it
+    br = _bracket_outline()
     keep = ~((o[:, 0] > 0.52) & (o[:, 0] < 0.5745) & (o[:, 1] > 0.452) & (o[:, 1] < 0.492))
-    return smooth_poly(o[keep], 2)
+    keep &= ~inside(br.mean(axis=0) + 0.85 * (br - br.mean(axis=0)), o)
+    keep &= o[:, 0] < 0.705
+    o = o[keep]
+    gap = np.linalg.norm(np.roll(o, -1, axis=0) - o, axis=1)
+    gap[o[:, 0] < 0.66] = 0.0
+    j = int(np.argmax(gap))                                   # where the spar's front was cut away
+    end = np.array([(0.810, float(_spar_top(0.810)) - 0.094), (0.810, float(_spar_top(0.810)))])
+    if o[j, 1] > o[(j + 1) % len(o), 1]:
+        end = end[::-1]
+    return _clean(np.vstack([o[:j + 1], end, o[j + 1:]]))
 
 
 def _spar_top(x):
@@ -212,9 +258,17 @@ def frame():
                                (L - 0.003, STEM_BORE), (0.0035, STEM_BORE)], "alu_frame", 28, False, False))
     o = _frame_outline()
     br = _bracket_outline()
+    # weld bead across the spar where the extrusion meets the cast pivot plate (EST: 5 mm wide, at x 0.69)
+    q = np.array([0.690, 0.757]) + np.outer(np.arange(-0.075, 0.0751, 0.0015), [-0.534, 0.845])
+    ins = inside(o, q)
+    i0 = len(q) // 2
+    lo = i0 - int(np.argmin(ins[i0::-1]))
+    hi = i0 + int(np.argmin(ins[i0:]))
+    weld = q[lo + 3:hi - 2]
     for s in (1, -1):
         # spar and pivot plate: the photo outline, 26 mm deep with rounded edges, on the spar's path in plan
-        m.add(slab(o, lambda x, z, s=s: s * (_spar_y(x) - T_SPAR / 2), T_SPAR, "alu_frame", r=0.005, step=0.009, to=_xz))
+        m.add(slab(o, lambda x, z, s=s: s * (_spar_y(x) - T_SPAR / 2), T_SPAR, "alu_frame", r=0.005, step=0.009, to=_xz, fine=True))
+        m.add(tube([(x, s * (_spar_y(x) + 0.0001), z) for x, z in weld], [(0.0012, 0.0030)] * len(weld), 10, "alu_frame"))
         # the spar under the shroud, up to the head (EST): 80 mm deep box, the visible part's top edge continued
         xs = np.array([0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.058])
         low = np.interp(xs, [0.86, 0.92, 1.058], [0.0, 0.004, 0.004])        # top 8 mm lower under the shroud deck (z 0.961)
@@ -225,11 +279,11 @@ def frame():
                    step=0.012, to=_xz))
         # pivot: boss on the plate (the plate's own front edge there is the extraction's cut line), pad, bolt
         m.add(slab(circle(0.026, 30, PIVOT[0], PIVOT[2]), s * (Y_PLATE - T_SPAR / 2 + 0.0004), T_SPAR + 0.0008, "alu_frame",
-                   r=0.005, step=0.009, to=_xz))
+                   r=0.005, step=0.009, to=_xz, fine=True))
         m.add(turned(PIVOT + s * (Y_PLATE - 0.0005) * Y3, s * Y3, [(0, 0.025), (0.003, 0.0235), (0.004, 0.019)], "alu_frame", 28))
         m.add(turned(PIVOT + s * 0.052 * Y3, s * Y3, [(0, 0.0085), (0.086, 0.0085)], "steel", 14))
         # footpeg bracket with the black socket bolt (LEFT px (2228,1562), RIGHT px (1770,1561)) and the hinge boss
-        m.add(slab(br, s * 0.130, 0.022, "alu_cast", r=0.003, step=0.007, to=_xz))
+        m.add(slab(br, s * 0.130, 0.022, "alu_cast", r=0.003, step=0.007, to=_xz, fine=True))
         m.add(bolt((0.5765, s * 0.1407, 0.380), (0, s, 0), af=0.016, head_h=0.007, mat="anod_black", kind="cap"))
         m.add(hollow((PEG[0] - 0.006, s * PEG_PIN[0], PEG_PIN[1]), (1, 0, 0), 0.0058, 0.0038, 0.018, "alu_cast", 14))
         # cradle rail from the down tube's foot under the engine to the bracket (OUT2 'cradle' cast at the rail's own y: lower edge z 0.343;
@@ -746,4 +800,4 @@ def rear_brake():
 
 PARTS = {"frame": frame, "subframe": subframe, "swingarm": swingarm, "chain_guide": chain_guide, "linkage": linkage,
          "shock": shock, "exhaust": exhaust, "footpegs": footpegs, "rear_brake": rear_brake}
-SMOOTH = {"footpegs": 30}
+SMOOTH = {"footpegs": 30, "frame": 42}

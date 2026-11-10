@@ -126,6 +126,18 @@ def test_chain_guide_slot_takes_the_chain(V):
             assert abs(z - (z0 + slope * (x - x0))) + 0.0075 < half, (x, z)
 
 
+def test_frame_outline_is_clean_and_its_rim_even():
+    """Round 3 (crumpled, serrated frame plates): the cast outline is resampled and smoothed before use, and the
+    rounded edge is a function of the exact distance to it, so the rim's height cannot wander from vertex to vertex."""
+    o = dc._frame_outline()
+    d = np.diff(np.vstack([o, o[:1]]), axis=0)
+    turn = np.abs((np.diff(np.degrees(np.arctan2(d[:, 1], d[:, 0])), append=0.0) + 180) % 360 - 180)[:-1]
+    assert turn.max() < 45, turn.max()                               # no pixel steps, no folded tips
+    dist = dc._edge_dist([o])
+    mids = (o + np.roll(o, -1, axis=0)) / 2
+    assert max(dist(u, v) for u, v in mids[::10]) < 1e-9
+
+
 def test_head_tube_leaves_room_for_the_stem_and_clamps(V):
     """detail_front.py: lower clamp's top face at t 0.716, top clamp's bridge from 0.913, stem r 14.5 mm."""
     F = V["frame"]
