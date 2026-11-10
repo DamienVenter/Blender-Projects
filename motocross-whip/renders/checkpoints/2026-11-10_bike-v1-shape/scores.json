@@ -1,0 +1,110 @@
+{
+ "left": {
+  "silhouette": 0.8491,
+  "red": 0.7433,
+  "black": 0.71,
+  "metal": 0.543,
+  "same_class": 0.726,
+  "regions_missing_extra_wrong_cm2": {
+   "front wheel": [
+    196,
+    365,
+    282
+   ],
+   "rear wheel": [
+    296,
+    288,
+    121
+   ],
+   "fork, plate, bars": [
+    95,
+    88,
+    195
+   ],
+   "front fender": [
+    5,
+    39,
+    18
+   ],
+   "engine bay": [
+    43,
+    49,
+    417
+   ],
+   "pivot, pegs, linkage": [
+    170,
+    22,
+    78
+   ],
+   "shroud, tank": [
+    79,
+    21,
+    243
+   ],
+   "seat, side panel": [
+    12,
+    37,
+    155
+   ],
+   "tail, muffler": [
+    31,
+    46,
+    38
+   ]
+  }
+ },
+ "right": {
+  "silhouette": 0.8472,
+  "red": 0.7573,
+  "black": 0.7116,
+  "metal": 0.587,
+  "same_class": 0.7352,
+  "regions_missing_extra_wrong_cm2": {
+   "front wheel": [
+    201,
+    383,
+    308
+   ],
+   "rear wheel": [
+    282,
+    310,
+    112
+   ],
+   "fork, plate, bars": [
+    91,
+    72,
+    175
+   ],
+   "front fender": [
+    1,
+    33,
+    21
+   ],
+   "engine bay": [
+    50,
+    41,
+    277
+   ],
+   "pivot, pegs, linkage": [
+    168,
+    50,
+    120
+   ],
+   "shroud, tank": [
+    75,
+    28,
+    229
+   ],
+   "seat, side panel": [
+    26,
+    14,
+    142
+   ],
+   "tail, muffler": [
+    24,
+    50,
+    34
+   ]
+  }
+ }
+}

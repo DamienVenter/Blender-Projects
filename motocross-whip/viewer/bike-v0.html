@@ -90,8 +90,8 @@ li::marker { color: var(--red); }
 <div class="wrap">
   <header>
     <h1>Damien's CRF250R <span class="num">#114</span></h1>
-    <span class="tag">Model v0.1 · first pass</span>
-    <p class="lede">The 2026 Honda CRF250R built to Honda's dimensions, with your livery from your photos. Drag to orbit, scroll or pinch to zoom. The views match the angles of your photos.</p>
+    <span class="tag">Model v0.2 · shape pass · stock colours</span>
+    <p class="lede">The stock 2026 Honda CRF250R, shape first: no graphics yet. Every part is being measured against Honda's studio photos. Drag to orbit, scroll or pinch to zoom. The views match the angles of your photos.</p>
   </header>
 
   <div class="main">
@@ -118,7 +118,7 @@ li::marker { color: var(--red); }
         <h2>Built to Honda's numbers</h2>
         <dl>
           <dt>Wheelbase</dt><dd>1483 mm<small>Honda spec</small></dd>
-          <dt>Rake / trail</dt><dd>28°24′ / 117 mm<small>South African spec</small></dd>
+          <dt>Fork angle</dt><dd>27.3°<small>measured on Honda's photo</small></dd>
           <dt>Front tyre</dt><dd>80/100-21 · ⌀701<small>21 × 1.60 rim, 36 spokes</small></dd>
           <dt>Rear tyre</dt><dd>100/90-19 · ⌀653<small>19 × 1.85 rim</small></dd>
           <dt>Fork</dt><dd>Showa 49 mm<small>tubes 186 mm apart</small></dd>
@@ -129,24 +129,24 @@ li::marker { color: var(--red); }
         <p class="note">Shapes come from Honda's studio profile photo, calibrated on the two axles to 0.78 mm per pixel. Both tyre outlines fit their circles to within 6 mm.</p>
       </section>
       <section class="sheet">
-        <h2>From your photos</h2>
+        <h2>Measured against Honda's photo</h2>
         <ul>
-          <li>114 on the plate and side panels, PSALM 91, DAMIEN VENTER</li>
-          <li>Silver flake panels with red and black splatter</li>
-          <li>GUTS seat cover with the ribbed black top</li>
-          <li>Red Renthal bar pad, gold fork tubes</li>
-          <li>Rusty bronze header, red chain roller</li>
-          <li>Chrome-black swingarm wrap with PSALM 91</li>
+          <li>Shape match in profile: 85% (first pass 78%)</li>
+          <li>Frame spars, swingarm, muffler and lower panels cut to the photo's exact outlines</li>
+          <li>Fork tubes within 4 mm of the photo, 60 mm diameter</li>
+          <li>Tread pitch counted on the photo: 41 knobs front, 46 rear</li>
+          <li>The photo's perspective (camera 4.8 m away) corrected for every part</li>
+          <li>Header pipe, down tube and skid plate placed from the photo's edges</li>
         </ul>
       </section>
       <section class="sheet">
         <h2>Next passes</h2>
         <ul>
-          <li>Engine covers, bolts, hoses and cables</li>
-          <li>Exact frame spar and shroud shapes</li>
-          <li>Your real sticker kit (lettering stands in for the logos)</li>
-          <li>Your right side (all five photos show the left)</li>
-          <li>Pirelli MX32 tread, levers, brake lines</li>
+          <li>Plastics as real sculpted surfaces (they are flat cut-outs now)</li>
+          <li>Engine: cases, covers, cylinder, head, every bolt</li>
+          <li>Wheels: hubs, spoke lacing, rims, exact tread blocks</li>
+          <li>Brakes, controls, levers, cables, chain guide, linkage</li>
+          <li>Then your parts and your graphics kit</li>
         </ul>
       </section>
     </aside>
@@ -240,7 +240,7 @@ li::marker { color: var(--red); }
 
   // steering: the front end turns about the bike's steering axis (28 deg 24 min to the ground, 0.93 deg of it is
   // the bike's stance), stored as the 'steer' node's local axis
-  const RAKE_LOCAL = (28.4 - 0.933) * Math.PI / 180;
+  const RAKE_LOCAL = 26.40 * Math.PI / 180;
   const steerAxis = new THREE.Vector3(-Math.sin(RAKE_LOCAL), Math.cos(RAKE_LOCAL), 0).normalize();
   let steerNode = null;
   const steerIn = document.getElementById("steer");
@@ -258,7 +258,7 @@ li::marker { color: var(--red); }
   const spin = document.getElementById("spin");
   spin.addEventListener("change", () => { controls.autoRotate = spin.checked; controls.autoRotateSpeed = 0.8; });
 
-  new THREE.GLTFLoader().load("bike_v0.json", gltf => {
+  new THREE.GLTFLoader().load("bike_v1.json", gltf => {
     const root = gltf.scene;
     root.traverse(o => {
       if (o.isMesh) {

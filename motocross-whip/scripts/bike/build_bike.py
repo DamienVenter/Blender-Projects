@@ -2,7 +2,8 @@
 previews and export glTF.
 
 blender -b --factory-startup --python-exit-code 1 --python build_bike.py -- PARTS.npz TEXTURES_DIR OUT_DIR [views]
-  views: comma list of camera names (default all); 'none' to skip rendering
+        [stock|livery] [NAME]
+  views: comma list of camera names ('all' for every one, 'none' to skip rendering); stock = plain Honda colours
 Writes OUT_DIR/bike_v0.blend, OUT_DIR/bike_v0.glb and OUT_DIR/render_<view>.png.
 """
 import json
@@ -18,11 +19,13 @@ from mathutils import Matrix, Vector
 argv = sys.argv[sys.argv.index("--") + 1:]
 PARTS, TEX, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1]), os.path.abspath(argv[2])
 VIEWS = argv[3].split(",") if len(argv) > 3 else None
+STOCK = len(argv) > 4 and argv[4] == "stock"        # plain stock Honda colours (shape work), no livery
+NAME = argv[5] if len(argv) > 5 else "bike_v0"
 os.makedirs(OUT, exist_ok=True)
 HERE = os.path.dirname(os.path.abspath(__file__))
 BP = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-blueprint.json")))["left"]
 MAPS = json.load(open(os.path.join(TEX, "maps.json")))
-RAKE = math.radians(28.4)
+RAKE = math.radians(26.40)            # fork axis in the axle-line frame (parts.py, measured on the photo)
 
 
 def srgb(c):
@@ -114,6 +117,14 @@ MATS = {
     "bar_black": dict(rgb=(20, 20, 22), metal=0.6, rough=0.35),
 }
 
+MATS.update({"header_steel": dict(rgb=(176, 168, 152), metal=1.0, rough=0.3),
+             "cable": dict(rgb=(16, 16, 17), rough=0.5),
+             "plastic_red": dict(rgb=RED, rough=0.34, coat=0.08)})
+if STOCK:
+    for k in ("livery_L", "livery_R", "livery_fender", "fender_front", "plate"):
+        MATS[k] = dict(rgb=RED, rough=0.34, coat=0.08)
+    MATS["seat"] = dict(rgb=(176, 18, 26), rough=0.8, bump=0.35)
+    MATS["swing_L"] = MATS["swing_R"] = dict(rgb=(200, 200, 204), metal=1.0, rough=0.32, aniso=0.6)
 THIN = {"front_fender", "rear_fender", "number_plate", "fork_guards"}      # single surfaces: solidify
 BEVEL = {"engine": 0.006, "frame": 0.003, "swingarm": 0.003, "clamps": 0.003}           # rounded machined edges
 SMOOTH_ANGLE = {"shrouds": 70, "side_panels": 70, "seat": 70, "front_fender": 70, "rear_fender": 70,
@@ -152,7 +163,7 @@ def build_parts():
     bmats = {}
     for m in mats:
         bmats[m] = principled(m, **MATS.get(m, dict(rgb=(200, 0, 200))))
-    col = bpy.data.collections.new("bike_v0")
+    col = bpy.data.collections.new(NAME)
     bpy.context.scene.collection.children.link(col)
     steer0, up = data["steer_axis"]
     rx, ry, rz, pitch = data["ground"]
@@ -322,7 +333,7 @@ def cameras():
 def render(cams):
     sc = bpy.context.scene
     for co in cams:
-        if VIEWS and co.name not in VIEWS:
+        if VIEWS and VIEWS != ["all"] and co.name not in VIEWS:
             continue
         sc.camera = co
         sc.render.resolution_x, sc.render.resolution_y = co["res"]
@@ -335,7 +346,7 @@ def render(cams):
 def export_glb(col):
     for ob in bpy.context.scene.objects:
         ob.select_set(ob.name in col.all_objects)
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, "bike_v0.glb"), export_format="GLB", use_selection=True,
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, f"{NAME}.glb"), export_format="GLB", use_selection=True,
                               export_apply=True, export_image_format="JPEG", export_jpeg_quality=88)
 
 
@@ -345,7 +356,7 @@ def main():
     col, objs = build_parts()
     studio()
     cams = cameras()
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "bike_v0.blend"))
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, f"{NAME}.blend"))
     export_glb(col)
     if VIEWS != ["none"]:
         render(cams)
