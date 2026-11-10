@@ -207,6 +207,21 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   than the seat's nose, 0.10 wide under the shroud decks where the top photo shows 0.055), `parts.radiators` (top
   outer corner at y 0.177, z 0.939 inside the shoulder the front photo measures), the subframe rails of
   `parts.frame` through the tail wall, the seat and the side panels.
+- **After merging the other modules** (2026-11-10): mounts aimed at a first-pass part were wrong at once (a fender
+  pad sat 48 mm inside the new lower clamp; 22 mm bosses behind the body bolts ran into the new radiators and
+  subframe). Read the other module's mounting points first: the plate's boss and pegs now end 0.3 mm short of the
+  bridges of `detail_front`'s clamps (`fk`, `T_LO`, `FACE_UP`), leaving the plate and meeting the clamp square to
+  each face (a slanted tube end cuts into both); the tail wall takes its x from the subframe's rear cross member.
+- Which side of a single surface Blender's 3 mm shell lies on follows the ring order, and other modules assume
+  one: `detail_front` puts the fender nose's bosses 0.3 mm under the fender's INNER skin, so the front fender's
+  rings run left to right (shell under the surface). Check with `contact.py`-style full distances, not by reasoning.
+- `audit.py` calls a piece floating when none of about 40 sampled vertices is within 4 mm of another object, and its
+  clash depth is the size of the crossing faces, not the penetration. A big panel on small mounts reads as floating
+  (front fender 11.7 mm by the audit, 1.0 mm from the clamp's bosses over all vertices; number plate 7.5 against
+  0.5 mm). Measure true gaps from every vertex before adding geometry for the audit's sake.
+- Shroud decks: take the deck's height and outer edge from the shroud's own surface along the UPPER envelope of its
+  outline (all top-facing points in order of x mixed in lower edges that face up: wrinkled decks), and keep the
+  edge inside the inner face of the panel's shell.
 - Scores after this pass (red overlap, before to after): left 0.871 to 0.894, right 0.883 to 0.899, front 0.749 to
   0.755, rear 0.531 to 0.537, top 0.822 to 0.819.
 - Blender: `honda_left|right|front|rear|top` cameras reproduce Honda's cameras (parented to the bike's root so they

@@ -529,7 +529,7 @@ def _shroud(side):
             return side * (plan(x) - depth - lip - sh * smoothstep((x - 0.72) / 0.15))
         return f
     return SimpleNamespace(view=view, px=px, E=E, plan=plan, skin_px=skin_px, wall_px=wall_px, surf=surf_skin,
-                           surf_wall=surf_wall, crease=cr, vents=vents, inset=inset)
+                           surf_wall=surf_wall, crease=cr, vents=vents, inset=inset, top_env=(ub, tv))
 
 
 def shroud_point(side, u, v):
@@ -545,21 +545,29 @@ DECK_Y = [0.053, 0.055, 0.060, 0.075, 0.092]
 
 @functools.lru_cache(maxsize=None)
 def _deck(side):
+    from scipy.signal import medfilt
     S = _shroud(side)
     cam = cams.CAMS[S.view]
-    top = S.px[S.E.top]
-    T = cam.on_plane(top[:, 0], top[:, 1], "y", side * 0.17)
+    # height: the outline's UPPER envelope per 6 px of column, with the bumps where cables and the tank's cap cross
+    # the top edge taken out by a median over 54 px. (All top-facing points of the outline in order of x, as in the
+    # first pass, mixed the top edge with lower edges that also face up: the decks came out wrinkled.)
+    # Outer edge: the shroud's own surface 1 px under that envelope, so the deck follows the panel's top edge also
+    # where that edge is steep and rolls in with the leading edge's lip (a deck placed by the shoulder alone cut
+    # through the panel there), 0.3 mm inside the inner face of the panel's 3 mm shell (2 mm outside the edge, as in
+    # the first pass, it cut through the shoulder all along: 1066 face pairs in the audit).
+    ub, tv = S.top_env
+    T = np.array([_on_surface(cam, u, v + 1.0, S.surf(u, v + 1.0), side * 0.15) for u, v in zip(ub, tv)])
     o = np.argsort(T[:, 0])
-    tx, tz = T[o, 0], _gauss(T[o, 2], 4.0)
+    tx = T[o, 0]
+    from scipy.ndimage import minimum_filter1d
+    # the edge's innermost reach over 54 px, smoothed: where the edge rolls in and out the deck stays inside it
+    ty = _gauss(minimum_filter1d(np.abs(T[o, 1]), 9, mode="nearest"), 2.0)
+    tz = _gauss(medfilt(T[o, 2], 9), 3.0)
     xs = np.linspace(0.792, min(1.062, float(tx.max()) - 0.075), 40)
 
     def edges(x):
-        zt = float(np.interp(x, tx, tz))
-        u = float(cam.project(np.array([[x, side * 0.17, zt]]))[0][0])
-        # 0.5 mm inside the shoulder's top edge (2 mm outside it, as in the first pass, the deck cut through the
-        # shoulder all along: 1066 face pairs in the audit)
-        y_out = S.plan(x) - S.inset(u) * smoothstep((x - 0.72) / 0.15) - 0.0005
-        return zt, y_out, min(float(np.interp(x, DECK_X, DECK_Y)), y_out - 0.004)
+        y_out = float(np.interp(x, tx, ty)) - 0.0033
+        return float(np.interp(x, tx, tz)), y_out, min(float(np.interp(x, DECK_X, DECK_Y)), y_out - 0.004)
     return xs, edges
 
 
@@ -784,12 +792,24 @@ TAIL_X0 = 0.20       # the red wall under the tail (detail_plastics.tail_under):
 TAIL_TOP_ROW = 606   # REAR: its top edge
 
 
-def _tank_top():
-    """Top of the tank along x (parts.tank, a shared estimate), so the seat's nose stays clear of it."""
+@functools.lru_cache(maxsize=None)
+def _tank_tree():
+    import importlib
+    from scipy.spatial import cKDTree
     import parts
-    V = np.asarray(parts.tank().V)
-    xs = np.unique(np.round(V[:, 0], 4))
-    return xs, np.array([V[np.abs(V[:, 0] - x) < 2e-4, 2].max() for x in xs])
+    fn = parts.tank
+    for name in parts.PLUGINS:                              # the tank a merged module builds, if one does
+        if name != "detail_plastics" and os.path.exists(os.path.join(HERE, name + ".py")):
+            fn = getattr(importlib.import_module(name), "PARTS", {}).get("tank", fn)
+    V = np.asarray(fn().V)
+    return cKDTree(V[:, :2]), V[:, 2]
+
+
+def _tank_z(x, y):
+    """Top of the tank within 10 mm of (x, y), so the seat's nose stays clear of it (-1: no tank there)."""
+    tree, z = _tank_tree()
+    i = tree.query_ball_point((x, y), 0.010)
+    return float(z[i].max()) if len(i) else -1.0
 
 
 def seat():
@@ -807,7 +827,6 @@ def seat():
         W = cams.CAMS[Pn.view].on_plane(Pn.seam[:, 0], Pn.seam[:, 1], "y", side * 0.10)
         o = np.argsort(W[:, 0])
         seams.append((W[o, 0], _gauss(W[o, 2], 2.0)))
-    tx, tz = _tank_top()
     z_wall = float(REAR.on_plane(np.array([2000.0]), np.array([float(TAIL_TOP_ROW)]), "x", TAIL_X0)[0][2])
     cover, base = [], []
     for x in np.linspace(0.082, 0.798, 72):
@@ -816,10 +835,10 @@ def seat():
         zt = float(np.interp(x, top_line[:, 0], _smooth(top_line[:, 1], 5)))
         out = SEAM_OUT * sat(hw / 0.07)
         ends = sat((x - 0.082) / 0.05 + 0.25) * sat((0.798 - x) / 0.06 + 0.2)       # the skirt shortens at both ends
-        over_tank = float(np.interp(x, tx, tz)) + 0.004 if tx[0] <= x <= tx[-1] else -1.0
-        # the skirts follow the photo's seam also beside the tank (parts.tank is wider there than the seat's nose:
-        # only the base between them is lifted over it)
-        zb = [min(max(float(np.interp(x, sx, sz)) - 0.002, zt - 0.012 - 0.105 * ends), zt - 0.012) for sx, sz in seams]
+        # over the tank the base and the skirts' lower edges stop 0.5 mm above it (the nose sits on the tank)
+        over_tank = max(_tank_z(x, y) for y in (-0.6 * hw, 0.0, 0.6 * hw)) + 0.0005
+        zb = [min(max(float(np.interp(x, sx, sz)) - 0.002, zt - 0.012 - 0.105 * ends,
+                      _tank_z(x, sgn * (hw + out)) + 0.0005), zt - 0.012) for (sx, sz), sgn in zip(seams, (1, -1))]
 
         def half(zb_):
             r = min(SEAT_R, 0.75 * hw, 0.8 * (zt - zb_))
@@ -993,9 +1012,11 @@ def front_fender():
     # stations every 5 mm, every 1.5 mm over the last 30 mm: the nose narrows fast
     xs = np.concatenate([np.linspace(1.218, 1.677, 92), np.linspace(1.6785, X_NOSE, 20)])
     A = np.concatenate([np.linspace(0, FF_A1, 18), np.linspace(FF_A1, FF_A2, 7)[1:], np.linspace(FF_A2, 1.0, 6)[1:]])
-    # (ring order right to left: reversed, the audit's clash with the lower clamp's bosses of detail_front grew from
-    # 2.5 to 3.5 mm and the fender came loose by 4.8 mm, so Blender's 3 mm shell lies under this surface as it is)
-    U = np.concatenate([-A[::-1], A[1:]])
+    # Rings run left to right, so Blender's 3 mm shell lies UNDER this surface: the measured top line is the fender's
+    # top, and the bosses of the lower clamp's fender nose (detail_front), which stop 0.3 mm under the inner skin,
+    # meet it. (Right to left, the shell lay above the surface: measured from every vertex the fender was 3.8 mm
+    # from the bosses.)
+    U = np.concatenate([-A[::-1], A[1:]])[::-1]
     rings = [np.array([(x, u * hw(x), z(x, abs(u))) for u in U]) for x in xs]
     return grid(Mesh(), rings, "plastic_red", closed_u=False)
 
@@ -1162,7 +1183,8 @@ def mud_flap():
     z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])      # mudguard's lower edge
     rings = []
     for z in (0.735, 0.715, 0.700, 0.688):                  # up to where the mudguard is at its full width
-        rings.append(np.array([(MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(u) * 0.060 / 0.084, 1.0) ** 2) + 0.004
+        # 0.3 mm in front of the mudguard's front face (its plate is 3 mm thick about its mid-surface)
+        rings.append(np.array([(MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(u) * 0.060 / 0.084, 1.0) ** 2) + 0.0018
                                 + 0.007 * abs(u) ** 2.2, u * 0.060, z) for u in np.linspace(-1, 1, 13)]))
     for z in np.linspace(0.675, 0.485, 20):
         x = float(np.interp(-z, -zt, xr))

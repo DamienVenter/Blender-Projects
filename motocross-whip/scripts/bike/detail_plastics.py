@@ -87,7 +87,7 @@ def fork_guards():
     slots = _guard_slots(ts)
     f_of = lambda t: float(np.interp(t, ts, fr))
     r_of = lambda t: float(np.interp(t, ts, rr))
-    taper = lambda t: 0.004 * (1.0 - min((t - ts[0]) / 0.02, (ts[-1] - t) / 0.03, 1.0))    # the ends close in a little
+    taper = lambda t: 0.004 * (1.0 - min((ts[-1] - t) / 0.03, 1.0))    # the top end closes in a little
     wall = np.array([(t, r_of(t)) for t in ts] + [(t, f_of(t) - 0.014) for t in ts[::-1]])
     holes = [h for h in slots if inside(wall, h).all() and inside(wall, h + np.array([0.0, 0.003])).all()
              and inside(wall, h - np.array([0.0, 0.003])).all()]
@@ -121,34 +121,61 @@ def guard_hardware():
     for side in (1, -1):
         for u, v in ((1094.0, 1555.0), (1132.0, 1578.0)):
             c = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
-            c[1] = side * (GUARD_OUT + 0.0005)
+            c[1] = side * (GUARD_OUT + 0.0033)
             m.add(bolt(c, (0, side, 0), af=0.008, head_h=0.005, flange_d=0.013))
     c = LEFT.on_plane(np.array([1238.0]), np.array([1166.0]), "y", GUARD_OUT)[0]
     R = np.column_stack([-P.BACK, [0.0, 1.0, 0.0], P.UP])
-    m.add(box(c + np.array([0, 0.004, 0]), (0.026, 0.008, 0.032), "alu_machined", R=R))
+    m.add(box(c + np.array([0, 0.0073, 0]), (0.026, 0.008, 0.032), "alu_machined", R=R))
     for u, v in ((1237.0, 1160.0), (1235.0, 1189.0)):
         b = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
-        b[1] = GUARD_OUT + 0.008
+        b[1] = GUARD_OUT + 0.0113
         m.add(bolt(b, (0, 1, 0), af=0.007, head_h=0.004, kind="cap"))
     ring = lathe([(0.008 + 0.0025 * math.cos(q), 0.0025 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
                  20, "alu_machined", closed=True)
-    ring.transform(np.column_stack([-P.BACK, P.UP, [0.0, -1.0, 0.0]]), c - P.BACK * 0.020 + np.array([0, 0.004, 0]))
+    ring.transform(np.column_stack([-P.BACK, P.UP, [0.0, -1.0, 0.0]]), c - P.BACK * 0.020 + np.array([0, 0.0073, 0]))
     m.add(ring)
     return m
 
 
 # ---------------------------------------------------------------- under the tail
+GROOVE = 0.004
+
+
+def _plugin_part(name):
+    """The mesh of a part as the merged modules build it (None if no module builds it)."""
+    import importlib
+    for mod in P.PLUGINS:
+        if mod == "detail_plastics" or not os.path.exists(os.path.join(P.HERE, mod + ".py")):
+            continue
+        fn = getattr(importlib.import_module(mod), "PARTS", {}).get(name)
+        if fn is not None:
+            return fn()
+    return None
+
+
+def _wall_x():
+    sub = _plugin_part("subframe")
+    if sub is None:
+        return plastics.TAIL_X0
+    V = np.asarray(sub.V)
+    V = V[(np.abs(V[:, 1]) < 0.085) & (V[:, 2] > 0.84) & (V[:, 2] < 0.95) & (V[:, 0] > 0.12) & (V[:, 0] < 0.30)]
+    if not len(V):
+        return plastics.TAIL_X0
+    return float(V[:, 0].min()) - 0.002 - GROOVE - 0.0003       # wall 4 mm thick about X0, floor GROOVE ahead
+
+
 def tail_under():
     """The red wall under the tail, facing back, above the inner mudguard's arch (REAR).
     Outline, rows 606..808: red from u 1872 to 2130 (128 px either side of the centre column), the arch cut out
     along the dark region (u 1964..2034 at row 736, 1949..2049 at 750, 1938..2058 at 764, 1927..2063 at 778,
     1917..2071 at 792), a tab under each bolt (left to row 800, right to 808). Two upright channels in shadow at
-    u 1887..1918 and 2076..2110, rows 612..686 (10 mm deep EST). A bolt with a 20 mm washer on a boss either side of
+    u 1887..1918 and 2076..2110, rows 612..686 (4 mm deep EST). A bolt with a 20 mm washer on a boss either side of
     the arch (metal blobs 29 px wide at (1895, 766) and (2113, 775)). Left of u 1872 the red of the old stand-in
     plate was the left side panel's inner face, not this wall.
-    Cast onto an upright plane at x 0.20 (EST: hidden behind the side panels and the seat in the other photos; the
+    Cast onto an upright plane that puts the channels' floors 0.3 mm behind the rear face of the subframe's rear
+    cross member (detail_chassis), which the wall bolts to; without that module at x 0.20 (EST: hidden; the
     seat's base is raised over it). What it bolts to (the subframe's rear cross member) is detail_chassis's."""
-    X0 = plastics.TAIL_X0
+    X0 = _wall_x()
     # top corners as the photo has them (row 610: red u 1898..2102, row 624: 1890..2110, rows 638..652: 1885..2129)
     px = np.array([(1898, 608), (2102, 608), (2112, 624), (2129, 640), (2130, 700), (2128, 760), (2124, 800),
                    (2100, 808), (2084, 806), (2071, 792), (2063, 778), (2058, 764), (2049, 750), (2034, 736),
@@ -163,7 +190,7 @@ def tail_under():
         for u0, u1, v0, v1 in grooves:
             d = min(u - u0, u1 - u, v - v0, v1 - v)
             if d > 0:
-                return 0.010 * plastics.smoothstep(d / 4.0)
+                return GROOVE * plastics.smoothstep(d / 4.0)
         return 0.0
 
     def to3d(u, v, w):
@@ -249,17 +276,27 @@ def panel_bolts():
 # ---------------------------------------------------------------- number plate: mounts and hose guide
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
-    on the lower clamp's front face (both EST: hidden behind the plate; the clamps are parts.clamps). Hose guide:
+    on the lower clamp's front face, 0.3 mm short of it (both EST: hidden behind the plate; the clamps are
+    detail_front's). Hose guide:
     FRONT rows 600..640, a black loop u 2081..2143 beside the plate's lower edge on the bike's left, which the brake
     hose runs through (loop 22 mm across; its tab to the plate EST)."""
     Pl = plastics._plate()
     m = Mesh()
     uc, vc = plastics.PLATE_POCKET[:2]
     # everything starts 0.5 mm behind the plate's back face (the plate is 3 mm thick): nothing cuts through it
-    m.add(tube([Pl.hit(uc, vc, 0.006), P.on_tube(P.T_TOP_CLAMP) - P.BACK * 0.031], 0.006, 12, "plastic_red"))
-    for u in (1968.0, 2032.0):
-        p = Pl.hit(u, 598.0, 0.0035)
-        m.add(tube([p, P.on_tube(P.T_BOT_CLAMP) - P.BACK * 0.031 + np.array([0, p[1], 0])], 0.006, 10, "plastic_red"))
+    try:                                                   # front faces of the clamps' bridges (detail_front)
+        import detail_front as DF
+        top = lambda y: DF.fk(0.0173, y, (DF.FACE_UP + DF.T_UP[1]) / 2)
+        low = lambda y: DF.fk(0.0253, y, DF.T_LO[0] + 0.036)
+    except Exception:                                      # the first pass's clamps
+        top = lambda y: P.on_tube(P.T_TOP_CLAMP) - P.BACK * 0.031 + np.array([0, y, 0])
+        low = lambda y: P.on_tube(P.T_BOT_CLAMP) - P.BACK * 0.031 + np.array([0, y, 0])
+    # each leaves the plate square to it and meets the clamp square to its face (a slanted end cut into both)
+    stub = lambda p, q, seg: tube([p, p + Pl.back * 0.007, q - P.BACK * 0.007, q], 0.006, seg, "plastic_red")
+    m.add(stub(Pl.hit(uc, vc, 0.0035), top(0.0), 12))
+    for u in (1970.0, 2030.0):                             # on the flat centre panel (its edge is 47 px out here:
+        p = Pl.hit(u, 598.0, 0.0035)                       # further out the folded wing cut the peg's end)
+        m.add(stub(p, low(p[1]), 10))
     c = Pl.hit(2120.0, 626.0, 0.007)
     e = Pl.hit(2074.0, 600.0, 0.007)
     ring = lathe([(0.011 + 0.003 * math.cos(q), 0.003 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
