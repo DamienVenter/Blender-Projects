@@ -1,0 +1,58 @@
+{
+ "left": {
+  "file": "studio_left-profile_honda-eu-25ym-475600_4000x2250.jpg",
+  "front_side": "left",
+  "size_px": [
+   4000,
+   2250
+  ],
+  "front_axle_px": [
+   1062.3,
+   1587.2
+  ],
+  "rear_axle_px": [
+   2956.7,
+   1606.6
+  ],
+  "mm_per_px": 0.78277,
+  "tilt_deg": 0.588,
+  "front_tyre_od_mm": 701.1,
+  "rear_tyre_od_mm": 652.8,
+  "fit_rms_px": [
+   6.03,
+   6.9
+  ],
+  "fit_points": [
+   415,
+   284
+  ]
+ },
+ "right": {
+  "file": "studio_right-profile_honda-eu-25ym-475596_4000x2250.jpg",
+  "front_side": "right",
+  "size_px": [
+   4000,
+   2250
+  ],
+  "front_axle_px": [
+   2936.8,
+   1587.8
+  ],
+  "rear_axle_px": [
+   1040.9,
+   1611.4
+  ],
+  "mm_per_px": 0.78214,
+  "tilt_deg": 0.715,
+  "front_tyre_od_mm": 700.6,
+  "rear_tyre_od_mm": 646.2,
+  "fit_rms_px": [
+   5.92,
+   6.29
+  ],
+  "fit_points": [
+   408,
+   275
+  ]
+ }
+}

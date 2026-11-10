@@ -1,0 +1,302 @@
+<title>Damien's CRF250R</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,700;1,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one studio bay. The bike fills a wide stage; the build sheet runs beside it (below it on a phone). */
+:root {
+  --bg: #121417;          /* graphite studio */
+  --stage: #191c20;
+  --panel: #1c1f24;
+  --line: #2b2f35;
+  --fg: #ecebe8;
+  --muted: #9b9fa6;
+  --red: #d62230;         /* Honda Extreme Red */
+  --gold: #d6a65c;        /* fork tubes */
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 {
+  font-family: var(--display); font-style: italic; font-weight: 800;
+  font-size: clamp(34px, 6vw, 56px); line-height: 0.95; margin: 0; letter-spacing: 0.5px;
+  text-wrap: balance;
+}
+h1 .num { color: var(--red); }
+.tag {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); padding: 3px 8px; border-radius: 4px;
+}
+.lede { margin: 0; color: var(--muted); max-width: 68ch; flex-basis: 100%; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.stage {
+  position: relative; background: radial-gradient(ellipse at 50% 70%, #23272d 0%, var(--stage) 60%);
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0;
+  aspect-ratio: 16 / 10; max-width: 100%;
+}
+@media (max-width: 600px) { .stage { aspect-ratio: 4 / 5; } }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.status {
+  position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono);
+  font-size: 13px; color: var(--muted); pointer-events: none;
+}
+.status[hidden] { display: none; }
+.views {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px;
+}
+button.view, .toggle {
+  font: 500 13px var(--body); color: var(--fg); background: rgba(18, 20, 23, 0.82);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+button.view:hover, .toggle:hover { border-color: var(--muted); }
+button.view[aria-pressed="true"] { border-color: var(--red); color: #fff; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--muted);
+}
+.controls label { display: flex; align-items: center; gap: 8px; }
+.controls input[type="range"] { width: 160px; accent-color: var(--red); }
+.controls output { font-family: var(--mono); color: var(--fg); min-width: 4ch; font-variant-numeric: tabular-nums; }
+aside { display: grid; gap: 14px; min-width: 0; }
+section.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+h2 {
+  font-family: var(--display); font-style: italic; font-weight: 700; font-size: 22px; margin: 0 0 8px;
+  letter-spacing: 0.4px;
+}
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
+dt { color: var(--muted); }
+dd { margin: 0; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; }
+dd small { display: block; font-family: var(--body); color: var(--muted); font-size: 11px; }
+ul { margin: 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
+li::marker { color: var(--red); }
+.note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Damien's CRF250R <span class="num">#114</span></h1>
+    <span class="tag">Model v0.1 · first pass</span>
+    <p class="lede">The 2026 Honda CRF250R built to Honda's dimensions, with your livery from your photos. Drag to orbit, scroll or pinch to zoom. The views match the angles of your photos.</p>
+  </header>
+
+  <div class="main">
+    <div style="display:grid; gap:12px; min-width:0;">
+      <div class="stage" id="stage">
+        <canvas id="c" aria-label="3D model of Damien's motocross bike"></canvas>
+        <div class="status" id="status">Loading the bike (6 MB)…</div>
+        <div class="views" role="group" aria-label="Camera views">
+          <button class="view" id="v-left" data-view="left" aria-pressed="false">Left side</button>
+          <button class="view" id="v-photo1" data-view="photo1" aria-pressed="true">Front-left (your photo 1)</button>
+          <button class="view" id="v-cockpit" data-view="cockpit" aria-pressed="false">Cockpit (your photo 4)</button>
+          <button class="view" id="v-rear" data-view="rear" aria-pressed="false">Right rear</button>
+        </div>
+      </div>
+      <div class="controls">
+        <label for="steer">Turn the bars <input type="range" id="steer" min="-38" max="38" value="0" step="1"><output id="steer-out" for="steer">0°</output></label>
+        <label for="plastics"><input type="checkbox" id="plastics" checked> Plastics on</label>
+        <label for="spin"><input type="checkbox" id="spin"> Turntable</label>
+      </div>
+    </div>
+
+    <aside>
+      <section class="sheet">
+        <h2>Built to Honda's numbers</h2>
+        <dl>
+          <dt>Wheelbase</dt><dd>1483 mm<small>Honda spec</small></dd>
+          <dt>Rake / trail</dt><dd>28°24′ / 117 mm<small>South African spec</small></dd>
+          <dt>Front tyre</dt><dd>80/100-21 · ⌀701<small>21 × 1.60 rim, 36 spokes</small></dd>
+          <dt>Rear tyre</dt><dd>100/90-19 · ⌀653<small>19 × 1.85 rim</small></dd>
+          <dt>Fork</dt><dd>Showa 49 mm<small>tubes 186 mm apart</small></dd>
+          <dt>Discs</dt><dd>260 / 240 mm<small>petal, front left, rear right</small></dd>
+          <dt>Final drive</dt><dd>13 / 50 · #520</dd>
+          <dt>Pivot to axle</dt><dd>579 mm<small>measured; Honda says 585.2</small></dd>
+        </dl>
+        <p class="note">Shapes come from Honda's studio profile photo, calibrated on the two axles to 0.78 mm per pixel. Both tyre outlines fit their circles to within 6 mm.</p>
+      </section>
+      <section class="sheet">
+        <h2>From your photos</h2>
+        <ul>
+          <li>114 on the plate and side panels, PSALM 91, DAMIEN VENTER</li>
+          <li>Silver flake panels with red and black splatter</li>
+          <li>GUTS seat cover with the ribbed black top</li>
+          <li>Red Renthal bar pad, gold fork tubes</li>
+          <li>Rusty bronze header, red chain roller</li>
+          <li>Chrome-black swingarm wrap with PSALM 91</li>
+        </ul>
+      </section>
+      <section class="sheet">
+        <h2>Next passes</h2>
+        <ul>
+          <li>Engine covers, bolts, hoses and cables</li>
+          <li>Exact frame spar and shroud shapes</li>
+          <li>Your real sticker kit (lettering stands in for the logos)</li>
+          <li>Your right side (all five photos show the left)</li>
+          <li>Pirelli MX32 tread, levers, brake lines</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function () {
+  const canvas = document.getElementById("c");
+  const stage = document.getElementById("stage");
+  const statusEl = document.getElementById("status");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  renderer.physicallyCorrectLights = true;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x191c20);
+
+  // studio reflections: a box room with soft light panels, prefiltered for PBR
+  function studioEnv() {
+    const env = new THREE.Scene();
+    const room = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 12),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.22, 0.23, 0.25), side: THREE.BackSide }));
+    room.position.y = 3;
+    env.add(room);
+    const panel = (w, h, x, y, z, s) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(s, s, s), side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.lookAt(0, 0.8, 0); env.add(m);
+    };
+    panel(6, 2.5, 0, 6.5, 0, 6.0);       // top softbox
+    panel(3, 3, 4.5, 2.5, -3.5, 4.0);    // key, front left
+    panel(3, 3, -4.5, 2.0, 3.5, 2.5);    // fill, right rear
+    panel(2, 4, -5.5, 2.5, -2.0, 3.0);   // rim
+    const pm = new THREE.PMREMGenerator(renderer);
+    return pm.fromScene(env, 0.035).texture;
+  }
+  scene.environment = studioEnv();
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2c30, 0.35));
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
+  key.position.set(3.0, 5.0, -3.0);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -2.2, right: 2.2, top: 2.2, bottom: -2.2, near: 0.5, far: 14 });
+  key.shadow.bias = -0.0004;
+  scene.add(key);
+  key.target.position.set(0.75, 0, 0);
+  scene.add(key.target);
+
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64),
+    new THREE.MeshStandardMaterial({ color: 0x1e2125, roughness: 0.92, metalness: 0 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const camera = new THREE.PerspectiveCamera(32, 16 / 10, 0.05, 60);
+  const controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.minDistance = 0.4;
+  controls.maxDistance = 9;
+  controls.maxPolarAngle = Math.PI * 0.495;
+
+  // Blender (x fwd, y left, z up) -> glTF/three (x, z, -y)
+  const B = (x, y, z) => new THREE.Vector3(x, z, -y);
+  const VIEWS = {
+    left:    { pos: B(0.75, 4.6, 0.75), tgt: B(0.75, 0, 0.58) },
+    photo1:  { pos: B(3.55, 1.15, 1.10), tgt: B(0.85, 0, 0.60) },
+    cockpit: { pos: B(0.20, 0, 1.40), tgt: B(1.40, 0, 0.98) },
+    rear:    { pos: B(-1.6, -2.8, 1.35), tgt: B(0.70, 0, 0.58) }
+  };
+  let tween = null;
+  function goTo(name, instant) {
+    const v = VIEWS[name];
+    document.querySelectorAll("button.view").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === name));
+    if (instant || reduce) { camera.position.copy(v.pos); controls.target.copy(v.tgt); controls.update(); tween = null; return; }
+    tween = { p0: camera.position.clone(), t0: controls.target.clone(), v, s: performance.now() };
+  }
+  document.querySelectorAll("button.view").forEach(b => b.addEventListener("click", () => goTo(b.dataset.view)));
+  goTo("photo1", true);
+
+  // steering: the front end turns about the bike's steering axis (28 deg 24 min to the ground, 0.93 deg of it is
+  // the bike's stance), stored as the 'steer' node's local axis
+  const RAKE_LOCAL = (28.4 - 0.933) * Math.PI / 180;
+  const steerAxis = new THREE.Vector3(-Math.sin(RAKE_LOCAL), Math.cos(RAKE_LOCAL), 0).normalize();
+  let steerNode = null;
+  const steerIn = document.getElementById("steer");
+  const steerOut = document.getElementById("steer-out");
+  steerIn.addEventListener("input", () => {
+    steerOut.textContent = steerIn.value + "°";
+    if (steerNode) steerNode.quaternion.setFromAxisAngle(steerAxis, -steerIn.value * Math.PI / 180);
+  });
+
+  const PLASTICS = ["shrouds", "side_panels", "seat", "rear_fender", "front_fender", "number_plate", "tank", "fork_guards"];
+  const plasticNodes = [];
+  document.getElementById("plastics").addEventListener("change", e => {
+    plasticNodes.forEach(n => { n.visible = e.target.checked; });
+  });
+  const spin = document.getElementById("spin");
+  spin.addEventListener("change", () => { controls.autoRotate = spin.checked; controls.autoRotateSpeed = 0.8; });
+
+  new THREE.GLTFLoader().load("bike_v0.json", gltf => {
+    const root = gltf.scene;
+    root.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = true; o.receiveShadow = true;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => { if (m.map) m.map.anisotropy = 8; m.envMapIntensity = 1.0; });
+      }
+      if (o.name === "steer") steerNode = o;
+      if (PLASTICS.includes(o.name)) plasticNodes.push(o);
+    });
+    scene.add(root);
+    statusEl.hidden = true;
+  }, ev => {
+    if (ev.total) statusEl.textContent = "Loading the bike… " + Math.round(100 * ev.loaded / ev.total) + "%";
+  }, err => {
+    statusEl.textContent = "The 3D model did not load. Reload the page to try again.";
+    console.error(err);
+  });
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  renderer.setAnimationLoop(now => {
+    if (tween) {
+      const t = Math.min((now - tween.s) / 900, 1), k = ease(t);
+      camera.position.lerpVectors(tween.p0, tween.v.pos, k);
+      controls.target.lerpVectors(tween.t0, tween.v.tgt, k);
+      if (t >= 1) tween = null;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  });
+})();
+</script>
