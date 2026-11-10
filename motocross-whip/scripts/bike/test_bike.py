@@ -150,3 +150,49 @@ def test_nothing_shows_through_the_plastics(npz):
     # the side panel's air intake is a real dark opening inside its outline
     found = {k: a for k, a in found.items() if k[1] != "side_panels"}
     assert not found, found
+
+
+# ---------------------------------------------------------------- Honda's spec sheet (research/crf250r-2026.md)
+def _ground(npz):
+    """Every part's vertices on the ground (the parts are built in the axle-line frame and tilted nose-up)."""
+    d = np.load(npz)
+    rx, _, rz, pitch = d["ground"]
+    c, s = math.cos(pitch), math.sin(pitch)
+    out = {}
+    for n in [str(q) for q in d["names"]]:
+        V = d[f"{n}__V"].astype(float)
+        x, z = V[:, 0] - rx, V[:, 2] - rz
+        out[n] = np.stack([rx + c * x - s * z, V[:, 1], rz + s * x + c * z], axis=1)
+    return out
+
+
+def test_overall_dimensions_against_the_spec_sheet(npz):
+    G = _ground(npz)
+    allv = np.vstack(list(G.values()))
+    assert abs(allv[:, 2].min()) < 0.002                                   # both tyres stand on the ground
+    # length: 2179 in the spec; wheelbase + both measured tyre radii is 2160, the model's 2161. Honda's extra
+    # 18 mm is unexplained (the fender's tip is ahead of the tyre's rear in the photo)
+    assert abs(np.ptp(allv[:, 0]) - 2.179) < 0.025
+    # height: 1262 to the top of the bars (cable loops stand higher in the photo and in the model)
+    assert abs(G["bars"][:, 2].max() - 1.262) < 0.012
+    # ground clearance 330 under the frame cradle and engine
+    low = np.vstack([G[n] for n in ("frame", "engine", "exhaust")])
+    assert abs(low[(low[:, 0] > 0.55) & (low[:, 0] < 1.0)][:, 2].min() - 0.330) < 0.010
+
+
+def test_seat_height_against_the_spec_sheet(npz):
+    """955 mm in the spec; the studio photo, which the seat follows, has it 12 mm higher (suspension extended)."""
+    d = np.load(npz)
+    V = d["seat__V"].astype(float)
+    xs = np.round(V[:, 0], 4)
+    top = np.array([V[xs == x][np.argmax(V[xs == x][:, 2])] for x in np.unique(xs)])
+    rx, _, rz, pitch = d["ground"]
+    zg = rz + math.sin(pitch) * (top[:, 0] - rx) + math.cos(pitch) * (top[:, 2] - rz)
+    m = (top[:, 0] > 0.25) & (top[:, 0] < 0.70)
+    assert abs(zg[m].min() - 0.955) < 0.016, zg[m].min()
+
+
+@pytest.mark.xfail(strict=True, reason="bars are 866 mm wide in the model, 827 in the spec: fix with the bars pass")
+def test_overall_width_against_the_spec_sheet(npz):
+    G = _ground(npz)
+    assert abs(np.ptp(G["bars"][:, 1]) - 0.827) < 0.008

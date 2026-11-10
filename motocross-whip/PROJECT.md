@@ -12,8 +12,8 @@ No sound for now. **Sound gets added at the end. Do not forget.**
 Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single-cylinder four-stroke.
 
 ## Phase order
-0. Setup and research (done), physics demo (current: `scripts/demo/`, see its README)
-1. Bike: 2026 CRF250R, dimensionally exact, recreating Damien's own bike from his photos
+0. Setup and research (done), physics demo and whip replica (`scripts/demo/`; motion fixes parked until the bike is right)
+1. Bike: 2026 CRF250R, dimensionally exact, recreating Damien's own bike from his photos (current: `scripts/bike/`, exact-shape pass, plastics first; decisions 26 to 28)
 2. Rider: Damien, 185 cm, built from his photos; rig
 3. Kit and bike graphics: Leatt gear only; custom sticker kit from Damien's references; fabrics, materials, shading
 4. Environment: King of the Whip 2025 setting, steel FMX ramp, dirt landing, 75 ft gap
