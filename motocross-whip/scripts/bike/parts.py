@@ -111,7 +111,8 @@ def t_at_z(z):
 
 
 T_BOT_CLAMP = t_at_z(0.925)                         # GRID: lower clamp at z 0.90..0.96
-T_TOP_CLAMP = t_at_z(1.140)                         # GRID: top clamp at z 1.13..1.15
+T_TOP_CLAMP = t_at_z(1.140)                         # GRID: TOP FACE of the top clamp at the tubes (silver t 0.884 to 0.928
+# on both profiles), not its centre
 PIVOT = np.array([0.564, 0.0, 0.480])               # swingarm pivot bolt: its cap cast on its own plane (y 0.14) through
 # the left camera. Read on the centre plane it was 18 mm low (the camera looks down on it). Pivot to axle 584.5 (SPEC 585.2)
 PEG = np.array([0.556, 0.0, 0.378])                 # GRID: footpeg, read on the centre plane (the teeth, on their own plane, are

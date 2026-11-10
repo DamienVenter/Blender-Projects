@@ -35,12 +35,15 @@ def test_parts_and_budget(built):
 
 
 def test_tyre_diameters(built):
-    # knob tips on the measured radii; knobbly tyres stand up to 4.5 % over their size codes' nominal diameters
-    # (SPEC 80/100-21: 693.4 mm, 100/90-19: 662.6 mm; here 718.6 and 668.6)
+    # knob tips on the shared radii (LEFT / RIGHT circle fits). The front stands 3.6 % over its size code's nominal
+    # 693.4 mm in Honda's photos, the rear 0.9 % over 662.6 mm.
     for name, c, R, nominal in (("front_wheel", parts.FA, parts.R_FRONT, 0.6934), ("rear_wheel", parts.RA, parts.R_REAR, 0.6626)):
         r, _ = _radii(built[name], c, "rubber")
         assert abs(r.max() - R) < 0.0008, name
-        assert -0.01 < 2 * r.max() / nominal - 1 < 0.045, name
+        assert abs(2 * r.max() / nominal - 1) < 0.04, name
+    # the carcass between the knobs is where the photos show the groove floor (it did not move with the tips)
+    for spec in (dw.FRONT, dw.REAR):
+        assert abs(spec["R"] - spec["knob"] - spec["root"]) < 0.0015
 
 
 def test_tyre_widths(built):
@@ -90,23 +93,35 @@ def test_sprockets_and_chain():
         tips = np.sum((r > np.roll(r, 1)) & (r >= np.roll(r, -1)))
         assert tips == n
         assert abs(r.min() - (parts.sprocket_r(n) - dw.SEAT_R)) < 1e-6
-    pins, th_a, th_b, bottom, _, low_pitch = dw.chain_path()
+    pins, th_a, th_b, bottom, e = dw.chain_path()
     n = len(pins)
-    assert n % 2 == 0 and 108 <= n <= 120
+    assert n % 2 == 0 and 108 <= n <= 118
+    assert abs(parts.P520 - 0.015875) < 1e-9                                # SPEC #520 pitch
+    # the photo's path is 112.9 pitches round: 112 links, the free runs' links 1.2 % long, the seated ones true
     d = np.linalg.norm(np.diff(np.vstack([pins, pins[:1]]), axis=0), axis=1)
-    assert abs(parts.P520 - 0.015875) < 1e-9
-    assert np.all(abs(d / parts.P520 - 1) < 0.011)                         # SPEC #520 pitch; bottom run closed up 0.9 %
-    free_bottom = len(bottom) - 1
-    assert np.sum(abs(d - parts.P520) < 1e-7) == n - free_bottom           # every other link exactly one pitch
+    true = abs(d - parts.P520) < 1e-7
+    assert true.sum() >= 32 and np.all(true | (abs(d / (parts.P520 * (1 + e)) - 1) < 0.004))
+    assert 0 < e < 0.0125 and e * (~true).sum() / n < 0.01                  # under 1 % over the whole chain
     c1, c2 = np.array([parts.CS[0], parts.CS[2]]), np.array([parts.RA[0], parts.RA[2]])
     on_r = np.isclose(np.linalg.norm(pins - c2, axis=1), parts.sprocket_r(50), atol=1e-7)
     on_f = np.isclose(np.linalg.norm(pins - c1, axis=1), parts.sprocket_r(13), atol=1e-7)
     assert on_r.sum() >= 26 and on_f.sum() >= 6                             # wrapped half way round both sprockets
-    # every seated pin lies in a tooth seat of its sprocket
-    for on, c, nt, th in ((on_r, c2, 50, th_a), (on_f, c1, 13, th_b)):
+    for on, c, nt, th in ((on_r, c2, 50, th_a), (on_f, c1, 13, th_b)):      # every seated pin in a tooth seat
         ang = np.arctan2(pins[on, 1] - c[1], pins[on, 0] - c[0])
         k = (ang - th) / (2 * math.pi / nt)
         assert np.allclose(k, np.round(k), atol=1e-6)
+    # no free pin inside a pitch circle (the chain meets and leaves the sprockets from outside)
+    assert np.all(np.linalg.norm(pins - c2, axis=1) > parts.sprocket_r(50) - 1e-4)
+    assert np.all(np.linalg.norm(pins - c1, axis=1) > parts.sprocket_r(13) - 1e-4)
+    # the photo's path: top run on parts.chain_top, bottom run on the line (0.604, 0.428) .. (0.171, 0.270)
+    top = pins[(pins[:, 0] > 0.15) & (pins[:, 0] < 0.60) & (pins[:, 1] > 0.44)]
+    assert len(top) > 20 and np.all(abs(top[:, 1] - parts.chain_top(top[:, 0])) < 0.002)
+    low = bottom[(bottom[:, 0] > 0.18) & (bottom[:, 0] < 0.60)]
+    line = 0.270 + (low[:, 0] - 0.171) * (0.428 - 0.270) / (0.604 - 0.171)
+    assert len(low) > 20 and np.all(abs(low[:, 1] - line) < 0.005)
+    # the bottom run passes just over the frame's lower roller (room for a roller of 11 to 20 mm radius)
+    zc = float(np.interp(dw.LOWER_ROLLER[0], bottom[::-1, 0], bottom[::-1, 1]))
+    assert 0.011 < zc - 0.0073 - dw.LOWER_ROLLER[1] < 0.020
 
 
 def test_wheelbase_and_ground(built):
@@ -114,9 +129,9 @@ def test_wheelbase_and_ground(built):
     for name, c in (("front_wheel", parts.FA), ("rear_wheel", parts.RA)):
         r, V = _radii(built[name], c, "hub")
         assert abs(V[:, 0].mean() - c[0]) < 0.002 and abs(V[:, 2].mean() - c[2]) < 0.002
-    # on the ground: the bike stands nose-up by GROUND_PITCH about the rear axle, lifted by GROUND_DROP
+    # on the ground (parts.to_ground: nose-up by GROUND_PITCH, the ground GROUND_DROP under the frame's z = 0)
     for name in ("front_wheel", "rear_wheel"):
-        z = parts.to_ground(built[name].V)[:, 2]
+        z = parts.to_ground(np.asarray(built[name].V))[:, 2]
         assert abs(z.min()) < 0.0015, name
 
 
