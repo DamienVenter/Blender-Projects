@@ -175,3 +175,51 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   follow the tilt onto the ground). They render on a transparent film with a shadow-catching floor (put the PNG on
   white) and with the Standard view transform: AgX turns brightly lit red plastics salmon in the studio set-up.
   Lights are hidden from the camera (the front and rear cameras look straight past them).
+
+## Detail pass (2026-11-10, "find your inconsistencies, add detail to every tiny bit"): five agents, one bike
+### How the work is split
+- `parts.py` loads plugin modules (`detail_front`, `detail_engine`, `detail_wheels`, `detail_chassis`,
+  `detail_plastics`). Each defines `PARTS`, `REPLACES`, `FRONT_END`, `MATERIALS`, `CLASS`, `THIN`, `BEVEL`,
+  `SMOOTH`; the metadata travels in the parts file to `build_bike.py` and `compare.py`. One module per assembly,
+  one test file per module (`test_detail_<name>.py`), so agents never edit the same file.
+- One agent per assembly, each in its own git worktree, each with a written brief (what to build, vertex budget,
+  which photos to measure, what to report). Fresh agents hold one assembly in mind; the coordinator holds none of
+  the code and only merges, checks shared numbers and runs the whole-bike audit.
+- Round 1 builds. Round 2 fixes clashes: resume the SAME agents (they know their code) with the audit's clash
+  list, each line with its box and deepest point, and the rule "the estimated dimension yields to the measured
+  one". 29 clashes fell to 7 in one round.
+- Shared geometry that two modules must agree on goes in `parts.py` as a function both import
+  (`parts.chain_top(x)`: the chain rides on it, the swingarm's slider sits 9 mm under it). Do not let one module
+  copy numbers out of another: the clutch cable route was copied and cut through a boss one round later.
+- Fetch before launching worktree agents: `git fetch origin "+refs/heads/main:refs/remotes/origin/main"`.
+
+### Shared reference points: what the agents found wrong, and how each was checked before changing it
+Every one of these was a number the whole bike hung on. An agent's claim is a lead, not a fact: measure it again.
+- **Tyre radius.** The blueprint's circles lay 8 mm inside the knob tips. Rays from each axle over the free arc of
+  the tyre in both side photos give 359 and 334 mm; real 80/100-21 and 100/90-19 tyres are that size; and Honda's
+  overall length (wheelbase + both radii) came out 3 mm short instead of 18. Three sources, then change it.
+- **The axle height is a datum, the tyre radius is a measurement.** They were one constant. Now `AXLE_Z` (frame),
+  `R_FRONT`/`R_REAR` (tyres), `GROUND_DROP` and `parts.to_ground()` (the only place that puts points on the ground).
+- **End cameras.** With the true radii and bar ends the front camera's residuals fell from 10.7 px to 1.7 px. A fit
+  that leaves 10 px on one landmark is telling you a landmark is wrong. Fit once WITHOUT a doubtful landmark and
+  read it back: the rear photo alone gave the bar ends' height to 0.5 mm of the side photos'.
+- **Reading on the centre plane.** A point off the centre plane, read on it, is wrong by (camera height - z) * y / D:
+  18 mm for the swingarm pivot cap (y 0.14), 13 mm for the countershaft, 30 mm for the footpegs. Cast every
+  feature on the plane it is on (`CAMS[view].on_plane(u, v, "y", value)`). The pivot then gave 584.5 mm to the
+  axle against the spec's 585.2.
+- **Look before computing.** The countershaft was "hidden behind the cover" for two passes. One crop of the left
+  photo with candidate positions drawn on it showed the sprocket's hub in plain sight, 11 mm from every guess,
+  and showed the chain's top run lifted over the slider (so the chain is not a taut two-tangent loop).
+- Honda's photos disagree with each other by up to 14 mm on some points (bar ends fore-aft: side photos 0.903,
+  top photo 0.917; footpeg height: rear photo 0.401, left 0.413). Use the mean and write both numbers down.
+- Against the spec sheet the photo bike's seat is 20 mm and its belly up to 18 mm high while length, bar height,
+  width, swingarm and footpegs agree within 3 mm. Cause not found; the model follows the photos.
+
+### The audit (`audit.py`)
+- `blender -b BIKE.blend --python-exit-code 1 --python audit.py -- OUT.json 25`: every pair of objects that cut
+  each other (face pairs, depth, box, deepest point: WORLD coordinates) and every loose piece more than 4 mm from
+  any surface. Run it on the built .blend, after modifiers.
+- Measure distances to surfaces, not vertices: a bolt on a big flat face is far from that face's corners. The
+  first version flagged such bolts and an agent "fixed" them with zero-area triangles. An audit that can be
+  satisfied by a trick will be. Say in the brief: no tricks to satisfy the audit.
+- Nesting is not a clash (axle in hub, stem in its bore): name it in the report. Seats of 1 mm or less are fine.
