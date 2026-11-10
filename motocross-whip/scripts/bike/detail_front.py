@@ -618,10 +618,7 @@ def disc_guard():
 
 # ================================================================ cables that run on to the frame
 CLUTCH_JOIN = np.array([0.790, 0.074, 0.800])         # upper end of the cable that detail_engine draws up from the
-#   clutch release arm on the LEFT crankcase cover (arm end (0.640, 0.116, 0.549), holder (0.666, 0.112, 0.554))
-ENGINE_CABLE = [(0.742, 0.078, 0.775), (0.725, 0.076, 0.720), (0.713, 0.076, 0.641), (0.693, 0.090, 0.588),
-                (0.666, 0.112, 0.554)]                 # that cable's own path down to the holder (detail_engine)
-
+#   clutch release arm on the LEFT crankcase cover. Its route down to the arm is detail_engine.CLUTCH_CABLE
 
 def _engine(name):
     """A cable anchor of the engine module; None until it defines one (CLUTCH_ARM_END, THROTTLE_DRUM)."""
@@ -655,7 +652,8 @@ def clutch_path():
     a0, ad = _clutch_adjuster()
     arm = _engine("CLUTCH_ARM_END")
     w = unit(np.array([0.815, 0.074, 0.795]) - CLUTCH_JOIN)
-    tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None else [CLUTCH_JOIN] + ENGINE_CABLE + [arm]
+    route = _engine("CLUTCH_CABLE")                      # the engine module's own route, from CLUTCH_JOIN to its last guide
+    tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
     pts = [a0 + 0.0463 * ad, (1.045, 0.160, 1.205), (1.058, 0.118, 1.190), fk(0.030, 0.090, 0.957),
            fk(0.036, 0.062, 0.925), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),
