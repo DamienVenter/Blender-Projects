@@ -1,0 +1,14 @@
+{
+ "wheelbase": 1483,
+ "length": 2176.0,
+ "width": 827.0,
+ "height": 1267.7,
+ "seat": 975.3,
+ "clearance": 345.8,
+ "footpeg": 426.9,
+ "pivot_to_axle": 584.5,
+ "front_tyre_od": 718.6,
+ "rear_tyre_od": 668.6,
+ "vertices": 298510,
+ "parts": 38
+}

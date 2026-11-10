@@ -2,7 +2,7 @@
 
     python3 -m pytest -q test_bike.py          (about 2 minutes: the parts are built and drawn through all five cameras)
 
-What is locked in here (plastics pass, 2026-11-10):
+What is locked in here (plastics pass and detail pass, 2026-11-10):
   cameras    each photo's camera fits its landmarks; the rear camera predicts the footpeg tips it was not fitted to
   agreement  the top and front photos give the same shroud width
   exactness  a photo panel's side view is the photo's outline
@@ -135,7 +135,7 @@ def test_number_plate_has_no_slit_on_the_centre_line(npz):
 
 
 # ---------------------------------------------------------------- scores and intruders
-FLOORS = {"left": (0.84, 0.88), "right": (0.84, 0.88), "front": (0.82, 0.73), "rear": (0.82, 0.52), "top": (0.85, 0.81)}
+FLOORS = {"left": (0.87, 0.89), "right": (0.86, 0.885), "front": (0.87, 0.79), "rear": (0.885, 0.62), "top": (0.865, 0.855)}
 
 
 @pytest.mark.parametrize("view", list(FLOORS))
