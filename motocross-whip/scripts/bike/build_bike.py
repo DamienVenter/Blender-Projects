@@ -163,14 +163,20 @@ def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
         along = (z - 0.94) / math.cos(RAKE)
         return (y - s["u0"]) / (s["u1"] - s["u0"]), (along - s["s0"]) / (s["s1"] - s["s0"])
     if mat == "barpad":
-        # lower half of barpad.png: the lettering, on the front face read from the front and on the rear face read
-        # from the seat; upper half: the pad's top (and underside)
+        # barpad.png in three bands (livery.barpad): lettering (front and rear faces, each read from its own side),
+        # the pad's top, and its grey end caps. The pad's own axes: f forward, h up, leaning back by "tilt"
         q = META.get("uv", {}).get("barpad", dict(centre=[0.99, 1.18], half=[0.028, 0.030], y_half=0.105))
-        (xc, zc), (hx, hz), yh = q["centre"], q["half"], q["y_half"]
-        if abs(nrm[0]) > abs(nrm[2]):
-            u = (y + yh) / (2 * yh) if nrm[0] > 0 else (yh - y) / (2 * yh)
-            return u, 0.5 * min(max((z - zc + hz) / (2 * hz), 0.02), 0.98)
-        return (yh - y) / (2 * yh), 0.5 + 0.5 * min(max((x - xc + hx) / (2 * hx), 0.02), 0.98)
+        (xc, zc), (hf, hh), yh, t = q["centre"], q["half"], q["y_half"], q.get("tilt", 0.0)
+        ct, st = math.cos(t), math.sin(t)
+        f, h = (x - xc) * ct + (z - zc) * st, -(x - xc) * st + (z - zc) * ct
+        nf, nh = nrm[0] * ct + nrm[2] * st, -nrm[0] * st + nrm[2] * ct
+        unit = lambda v: min(max(v, 0.02), 0.98)
+        if abs(nrm[1]) > max(abs(nf), abs(nh)):                    # end cap
+            return unit((f * (1 if nrm[1] > 0 else -1) + hf) / (2 * hf) * (2 * hf / (2 * yh))), (2 + unit((h + hh) / (2 * hh))) / 3
+        if abs(nf) > abs(nh):                                      # front or rear face
+            u = (y + yh) / (2 * yh) if nf > 0 else (yh - y) / (2 * yh)
+            return u, unit((h + hh) / (2 * hh)) / 3
+        return (yh - y) / (2 * yh), (1 + unit((f + hf) / (2 * hf))) / 3
     return 0.5, 0.5
 
 
