@@ -255,12 +255,12 @@ li::marker { color: var(--red); }
   // the bike's stance), stored as the 'steer' node's local axis
   const RAKE_LOCAL = 26.75 * Math.PI / 180;
   const steerAxis = new THREE.Vector3(-Math.sin(RAKE_LOCAL), Math.cos(RAKE_LOCAL), 0).normalize();
-  let steerNode = null;
+  const steerNodes = [];                                 // one per model file: each file holds the whole node tree
   const steerIn = document.getElementById("steer");
   const steerOut = document.getElementById("steer-out");
   steerIn.addEventListener("input", () => {
     steerOut.textContent = steerIn.value + "°";
-    if (steerNode) steerNode.quaternion.setFromAxisAngle(steerAxis, -steerIn.value * Math.PI / 180);
+    steerNodes.forEach(n => n.quaternion.setFromAxisAngle(steerAxis, -steerIn.value * Math.PI / 180));
   });
 
   const PLASTICS = ["shrouds", "shroud_decks", "side_panels", "seat", "rear_fender", "fender_mounts", "front_fender",
@@ -272,7 +272,11 @@ li::marker { color: var(--red); }
   const spin = document.getElementById("spin");
   spin.addEventListener("change", () => { controls.autoRotate = spin.checked; controls.autoRotateSpeed = 0.8; });
 
-  new THREE.GLTFLoader().load("bike_v2.json", gltf => {
+  // the model comes in several files (each under the host's size limit): see scripts/bike/glb2json.py
+  const MODEL_FILES = ["bike_v2.json"];
+  const progress = MODEL_FILES.map(() => 0);
+  let pending = MODEL_FILES.length;
+  MODEL_FILES.forEach((file, i) => new THREE.GLTFLoader().load(file, gltf => {
     const root = gltf.scene;
     root.traverse(o => {
       if (o.isMesh) {
@@ -280,17 +284,20 @@ li::marker { color: var(--red); }
         const mats = Array.isArray(o.material) ? o.material : [o.material];
         mats.forEach(m => { if (m.map) m.map.anisotropy = 8; m.envMapIntensity = 1.0; });
       }
-      if (o.name === "steer") steerNode = o;
+      if (o.name === "steer") steerNodes.push(o);
       if (PLASTICS.includes(o.name)) plasticNodes.push(o);
     });
     scene.add(root);
-    statusEl.hidden = true;
+    steerIn.dispatchEvent(new Event("input"));
+    document.getElementById("plastics").dispatchEvent(new Event("change"));
+    if (--pending === 0) statusEl.hidden = true;
   }, ev => {
-    if (ev.total) statusEl.textContent = "Loading the bike… " + Math.round(100 * ev.loaded / ev.total) + "%";
+    if (ev.total) progress[i] = ev.loaded / ev.total;
+    statusEl.textContent = "Loading the bike… " + Math.round(100 * progress.reduce((a, b) => a + b, 0) / MODEL_FILES.length) + "%";
   }, err => {
     statusEl.textContent = "The 3D model did not load. Reload the page to try again.";
     console.error(err);
-  });
+  }));
 
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
