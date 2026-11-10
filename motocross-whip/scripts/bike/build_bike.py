@@ -4,7 +4,9 @@ previews and export glTF.
 blender -b --factory-startup --python-exit-code 1 --python build_bike.py -- PARTS.npz TEXTURES_DIR OUT_DIR [views]
         [stock|livery] [NAME]
   views: comma list of camera names ('all' for every one, 'none' to skip rendering); stock = plain Honda colours
-Writes OUT_DIR/bike_v0.blend, OUT_DIR/bike_v0.glb and OUT_DIR/render_<view>.png.
+  cameras: honda_left, honda_right, honda_front, honda_rear, honda_top (Honda's studio cameras, cams.py),
+           profile_left, left_34_hero, right_rear_34, dv01_front_left, dv02_left_front, dv04_cockpit
+Writes OUT_DIR/NAME.blend, OUT_DIR/NAME.glb and OUT_DIR/render_<view>.png.
 """
 import json
 import math
@@ -25,7 +27,9 @@ os.makedirs(OUT, exist_ok=True)
 HERE = os.path.dirname(os.path.abspath(__file__))
 BP = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-blueprint.json")))["left"]
 MAPS = json.load(open(os.path.join(TEX, "maps.json")))
-RAKE = math.radians(26.40)            # fork axis in the axle-line frame (parts.py, measured on the photo)
+_up = np.load(PARTS)["steer_axis"][1]
+RAKE = math.atan2(-float(_up[0]), float(_up[2]))       # fork axis in the axle-line frame (parts.py, from the photo)
+STUDIO_CAMS = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-cameras.json")))   # cams.py
 
 
 def srgb(c):
@@ -125,11 +129,14 @@ if STOCK:
         MATS[k] = dict(rgb=RED, rough=0.34, coat=0.08)
     MATS["seat"] = dict(rgb=(176, 18, 26), rough=0.8, bump=0.35)
     MATS["swing_L"] = MATS["swing_R"] = dict(rgb=(200, 200, 204), metal=1.0, rough=0.32, aniso=0.6)
-THIN = {"front_fender", "rear_fender", "number_plate", "fork_guards"}      # single surfaces: solidify
+# single surfaces: solidify (the number plate, panels and mudguard are built with their thickness)
+THIN = {"front_fender", "rear_fender", "fork_guards", "fender_flap", "shroud_decks", "mud_flap"}
 BEVEL = {"engine": 0.006, "frame": 0.003, "swingarm": 0.003, "clamps": 0.003}           # rounded machined edges
 SMOOTH_ANGLE = {"shrouds": 70, "side_panels": 70, "seat": 70, "front_fender": 70, "rear_fender": 70,
-                "number_plate": 70, "fork_guards": 70, "tank": 60}
-FRONT_END = {"fork", "fork_guards", "clamps", "bars", "number_plate", "front_fender", "front_wheel"}
+                "number_plate": 70, "fork_guards": 70, "tank": 60, "fender_flap": 70, "shroud_decks": 70,
+                "rear_inner": 60, "fender_mounts": 50, "mud_flap": 70}
+FRONT_END = {"fork", "fork_guards", "clamps", "bars", "number_plate", "front_fender", "front_wheel", "fender_flap",
+             "disc_guard"}
 
 
 def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
@@ -254,6 +261,14 @@ def studio():
     sc.collection.objects.link(cyc)
     cm = principled("cyc_white", rgb=(235, 235, 235), rough=0.7)
     me.materials.append(cm)
+    # plain floor without the back wall, used instead of the cyclorama by cameras on the far (-y) side of it
+    fm = bpy.data.meshes.new("floor")
+    fm.from_pydata([(-12, -12, 0), (12, -12, 0), (12, 12, 0), (-12, 12, 0)], [], [(0, 1, 2, 3)])
+    fm.materials.append(cm)
+    floor = bpy.data.objects.new("floor", fm)
+    sc.collection.objects.link(floor)
+    floor.hide_render = True
+    floor.is_shadow_catcher = True
 
     def area(name, loc, target, size, power, color=(1, 1, 1)):
         ld = bpy.data.lights.new(name, "AREA")
@@ -265,6 +280,7 @@ def studio():
         d = Vector(target) - Vector(loc)
         lo.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         sc.collection.objects.link(lo)
+        lo.visible_camera = False                           # the front and rear studio cameras look past the lights
 
     area("key", (1.8, 3.2, 3.2), (0.75, 0, 0.6), 3.0, 420)
     area("fill", (0.2, -3.0, 2.2), (0.75, 0, 0.6), 3.5, 160)
@@ -273,11 +289,14 @@ def studio():
     area("front", (4.0, 1.0, 1.4), (0.75, 0, 0.6), 2.5, 150)
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
-    sc.cycles.samples = 64
+    sc.cycles.samples = int(os.environ.get("BIKE_SAMPLES", "64"))
     sc.cycles.use_denoising = True
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Punchy"              # closest to his bike's deep red (look test 2026-11-10)
     sc.view_settings.exposure = -0.6
+    if os.environ.get("BIKE_VIEW"):                        # look tests: e.g. BIKE_VIEW="Standard,None,-0.3"
+        vt, look, ex = os.environ["BIKE_VIEW"].split(",")
+        sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = vt, look, float(ex)
 
 
 def camera(name, loc, target, lens=50.0, ortho=None, roll=0.0, res=(1280, 720)):
@@ -301,8 +320,29 @@ def camera(name, loc, target, lens=50.0, ortho=None, roll=0.0, res=(1280, 720)):
     return co
 
 
-def cameras():
+def studio_camera(view, root, res=(2000, 1125)):
+    """Honda's studio photo camera for VIEW (cams.py, axle-line frame), parented to the bike's root so it follows the
+    tilt onto the ground: the render lands on the photo pixel for pixel."""
+    c = STUDIO_CAMS[view]
+    cd = bpy.data.cameras.new(f"honda_{view}")
+    cd.sensor_fit = "HORIZONTAL"
+    cd.sensor_width = 36.0
+    cd.lens = c["f"] * 36.0 / 4000.0
+    cd.clip_end = 60.0
+    co = bpy.data.objects.new(f"honda_{view}", cd)
+    R, U, F = Vector(c["R"]), Vector(c["U"]), Vector(c["F"])
+    M = Matrix(((R.x, U.x, -F.x, c["C"][0]), (R.y, U.y, -F.y, c["C"][1]), (R.z, U.z, -F.z, c["C"][2]), (0, 0, 0, 1)))
+    bpy.context.scene.collection.objects.link(co)
+    co.parent = root
+    co.matrix_world = root.matrix_world @ M
+    co["res"] = list(res)
+    return co
+
+
+def cameras(root=None):
     cams = []
+    if root is not None:
+        cams += [studio_camera(v, root) for v in ("left", "right", "front", "rear", "top")]
     # Honda's left profile, reproduced: orthographic, same scale and framing as the 4000x2250 studio photo
     s = BP["mm_per_px"] / 1000.0
     fa, ra = np.array(BP["front_axle_px"]), np.array(BP["rear_axle_px"])
@@ -336,6 +376,15 @@ def render(cams):
         if VIEWS and VIEWS != ["all"] and co.name not in VIEWS:
             continue
         sc.camera = co
+        # Honda's studio cameras stand all round the bike: no cyclorama wall, a shadow-catching floor and a
+        # transparent film instead (put the PNG on white to get the studio photo's look)
+        honda = co.name.startswith("honda_")
+        bpy.data.objects["cyc"].hide_render = honda
+        bpy.data.objects["floor"].hide_render = not honda
+        sc.render.film_transparent = honda
+        # AgX turns the brightly lit red plastics salmon in the studio set-up: Standard keeps Honda's red there
+        vs = sc.view_settings
+        vs.view_transform, vs.look, vs.exposure = ("Standard", "None", -0.5) if honda else ("AgX", "AgX - Punchy", -0.6)
         sc.render.resolution_x, sc.render.resolution_y = co["res"]
         sc.render.resolution_percentage = 100
         sc.render.filepath = os.path.join(OUT, f"render_{co.name}.png")
@@ -355,7 +404,7 @@ def main():
         bpy.data.objects.remove(ob)
     col, objs = build_parts()
     studio()
-    cams = cameras()
+    cams = cameras(bpy.data.objects["bike"])
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, f"{NAME}.blend"))
     export_glb(col)
     if VIEWS != ["none"]:

@@ -34,30 +34,62 @@ def interp(pts, q, axis=0):
     return np.interp(q, a[order, axis], a[order, 1 - axis])
 
 
-def main():
-    out_path = sys.argv[1]
-    bp = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-blueprint.json")))["left"]
+def one_view(view, res, check):
+    bp = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-blueprint.json")))[view]
+    sfx = "" if view == "left" else "_R"
     im = Image.open(os.path.join(HERE, "..", "..", "reference", "crf250r-2026", bp["file"])).convert("RGB")
     im_s = im.resize((im.width // DS, im.height // DS), Image.BILINEAR)
     a = np.asarray(im_s).astype(int)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     red = (r > 110) & (r - g > 55) & (r - b > 45)
+    # the stock decal's navy panel sits on the shroud and runs to its edge: counted as plastic, or the shroud's
+    # outline gets a notch there (it showed as a slot in the render)
+    red |= (b > 80) & (b - r > 40) & (b - g > 30)
+    bright = red.copy()
     red = ndimage.binary_closing(red, iterations=2)
     red = ndimage.binary_fill_holes(red)
     red = ndimage.binary_opening(red, iterations=1)
     H, W = red.shape
-    # bike coordinates of every pixel centre
     ii, jj = np.mgrid[0:H, 0:W]
-    X = np.zeros((H, W)); Z = np.zeros((H, W))
     fa, ra = np.array(bp["front_axle_px"]), np.array(bp["rear_axle_px"])
     s = bp["mm_per_px"]
     u = (fa - ra) / np.linalg.norm(fa - ra)
-    v = np.array([-u[1], u[0]])
+    v = np.array([-u[1], u[0]]) if bp["front_side"] == "left" else np.array([u[1], -u[0]])
     if v[1] > 0:
         v = -v
     PX = np.stack([jj * DS + DS / 2, ii * DS + DS / 2], axis=-1) - ra
     X = PX @ u * s
     Z = PX @ v * s + bp["rear_tyre_od_mm"] / 2
+    # The shroud's leading edge is two layers: the outer skin stops 35 to 80 mm short of the front edge, and a
+    # recessed inner wall, in shadow (dark red, r 80..160), runs on to the true front edge. The bright-red mask misses
+    # the wall and leaves a slot in the outline: add the dark red there, and keep the skin's edge as its own line.
+    zone = (X > 930) & (X < 1200) & (Z > 620) & (Z < 960)
+    dark = (r > 45) & (r - g > 35) & (r - b > 25) & ~bright & zone
+    lit = (r > 165) & (r - g > 55) & (r - b > 45)                 # skin in the light
+    shade = (r > 45) & (r - g > 35) & (r - b > 25) & ~lit        # the recessed wall
+    skin = []
+    for i in range(0, H, 2):
+        cols = np.nonzero(zone[i] & (Z[i] > 680) & (Z[i] < 885))[0]
+        if len(cols) < 20:
+            continue
+        if bp["front_side"] != "left":
+            cols = cols[::-1]                              # walk from the front edge rearward
+        line = np.where(lit[i, cols], 2, np.where(shade[i, cols], 1, 0))
+        j = 0
+        while j < len(line):                              # first shaded run of 8+ px (13 mm): the wall
+            if line[j] == 1:
+                k = j
+                while k < len(line) and line[k] == 1:
+                    k += 1
+                if k - j >= 8:
+                    kk = cols[min(k, len(cols) - 1)]
+                    skin.append([round(float(X[i, kk]), 1), round(float(Z[i, kk]), 1)])
+                    break
+                j = k
+            else:
+                j += 1
+    res["shroud_skin" + sfx] = skin
+    red = ndimage.binary_fill_holes(ndimage.binary_closing(red | dark, iterations=2))
     lab, n = ndimage.label(red)
     sizes = ndimage.sum(red, lab, range(1, n + 1))
     parts = {}
@@ -78,17 +110,23 @@ def main():
     seat = body & (Z > seat_b) & (X > SEAT_X[0]) & (X < SEAT_X[1])
     fender = body & ~seat & (X < FENDER_X) & (Z > fend_l)
     shroud = body & ~seat & (X > shroud_x)
-    side = body & ~seat & ~fender & ~shroud
-    parts.update(seat=seat, rear_fender=fender, shroud=shroud, side_panel=side)
-    res = {}
+    parts.update(rear_fender=fender, shroud=shroud)
     # top lines, column by column (the seat and fender tops: what the 3D lofts follow)
-    for name, (x0, x1) in (("seat_top", (75, 800)), ("fender_top", (-305, 110)), ("body_top", (-305, 1160))):
+    for name, (x0, x1) in (("seat_top", (75, 800)), ("fender_top", (-305, 110)), ("body_top", (-305, 1160)),
+                           ("front_fender_top", (1215, 1712))):
+        src = parts["front_fender"] if name == "front_fender_top" else body
         line = []
         for xq in np.arange(x0, x1 + 1, 10.0):
-            col = body & (np.abs(X - xq) < 2.0)
+            col = src & (np.abs(X - xq) < 2.0)
             if col.any():
                 line.append([round(float(xq), 1), round(float(Z[col].max()), 1)])
-        res[name] = line
+        res[name + sfx] = line
+    line = []
+    for xq in np.arange(1215, 1712, 10.0):                       # the front fender's lower edge
+        col = parts["front_fender"] & (np.abs(X - xq) < 2.0)
+        if col.any():
+            line.append([round(float(xq), 1), round(float(Z[col].min()), 1)])
+    res["front_fender_bottom" + sfx] = line
     parts["seat"] = body & (Z > seat_b - 3) & (X > SEAT_X[0]) & (X < SEAT_X[1])
     parts["side_panel"] = body & ~parts["seat"] & ~fender & ~shroud
     for name, m in parts.items():
@@ -100,22 +138,28 @@ def main():
             sz = ndimage.sum(m, lab2, range(1, n2 + 1))
             m = lab2 == (np.argmax(sz) + 1)
         gen = contourpy.contour_generator(z=m.astype(float))
-        lines = gen.lines(0.5)
-        c = max(lines, key=len)                                    # (col, row) in the reduced image
+        c = max(gen.lines(0.5), key=len)                           # (col, row) in the reduced image
         pts = []
         for col, row in c:
             j, i = int(round(col)), int(round(row))
             i = min(max(i, 0), H - 1); j = min(max(j, 0), W - 1)
             pts.append((float(X[i, j]), float(Z[i, j])))
         pts = np.array(pts)
-        # simplify: keep points at least 6 mm apart
         keep = [pts[0]]
         for p in pts[1:]:
             if np.hypot(*(p - keep[-1])) >= 6.0:
                 keep.append(p)
-        res[name] = [[round(x, 1), round(z, 1)] for x, z in keep]
+        res[name + sfx] = [[round(x, 1), round(z, 1)] for x, z in keep]
         xs, zs = np.array(keep)[:, 0], np.array(keep)[:, 1]
-        print(f"{name:13s} {len(keep):4d} pts  x {xs.min():7.0f}..{xs.max():6.0f}  z {zs.min():6.0f}..{zs.max():6.0f}")
+        print(f"{name + sfx:15s} {len(keep):4d} pts  x {xs.min():7.0f}..{xs.max():6.0f}  z {zs.min():6.0f}..{zs.max():6.0f}")
+    return im, bp, u, v, ra, s
+
+
+def main():
+    out_path = sys.argv[1]
+    res = {}
+    im, bp, u, v, ra, s = one_view("left", res, True)
+    one_view("right", res, False)
     json.dump(res, open(out_path, "w"))
     if len(sys.argv) > 2:
         ov = im.copy()
@@ -123,7 +167,7 @@ def main():
         cols = {"seat": (0, 120, 255), "rear_fender": (0, 200, 0), "shroud": (255, 160, 0), "side_panel": (160, 0, 255),
                 "front_fender": (0, 200, 200), "fork_guard": (255, 0, 200), "number_plate": (90, 90, 90)}
         for name, poly in res.items():
-            if name.endswith("_top"):
+            if "_top" in name or "_bottom" in name or name.endswith("_R"):
                 continue
             P = []
             for x, z in poly:

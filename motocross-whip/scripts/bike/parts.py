@@ -20,7 +20,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import camera                                        # noqa: E402
+import cams                                          # noqa: E402
 from geom import (Mesh, box, circle, frame_z, grid, lathe, loft_sections, panel, plate2d, prism,  # noqa: E402
                   rot_x, rot_y, rot_z, rounded_rect, slot, smooth_poly, tube)
 
@@ -34,21 +34,24 @@ MM = 0.001
 RIGHT_VIEW = {"muffler", "header"}                  # extracted from the right profile photo (as are all "*_R")
 
 
+def _world(view, o_mm, y):
+    """Outline stored in the photo's linear blueprint coordinates (mm) -> true (x, z) in metres on the plane of
+    lateral position Y, by casting rays through the photo's calibrated camera (cams.py)."""
+    u, v = cams.linear_to_px(view, o_mm[:, 0], o_mm[:, 1])
+    P = cams.CAMS[view].on_plane(u, v, "y", y)
+    return P[:, [0, 2]]
+
+
 def P2(name, y):
-    """Outline (x, z) in metres of a part extracted from the photos' material map (tag OUT2), corrected for the
-    photo's perspective: Y is the part's lateral position (camera.unproject)."""
+    """Outline (x, z) in metres of a part extracted from the photos' material map (tag OUT2), at lateral position Y."""
     view = "right" if name in RIGHT_VIEW or name.endswith("_R") else "left"
-    o = np.array(OUT2[name]) * MM
-    x, z = camera.unproject(view, o[:, 0], o[:, 1], y)
-    return np.stack([x, z], axis=1)
+    return _world(view, np.array(OUT2[name], float), y)
 
 
 def PO(name, y):
-    """Plastics outline or top line (OUT, from the left profile photo), corrected for the perspective at lateral
-    position Y."""
-    o = np.array(OUT[name]) * MM
-    x, z = camera.unproject("left", o[:, 0], o[:, 1], y)
-    return np.stack([x, z], axis=1)
+    """Plastics outline or top line (OUT, from the left profile photo), at lateral position Y."""
+    return _world("left", np.array(OUT[name], float), y)
+
 
 # ---------------------------------------------------------------- geometry of the chassis
 WHEELBASE = 1.483                                   # SPEC
@@ -60,17 +63,24 @@ R_FRONT = BP["front_tyre_od_mm"] / 2 * MM           # BP: 0.3506
 RA = np.array([0.0, 0.0, R_REAR])                   # rear axle
 FA = np.array([WHEELBASE, 0.0, R_REAR])             # front axle (axle-line frame)
 GROUND_PITCH = math.atan2(R_FRONT - R_REAR, WHEELBASE)        # about 0.93 deg
-# Fork tube axis measured on Honda's profile photo (both tube edges fitted over 0.70..1.12 m, corrected for the
-# photo's perspective): 26.40 deg to the axle line = 27.3 deg to the ground. That is the 27 deg 33 min of the US
-# and GS/LA/MX spec sheets, not the 28 deg 24 min listed for EU, AU and South Africa: the photo is followed.
-RAKE = math.radians(26.40)
+# Fork tube axis measured on Honda's left profile photo: both edges of the near (left) tube fitted over 0.70..1.12 m
+# give its centre line through (1209.5, 800) at 26.40 deg in the photo's blueprint coordinates; cast through the
+# calibrated camera onto the tube's plane (y = +FORK_HALF) this is the true axis. It comes to about 27 deg to the
+# ground: the 27 deg 33 min of the US and GS/LA/MX spec sheets, not the 28 deg 24 min listed for EU, AU and South
+# Africa. The photo is followed.
+# FRONT (refitted camera): at rows 900..1000 each tube runs from 108 to 176 px off the centre column: centres at
+# +-99 mm, 48 mm across (50 to 53 mm in the left photo); TOP: gold tube visible out to 0.120. The 93 mm used before
+# was the centre of the fork GUARDS, which sit 5 to 7 mm inboard of the tubes.
+FORK_HALF = 0.099
+_fl = np.array([(1209.5, 800.0), (1209.5 - 300.0 * math.tan(math.radians(26.40)), 1100.0)])
+_fw = _world("left", _fl, FORK_HALF)
+RAKE = math.atan2(_fw[0, 0] - _fw[1, 0], _fw[1, 1] - _fw[0, 1])          # axle-line frame
 UP = np.array([-math.sin(RAKE), 0.0, math.cos(RAKE)])         # fork / steering axis, pointing up
 BACK = np.array([-math.cos(RAKE), 0.0, -math.sin(RAKE)])      # perpendicular to it, pointing back
-AXLE_LEAD = 0.0433                                  # photo: axle ahead of the fork tube axis (leading-axle lug)
+AXLE_LEAD = float((np.array([_fw[0, 0], 0.0, _fw[0, 1]]) - FA) @ BACK)      # photo: axle ahead of the tube axis
 CLAMP_OFFSET = 0.022                                # SPEC (aftermarket source, L): triple clamp offset
 TUBE0 = FA + AXLE_LEAD * BACK                       # fork tube axis passes here (axle height)
 STEER0 = TUBE0 + CLAMP_OFFSET * BACK                # steering axis passes here
-FORK_HALF = 0.093                                   # TOP: fork tube centres at +-93 mm
 
 
 def on_tube(t, y=0.0):
@@ -267,45 +277,46 @@ def fork():
     for side in (-1, 1):
         y = side * FORK_HALF
         # outer tube (gold), from below the lower clamp to above the top clamp
-        m.add(tube([on_tube(0.355, y), on_tube(T_TOP_CLAMP + 0.035, y)], 0.0300, 32, "fork_gold"))   # photo: 60 mm
+        m.add(tube([on_tube(0.355, y), on_tube(T_TOP_CLAMP + 0.035, y)], 0.0255, 32, "fork_gold"))   # photos: 48..53 mm
         # inner tube (49 mm, dark coated) and the axle lug
         m.add(tube([on_tube(0.035, y), on_tube(0.40, y)], 0.0245, 32, "fork_inner", cap0=False))
-        lug = tube([on_tube(-0.04, y), on_tube(0.075, y)], [(0.030, 0.034)] * 2, 24, "fork_lug")
+        lug = tube([on_tube(-0.045, y), on_tube(0.045, y)], [(0.028, 0.030)] * 2, 24, "fork_lug")
         m.add(lug)
         # fork cap and adjuster on top
         m.add(tube([on_tube(T_TOP_CLAMP + 0.035, y), on_tube(T_TOP_CLAMP + 0.052, y)], 0.024, 24, "anod_black"))
         # dust seal / bottom of the outer tube
-        m.add(tube([on_tube(0.345, y), on_tube(0.365, y)], 0.0315, 32, "rubber_black"))
+        m.add(tube([on_tube(0.345, y), on_tube(0.365, y)], 0.0285, 32, "rubber_black"))
     # front axle
     m.add(tube([FA + np.array([0, -0.115, 0]), FA + np.array([0, 0.115, 0])], 0.010, 16, "steel"))
     return m
 
 
 def fork_guards():
-    """Guards over the inner tubes (shape from OUT 'fork_guard', wrapped around the tube's front half)."""
+    """Guards over the lower fork legs. FRONT (refitted camera, rows 1012..1428): outer edge 131 mm off the centre
+    line all the way down, inner edge 58 mm at the top to 68 mm lower down, so each shell reaches further inboard of
+    its tube than outboard. Front edge from the left photo's outline (OUT 'fork_guard'); the shell wraps back along
+    the leg's sides."""
     m = Mesh()
-    poly = PO("fork_guard", 0.125)
-    # outline in (x, z) -> coordinates along the tube (t) and across its front (a)
+    poly = PO("fork_guard", FORK_HALF + 0.03)
     rel = poly - np.array([TUBE0[0], TUBE0[2]])
     t = rel @ np.array([UP[0], UP[2]])
     off = rel @ np.array([-BACK[0], -BACK[2]])                        # forward of the tube axis
-    lo, hi = t.min(), t.max()
-    ts = np.linspace(lo, hi, 28)
+    ts = np.linspace(t.min() + 0.004, t.max() - 0.004, 34)
+    fr = np.array([off[np.abs(t - tt) < 0.014].max() if (np.abs(t - tt) < 0.014).any() else 0.040 for tt in ts])
+    fr = np.clip(np.convolve(np.pad(fr, 2, mode="edge"), np.ones(5) / 5, mode="valid"), 0.038, 0.075)
+    y_out = 0.131
     for side in (-1, 1):
-        y = side * FORK_HALF
         rings = []
-        for tt in ts:
-            # forward extent of the guard at this height (from the outline)
-            band = np.abs(t - tt) < 0.012
-            front = off[band].max() if band.any() else 0.03
-            a = np.linspace(-1.25, 1.25, 12)                # the guard covers the front of the leg only (photo
-            # row z 0.62: red 1316..1348, the leg's metal visible behind it)
-            r = 0.031 + 0.012 * np.clip((front - 0.03) / 0.04, 0, 1)
-            ring = [on_tube(tt, y) - BACK * (r * math.cos(ai)) + np.array([0, side * r * math.sin(ai) * 1.05, 0])
-                    for ai in a]
-            rings.append(np.array(ring))
-        g = grid(Mesh(), rings, "fork_guard", closed_u=False)
-        m.add(g)
+        for tt, f in zip(ts, fr):
+            y_in = float(np.interp(tt, [0.07, 0.30, 0.385], [0.068, 0.064, 0.058]))
+            top = min((ts[-1] - tt) / 0.03, 1.0)                              # the very top closes in a little
+            lo, hi = y_in + 0.004 * (1 - top), y_out - 0.004 * (1 - top)
+            sec = [(-0.014, lo), (0.012, lo), (f - 0.008, lo + 0.004), (f, lo + 0.012), (f, hi - 0.012),
+                   (f - 0.008, hi - 0.004), (0.012, hi), (-0.014, hi)]
+            if side < 0:
+                sec = sec[::-1]
+            rings.append(np.array([on_tube(tt) - BACK * a_ + np.array([0, side * y_, 0]) for a_, y_ in sec]))
+        m.add(grid(Mesh(), rings, "fork_guard", closed_u=False))
     return m
 
 
@@ -358,128 +369,18 @@ def bars():
     return m
 
 
-def number_plate():
-    """Front plate: inclined along the fork, ahead of the tubes (OUT 'number_plate' gives its height and lean), slightly
-    convex; shape of the face EST from the studio front photo and DV photo 1."""
-    m = Mesh()
-    w_half = lambda s: 0.080 + 0.050 * min(s / 0.10, 1.0) - 0.012 * max(s - 0.22, 0) / 0.07     # s = along the plate
-    S = np.linspace(0.0, 0.30, 24)
-    U = np.linspace(-1, 1, 21)
-    t0 = t_at_z(0.94)
-    rings = []
-    for s in S:
-        hw = w_half(s)
-        ring = []
-        for u in U:
-            bulge = 0.016 * (1 - u * u)
-            ring.append(on_tube(t0 + s) - BACK * (0.068 + bulge) + np.array([0, u * hw, 0]))
-        # side wings running back toward the fork tubes (photo row z 1.00: the plate is 50 mm deep in side view)
-        wing = 0.045 * min(s / 0.05, 1.0) * min((0.30 - s) / 0.05, 1.0)
-        ring = [on_tube(t0 + s) - BACK * (0.068 - wing) + np.array([0, -hw * 1.01, 0])] + ring + \
-               [on_tube(t0 + s) - BACK * (0.068 - wing) + np.array([0, hw * 1.01, 0])]
-        rings.append(np.array(ring))
-    m.add(grid(Mesh(), rings, "plate", closed_u=False))
-    return m
-
-
-def front_fender():
-    """Loft along x: top line and skirt bottom from OUT 'front_fender', half width TOP, crowned section."""
-    poly = PO("front_fender", 0.04)
-    xs = np.linspace(poly[:, 0].min() + 0.004, poly[:, 0].max() - 0.004, 40)
-    top = np.array([poly[np.abs(poly[:, 0] - x) < 0.008, 1].max() for x in xs])
-    bot = np.array([poly[np.abs(poly[:, 0] - x) < 0.008, 1].min() for x in xs])
-    hw_x = [1.215, 1.25, 1.35, 1.50, 1.60, 1.66, 1.71]
-    hw_v = [0.080, 0.086, 0.088, 0.083, 0.072, 0.060, 0.040]                          # TOP
-    def sec(i):
-        x = xs[i]
-        hw = float(np.interp(x, hw_x, hw_v))
-        crown = 0.016
-        skirt = max(min(top[i] - bot[i] - crown, 0.06), 0.004)
-        pts = []
-        for u in np.linspace(-1, 1, 21):
-            pts.append((x, u * hw, top[i] - crown * u * u))
-        ring = [(x, -hw - 0.002, top[i] - crown - skirt)] + pts + [(x, hw + 0.002, top[i] - crown - skirt)]
-        return np.array(ring)
-    m = loft_sections(range(len(xs)), sec, "fender_front", cap0=False, cap1=False)
-    return m
-
-
-# ---------------------------------------------------------------- bodywork (fixed to the frame)
 def smoothstep(e0, e1, x):
     t = min(max((x - e0) / (e1 - e0), 0.0), 1.0)
     return t * t * (3 - 2 * t)
 
 
-def shrouds():
-    m = Mesh()
-    poly = PO("shroud", 0.17)
-
-    def y_of(x, z):                       # TOP: shroud +-0.115 at the rear, +-0.20 at the front; curls in at the top
-        y = 0.112 + 0.088 * smoothstep(0.60, 1.08, x)
-        y -= 0.045 * smoothstep(0.90, 1.00, z) * (1 - 0.5 * smoothstep(0.9, 1.1, x))
-        y += 0.010 * math.sin(math.pi * min(max((z - 0.64) / 0.36, 0), 1))           # convex
-        return y
-    for side in (-1, 1):
-        m.add(panel(poly, lambda x, z, s=side: s * y_of(x, z), 0.003, "livery_L" if side > 0 else "livery_R",
-                    step=0.012))
-    return m
-
-
-def side_panels():
-    m = Mesh()
-    poly = PO("side_panel", 0.14)
-    seat_hw = lambda x: float(np.interp(x, [0.08, 0.12, 0.25, 0.40, 0.55, 0.70, 0.79],
-                                        [0.070, 0.088, 0.092, 0.087, 0.075, 0.062, 0.030]))
-
-    def y_of(x, z):                       # TOP: tucked under the seat's edge at the top, +-0.17 low at the front
-        y_top = max(seat_hw(min(max(x, 0.08), 0.79)) + 0.004, 0.075)
-        y = y_top + (0.168 - y_top) * smoothstep(0.985, 0.76, z) * (0.6 + 0.4 * smoothstep(0.0, 0.5, x))
-        return y - 0.03 * smoothstep(0.05, -0.20, x)
-    for side in (-1, 1):
-        m.add(panel(poly, lambda x, z, s=side: s * y_of(x, z), 0.003, "livery_L" if side > 0 else "livery_R",
-                    step=0.012))
-        # black textured lower panel, airbox side and mud flap: exact outline of each side's photo (OUT2)
-        m.add(panel(P2("lower_panel" if side > 0 else "lower_panel_R", side * 0.15),
-                    lambda x, z, s=side: s * (y_of(x, max(z, 0.74)) - 0.008), 0.003, "black_texture", step=0.012))
-    return m
-
-
-def seat():
-    """Loft along x: top line OUT 'seat_top', half widths TOP (narrow nose, widest over the rear), rounded section."""
-    st = np.array(OUT["seat_top"]) * MM
-    xs = np.linspace(0.080, 0.790, 48)
-    top = np.interp(xs, st[:, 0], st[:, 1])
-    hw = np.interp(xs, [0.08, 0.12, 0.25, 0.40, 0.55, 0.70, 0.79], [0.070, 0.088, 0.092, 0.087, 0.075, 0.062, 0.030])
-    bottom = np.interp(xs, [0.08, 0.6, 0.79], [0.905, 0.905, 0.975])
-    def sec(i):
-        loop = rounded_rect(2 * hw[i], top[i] - bottom[i], 0.032, 6)
-        zc = (top[i] + bottom[i]) / 2
-        return np.array([(xs[i], p[0], zc + p[1]) for p in loop])
-    return loft_sections(range(len(xs)), sec, "seat")
-
-
-def rear_fender():
-    ft = PO("fender_top", 0.0)
-    poly = PO("rear_fender", 0.05)
-    xs = np.linspace(-0.300, 0.105, 36)
-    top = np.interp(xs, ft[:, 0], ft[:, 1])
-    hw = np.interp(xs, [-0.30, -0.28, -0.20, -0.10, 0.0, 0.105], [0.012, 0.028, 0.055, 0.075, 0.085, 0.095])
-    def sec(i):
-        x = xs[i]
-        band = np.abs(poly[:, 0] - x) < 0.008
-        bot = poly[band, 1].min() if band.any() else top[i] - 0.02
-        skirt = max(min(top[i] - bot - 0.012, 0.07), 0.006)
-        pts = [(x, u * hw[i], top[i] - 0.012 * u * u) for u in np.linspace(-1, 1, 17)]
-        return np.array([(x, -hw[i] - 0.003, top[i] - 0.012 - skirt)] + pts + [(x, hw[i] + 0.003, top[i] - 0.012 - skirt)])
-    return loft_sections(range(len(xs)), sec, "livery_fender", cap0=False, cap1=False)
-
-
 def tank():
     """Titanium tank top visible between the shrouds (GRID x 0.79..0.96, z about 1.02), fuel cap at x 0.893."""
     m = Mesh()
-    xs = np.linspace(0.70, 1.02, 18)
-    top = np.interp(xs, [0.70, 0.79, 0.88, 0.96, 1.02], [0.985, 1.005, 1.022, 1.015, 0.96])
-    hw = np.interp(xs, [0.70, 0.85, 0.95, 1.02], [0.095, 0.100, 0.090, 0.060])
+    # its rear end stays under the seat's nose and the shroud decks (it showed beside the seat nose in profile)
+    xs = np.linspace(0.74, 1.02, 18)
+    top = np.interp(xs, [0.74, 0.79, 0.88, 0.96, 1.02], [0.950, 1.000, 1.022, 1.015, 0.96])
+    hw = np.interp(xs, [0.74, 0.85, 0.95, 1.02], [0.070, 0.100, 0.090, 0.060])
     def sec(i):
         loop = rounded_rect(2 * hw[i], top[i] - 0.80, 0.045, 6)
         return np.array([(xs[i], p[0], (top[i] + 0.80) / 2 + p[1]) for p in loop])
@@ -491,18 +392,40 @@ def tank():
 
 
 def radiators():
+    """Twin radiators behind the shroud mouths: black cores from 70 to 176 mm off the centre line, 275 mm tall,
+    leaning with the down tube; louvre slats ahead. FRONT (refitted camera) shows black from 0.130 m, where the fork
+    tube stops hiding it, to 0.189; the core stops at 0.176 so that it stays inside the shroud's skin at its lower,
+    rearward end (plan envelope 0.181 at x 0.95: at 0.188 it came through the shroud's side). Detailed with the
+    engine."""
     m = Mesh()
+    lean = rot_y(math.radians(-12))
+    yc, half = 0.123, 0.053
     for side in (-1, 1):
-        R = rot_y(math.radians(-12))                    # leans back like the head tube area (EST)
-        core = box((0, 0, 0), (0.05, 0.035, 0.30), "radiator", R)
-        core.transform(None, (0.985, side * 0.135, 0.775))
+        core = box((0, 0, 0), (0.034, 2 * half, 0.275), "radiator", lean)
+        core.transform(None, (1.000, side * yc, 0.795))
         m.add(core)
-        # louvres in front of the core (Damien's bike: black slats behind red shroud vents, DV photo 2)
-        for k in range(9):
-            lv = box((0, 0, 0), (0.004, 0.06, 0.020), "louvre", rot_y(math.radians(-12)) @ rot_x(side * 0.35))
-            lv.transform(None, (1.018 - k * 0.006, side * 0.15, 0.66 + k * 0.03))
+        for k in range(11):                                # slats: thin blades angled outward
+            zc = 0.675 + k * 0.025
+            lv = box((0, 0, 0), (0.030, 2 * half - 0.005, 0.003), "louvre", lean @ rot_y(math.radians(-28)))
+            lv.transform(None, (1.028 + (zc - 0.795) * math.tan(math.radians(12)), side * yc, zc))
             m.add(lv)
+        for yy in (yc - half + 0.002, yc + half - 0.002):  # side tanks (black-painted here; detailed later)
+            tk = box((0, 0, 0), (0.040, 0.006, 0.285), "radiator", lean)
+            tk.transform(None, (1.000, side * yy, 0.795))
+            m.add(tk)
     return m
+
+
+def rear_inner():
+    return plastics.inner_mudguard()
+
+
+def fender_mounts():
+    return plastics.fender_mounts()
+
+
+def fender_flap():
+    return plastics.fender_flap(on_tube, BACK, t_at_z)
 
 
 # ---------------------------------------------------------------- frame and swingarm
@@ -525,9 +448,12 @@ def frame():
         rail = [(0.950, 0.020, 0.640), (0.938, 0.040, 0.520), (0.912, 0.055, 0.425), (0.868, 0.062, 0.362),
                 (0.780, 0.068, 0.345), (0.640, 0.078, 0.346), (0.570, 0.105, 0.362)]
         m.add(tube(np.array([(x, s_ * y, z) for x, y, z in rail]), 0.0135, 14, "alu_frame"))
-        sub = [(0.545, 0.118, 0.650), (0.40, 0.108, 0.745), (0.20, 0.095, 0.850), (0.00, 0.082, 0.905)]
+        # subframe rails: hidden under the seat and side panels in every photo, so they are kept INSIDE the measured
+        # plastics (seat half-width 0.075 to 0.088, panel envelope 0.094 at x 0.60) and end under the seat's tail.
+        # Further out they came through the shroud's rear end and the fender's root (compare.py intruders).
+        sub = [(0.545, 0.118, 0.650), (0.40, 0.108, 0.745), (0.25, 0.088, 0.825), (0.12, 0.066, 0.880)]
         m.add(tube(np.array([(x, s_ * y, z) for x, y, z in sub]), 0.0115, 12, "alu_frame"))
-        sub2 = [(0.70, 0.100, 0.860), (0.45, 0.095, 0.905), (0.20, 0.090, 0.915), (0.00, 0.082, 0.915)]
+        sub2 = [(0.70, 0.074, 0.860), (0.45, 0.076, 0.900), (0.25, 0.072, 0.912), (0.12, 0.062, 0.915)]
         m.add(tube(np.array([(x, s_ * y, z) for x, y, z in sub2]), 0.010, 12, "alu_frame"))
     # down tube (single) from the head to the cradle split
     m.add(tube(np.array([(1.030, 0, 0.93), (0.990, 0, 0.78), (0.953, 0, 0.645)]), [(0.020, 0.026)] * 3, 18,
@@ -795,12 +721,17 @@ def controls():
     return m
 
 
-FRONT_END = {"fork": fork, "fork_guards": fork_guards, "clamps": clamps, "bars": bars, "number_plate": number_plate,
-             "front_fender": front_fender, "front_wheel": front_wheel, "disc_guard": disc_guard}
+import plastics                                      # noqa: E402  (measured plastics: plastics.py)
+
+FRONT_END = {"fork": fork, "fork_guards": fork_guards, "clamps": clamps, "bars": bars,
+             "number_plate": plastics.number_plate, "front_fender": plastics.front_fender, "fender_flap": fender_flap,
+             "front_wheel": front_wheel, "disc_guard": disc_guard}
 CHASSIS = {"frame": frame, "swingarm": swingarm, "shock": shock, "engine": engine, "exhaust": exhaust,
-           "drive": drive, "controls": controls, "rear_wheel": rear_wheel, "shrouds": shrouds,
-           "side_panels": side_panels, "seat": seat, "rear_fender": rear_fender, "tank": tank,
-           "radiators": radiators, "cables": cables}
+           "drive": drive, "controls": controls, "rear_wheel": rear_wheel, "shrouds": plastics.shrouds,
+           "side_panels": plastics.side_panels, "seat": plastics.seat, "rear_fender": plastics.rear_fender,
+           "tank": tank,
+           "radiators": radiators, "cables": cables, "rear_inner": rear_inner,
+           "shroud_decks": plastics.shroud_decks, "fender_mounts": fender_mounts, "mud_flap": plastics.mud_flap}
 PIVOTS = {"front_wheel": FA, "rear_wheel": RA}         # wheels are built about their axle
 
 
