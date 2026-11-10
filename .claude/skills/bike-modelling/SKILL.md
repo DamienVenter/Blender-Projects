@@ -150,6 +150,26 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
      the skin part near the lower tip. Count sharp reversals along a cleaned outline (turn over 100 deg within
      12 samples): more than the part's real tips means a finger.
   6. A raised plateau that stopped dead (height not faded with its width) left a 5 mm step across the fender nose.
+- **The shrouds stayed crumpled after all six, and what cured them (2026-11-10).** Cause: every height was a function
+  of the DISTANCE to a traced outline that still wandered (56 changes of curvature sign round the shroud, 4 px
+  quantised trace), over zones far wider than a rim: a 28 mm shoulder within 38 mm of the "top-facing" edge, a
+  12 mm lip from the "front-facing" edge, and those two masks switched on and off 4 to 5 times along the edge. Each
+  wiggle of the outline became a dent 30 mm deep into the panel; the step to the inner wall crossed an axis-aligned
+  grid and saw-toothed; the deck was placed from a filtered copy of the same edge, so a slit opened. Cure, in
+  `plastics.py` (`smooth_pieces`, `conforming_mesh`, `shell`, `_shroud`):
+  1. Outline = corners read in the photo + one robust B-spline per piece (knots 40 px, cables and brackets bridged):
+     10 curvature sign changes, 99.5 % of the traced area. Thresholds on the photo itself (first bright-red pixel
+     per row) gave the skin's own edge to 1 px, identical in the left and mirrored right photo: build both sides
+     from the left.
+  2. Surface = plan(x) minus a roof that depends only on the height above ONE smooth crease curve
+     (lean = hh^2 / (hh + r)), checked against the front and top photos. Nothing depends on the outline except the
+     rims' last 8 mm, and those are carried by rings of vertices at exact offsets from the boundary.
+  3. Mesh = the boundary's own points, rings, rows ON each crease and 2.5 px either side (70 deg auto-smooth turns
+     a lone row into a soft bend 7 mm wide), a staggered grid, Delaunay, and a check that every boundary edge is in
+     the triangulation.
+  4. Two parts that are one skin (roof and bolt plate) share the edge's 3D points: the plate's rows start FROM the
+     shell's top-edge vertices. Two rims 6 px apart make one wavy ridge: keep features 14 px apart or merge them.
+  A shroud-only Cycles preview (5 s a view) lets you look ten times for the price of one full close-up run.
 - Seams drawn by hand between touching plastics hand slivers to the wrong part (the fender's lower flank went to the
   side panel as a tongue). Cut where the parts really meet (a vertical cut at the fender's root) and let the lofted
   part's edge line follow the mask's true lower boundary; overlap the two parts by 20 mm so no gap opens.
