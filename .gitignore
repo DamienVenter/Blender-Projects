@@ -22,3 +22,6 @@ __pycache__/
 **/tmp/
 .DS_Store
 Thumbs.db
+
+# Working copies of subagents (git worktrees): their commits are merged, the folders are not tracked
+.claude/worktrees/
