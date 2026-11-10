@@ -192,7 +192,6 @@ def test_seat_height_against_the_spec_sheet(npz):
     assert abs(zg[m].min() - 0.955) < 0.016, zg[m].min()
 
 
-@pytest.mark.xfail(strict=True, reason="bars are 866 mm wide in the model, 827 in the spec: fix with the bars pass")
 def test_overall_width_against_the_spec_sheet(npz):
     G = _ground(npz)
     assert abs(np.ptp(G["bars"][:, 1]) - 0.827) < 0.008
