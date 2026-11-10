@@ -308,4 +308,7 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
 - `BIKE_STUDIO_RES` is "W,H" (two numbers). A `BIKE_CLOSEUPS` camera is named exactly as written and must be in
   the views list under that name (use `cu_...` names). A wrong name renders nothing and exits 0: count the PNGs.
 - Viewer model: `glb2json.py IN.glb OUT.json 12` splits it into files under the host's limit; the page loads the
-  list in `MODEL_FILES`. Test with the headless browser before publishing.
+  list in `MODEL_FILES`. Test with the headless browser before publishing. Run that test on an idle machine: with the
+  test suite running beside it the page was too slow for the click checks and the test timed out.
+- Viewer is published as version 5 of https://claude.ai/artifact/ToCZsujHJ7qgqiXYWK2Dzv (model v0.4, three files
+  `bike_v3*.json`); publish `viewer/bike-v0.html` with that `url` and the `files` map to update it.
