@@ -135,7 +135,7 @@ def test_number_plate_has_no_slit_on_the_centre_line(npz):
 
 
 # ---------------------------------------------------------------- scores and intruders
-FLOORS = {"left": (0.84, 0.86), "right": (0.84, 0.87), "front": (0.82, 0.73), "rear": (0.82, 0.52), "top": (0.85, 0.81)}
+FLOORS = {"left": (0.84, 0.88), "right": (0.84, 0.88), "front": (0.82, 0.73), "rear": (0.82, 0.52), "top": (0.85, 0.81)}
 
 
 @pytest.mark.parametrize("view", list(FLOORS))
