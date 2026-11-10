@@ -118,9 +118,24 @@ PEG = np.array([0.556, 0.0, 0.378])                 # GRID: footpeg, read on the
 # at z 0.412 to 0.425: detail_chassis)
 CHAIN_Y = 0.088                                     # chain line (left side). REAR photo: 0.086 (wheels pass) and 0.089
 # (chassis pass, rows 1600..1620) for the chain's centre behind the sprocket
-CS = np.array([0.633, CHAIN_Y, 0.464])              # countershaft (13T sprocket). GRID gave z 0.451 on the centre plane; on
-# the chain's plane the left camera, looking down, puts it 13 mm higher. Check: centre distance to the rear axle 647.8,
-# a taut loop of 114 links round 13 and 50 teeth needs 648.1 (0.3 mm of slack in the centre distance)
+CS = np.array([0.622, CHAIN_Y, 0.466])              # countershaft (13T sprocket): its hub shows in the left photo at pixel
+# (2168, 1439), cast on the chain's plane (the old grid reading, 0.633 / 0.451, was on the centre plane)
+
+
+def chain_top(x):
+    """Centre line of the chain's TOP run: z at x (axle-line frame, on the chain's plane y = CHAIN_Y).
+    LEFT photo cast on that plane: the run is straight from the rear sprocket through (-0.009, 0.455) and
+    (0.493, 0.504) and is then hidden by the frame. It rides the swingarm's slider over the pivot (30 mm above the
+    pivot's axis) and comes down onto the 13T sprocket from a crest put just ahead of the pivot (EST: x 0.575). The swingarm's slider (chassis) and the chain (wheels) both follow this."""
+    x = np.asarray(x, float)
+    rear = 0.504 + 0.0976 * (x - 0.493)
+    r1 = 13 * P520 / (2 * math.pi)
+    px_, pz_ = 0.575, 0.504 + 0.0976 * (0.575 - 0.493)                  # crest of the two straight lines
+    d = math.hypot(CS[0] - px_, CS[2] - pz_)                            # tangent from the crest onto the sprocket
+    ang = math.atan2(CS[2] - pz_, CS[0] - px_) + math.asin(r1 / d)
+    front = pz_ + math.tan(ang) * (x - px_)
+    h = 0.003                                                           # rounds the crest (2 mm below the corner)
+    return -h * np.log(np.exp(-(rear - pz_) / h) + np.exp(-(front - pz_) / h)) + pz_
 P520 = 0.015875                                     # SPEC: #520 chain pitch
 
 

@@ -2,10 +2,12 @@
 
 blender -b BIKE.blend --python-exit-code 1 --python audit.py -- [OUT.json] [min_pairs]
 
-clashes   every pair of objects whose surfaces intersect, with the number of intersecting face pairs and how deep one
-          goes into the other (largest distance of a vertex of one inside the other, mm). A bolt seated in a cover
+clashes   every pair of objects whose surfaces intersect, with the number of intersecting face pairs, how deep one
+          goes into the other (largest distance of a vertex of one inside the other, mm), the box round the
+          intersecting faces and the deepest point (world: on the ground, not the axle-line frame). A bolt seated in a cover
           gives a handful of pairs and a millimetre or two; a caliper through a fork guard gives hundreds and centimetres.
-floating  loose pieces of a mesh further than 4 mm from every other surface of the bike (a bolt that missed its boss).
+floating  loose pieces of a mesh further than 4 mm from every other surface of the bike, other pieces of the same
+          mesh included (a bolt that missed its boss).
 Modifiers are applied first (solidify, bevel), so the audit sees what the render sees.
 """
 import json
@@ -55,7 +57,10 @@ def main():
         if not F:
             continue
         A = np.array([tuple(v) for v in V])
-        data[o.name] = dict(V=V, F=F, N=N, bvh=BVHTree.FromPolygons(V, F), lo=A.min(axis=0), hi=A.max(axis=0), A=A)
+        FC = np.array([A[list(f)].mean(axis=0) for f in F])                      # face centres and radii
+        FR = np.array([np.abs(A[list(f)] - c).max() for f, c in zip(F, FC)])
+        data[o.name] = dict(V=V, F=F, N=N, bvh=BVHTree.FromPolygons(V, F), lo=A.min(axis=0), hi=A.max(axis=0), A=A,
+                            FC=FC, FR=FR, F0=np.array([f[0] for f in F]))
     names = sorted(data)
     clashes = []
     for i, a in enumerate(names):
@@ -67,7 +72,7 @@ def main():
             if len(pairs) < MIN_PAIRS:
                 continue
             # depth: vertices of the faces involved, measured to the other surface along its normal
-            depth = 0.0
+            depth, deepest = 0.0, None
             for src, dst, col in ((da, db, 0), (db, da, 1)):
                 vs = {v for p in pairs[:4000] for v in src["F"][p[col]]}
                 for vi in list(vs)[:600]:
@@ -75,9 +80,13 @@ def main():
                     if hit[0] is None:
                         continue
                     d = (src["V"][vi] - hit[0]).dot(hit[1])
-                    if d < 0:                                   # behind the other surface: inside it
-                        depth = max(depth, -d)
-            clashes.append(dict(a=a, b=b, pairs=len(pairs), depth_mm=round(depth * 1000, 1)))
+                    if d < -depth:                              # behind the other surface: inside it
+                        depth, deepest = -d, src["V"][vi]
+            # where: the box round the intersecting faces of a, and the deepest point (root frame = world here)
+            P = da["A"][sorted({v for p in pairs[:4000] for v in da["F"][p[0]]})]
+            clashes.append(dict(a=a, b=b, pairs=len(pairs), depth_mm=round(depth * 1000, 1),
+                                lo=[round(float(v), 3) for v in P.min(axis=0)], hi=[round(float(v), 3) for v in P.max(axis=0)],
+                                deepest=[round(float(v), 3) for v in deepest] if deepest is not None else None))
     clashes.sort(key=lambda c: (-c["depth_mm"], -c["pairs"]))
     floating = []
     for a in names:
@@ -100,10 +109,18 @@ def main():
                         best = min(best, (p - hit[0]).length)
                 if best < 0.004:
                     break
-            if best >= 0.004 and len(rest):                     # other loose pieces of the same object count too
-                R = d["A"][rest[:: max(len(rest) // 4000, 1)]]
-                P = d["A"][pts]
-                best = min(best, float(np.sqrt(((P[:, None, :] - R[None, :, :]) ** 2).sum(axis=2)).min()))
+            if best >= 0.004 and len(rest):                     # other loose pieces of the same object count too:
+                near = d["A"][rest]                             # distance to their SURFACE (a bolt on a big flat face
+                c0, rad = d["A"][idx].mean(axis=0), np.ptp(d["A"][idx], axis=0).max()   # is far from its corners)
+                fidx = np.nonzero(comp[d["F0"]] != lab)[0]
+                fc = d["FC"][fidx]
+                fidx = fidx[np.abs(fc - c0).max(axis=1) < rad + d["FR"][fidx] + 0.02]
+                if len(fidx):
+                    bvh = BVHTree.FromPolygons(d["V"], [d["F"][i] for i in fidx])
+                    for vi in pts:
+                        hit = bvh.find_nearest(d["V"][vi], 0.05)
+                        if hit[0] is not None:
+                            best = min(best, (d["V"][vi] - hit[0]).length)
             if best >= 0.004:
                 c = d["A"][idx].mean(axis=0)
                 floating.append(dict(part=a, verts=int(cnt), gap_mm=round(best * 1000, 1),
@@ -111,7 +128,8 @@ def main():
     floating.sort(key=lambda f: -f["gap_mm"])
     print("CLASHES (deepest first):")
     for c in clashes[:40]:
-        print("  %-16s x %-16s %6d face pairs, %6.1f mm deep" % (c["a"], c["b"], c["pairs"], c["depth_mm"]))
+        print("  %-16s x %-16s %6d face pairs, %6.1f mm deep  box %s..%s deepest %s"
+              % (c["a"], c["b"], c["pairs"], c["depth_mm"], c["lo"], c["hi"], c["deepest"]))
     print("FLOATING pieces:", len(floating))
     for f in floating[:40]:
         print("  %-16s %5d verts, %6.1f mm from anything, at %s" % (f["part"], f["verts"], f["gap_mm"], f["at"]))
