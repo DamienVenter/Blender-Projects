@@ -367,6 +367,11 @@ def cameras(root=None):
     cams.append(camera("dv04_cockpit", (0.20, 0.0, 1.40), (1.40, 0.0, 0.98), lens=26, res=(900, 1600)))
     cams.append(camera("right_rear_34", (-1.2, -2.6, 1.25), (0.70, 0.0, 0.58), lens=40, res=(1600, 900)))
     cams.append(camera("left_34_hero", (2.4, 2.6, 1.15), (0.72, 0.0, 0.58), lens=40, res=(1600, 900)))
+    # inspection close-ups: BIKE_CLOSEUPS="name:x,y,z:tx,ty,tz:lens;..." (ground frame, metres)
+    for spec in filter(None, os.environ.get("BIKE_CLOSEUPS", "").split(";")):
+        nm, loc, tgt, lens = spec.split(":")
+        cams.append(camera(nm, tuple(map(float, loc.split(","))), tuple(map(float, tgt.split(","))),
+                           lens=float(lens), res=(1200, 800)))
     return cams
 
 

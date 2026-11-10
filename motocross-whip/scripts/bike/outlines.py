@@ -63,7 +63,15 @@ def one_view(view, res, check):
     # The shroud's leading edge is two layers: the outer skin stops 35 to 80 mm short of the front edge, and a
     # recessed inner wall, in shadow (dark red, r 80..160), runs on to the true front edge. The bright-red mask misses
     # the wall and leaves a slot in the outline: add the dark red there, and keep the skin's edge as its own line.
-    zone = (X > 930) & (X < 1200) & (Z > 620) & (Z < 960)
+    # The zone stops 4 mm behind the fork tube's rear edge (tube axis through (1209.5, 800) at 26.40 deg, 25.5 mm
+    # radius: parts.py): the gold tube carries dark red reflections of the plastics, which would join the shroud.
+    tube_rear = 1209.5 - (Z - 800.0) * np.tan(np.radians(26.40)) - 25.5 / np.cos(np.radians(26.40)) - 4.0
+    zone = (X > 930) & (X < np.minimum(tube_rear, 1200.0)) & (Z > 620) & (Z < 960)
+    # red on the tube itself (reflections along its rear edge) is not plastic: without this the shroud's outline
+    # grew a finger down the tube
+    on_tube = (X > tube_rear + 2.0) & (X < tube_rear + 66.0) & (Z > 690) & (Z < 930)
+    red &= ~on_tube
+    bright &= ~on_tube
     dark = (r > 45) & (r - g > 35) & (r - b > 25) & ~bright & zone
     lit = (r > 165) & (r - g > 55) & (r - b > 45)                 # skin in the light
     shade = (r > 45) & (r - g > 35) & (r - b > 25) & ~lit        # the recessed wall
@@ -90,6 +98,11 @@ def one_view(view, res, check):
                 j += 1
     res["shroud_skin" + sfx] = skin
     red = ndimage.binary_fill_holes(ndimage.binary_closing(red | dark, iterations=2))
+    # near its lower tip the wall and the skin part by a black gap 10 to 20 mm wide: closed here, so the shroud's
+    # front is one shape (as fingers, its rolled edge came out as a comb). A simplification of the real part.
+    closed = ndimage.binary_closing(red & zone, iterations=12)
+    red |= closed & zone
+    red = ndimage.binary_fill_holes(red)
     lab, n = ndimage.label(red)
     sizes = ndimage.sum(red, lab, range(1, n + 1))
     parts = {}
@@ -108,7 +121,10 @@ def one_view(view, res, check):
     fend_l = interp(FENDER_LOWER, X)
     shroud_x = interp(SHROUD_REAR, Z, axis=1)
     seat = body & (Z > seat_b) & (X > SEAT_X[0]) & (X < SEAT_X[1])
-    fender = body & ~seat & (X < FENDER_X) & (Z > fend_l)
+    # everything red behind FENDER_X is the fender, flanks included (cut along the hand-read seam FENDER_LOWER, the
+    # lower flank went to the side panel as a thin tongue that crumpled; the blade's edges now reach the true lower
+    # boundary)
+    fender = body & ~seat & (X < FENDER_X)
     shroud = body & ~seat & (X > shroud_x)
     parts.update(rear_fender=fender, shroud=shroud)
     # top lines, column by column (the seat and fender tops: what the 3D lofts follow)

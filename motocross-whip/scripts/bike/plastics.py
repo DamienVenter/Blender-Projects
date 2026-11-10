@@ -94,34 +94,78 @@ def seat_hw(x):
 
 
 # ---------------------------------------------------------------- panels seen through a profile photo
-def _outline_px(view, pts_mm, smooth=3):
+MPP = (4.7 - 0.17) / 6075.0          # metres per photo pixel at the panels' distance from the side cameras
+
+
+def clean_outline(view, pts_mm, sigma=5.0, step=3.0):
+    """A traced outline (bike-outlines.json, mm) as a closed curve in photo pixels: evenly resampled every STEP px and
+    smoothed along its length with a Gaussian of SIGMA px (5 px = 4 mm). The traced outlines carry pixel steps and
+    mask noise of 1 to 3 px; fed straight into the panels they tore every rolled edge and wrinkled the surfaces
+    (close-up renders, 2026-11-10). Corners tighter than about 4 mm are rounded to that."""
+    from scipy.ndimage import gaussian_filter1d
+    from geom import resample
     u, v = cams.linear_to_px(view, np.asarray(pts_mm, float)[:, 0], np.asarray(pts_mm, float)[:, 1])
-    return smooth_poly(np.stack([u, v], axis=1), smooth)
+    P = resample(np.stack([u, v], axis=1), step)
+    k = sigma / step
+    return np.stack([gaussian_filter1d(P[:, 0], k, mode="wrap"), gaussian_filter1d(P[:, 1], k, mode="wrap")], axis=1)
 
 
-def _on_surface(cam, u, v, surf, y0):
-    """3D point where the ray through pixel (u, v) meets the surface y = surf(x, z) (fixed-point iteration)."""
+class Edges:
+    """Which way each point of a cleaned outline faces, and distances from any pixel to the outline's front-facing
+    and top-facing parts. Rolled edges and shoulders are functions of these DISTANCES, so they are zero exactly on
+    the outline and smooth along it (as functions of a separately smoothed edge table they zig-zagged)."""
+
+    def __init__(self, view, px):
+        from scipy.spatial import cKDTree
+        t = np.roll(px, -1, axis=0) - np.roll(px, 1, axis=0)
+        n = np.stack([t[:, 1], -t[:, 0]], axis=1)
+        n /= np.maximum(np.linalg.norm(n, axis=1), 1e-9)[:, None]
+        if inside(px, (px + 3.0 * n)[::7]).mean() > 0.5:          # make the normals point out of the shape
+            n = -n
+        fwd = -1.0 if view == "left" else 1.0                     # the bike's front is at the left of the left photo
+        self.px, self.n = px, n
+        self.front = n[:, 0] * fwd > 0.5
+        self.top = n[:, 1] < -0.6
+        # distances are taken to the edge sampled every 0.25 px: against the outline's own points (3 px apart) the
+        # distance of a vertex ON the edge wandered between 0 and 1.5 px and the rolled edges came out scalloped
+        k = np.linspace(0.0, 1.0, 12, endpoint=False)[None, :, None]
+        dense = (px[:, None, :] + (np.roll(px, -1, axis=0) - px)[:, None, :] * k).reshape(-1, 2)
+        self._front = cKDTree(dense[np.repeat(self.front | np.roll(self.front, -1), 12)])
+        self._top = cKDTree(dense[np.repeat(self.top | np.roll(self.top, -1), 12)])
+
+    def d_front(self, u, v):
+        return float(self._front.query((u, v))[0]) * MPP
+
+    def d_top(self, u, v):
+        return float(self._top.query((u, v))[0]) * MPP
+
+
+def _on_surface(cam, u, v, f, y0):
+    """3D point where the ray through pixel (u, v) meets the surface y = f(x, z) (fixed-point iteration)."""
     y = y0
     for _ in range(6):
         P = cam.on_plane(u, v, "y", y)[0]
-        y = surf(P[0], P[2])
+        y = f(P[0], P[2])
     return cam.on_plane(u, v, "y", y)[0]
 
 
-def photo_panel(view, outline_mm, surf, thickness, mat, holes_mm=(), step=11.0):
-    """Shell whose side view is exactly OUTLINE in the VIEW photo: meshed in the photo's pixel space, every vertex
-    put on the surface y = surf(x, z) along its pixel's ray, THICKNESS toward the bike's centre. Holes (vents) are
-    cut through. step: mesh size in pixels (about 0.78 mm each)."""
+def photo_panel(view, outer_px, surf, thickness, mat, holes_px=(), step=11.0, rings=()):
+    """Shell whose side view is exactly OUTER_PX (closed curve, photo pixels) in the VIEW photo: meshed in the
+    photo's pixel space, every vertex put on the surface along its pixel's ray, THICKNESS toward the bike's centre.
+    surf(u, v) returns the function y = f(x, z) to use at that pixel (so a surface can depend on where the pixel is
+    in the outline). Holes (vents) are cut through. step: mesh size in pixels (about 0.78 mm each)."""
     cam = cams.CAMS[view]
     sgn = 1.0 if view == "left" else -1.0
-    outer = _outline_px(view, outline_mm)
-    holes = [_outline_px(view, h, 1) for h in holes_mm]
     y0 = sgn * 0.15
+    hit = {}
 
     def to3d(u, v, w):                 # plate2d offsets w in [-t/2, t/2]: the outer face (w = t/2) is the surface
-        P = _on_surface(cam, u, v, surf, y0)
+        key = (round(float(u), 3), round(float(v), 3))
+        if key not in hit:
+            hit[key] = _on_surface(cam, u, v, surf(u, v), y0)
+        P = hit[key]
         return (P[0], P[1] - sgn * (thickness / 2 - w), P[2])
-    return plate2d(outer, holes, thickness, mat, to3d, step=step)
+    return plate2d(outer_px, list(holes_px), thickness, mat, to3d, step=step, rings=rings)
 
 
 def _poly_top(poly, x):
@@ -162,20 +206,6 @@ def _shroud_plan(side):
     return lambda q: float(np.polyval(sol.x, min(max(q, 0.60), 1.093) - 0.85))
 
 
-def _front_edge_table(ref):
-    """Smoothed front edge x(z) of an outline (x, z)."""
-    zs = np.arange(ref[:, 1].min() + 0.004, ref[:, 1].max() - 0.004, 0.004)
-    xs = []
-    for z in zs:
-        c = [a_[0] + (b_[0] - a_[0]) * (z - a_[1]) / (b_[1] - a_[1]) for a_, b_ in zip(ref, np.roll(ref, -1, axis=0))
-             if (a_[1] - z) * (b_[1] - z) <= 0 and a_[1] != b_[1]]
-        xs.append(max(c) if c else np.nan)
-    xs = np.array(xs)
-    ok = np.isfinite(xs)
-    zs, xs = zs[ok], _smooth(xs[ok], 5)
-    return lambda z: float(np.interp(z, zs, xs))
-
-
 LIP = 0.012          # FRONT: the leading edge shows as a red rim outside the radiator, 10 mm wide at mid height
 WALL_STEP = 0.008    # the inner wall ahead of the skin's edge sits this far in (FRONT: the rim it and the skin's edge
 #                      make is 10 to 18 mm wide; the step itself is not measurable: EST)
@@ -183,44 +213,42 @@ SHOULDER_H, SHOULDER_IN = 0.038, 0.028      # FRONT: silhouette 0.198 at z 0.899
 #                                             on the section whose top edge is at 0.937: a rounded shoulder
 
 
-def _shroud_surface(side, parts=False):
-    """y(x, z) of a shroud's outer surface.
+def _shroud(side):
+    """A shroud's cleaned outline and its outer surface. surf(u, v) -> y = f(x, z).
     Side face: upright, at the plan envelope of the top photo (TOP). Checked against the front photo through the
     refitted camera: its outer silhouette is 0.200 m off the centre line at z 0.83..0.88 (top photo: 0.199 to 0.202),
     0.193 at z 0.74 and 0.185 at 0.68, which is the plan envelope at the x where the leading edge is at those heights.
     Leading edge: two layers (LEFT and RIGHT photos, zoomed): the outer skin stops 35 to 80 mm short of the front
     edge between z 0.68 and 0.88; ahead of it a recessed inner wall, in shadow in the photos, runs on to the true
     front edge, which is rolled in by LIP (FRONT: red rim outside the black louvres).
-    Shoulder: the top 38 mm turns in by 28 mm (FRONT silhouette). Inboard of it the top deck is built separately
-    (shroud_decks): it is edge-on in the profile photos."""
+    Shoulder: within 38 mm of the top edge the surface turns in by up to 28 mm (FRONT silhouette). Inboard of it
+    the top deck is built separately (shroud_decks): it is edge-on in the profile photos."""
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import medfilt
     name = "shroud" if side > 0 else "shroud_R"
     view = "left" if side > 0 else "right"
-    ref = _true_outline(view, OUT[name], side * 0.19)
-    top_edge = _top_edge_table(ref)
-    front_edge = _front_edge_table(ref)
+    px = clean_outline(view, OUT[name])
+    E = Edges(view, px)
     plan = _shroud_plan(side)
-    z_lo, z_hi = ref[:, 1].min() + 0.006, ref[:, 1].max() - 0.006
+    # edge of the outer skin (outlines.py 'shroud_skin') as a column per row of the photo
+    sk = np.asarray(OUT["shroud_skin" + ("" if side > 0 else "_R")], float)
+    su, sv = cams.linear_to_px(view, sk[:, 0], sk[:, 1])
+    o = np.argsort(sv)
+    sv, su = sv[o], gaussian_filter1d(medfilt(su[o], 5), 3.0, mode="nearest")
+    fwd = -1.0 if view == "left" else 1.0
 
-    # edge of the outer skin (outlines.py 'shroud_skin'): ahead of it the surface is the recessed inner wall
-    sk = _true_outline(view, OUT["shroud_skin" + ("" if side > 0 else "_R")], side * 0.19)
-    sk = sk[np.argsort(sk[:, 1])]
-    from scipy.signal import medfilt
-    sk_z, sk_x = sk[:, 1], _smooth(medfilt(sk[:, 0], 5), 5)
+    def surf(u, v):
+        ahead = fwd * (u - float(np.interp(v, sv, su))) * MPP          # metres ahead of the skin's edge
+        wall = WALL_STEP * smoothstep(ahead / 0.005 + 0.5) * smoothstep((v - sv[0]) / 25.0) \
+            * smoothstep((sv[-1] + 20.0 - v) / 25.0)
+        df, dt = E.d_front(u, v), E.d_top(u, v)
+        lip = LIP * (1.0 - df / LIP) ** 2 if df < LIP else 0.0
+        sh = SHOULDER_IN * (1.0 - dt / SHOULDER_H) ** 2 if dt < SHOULDER_H else 0.0
 
-    def surf(x, z):
-        W = plan(x)
-        if sk_z[0] <= z <= sk_z[-1] + 0.012:
-            W -= WALL_STEP * smoothstep((x - float(np.interp(z, sk_z, sk_x))) / 0.005)
-        d = front_edge(min(max(z, z_lo), z_hi)) - x                   # distance behind the leading edge
-        if d < LIP:
-            W -= LIP * (1.0 - max(d, 0.0) / LIP) ** 2
-        sh = (z - (top_edge(x) - SHOULDER_H)) / SHOULDER_H
-        if sh > 0:                                                    # none behind x 0.72: the shroud lies on the
-            W -= SHOULDER_IN * min(sh, 1.0) ** 2 * smoothstep((x - 0.72) / 0.15)      # frame spar there
-        return side * W
-    if parts:
-        return surf, plan, top_edge, ref
-    return surf
+        def f(x, z):                                                  # no shoulder behind x 0.72: the shroud lies
+            return side * (plan(x) - wall - lip - sh * smoothstep((x - 0.72) / 0.15))        # on the frame spar there
+        return f
+    return view, px, E, plan, surf
 
 
 # inner edge of the shrouds' top decks (TOP: gap between the two shrouds around the tank and the steering head)
@@ -233,17 +261,22 @@ def shroud_decks():
     envelope in to the gap around the tank, +-0.053 to 0.060 m beside the filler cap, opening to 0.092 at the
     steering head). Level with the shoulder's top edge, 3 mm lower at the inner edge (edge-on in the profile photos,
     so its height comes from the shroud outline's top edge; cross slope EST)."""
+    from scipy.ndimage import gaussian_filter1d
     m = Mesh()
     for side in (1, -1):
-        surf, plan, top_edge, ref = _shroud_surface(side, parts=True)
-        x1 = min(1.062, float(ref[:, 0].max()) - 0.075)
+        view, px, E, plan, surf = _shroud(side)
+        top = px[E.top]
+        T = cams.CAMS[view].on_plane(top[:, 0], top[:, 1], "y", side * 0.17)
+        o = np.argsort(T[:, 0])
+        tx, tz = T[o, 0], gaussian_filter1d(T[o, 2], 4.0, mode="nearest")
+        x1 = min(1.062, float(tx.max()) - 0.075)
         rings = []
-        for x in np.linspace(0.792, x1, 30):
-            zt = top_edge(x)
-            y_out = plan(x) - SHOULDER_IN + 0.002
+        for x in np.linspace(0.792, x1, 40):
+            zt = float(np.interp(x, tx, tz))
+            y_out = plan(x) - SHOULDER_IN * smoothstep((x - 0.72) / 0.15) + 0.002
             y_in = min(float(np.interp(x, DECK_X, DECK_Y)), y_out - 0.004)
             rings.append(np.array([(x, side * (y_out + (y_in - y_out) * k), zt - 0.001 - 0.003 * k)
-                                   for k in np.linspace(0, 1, 7)]))
+                                   for k in np.linspace(0, 1, 9)]))
         m.add(grid(Mesh(), rings, "plastic_red", closed_u=False))
     return m
 
@@ -282,48 +315,56 @@ def _vent_holes(view, name, min_area=120):
 
 def shrouds():
     m = Mesh()
-    for side, view, name in ((1, "left", "shroud"), (-1, "right", "shroud_R")):
+    for side in (1, -1):
         # no openings are cut: the dark shapes inside the shroud's outline in the photo are the stock decal's navy
         # letters, not vents (cutting them left slits in the render)
-        m.add(photo_panel(view, OUT[name], _shroud_surface(side), 0.003, "plastic_red", step=6.0))
+        view, px, E, plan, surf = _shroud(side)
+        # rows of vertices along the outline through the rolled edge (16 px) and the shoulder (50 px)
+        m.add(photo_panel(view, px, surf, 0.003, "plastic_red", step=7.0, rings=(2.5, 5.5, 9, 13, 18, 24, 31, 39, 48)))
     return m
 
 
 # ---------------------------------------------------------------- side panels
-def _panel_surface(side):
-    """y(x, z) of a side panel: tucked under the seat's edge at the top, out to the plan envelope of the top photo
-    (TOP: left 0.159, right 0.175 where it bulges over the muffler) within 40 mm (EST); the right panel reaches its
-    envelope lower down. The rear photo cannot confirm the section: the shrouds, further forward, form its outer
-    silhouette at these heights."""
+def _panel(side):
+    """A side panel's cleaned outline and surface: tucked under the seat's edge along its top edge, out to the plan
+    envelope of the top photo (TOP: left 0.159, right 0.175 where it bulges over the muffler) 40 mm below that edge
+    (EST); the right panel reaches its envelope lower down. The rear photo cannot confirm the section: the shrouds,
+    further forward, form its outer silhouette at these heights."""
     name = "side_panel" if side > 0 else "side_panel_R"
     view = "left" if side > 0 else "right"
-    ref = _true_outline(view, OUT[name], side * 0.14)
+    px = clean_outline(view, OUT[name])
+    E = Edges(view, px)
 
-    top_edge = _top_edge_table(ref)
+    def width(x):
+        return plan_half_width(min(max(x, -0.19), 0.80), side)
 
-    def surf(x, z):
-        W = plan_half_width(min(max(x, -0.19), 0.80), side)
-        zt = top_edge(x)
-        y_top = max(seat_hw(min(max(x, 0.08), 0.80)) + 0.006, 0.050) if x > 0.06 else W * 0.92
-        y_top = min(y_top, W)
-        t = smoothstep((zt - z) / 0.040)
-        if side < 0:
-            t *= 0.90 + 0.10 * smoothstep((0.935 - z) / 0.065)
-        return side * (y_top + (W - y_top) * t)
-    return surf
+    def surf(u, v):
+        t0 = smoothstep(E.d_top(u, v) / 0.040)
+
+        def f(x, z):
+            W = width(x)
+            y_top = max(seat_hw(min(max(x, 0.08), 0.80)) + 0.006, 0.050) if x > 0.06 else W * 0.92
+            y_top = min(y_top, W)
+            t = t0 * (0.90 + 0.10 * smoothstep((0.935 - z) / 0.065)) if side < 0 else t0
+            return side * (y_top + (W - y_top) * t)
+        return f
+    return view, px, width, surf
 
 
 def side_panels():
     m = Mesh()
-    for side, view, name, low in ((1, "left", "side_panel", "lower_panel"), (-1, "right", "side_panel_R", "lower_panel_R")):
-        surf = _panel_surface(side)
-        holes = _vent_holes(view, name, min_area=200)
-        m.add(photo_panel(view, OUT[name], surf, 0.003, "plastic_red", holes_mm=holes))
+    for side, low in ((1, "lower_panel"), (-1, "lower_panel_R")):
+        view, px, width, surf = _panel(side)
+        name = "side_panel" if side > 0 else "side_panel_R"
+        holes = [clean_outline(view, h, sigma=2.5) for h in _vent_holes(view, name, min_area=200)]
+        m.add(photo_panel(view, px, surf, 0.003, "plastic_red", holes_px=holes, step=9.0,
+                          rings=(4, 9, 15, 22, 30, 39, 49)))             # through the 40 mm tuck under the seat
         for h in holes:                                   # air intake: dark mesh behind the opening
-            m.add(photo_panel(view, h, lambda x, z, s=surf, q=side: s(x, z) - q * 0.010, 0.002, "louvre", step=9.0))
-        # black textured lower panel (airbox side, mud flap): its own exact outline, on the same surface set in 6 mm
-        m.add(photo_panel(view, OUT2[low], lambda x, z, s=surf, q=side: s(x, max(z, 0.76)) - q * 0.006, 0.003,
-                          "black_texture"))
+            m.add(photo_panel(view, h, lambda u, v, q=side: (lambda x, z: q * (width(x) - 0.010)), 0.002, "louvre",
+                              step=9.0))
+        # black textured lower panel (airbox side): its own exact outline, 6 mm inside the red panel's envelope
+        m.add(photo_panel(view, clean_outline(view, OUT2[low], sigma=4.0),
+                          lambda u, v, q=side: (lambda x, z: q * (width(x) - 0.006)), 0.003, "black_texture"))
     return m
 
 
@@ -371,22 +412,38 @@ def _blade(xs, hw_fn, top_fn, edge_fn, crown_fn, mat, plateau=None, n=25):
     return grid(Mesh(), rings, mat, closed_u=False)
 
 
+def _gauss(a, sigma):
+    from scipy.ndimage import gaussian_filter1d
+    return gaussian_filter1d(np.asarray(a, float), sigma, mode="nearest")
+
+
 def rear_fender():
     """Rear fender: centre top line from the left photo, plan half-width from the top photo (TOP), edges down to the
-    lower outline of the left photo. (The red seen under it from behind is not the blade: see fender_mounts. Skirts
-    on the blade were tried and showed behind the side panel in the profile, where the photo has none.)"""
+    lower outline of the left photo. The lines are smoothed over 30 mm and the tip is closed round (raw, the tip
+    was torn). (The red seen under it from behind is not the blade: see fender_mounts. Skirts on the blade were
+    tried and showed behind the side panel in the profile, where the photo has none.)"""
     top_line = _line("left", "fender_top", 0.0)
     low = _true_outline("left", OUT["rear_fender"], 0.07)
-    xs = np.linspace(-0.3005, 0.100, 44)
-    hw = lambda x: max(min(plan_half_width(x, 1), 0.098) * sat((x + 0.303) / 0.012 + 0.08), 0.004)
-    top = lambda x: float(np.interp(x, top_line[:, 0], _smooth(top_line[:, 1], 5)))
+    x_tip = -0.3005
+    # the blade runs 20 mm under the side panel's rear edge (x 0.10 to 0.113): no gap at the root
+    xs = np.concatenate([np.linspace(x_tip, x_tip + 0.03, 16)[:-1], np.linspace(x_tip + 0.03, 0.120, 63)])
+    tx = np.linspace(-0.30, 0.120, 85)
+    tz = _gauss(np.interp(tx, top_line[:, 0], top_line[:, 1]), 6.0)                 # 5 mm samples
+    bz = np.array([_poly_bottom(low, min(max(x, low[:, 0].min() + 0.004), low[:, 0].max() - 0.004)) for x in tx])
+    from scipy.signal import medfilt
+    # median first: the half-transparent muffler behind the root tints the mask's lower edge and makes it dip
+    bz = _gauss(medfilt(np.where(np.isfinite(bz), bz, tz - 0.006), 9), 6.0)
+    # behind x 0 the blade is at most 98 mm either side; ahead of it the root flares out with the plan envelope to
+    # meet the side panels (TOP: 0.089 at x 0.015, 0.145 at 0.08)
+    pw = _gauss([min(plan_half_width(x, 1), 0.098 + 0.07 * smoothstep(x / 0.06)) for x in tx], 4.0)
+    top = lambda x: float(np.interp(x, tx, tz))
+    edge = lambda x: min(float(np.interp(x, tx, bz)), top(x) - 0.005)
 
-    def edge(x):
-        zb = _poly_bottom(low, min(max(x, low[:, 0].min() + 0.004), low[:, 0].max() - 0.004))
-        # no cap on the depth: at its root the fender's side is 100 mm deep in the photo (a 75 mm cap left a hole
-        # there, with the subframe showing through)
-        return top(x) - 0.006 if not np.isfinite(zb) else min(zb, top(x) - 0.006)
-    return _blade(xs, hw, top, edge, lambda x: 0.010, "plastic_red")
+    def hw(x):                                              # rounded tip: a half ellipse over the last 25 mm
+        w = float(np.interp(x, tx, pw))
+        d = (x - x_tip) / 0.025
+        return max(w * math.sqrt(max(1.0 - (1.0 - d) ** 2, 0.0)) if d < 1.0 else w, 0.0008)
+    return _blade(xs, hw, top, edge, lambda x: 0.010, "plastic_red", n=33)
 
 
 # front fender plan half-width between the fork legs. FRONT (refitted camera, rows 700..740, right edge of the red:
@@ -396,10 +453,18 @@ FF_X = [1.215, 1.300, 1.420, 1.457]
 FF_HW = [0.062, 0.064, 0.075, 0.080]
 
 
+X_NOSE = 1.7075
+
+
 def _fender_plan():
     m = TT["x"] > 1.44
-    x, w = TT["x"][m], _smooth(0.5 * (TT["left"][m] + TT["right"][m]), 3)
-    return lambda q: float(np.interp(q, x, w)) if q > 1.457 else float(np.interp(q, FF_X, FF_HW))
+    x, w = TT["x"][m], _gauss(0.5 * (TT["left"][m] + TT["right"][m]), 2.5)
+
+    def hw(q):
+        w_ = float(np.interp(q, x, w)) if q > 1.457 else float(np.interp(q, FF_X, FF_HW))
+        d = (X_NOSE - q) / 0.030                             # rounded nose: a half ellipse over the last 30 mm
+        return max(w_ * math.sqrt(max(1.0 - (1.0 - d) ** 2, 0.0)) if d < 1.0 else w_, 0.0008)
+    return hw
 
 
 def front_fender():
@@ -408,19 +473,30 @@ def front_fender():
     height of the LOWEST line in the left photo there (0.856), 62 mm under the centre line. So the edges are the low
     line and the centre is the high line all along (FRONT + LEFT + TOP agree to 5 mm). Across: a flat centre that
     carries a raised shield-shaped plateau ending in a point behind the nose (FRONT, TOP; 5 mm high EST), then
-    sides sloping down to the edges (profile EST)."""
+    sides sloping down to the edges (profile EST).
+    Behind x 1.262 the fork leg hides the fender's lower edge in the left photo: there it keeps dropping at the
+    slope it has where it disappears (29 mm in 47 mm, left photo) into the flap between the fork legs."""
     top_line = _line("left", "front_fender_top", 0.0)
     bot_line = _line("left", "front_fender_bottom", 0.09)
-    # stations every 5 mm, every 1.5 mm over the last 30 mm: the nose narrows fast and showed facets
-    xs = np.concatenate([np.linspace(1.218, 1.677, 92), np.linspace(1.6785, 1.7075, 20)])
+    # stations every 5 mm, every 1.5 mm over the last 30 mm: the nose narrows fast
+    xs = np.concatenate([np.linspace(1.218, 1.677, 92), np.linspace(1.6785, X_NOSE, 20)])
     hw = _fender_plan()
-    top = lambda x: float(np.interp(x, top_line[:, 0], _smooth(top_line[:, 1], 5)))
-    edge = lambda x: min(float(np.interp(x, bot_line[:, 0], _smooth(bot_line[:, 1], 5))), top(x) - 0.004)
+    tx = np.linspace(1.215, X_NOSE, 100)
+    tz = _gauss(np.interp(tx, top_line[:, 0], top_line[:, 1]), 4.0)
+    bz = np.interp(tx, bot_line[:, 0], bot_line[:, 1])
+    k = int(np.searchsorted(tx, 1.262))
+    bz[:k] = bz[k] - 0.6 * (tx[k] - tx[:k])
+    bz = _gauss(bz, 4.0)
+    top = lambda x: float(np.interp(x, tx, tz))
+    edge = lambda x: min(float(np.interp(x, tx, bz)), top(x) - 0.004)
 
     def plateau(x):
         if x < 1.30 or x > 1.655:
             return 0.0, 0.0
-        return 0.052 * sat((1.655 - x) / 0.13) ** 0.8 * sat((x - 1.30) / 0.05 + 0.4), 0.005
+        # the height fades to nothing at both ends with the width (a full-height plateau that stopped dead left a
+        # 5 mm step right across the nose)
+        return (0.052 * sat((1.655 - x) / 0.13) ** 0.8 * sat((x - 1.30) / 0.05 + 0.4),
+                0.005 * smoothstep((1.655 - x) / 0.035) * smoothstep((x - 1.30) / 0.035))
     rings = []
     for x in xs:
         w, zt, ze = hw(x), top(x), edge(x)

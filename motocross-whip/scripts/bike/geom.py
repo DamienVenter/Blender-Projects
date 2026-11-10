@@ -234,13 +234,41 @@ def loft_sections(stations, section_fn, mat, cap0=True, cap1=True):
     return grid(Mesh(), rings, mat, cap0=cap0, cap1=cap1)
 
 
-def plate2d(outer, holes, thickness, mat, to3d, step=0.008, side_mat=None):
+def plate2d(outer, holes, thickness, mat, to3d, step=0.008, side_mat=None, rings=()):
     """Solid plate from a 2D shape with holes (outer and each hole: closed (n, 2) loops, metres), extruded by
     THICKNESS along the local normal. to3d(u, v, w) maps local 2D (u, v) and offset w (-t/2..t/2) to 3D.
-    Triangulated with scipy Delaunay; triangles kept inside the outer loop and outside every hole."""
-    from scipy.spatial import Delaunay
+    Triangulated with scipy Delaunay; triangles kept inside the outer loop and outside every hole.
+    rings: distances inside the outer loop at which rows of vertices follow the outline (for a surface that rolls
+    or steps near its edge: an axis-aligned grid alone gives a frilled edge there)."""
+    from scipy.spatial import Delaunay, cKDTree
     loops = [resample(outer, step * 0.7)] + [resample(h, step * 0.5) for h in holes]
     B = np.vstack(loops)
+    R = np.zeros((0, 2))
+    if len(rings):
+        L = loops[0]
+        t = np.roll(L, -1, axis=0) - np.roll(L, 1, axis=0)
+        n = np.stack([t[:, 1], -t[:, 0]], axis=1)
+        n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+        if inside(L, (L + 0.3 * step * n)[::5]).mean() < 0.5:        # make the normals point into the shape
+            n = -n
+        tree = cKDTree(B)
+        rows = []
+        for d in rings:
+            Q = L + d * n
+            ok = inside(L, Q) & (tree.query(Q)[0] > 0.8 * d)        # not across a thin tip or a concave corner
+            for h in loops[1:]:
+                ok &= ~inside(h, Q)
+            Q = Q[ok]
+            if len(rows) and len(Q):                                 # thin out where rows crowd (concave bends)
+                Q = Q[cKDTree(np.vstack(rows)).query(Q)[0] > 0.45 * step]
+            if len(Q) > 1:
+                keep = [0]
+                for i in range(1, len(Q)):
+                    if np.hypot(*(Q[i] - Q[keep[-1]])) > 0.45 * step:
+                        keep.append(i)
+                Q = Q[keep]
+            rows.append(Q)
+        R = np.vstack(rows) if rows else R
     lo, hi = loops[0].min(axis=0), loops[0].max(axis=0)
     gx, gy = np.meshgrid(np.arange(lo[0], hi[0], step), np.arange(lo[1], hi[1], step))
     G = np.stack([gx.ravel(), gy.ravel()], axis=1)
@@ -250,8 +278,9 @@ def plate2d(outer, holes, thickness, mat, to3d, step=0.008, side_mat=None):
     G = G[ok]
     if len(G):
         d = np.min(np.linalg.norm(G[:, None, :] - B[None, :, :], axis=2), axis=1)
-        G = G[d > 0.45 * step]
-    P = np.vstack([B, G])
+        G = G[d > (0.45 * step if not len(rings) else max(rings) + 0.5 * step)]
+    B_all = np.vstack([B, R])
+    P = np.vstack([B_all, G])
     tri = Delaunay(P).simplices
     c = P[tri].mean(axis=1)
     keep = inside(loops[0], c)

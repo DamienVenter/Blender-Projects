@@ -132,6 +132,28 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   photo hung out behind the side panel in the profile. The red seen under the tail from behind is a set of
   rear-facing walls with two bolts (`fender_mounts`), hidden behind the side panels in profile.
 
+### Surface quality: look at close-ups before showing anything
+- Scores, flat sheets and full-frame matched renders all looked fine while the plastics were crumpled foil with torn
+  edges. Render close-ups every time: `BIKE_CLOSEUPS="name:x,y,z:tx,ty,tz:lens;..."` adds cameras to build_bike.py
+  (ground frame; 20 samples is enough to judge a surface).
+- What crumpled them, in the order found:
+  1. Pixel noise of the traced outlines (1 to 3 px). `plastics.clean_outline`: resample every 3 px, Gaussian along
+     the curve (5 px = 4 mm). Thin slivers shrink under it: do not rely on a tip thinner than 10 mm.
+  2. Rolled edges and shoulders written as functions of a separately smoothed edge table (x - edge(z)): the panel's
+     real boundary wanders about that table, so the roll zig-zags. Write them as functions of the DISTANCE from the
+     pixel to the outline's own front-facing or top-facing part (`plastics.Edges`): zero exactly on the edge.
+  3. That distance taken to the outline's points (3 px apart) beats against the mesh's edge vertices (5 px apart):
+     scallops every centimetre. Take it to the edge sampled every 0.25 px.
+  4. An axis-aligned vertex grid cannot follow a 12 mm roll: `plate2d(..., rings=(...))` adds rows of vertices
+     parallel to the outline through the rolled zone.
+  5. Fingers in the outline: red reflections on the fork tube joined the shroud's mask, and the shadowed wall and
+     the skin part near the lower tip. Count sharp reversals along a cleaned outline (turn over 100 deg within
+     12 samples): more than the part's real tips means a finger.
+  6. A raised plateau that stopped dead (height not faded with its width) left a 5 mm step across the fender nose.
+- Seams drawn by hand between touching plastics hand slivers to the wrong part (the fender's lower flank went to the
+  side panel as a tongue). Cut where the parts really meet (a vertical cut at the fender's root) and let the lofted
+  part's edge line follow the mask's true lower boundary; overlap the two parts by 20 mm so no gap opens.
+
 ### Checking
 - `python3 -m pytest -q test_bike.py` (2 minutes) before any render: cameras, agreement between photos, photo-panel
   exactness, score floors for all five views, intruders.
@@ -147,7 +169,7 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   parts placed by estimate must sit INSIDE the measured plastics. Run it after every build.
 - White shapes on a plastic in a render are one of three things. Check in this order with `raster(by_part=True)`:
   another part poking through, a notch in the outline, a mirror-like facet. Do not guess.
-- Scores, plastics pass start to end (red overlap): left 0.78 to 0.87, right 0.80 to 0.89, front 0.52 to 0.74,
+- Scores, plastics pass start to end (red overlap): left 0.78 to 0.87, right 0.80 to 0.88, front 0.52 to 0.75,
   rear 0.40 to 0.53, top 0.76 to 0.82. Rear stays low: the fender's underside tunnel is only stood in for.
 - Blender: `honda_left|right|front|rear|top` cameras reproduce Honda's cameras (parented to the bike's root so they
   follow the tilt onto the ground). They render on a transparent film with a shadow-catching floor (put the PNG on
