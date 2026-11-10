@@ -121,6 +121,15 @@ def main():
                         hit = bvh.find_nearest(d["V"][vi], 0.05)
                         if hit[0] is not None:
                             best = min(best, (d["V"][vi] - hit[0]).length)
+            if best >= 0.004 and len(pts) < len(idx):           # the sample missed: a big piece held at a few points
+                for vi in idx:                                  # (a fender on two bosses). Ask every vertex
+                    p = d["V"][vi]
+                    for bvh in others:
+                        hit = bvh.find_nearest(p, best)
+                        if hit[0] is not None:
+                            best = min(best, (p - hit[0]).length)
+                    if best < 0.004:
+                        break
             if best >= 0.004:
                 c = d["A"][idx].mean(axis=0)
                 floating.append(dict(part=a, verts=int(cnt), gap_mm=round(best * 1000, 1),
