@@ -1,0 +1,32 @@
+[
+ {
+  "dimension": "Overall length",
+  "spec_mm": 2179,
+  "model_mm": 2160.7
+ },
+ {
+  "dimension": "Overall width",
+  "spec_mm": 827,
+  "model_mm": 865.8
+ },
+ {
+  "dimension": "Overall height",
+  "spec_mm": 1262,
+  "model_mm": 1295.6
+ },
+ {
+  "dimension": "Seat height",
+  "spec_mm": 955,
+  "model_mm": 897.6
+ },
+ {
+  "dimension": "Ground clearance",
+  "spec_mm": 330,
+  "model_mm": 333.4
+ },
+ {
+  "dimension": "Lowest point of the tyres",
+  "spec_mm": 0,
+  "model_mm": -0.5
+ }
+]

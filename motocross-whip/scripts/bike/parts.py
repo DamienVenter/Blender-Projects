@@ -735,13 +735,57 @@ CHASSIS = {"frame": frame, "swingarm": swingarm, "shock": shock, "engine": engin
 PIVOTS = {"front_wheel": FA, "rear_wheel": RA}         # wheels are built about their axle
 
 
+# Plugins: detail modules beside this file add parts or replace parts of this file. Each defines
+#   PARTS      {part name: function() -> geom.Mesh}  (axle-line frame; front-end parts with the bars straight)
+#   REPLACES   names of parts of this file (or of an earlier plugin) that it replaces: dropped from the build
+#   FRONT_END  names of its parts that turn with the steering
+#   MATERIALS  {material name: dict(rgb=(r, g, b) 0..255, metal=, rough=, coat=, aniso=, bump=)} for new materials
+#              (existing names: MATS in build_bike.py)
+#   CLASS      {material name: "red" | "black"} for compare.py's material classes (default: metal)
+#   THIN       names of single-surface parts to solidify 3 mm in Blender;  BEVEL {name: width m};  SMOOTH {name: deg}
+# BIKE_PLUGINS=a,b limits which load (BIKE_PLUGINS=none: none), so one assembly can be worked on alone.
+PLUGINS = ("detail_chassis", "detail_engine", "detail_front", "detail_wheels", "detail_plastics")
+
+
+def plugins():
+    import importlib
+    want = os.environ.get("BIKE_PLUGINS", "all")
+    mods = []
+    for name in PLUGINS:
+        if want == "none" or (want != "all" and name not in want.split(",")):
+            continue
+        if os.path.exists(os.path.join(HERE, name + ".py")):
+            mods.append(importlib.import_module(name))
+    return mods
+
+
 def build():
+    fns = {**FRONT_END, **CHASSIS}
+    own = set(fns)
+    front = set(FRONT_END)
+    meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}}
+    for m in plugins():
+        for old in getattr(m, "REPLACES", ()):
+            fns.pop(old, None)
+            front.discard(old)
+            own.discard(old)
+        for name, fn in m.PARTS.items():
+            fns[name] = fn
+            own.discard(name)
+        front |= set(getattr(m, "FRONT_END", ()))
+        meta["thin"] += list(getattr(m, "THIN", ()))
+        meta["bevel"].update(getattr(m, "BEVEL", {}))
+        meta["smooth"].update(getattr(m, "SMOOTH", {}))
+        meta["materials"].update({k: dict(v) for k, v in getattr(m, "MATERIALS", {}).items()})
+        meta["class"].update(getattr(m, "CLASS", {}))
     parts = {}
-    for name, fn in {**FRONT_END, **CHASSIS}.items():
+    for name, fn in fns.items():
         mesh = fn()
-        if name in PIVOTS:
+        if name in PIVOTS and name in own:               # this file's wheels are built about their axle
             mesh.transform(None, PIVOTS[name])
         parts[name] = mesh
+    meta["front_end"] = sorted(front & set(parts))
+    build.meta = meta
     return parts
 
 
@@ -758,6 +802,7 @@ def save(parts, path):
         data[f"{name}__S"] = sizes
         data[f"{name}__F"] = flat
         data[f"{name}__M"] = np.array([mats.index(mm) for mm in p.M], np.int16)
+    data["meta"] = np.array(json.dumps(getattr(build, "meta", {"front_end": sorted(FRONT_END)})))
     data["steer_axis"] = np.vstack([STEER0, UP])
     data["ground"] = np.array([RA[0], RA[1], RA[2], GROUND_PITCH])
     np.savez_compressed(path, **data)

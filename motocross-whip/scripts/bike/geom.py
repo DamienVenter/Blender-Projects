@@ -326,3 +326,31 @@ def prism(outline, y0, y1, mat, step=0.012):
     w = abs(y1 - y0)
     yc = (y0 + y1) / 2
     return plate2d(outline, [], w, mat, lambda u, v, t: (u, yc + t, v), step=step)
+
+
+def bolt(c, axis, af=0.008, head_h=0.0055, flange_d=None, mat="bolt", kind="hex"):
+    """Bolt head at C, standing along AXIS (pointing out of the surface it sits on). kind "hex": a hexagon AF across
+    flats on a round flange (Honda's flange bolts: 8 mm heads on M6, 10 on M8, 12 on M10, 14 on M12, 17 on M14);
+    kind "cap": a round socket-cap head AF in diameter. One shared helper so every bolt on the bike looks alike."""
+    a = np.asarray(axis, float)
+    a = a / np.linalg.norm(a)
+    h = np.array([0.0, 0.0, 1.0]) if abs(a[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(h, a)
+    u /= np.linalg.norm(u)
+    v = np.cross(a, u)
+    c = np.asarray(c, float)
+    ang = np.linspace(0, 2 * math.pi, 12, endpoint=False)
+    circ = np.stack([np.cos(ang), np.sin(ang)], axis=1)
+    hexa = circ.copy()
+    hexa[1::2] *= math.cos(math.radians(30))                 # corners and edge mid-points of a hexagon
+    rf = (flange_d if flange_d else af * 1.75) / 2
+    rh = af / 2 / math.cos(math.radians(30))
+    t = min(0.0016, head_h * 0.3)
+    if kind == "cap":
+        prof = [(circ, af / 2, 0.0), (circ, af / 2, head_h * 0.92), (circ, af / 2 * 0.9, head_h), (circ, af * 0.28, head_h),
+                (circ, af * 0.26, head_h * 0.45)]
+    else:
+        prof = [(circ, rf, 0.0), (circ, rf, t * 0.6), (circ, rf * 0.86, t), (hexa, rh, t), (hexa, rh, head_h * 0.88),
+                (hexa, rh * 0.9, head_h)]
+    rings = [np.array([c + (p[0] * u + p[1] * v) * r + a * z for p in shape]) for shape, r, z in prof]
+    return grid(Mesh(), rings, mat, closed_u=True, cap0=True, cap1=True)

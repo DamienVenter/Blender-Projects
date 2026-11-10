@@ -27,7 +27,9 @@ os.makedirs(OUT, exist_ok=True)
 HERE = os.path.dirname(os.path.abspath(__file__))
 BP = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-blueprint.json")))["left"]
 MAPS = json.load(open(os.path.join(TEX, "maps.json")))
-_up = np.load(PARTS)["steer_axis"][1]
+_npz = np.load(PARTS)
+META = json.loads(str(_npz["meta"])) if "meta" in _npz.files else {}       # from parts.py and its plugins
+_up = _npz["steer_axis"][1]
 RAKE = math.atan2(-float(_up[0]), float(_up[2]))       # fork axis in the axle-line frame (parts.py, from the photo)
 STUDIO_CAMS = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-cameras.json")))   # cams.py
 
@@ -162,6 +164,16 @@ def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
         u = (y + 0.105) / 0.21 if nrm[0] > 0.3 else (0.105 - y) / 0.21
         return u, (z - 1.17) / 0.05
     return 0.5, 0.5
+
+
+MATS["bolt"] = dict(rgb=(158, 160, 166), metal=1.0, rough=0.38)
+for _k, _v in META.get("materials", {}).items():
+    MATS[_k] = {k: (tuple(v) if k == "rgb" else v) for k, v in _v.items()}
+THIN |= set(META.get("thin", ()))
+BEVEL.update(META.get("bevel", {}))
+SMOOTH_ANGLE.update(META.get("smooth", {}))
+if "front_end" in META:
+    FRONT_END = set(META["front_end"])                 # one list for the whole pipeline: parts.py's
 
 
 def build_parts():

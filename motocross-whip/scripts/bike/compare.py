@@ -52,6 +52,10 @@ def raster(parts_path, bp, view, scale=2, by_part=False):
         for n in names:
             if n in mats:
                 mclass[mats.index(n)] = c
+    meta = json.loads(str(data["meta"])) if "meta" in data.files else {}
+    for n, c in meta.get("class", {}).items():           # materials of plugin modules
+        if n in mats:
+            mclass[mats.index(n)] = {"red": RED, "black": BLACK}.get(c, METAL)
     cam = cams.CAMS[view]
     T, Dp, C = [], [], []
     for pi, name in enumerate([str(n) for n in data["names"]]):
