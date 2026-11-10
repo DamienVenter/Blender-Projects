@@ -23,7 +23,7 @@ IN = 0.0254
 
 # ---------------------------------------------------------------- measured and specified dimensions
 FRONT = dict(
-    R=R_FRONT, pitches=41,          # shared radius (see the report: LEFT / RIGHT tips fit r 359.3); LEFT: 41 pitches
+    R=R_FRONT, pitches=41,          # LEFT / RIGHT: knob tips at r 359.3 (parts.R_FRONT); LEFT: 41 pitches
     knob=0.012,                     # EST centre knob height (LEFT lower arc: gaps seen at least 5 mm deep)
     rb=21 * IN / 2, hw=1.60 * IN / 2,   # SPEC rim 21 x 1.60: bead seat radius, half width between the flanges
     hf=0.011,                       # SPEC WM contour flange height (EST 11 mm)
@@ -31,7 +31,7 @@ FRONT = dict(
     width=0.0885,                   # FRONT rows 1900..2000: 137 px = 88 to 89 mm at the shoulder knobs' depth
 )
 REAR = dict(
-    R=R_REAR, pitches=46,           # shared radius (LEFT / RIGHT tips fit r 334.3); LEFT: 46 pitches
+    R=R_REAR, pitches=46,           # LEFT / RIGHT: knob tips at r 334.3 (parts.R_REAR); LEFT: 46 pitches
     knob=0.0165,                    # LEFT / RIGHT lower arc: gaps down to r 311..312 mm (15 mm below the tips), EST 16.5
     rb=19 * IN / 2, hw=1.85 * IN / 2,   # SPEC rim 19 x 1.85
     hf=0.0105,                      # SPEC WM contour flange height (EST)

@@ -34,7 +34,10 @@ W, H = 4000, 2250
 TARGET = np.array([0.7527, 0.0, 0.6957])          # where the side photos' centre pixel hits the centre plane
 SIDE_DIST = 4.7                                    # m (muffler parallax)
 SIDE_HEIGHT = 1.13                                 # m (bar end, footpeg and seat heights in the side photo)
-R_REAR = BPS["left"]["rear_tyre_od_mm"] / 2000.0
+R_REAR = BPS["left"]["rear_tyre_od_mm"] / 2000.0    # height of both axles in the blueprint's frame (0.3264). A datum only:
+AXLE_Z = R_REAR                                    # the blueprint's circle lies 8 mm inside the rear tyre's knob tips
+TYRE_R_FRONT = 0.3593                              # tyre radii at the knob tips, both side photos (see parts.py)
+TYRE_R_REAR = 0.3343
 
 
 class Cam:
@@ -108,7 +111,7 @@ BAR_END = (0.910, 0.4135, 1.207)                   # left grip's end cap centre.
 
 def front_camera():
     """Front camera fitted to six landmarks of the front photo (pixels measured 2026-11-10, see the module text)."""
-    tyre = _tyre(1.483, BPS["left"]["front_tyre_od_mm"] / 2000.0)
+    tyre = _tyre(1.483, TYRE_R_FRONT)
 
     def res(p):
         c = end_camera(1, p[3], p[0], p[1], p[2])
@@ -123,7 +126,7 @@ def front_camera():
 
 def rear_camera():
     """Rear camera fitted to five landmarks of the rear photo."""
-    tyre = _tyre(0.0, R_REAR)
+    tyre = _tyre(0.0, TYRE_R_REAR)
 
     def res(p):
         c = end_camera(-1, p[3], p[0], p[1], p[2])

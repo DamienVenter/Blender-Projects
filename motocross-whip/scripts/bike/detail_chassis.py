@@ -20,9 +20,8 @@ Things the photos settle (2026-11-10):
     show at its joints in the right photo: two welds and two clamps.
   * The rear master cylinder carries its reservoir on top (one casting in the right photo): there is no separate
     reservoir hose on this bike, only the pressure hose to the caliper along the swingarm.
-  * parts.PIVOT and parts.PEG are readings on the photo's centre plane. Cast on the planes the parts are on, the
-    pivot cap is at z 0.480 (not 0.462) and the peg's teeth at 0.412 to 0.425. The pivot stays on parts.PIVOT here
-    (shared datum); the pegs follow the photos and the spec (422 mm).
+  * parts.PEG is a reading on the photo's centre plane. Cast on the plane they are on, the peg's teeth are at
+    z 0.40 to 0.42: the pegs follow the photos and the spec (422 mm). parts.PIVOT is the pivot cap cast on its plane.
 
 Normals point out of every solid and parts that only touch a neighbour stop 0.2 to 0.5 mm short of it: the audit
 (audit.py) measures clash depth along the normals and counts intersecting faces.
@@ -150,8 +149,10 @@ LINK_T = np.array([0.385, 0.0, 0.375])          # LEFT px (2469,1552), RIGHT px 
 LINK_B = np.array([0.382, 0.0, 0.326])          # LEFT px (2471,1617), RIGHT px (1524,1608): arm to link
 CROSS_LO = np.array([0.545, 0.0, 0.388])        # EST: lower cross member behind the engine
 CROSS_UP = np.array([0.632, 0.0, 0.805])        # EST: upper cross member that carries the shock
-PEG_ROOT_Z = 0.4115                             # REAR row 1313 at y 0.14: 0.411; LEFT px (2257,1520): 0.413
-PEG_TIP = (0.2475, 0.425)                       # REAR: tips at columns 1673 and 2328, row 1294: y 0.247, z 0.425
+PEG_ROOT_Z = 0.4065                             # top of the teeth at the root. REAR row 1313 at y 0.14: 0.401; LEFT px
+# (2257,1520): 0.413; SPEC footpeg height 422 on the ground: 0.405. The mean of the two photos
+PEG_TIP = (0.2475, 0.420)                       # REAR: tips at columns 1673 and 2328, row 1294: y 0.248, z 0.416; LEFT:
+# the teeth's top edge at rows 1522..1530 gives 0.423
 PEG_Y0 = 0.152
 PEG_PIN = (PEG_Y0 - 0.006, PEG_ROOT_Z - 0.012)   # EST: hinge pin under the peg's root (y, z)
 

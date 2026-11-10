@@ -19,11 +19,7 @@ def V():
     return {name: np.asarray(fn().V, float) for name, fn in dc.PARTS.items()}
 
 
-def ground(P):
-    """Axle-line frame -> on the ground (the bike is tilted nose-up about the rear axle)."""
-    c, s = math.cos(parts.GROUND_PITCH), math.sin(parts.GROUND_PITCH)
-    x, z = P[:, 0] - parts.RA[0], P[:, 2] - parts.RA[2]
-    return np.stack([parts.RA[0] + c * x - s * z, P[:, 1], parts.RA[2] + s * x + c * z], axis=1)
+ground = parts.to_ground
 
 
 def test_vertex_budget(V):
@@ -52,13 +48,12 @@ def test_ground_clearance_leaves_330_mm_under_the_cradle(V):
     """SPEC: 330 mm under the engine's guard. The cradle rails sit just above it and nothing of the frame is lower."""
     G = ground(V["frame"])
     low = G[(G[:, 0] > 0.55) & (G[:, 0] < 1.0)][:, 2].min()
-    assert 0.330 <= low < 0.360, low
+    assert 0.330 <= low < 0.368, low
 
 
 def test_swingarm_turns_on_the_shared_pivot_and_reaches_the_axle(V):
-    """SPEC: swingarm 585.2 mm. parts.PIVOT (kept as the shared datum) gives 579; the pivot cap in the photos, cast
-    on the plate's plane, gives 584.5 (see the report)."""
-    assert abs(np.linalg.norm(parts.PIVOT - parts.RA) - 0.5852) < 0.008
+    """SPEC: swingarm 585.2 mm. parts.PIVOT, the pivot cap in the photos cast on the plate's plane, gives 584.5."""
+    assert abs(np.linalg.norm(parts.PIVOT - parts.RA) - 0.5852) < 0.002
     S = V["swingarm"]
     nose = S[S[:, 0] > parts.PIVOT[0] + 0.010]             # pivot tube and the slider wrapped round it
     r = np.hypot(nose[:, 0] - parts.PIVOT[0], nose[:, 2] - parts.PIVOT[2])

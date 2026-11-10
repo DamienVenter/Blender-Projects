@@ -9,11 +9,7 @@ import detail_front as df
 import parts
 
 
-def ground(v):
-    """Axle-line frame to the ground frame (nose up about the rear axle, both tyres on the ground)."""
-    v = np.asarray(v, float) - parts.RA
-    c, s = math.cos(parts.GROUND_PITCH), math.sin(parts.GROUND_PITCH)
-    return np.stack([v[:, 0] * c - v[:, 2] * s, v[:, 1], parts.R_REAR + v[:, 0] * s + v[:, 2] * c], axis=1)
+ground = parts.to_ground
 
 
 @pytest.fixture(scope="module")

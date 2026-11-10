@@ -187,12 +187,13 @@ def build_parts():
     col = bpy.data.collections.new(NAME)
     bpy.context.scene.collection.children.link(col)
     steer0, up = data["steer_axis"]
-    rx, ry, rz, pitch = data["ground"]
-    # root: tilts the bike (built in the axle-line frame) nose-up about the rear axle so both tyres touch the ground
+    rx, ry, rz, pitch, drop = data["ground"]
+    # root: tilts the bike (built in the axle-line frame) nose-up about the rear axle and lifts it so both tyres touch
+    # the ground
     root = bpy.data.objects.new("bike", None)
     Rm = Matrix.Rotation(-float(pitch), 4, "Y")
     ra = Vector((float(rx), float(ry), float(rz)))
-    root.matrix_world = Matrix.Translation(ra) @ Rm @ Matrix.Translation(-ra)
+    root.matrix_world = Matrix.Translation(ra + Vector((0.0, 0.0, float(drop)))) @ Rm @ Matrix.Translation(-ra)
     col.objects.link(root)
     steer = bpy.data.objects.new("steer", None)            # front end turns about this empty (steering axis)
     steer.parent = root
@@ -368,11 +369,11 @@ def cameras(root=None):
         v = -v
     c_img = np.array([2000.0, 1125.0]) - ra
     cx, cz = c_img @ u * s, c_img @ v * s + BP["rear_tyre_od_mm"] / 2000.0       # axle-line frame
-    pitch = float(np.load(PARTS)["ground"][3])
+    pitch, drop = (float(q) for q in np.load(PARTS)["ground"][3:5])
     r0 = np.array([0.0, BP["rear_tyre_od_mm"] / 2000.0])
     c, sn = math.cos(pitch), math.sin(pitch)
     d = np.array([cx, cz]) - r0
-    gx, gz = r0 + np.array([c * d[0] - sn * d[1], sn * d[0] + c * d[1]])            # ground frame
+    gx, gz = r0 + np.array([c * d[0] - sn * d[1], sn * d[0] + c * d[1] + drop])     # ground frame
     # the axle line is at PITCH to the ground in the model and at tilt_deg in the photo: roll the camera by the
     # difference so the model lands on the photo pixel for pixel
     roll = pitch - math.radians(BP["tilt_deg"])

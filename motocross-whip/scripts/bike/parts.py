@@ -55,14 +55,32 @@ def PO(name, y):
 
 # ---------------------------------------------------------------- geometry of the chassis
 WHEELBASE = 1.483                                   # SPEC
-R_REAR = BP["rear_tyre_od_mm"] / 2 * MM             # BP: 0.3264 (knob tips)
-R_FRONT = BP["front_tyre_od_mm"] / 2 * MM           # BP: 0.3506
-# The parts are built in the AXLE-LINE frame of the blueprint (both axles at z = R_REAR, the frame every outline
-# and grid reading is in). build_bike.py then tilts the whole bike nose-up by GROUND_PITCH about the rear axle so
-# both tyres stand on the ground (the front tyre is bigger).
-RA = np.array([0.0, 0.0, R_REAR])                   # rear axle
-FA = np.array([WHEELBASE, 0.0, R_REAR])             # front axle (axle-line frame)
-GROUND_PITCH = math.atan2(R_FRONT - R_REAR, WHEELBASE)        # about 0.93 deg
+AXLE_Z = BP["rear_tyre_od_mm"] / 2 * MM             # 0.3264: height of both axles in the blueprint's frame. Only a datum:
+# the circle the blueprint fitted to the rear tyre lies 8 mm inside the knob tips, so z = 0 is 8 mm above the ground
+# Tyre radii at the knob tips. LEFT and RIGHT photos, rays from each axle over the free arc of the tyre: 95th
+# percentile 359.6 and 359.7 (front), 336.9 and 338.7 (rear) at the centre plane's scale, 0.6 % less for the near
+# edge of the tread; the tread drawn through both cameras fits 359.3 and 334.3 (wheels pass). Cross-checks: Honda's
+# overall length 2179 = wheelbase + both radii gives 696 for the pair (here 693.6), and 80/100-21 and 100/90-19
+# motocross tyres are 709 to 718 and 663 to 671 mm across
+R_REAR = cams.TYRE_R_REAR                           # 0.3343
+R_FRONT = cams.TYRE_R_FRONT                         # 0.3593
+# The parts are built in the AXLE-LINE frame of the blueprint (both axles at z = AXLE_Z, the frame every outline
+# and grid reading is in). build_bike.py then tilts the whole bike nose-up by GROUND_PITCH about the rear axle and
+# lifts it by GROUND_DROP so both tyres stand on the ground (the front tyre is bigger).
+RA = np.array([0.0, 0.0, AXLE_Z])                   # rear axle
+FA = np.array([WHEELBASE, 0.0, AXLE_Z])             # front axle (axle-line frame)
+GROUND_PITCH = math.atan2(R_FRONT - R_REAR, WHEELBASE)        # about 0.97 deg
+GROUND_DROP = R_REAR - AXLE_Z                       # the ground is this far below the frame's z = 0 under the rear axle
+
+
+def to_ground(P):
+    """Points of the axle-line frame -> standing on the ground (z = 0 under both tyres)."""
+    P = np.asarray(P, float)
+    c, sn = math.cos(GROUND_PITCH), math.sin(GROUND_PITCH)
+    x, z = P[:, 0] - RA[0], P[:, 2] - RA[2]
+    return np.stack([RA[0] + c * x - sn * z, P[:, 1], RA[2] + GROUND_DROP + sn * x + c * z], axis=1)
+
+
 # Fork tube axis measured on Honda's left profile photo: both edges of the near (left) tube fitted over 0.70..1.12 m
 # give its centre line through (1209.5, 800) at 26.40 deg in the photo's blueprint coordinates; cast through the
 # calibrated camera onto the tube's plane (y = +FORK_HALF) this is the true axis. It comes to about 27 deg to the
@@ -94,10 +112,15 @@ def t_at_z(z):
 
 T_BOT_CLAMP = t_at_z(0.925)                         # GRID: lower clamp at z 0.90..0.96
 T_TOP_CLAMP = t_at_z(1.140)                         # GRID: top clamp at z 1.13..1.15
-PIVOT = np.array([0.563, 0.0, 0.462])               # GRID: swingarm pivot bolt; pivot to axle 0.579 (SPEC 585.2)
-PEG = np.array([0.556, 0.0, 0.378])                 # GRID: footpeg (centre of the toothed platform)
-CS = np.array([0.633, 0.098, 0.451])                # GRID: countershaft (13T) sprocket; y EST
-CHAIN_Y = 0.098                                     # EST: chain line (left side)
+PIVOT = np.array([0.564, 0.0, 0.480])               # swingarm pivot bolt: its cap cast on its own plane (y 0.14) through
+# the left camera. Read on the centre plane it was 18 mm low (the camera looks down on it). Pivot to axle 584.5 (SPEC 585.2)
+PEG = np.array([0.556, 0.0, 0.378])                 # GRID: footpeg, read on the centre plane (the teeth, on their own plane, are
+# at z 0.412 to 0.425: detail_chassis)
+CHAIN_Y = 0.088                                     # chain line (left side). REAR photo: 0.086 (wheels pass) and 0.089
+# (chassis pass, rows 1600..1620) for the chain's centre behind the sprocket
+CS = np.array([0.633, CHAIN_Y, 0.464])              # countershaft (13T sprocket). GRID gave z 0.451 on the centre plane; on
+# the chain's plane the left camera, looking down, puts it 13 mm higher. Check: centre distance to the rear axle 647.8,
+# a taut loop of 114 links round 13 and 50 teeth needs 648.1 (0.3 mm of slack in the centre distance)
 P520 = 0.015875                                     # SPEC: #520 chain pitch
 
 
@@ -804,7 +827,7 @@ def save(parts, path):
         data[f"{name}__M"] = np.array([mats.index(mm) for mm in p.M], np.int16)
     data["meta"] = np.array(json.dumps(getattr(build, "meta", {"front_end": sorted(FRONT_END)})))
     data["steer_axis"] = np.vstack([STEER0, UP])
-    data["ground"] = np.array([RA[0], RA[1], RA[2], GROUND_PITCH])
+    data["ground"] = np.array([RA[0], RA[1], RA[2], GROUND_PITCH, GROUND_DROP])
     np.savez_compressed(path, **data)
 
 
