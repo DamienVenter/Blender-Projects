@@ -162,9 +162,21 @@ def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
         s = MAPS["plate"]
         along = (z - 0.94) / math.cos(RAKE)
         return (y - s["u0"]) / (s["u1"] - s["u0"]), (along - s["s0"]) / (s["s1"] - s["s0"])
-    if mat == "barpad":                           # lettering reads correctly from the front and from the seat
-        u = (y + 0.105) / 0.21 if nrm[0] > 0.3 else (0.105 - y) / 0.21
-        return u, (z - 1.17) / 0.05
+    if mat == "barpad":
+        # barpad.png in three bands (livery.barpad): lettering (front and rear faces, each read from its own side),
+        # the pad's top, and its grey end caps. The pad's own axes: f forward, h up, leaning back by "tilt"
+        q = META.get("uv", {}).get("barpad", dict(centre=[0.99, 1.18], half=[0.028, 0.030], y_half=0.105))
+        (xc, zc), (hf, hh), yh, t = q["centre"], q["half"], q["y_half"], q.get("tilt", 0.0)
+        ct, st = math.cos(t), math.sin(t)
+        f, h = (x - xc) * ct + (z - zc) * st, -(x - xc) * st + (z - zc) * ct
+        nf, nh = nrm[0] * ct + nrm[2] * st, -nrm[0] * st + nrm[2] * ct
+        unit = lambda v: min(max(v, 0.02), 0.98)
+        if abs(nrm[1]) > max(abs(nf), abs(nh)):                    # end cap
+            return unit((f * (1 if nrm[1] > 0 else -1) + hf) / (2 * hf) * (2 * hf / (2 * yh))), (2 + unit((h + hh) / (2 * hh))) / 3
+        if abs(nf) > abs(nh):                                      # front or rear face
+            u = (y + yh) / (2 * yh) if nf > 0 else (yh - y) / (2 * yh)
+            return u, unit((h + hh) / (2 * hh)) / 3
+        return (yh - y) / (2 * yh), (1 + unit((f + hf) / (2 * hf))) / 3
     return 0.5, 0.5
 
 

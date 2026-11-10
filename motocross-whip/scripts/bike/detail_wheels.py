@@ -14,7 +14,7 @@ import math
 import numpy as np
 
 from geom import Mesh, bolt, box, circle, grid, inside, lathe, resample, slot, smooth_poly, tube
-from parts import CHAIN_Y, CS, FA, P520, R_FRONT, R_REAR, RA, sprocket_r
+from parts import CHAIN_Y, CS, FA, P520, R_FRONT, R_REAR, RA, chain_top, sprocket_r
 
 REPLACES = ["front_wheel", "rear_wheel", "drive"]
 FRONT_END = {"front_wheel"}
@@ -23,16 +23,18 @@ IN = 0.0254
 
 # ---------------------------------------------------------------- measured and specified dimensions
 FRONT = dict(
-    R=R_FRONT, pitches=41,          # LEFT / RIGHT: knob tips at r 359.3 (parts.R_FRONT); LEFT: 41 pitches
-    knob=0.012,                     # EST centre knob height (LEFT lower arc: gaps seen at least 5 mm deep)
+    R=R_FRONT, pitches=41,          # LEFT / RIGHT circle through the knob tips: r 359.3; LEFT: 41 pitches
+    root=0.3470,                    # LEFT / RIGHT front arc: the groove floor between the knobs at r 346.5..347.5
+    knob=0.012,                     # tips less root: 12.3 mm
     rb=21 * IN / 2, hw=1.60 * IN / 2,   # SPEC rim 21 x 1.60: bead seat radius, half width between the flanges
     hf=0.011,                       # SPEC WM contour flange height (EST 11 mm)
     r_in=0.256,                     # LEFT / RIGHT radial scan about the axle: white ends at r 252..256 mm
     width=0.0885,                   # FRONT rows 1900..2000: 137 px = 88 to 89 mm at the shoulder knobs' depth
 )
 REAR = dict(
-    R=R_REAR, pitches=46,           # LEFT / RIGHT: knob tips at r 334.3 (parts.R_REAR); LEFT: 46 pitches
-    knob=0.0165,                    # LEFT / RIGHT lower arc: gaps down to r 311..312 mm (15 mm below the tips), EST 16.5
+    R=R_REAR, pitches=46,           # LEFT / RIGHT circle through the knob tips: r 334.3; LEFT: 46 pitches
+    root=0.3180,                    # LEFT / RIGHT rear arc: the groove floor at r 317..319 (314 at the lowest)
+    knob=0.0165,                    # tips less root: 16.3 mm
     rb=19 * IN / 2, hw=1.85 * IN / 2,   # SPEC rim 19 x 1.85
     hf=0.0105,                      # SPEC WM contour flange height (EST)
     r_in=0.229,                     # LEFT / RIGHT radial scan: white ends at r 224..228 mm
@@ -127,17 +129,14 @@ def _ccw(L):
     return L if area > 0 else L[::-1]
 
 
-def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0), anchor=None, hi_first=False):
+def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0)):
     """Flat plate in the wheel's plane: outline and holes are (x, z) loops about ORIGIN, used point for point (no
-    resampling: tooth forms and small holes keep their shape), plus an interior grid; thickness along y about Y.
-    anchor: the hole whose vertices come first, hi_first: the +y face's vertices come first (see _pilots)."""
+    resampling: tooth forms and small holes keep their shape), plus an interior grid; thickness along y about Y."""
     from scipy.spatial import Delaunay, cKDTree
     outer = _ccw(outer)
     hs = [_ccw(h) for h in holes]
-    loops = [(outer, True)] + [(h, False) for h in hs]
-    if anchor is not None:
-        loops.insert(0, loops.pop(anchor + 1))
-    B = np.vstack([L for L, _ in loops])
+    loops = [outer] + hs
+    B = np.vstack(loops)
     lo, hi = outer.min(axis=0), outer.max(axis=0)
     gx, gz = np.meshgrid(np.arange(lo[0] + step / 2, hi[0], step), np.arange(lo[1] + step / 2, hi[1], step))
     G = np.stack([gx.ravel(), gz.ravel()], axis=1)
@@ -161,30 +160,23 @@ def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0), anchor=None, hi
     tri[area < 0] = tri[area < 0][:, ::-1]
     m = Mesh()
     X, Z = P[:, 0] + origin[0], P[:, 1] + origin[1]
-    sides = [np.stack([X, np.full(len(P), y + sg * thick / 2), Z], axis=1) for sg in (-1, 1)]
-    if hi_first:
-        hi_ = m.verts(sides[1])
-        lo_ = m.verts(sides[0])
-    else:
-        lo_ = m.verts(sides[0])                                  # ccw in (x, z) faces -y
-        hi_ = m.verts(sides[1])
+    lo_ = m.verts(np.stack([X, np.full(len(P), y - thick / 2), Z], axis=1))      # ccw in (x, z) faces -y
+    hi_ = m.verts(np.stack([X, np.full(len(P), y + thick / 2), Z], axis=1))
     for i, j, k in tri:
         m.face((lo_ + i, lo_ + j, lo_ + k), mat)
         m.face((hi_ + i, hi_ + k, hi_ + j), mat)
     o = 0
-    for L, is_outer in loops:
+    for n, L in enumerate(loops):
         for i in range(len(L)):
             j = (i + 1) % len(L)
             f = (lo_ + o + i, hi_ + o + i, hi_ + o + j, lo_ + o + j)
-            m.face(f if is_outer else f[::-1], mat)
+            m.face(f if n == 0 else f[::-1], mat)
         o += len(L)
     return m
 
 
 def _pilots(r, a0, n):
-    """Bolted joints: every plate has a 3.8 mm pilot hole under each bolt (16 points, covered by the head or the
-    nut), and its vertices start with one pilot hole on the face it is clamped by. The two plates of a joint and
-    its bolts then have vertices within 2 to 4 mm of each other, which is how audit.py tells seated from floating."""
+    """Bolt holes of a bolted joint (3.8 mm, under the bolt heads and nuts)."""
     return [circle(0.0019, 16, *_pol(r, a0 + k * 2 * math.pi / n)) for k in range(n)]
 
 
@@ -362,28 +354,20 @@ def _hub(m, prof, mats, phase, seg=72):
     return off
 
 
-def _spokes(m, spec, r_hub, y_left, y_right, phase, hub_at, rim_at, flange_t=0.006):
-    """Each spoke is one piece: head, elbow through the flange, spoke, nipple (flats, then the seat in the rim). Its
-    head is tied to the hub's vertex at its hole and its nipple to the rim's well (both joints hidden)."""
+def _spokes(m, spec, r_hub, y_left, y_right, phase, flange_t=0.006):
+    """Each spoke is one piece: head, elbow through the flange, spoke, nipple (flats, then the seat 3 mm into the
+    rim's wall)."""
     for p0, p1, yf, e in spoke_lines(spec, r_hub, y_left, y_right, flange_t, phase):
         dn = (p1 - p0) / np.linalg.norm(p1 - p0)
         ey = np.array([0.0, e, 0.0])
         q = np.array([p0[0], yf - e * flange_t / 2, p0[2]])
         path = [q - 0.0018 * ey, q - 0.00005 * ey, q, p0, p1 - dn * 0.0151, p1 - dn * 0.0150, p1 - dn * 0.0050,
                 p1 - dn * 0.0049, p1 + dn * 0.003]
-        o = len(m.V)
         m.add(tube(path, [0.0034, 0.0034, SPOKE_R, SPOKE_R, SPOKE_R, 0.0031, 0.0031, 0.0040, 0.0040], 6, "spoke"))
-        hv = hub_at(yf - e * flange_t / 2, math.atan2(p0[2], p0[0]))
-        rv = rim_at(math.atan2(p1[2], p1[0]))
-        for j in range(6):
-            j2 = (j + 1) % 6
-            m.face((o + 6 + j, o + 6 + j2, hv), "spoke")
-            m.face((o + 48 + j, o + 48 + j2, rv), "spoke")
 
 
-def _stem(m, spec, ang, lock, rim_at):
-    """Valve stem with its nut and cap, or a rim lock's stud with washer and nut, through the rim well toward the hub
-    (one piece, tied to the rim inside its wall)."""
+def _stem(m, spec, ang, lock):
+    """Valve stem with its nut and cap, or a rim lock's stud with washer and nut, through the rim well toward the hub."""
     e = np.array([math.cos(ang), 0.0, math.sin(ang)])
     if lock:
         d = [0.003, 0.0005, 0.00045, -0.002, -0.00205, -0.009, -0.00905, -0.017]
@@ -391,19 +375,7 @@ def _stem(m, spec, ang, lock, rim_at):
     else:
         d = [0.003, 0.0005, 0.00045, -0.004, -0.00405, -0.024, -0.02405, -0.034]
         rad = [0.0042, 0.0042, 0.007, 0.007, 0.0042, 0.0042, 0.0048, 0.0048]
-    o = len(m.V)
     m.add(tube([e * (spec["r_in"] + x) for x in d], rad, 8, "steel"))
-    rv = rim_at(ang)
-    for j in range(8):
-        m.face((o + j, o + (j + 1) % 8, rv), "steel")
-
-
-def _swap0(m, k):
-    """Make vertex K the mesh's first vertex (the audit samples a big piece sparsely, always from its first vertex:
-    the wheel's is put on the hub where the bolted flange sits round it)."""
-    m.V[0], m.V[k] = m.V[k], m.V[0]
-    sw = {0: k, k: 0}
-    m.F = [tuple(sw.get(i, i) for i in f) for f in m.F]
 
 
 # ---------------------------------------------------------------- discs
@@ -429,7 +401,7 @@ def front_disc():
         a2 = DISC_F_DEEP + k * math.pi / 9
         holes.append(circle(0.00325, 8, *_pol(0.1185, a1)))
         holes.append(circle(0.00275, 8, *_pol(0.1095, a2)))
-    m = _plate(_pol(front_disc_r(a), a), holes, DISC_F["y"], DISC_F["t"], "disc", 0.007, anchor=1)
+    m = _plate(_pol(front_disc_r(a), a), holes, DISC_F["y"], DISC_F["t"], "disc", 0.007)
     for k in range(6):
         x, z = _pol(DISC_F_BOLT_R, DISC_F_DEEP + (k + 0.5) * math.pi / 3)
         m.add(bolt((x, DISC_F["y"] + DISC_F["t"] / 2, z), (0, 1, 0), af=0.010, head_h=0.0045, flange_d=0.014,
@@ -463,7 +435,7 @@ def rear_disc():
             ah = DISC_R_FLAT + j * 2 * math.pi / 28 + math.radians(da)
             if rear_disc_r(ah) - r > 0.0065 and r - rear_disc_r_in(ah) > 0.0065:
                 holes.append(circle(0.003, 8, *_pol(r, ah)))
-    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007, anchor=1, hi_first=True)
+    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007)
     for k in range(4):
         x, z = _pol(DISC_R_BOLT_R, DISC_R_FLAT + k * math.pi / 2)
         m.add(bolt((x, DISC_R["y"] - DISC_R["t"] / 2, z), (0, -1, 0), af=0.010, head_h=0.005, flange_d=0.015,
@@ -502,53 +474,94 @@ def rear_sprocket(phase):
         holes.append(resample(slot(_pol(0.106, ab), ab + math.pi / 2, 0.026, 0.009), 0.0035))
         for d in (-10.5, 0.0, 10.5):
             holes.append(circle(0.0035, 10, *_pol(0.073, am + math.radians(d))))
-    return _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.006, anchor=1)
+    return _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.006)
+
+
+BOTTOM_RUN = ((0.604, 0.428), (0.171, 0.270))       # LEFT: the bottom run is straight between these two points
+GUIDE_PT = BOTTOM_RUN[1]                            # its rear end, at the chain guide
+LOWER_ROLLER = (0.522, 0.375)       # LEFT pixel (2297, 1557) cast on the chain's plane: the frame's lower roller
+                                    # (detail_chassis.py), just under the bottom run
 
 
 @functools.lru_cache(maxsize=None)
 def chain_path():
-    """Pin centres (x, z) of the #520 chain: seated on the 50-tooth sprocket, one pitch apart along the taut top
-    run, seated on the 13-tooth sprocket, and back along the bottom run. LEFT cols 2402..2713: the bottom run lies
-    within 12 mm of the tangent line (taut, as the top run), so it is drawn straight. With CS and RA as parts.py
-    has them the taut loop is 1805.2 mm, 4.6 mm less than 114 pitches: the bottom run's links are closed up by that
-    (0.9 % each) rather than hung as a 39 mm sag the photo does not show. Returns pins, both sprockets' seat phases,
-    the bottom-run pins, the top run's ends and the bottom run's link length."""
+    """Pin centres (x, z) of the #520 chain along the path the LEFT photo shows: round the 50-tooth sprocket, the
+    top run along parts.chain_top (over the swingarm's slider), round the 13-tooth sprocket, onto the bottom run's
+    straight (BOTTOM_RUN: it passes 3.7 mm inside the 13T's pitch circle, so the chain reaches its front end by
+    the tangent from there) and from GUIDE_PT onto the 50-tooth sprocket. Pins on the sprockets sit in the tooth seats, exactly one
+    pitch apart. The loop is 112.9 pitches long and a chain has an even number of links: 112, the links of the two
+    free runs made longer by the same STRETCH to close it (the 13T's seats are turned so that both runs come out
+    whole). The chain meets and leaves both sprockets from outside (first seat at or before the tangent point).
+    Returns pins, both sprockets' seat phases, the bottom-run pins and STRETCH."""
     c1, c2 = np.array([CS[0], CS[2]]), np.array([RA[0], RA[2]])
     rf, rr = sprocket_r(13), sprocket_r(50)
-    v = c2 - c1
-    dist = float(np.linalg.norm(v))
-    u = v / dist
-    up = np.array([u[1], -u[0]]) * (1 if -u[0] > 0 else -1)
-    beta = math.asin((rr - rf) / dist)
-    mt = math.cos(beta) * up - math.sin(beta) * u                # normals of the top and bottom tangent lines
-    mb = -math.cos(beta) * up - math.sin(beta) * u
-    t1, t2 = c1 + rf * mt, c2 + rr * mt
-    lt = float(np.linalg.norm(t1 - t2))
-    w = (t1 - t2) / lt
-    taut = 2 * lt + rf * (math.pi - 2 * beta) + rr * (math.pi + 2 * beta)
-    links = 2 * round(taut / P520 / 2)                           # the even number of links nearest the taut loop
-    nt = int(lt / P520)
-    top = [t2 + j * P520 * w for j in range(nt + 1)]
-    q = top[-1]                                                  # next pin: on the 13T pitch circle, one pitch on
-    dv = c1 - q
-    dq = float(np.linalg.norm(dv))
-    along = (dq ** 2 + P520 ** 2 - rf ** 2) / (2 * dq)
-    h = math.sqrt(max(P520 ** 2 - along ** 2, 0.0))
-    e = dv / dq
-    b = max((q + along * e + s * h * np.array([-e[1], e[0]]) for s in (-1, 1)), key=lambda X: (X - q) @ w)
-    th_a, th_b = math.atan2(mt[1], mt[0]), math.atan2(b[1] - c1[1], b[0] - c1[0])
-    th_low = math.atan2(mb[1], mb[0])
-    df, dr = 2 * math.pi / 13, 2 * math.pi / 50
-    kf = int(((th_b - th_low) % (2 * math.pi)) / df)             # seated pins up to the bottom tangent points
-    kr = int(((th_low - th_a) % (2 * math.pi)) / dr)
-    nb = links - (nt + 1) - kf - kr
-    f = c1 + rf * np.array([math.cos(th_b - kf * df), math.sin(th_b - kf * df)])
-    r = c2 + rr * np.array([math.cos(th_a + kr * dr), math.sin(th_a + kr * dr)])
-    bottom = [f + (r - f) * j / nb for j in range(nb + 1)]
-    pins = top + [c1 + rf * np.array([math.cos(th_b - k * df), math.sin(th_b - k * df)]) for k in range(kf + 1)]
-    pins += bottom[1:]
-    pins += [c2 + rr * np.array([math.cos(th_a + k * dr), math.sin(th_a + k * dr)]) for k in range(kr - 1, 0, -1)]
-    return np.array(pins), th_a, th_b, np.array(bottom), (t2, t1), float(np.linalg.norm(r - f)) / nb
+    p1, g = np.array(BOTTOM_RUN[0]), np.array(BOTTOM_RUN[1])
+    dr, df = 2 * math.pi / 50, 2 * math.pi / 13
+    th_a = math.atan2(1.0, -float(chain_top(0.30) - chain_top(0.20)) / 0.10)          # the top run leaves the 50T
+    th_arr = math.atan2(1.0, -float(chain_top(CS[0] - 0.010) - chain_top(CS[0] - 0.020)) / 0.010)     # meets the 13T
+
+    def low(c, r, q):                                            # where the tangent from Q touches, underneath
+        d = q - c
+        phi, al = math.atan2(d[1], d[0]), math.acos(r / float(np.linalg.norm(d)))
+        return min((phi + al, phi - al), key=math.sin)
+
+    def on_r(th):
+        return c2 + rr * np.array([math.cos(th), math.sin(th)])
+
+    def on_f(th):
+        return c1 + rf * np.array([math.cos(th), math.sin(th)])
+
+    def length(P):
+        return float(np.linalg.norm(np.diff(P, axis=0), axis=1).sum())
+
+    kr = math.ceil(((low(c2, rr, g) - th_a) % (2 * math.pi)) / dr - 1e-9)                # 50T seats in use: 0 .. kr
+    wrap_f = (th_arr - low(c1, rf, p1)) % (2 * math.pi)
+
+    def lay(delta, kf):
+        th_f = low(c1, rf, p1) - delta                               # the 13T's last seated pin, DELTA past the tangent
+        a, b = on_r(th_a), on_f(th_f + kf * df)
+        xs = np.linspace(a[0] + 0.10, b[0] - 0.010, 80)
+        return (np.vstack([a, np.stack([xs, chain_top(xs)], axis=1), b]),
+                np.vstack([on_f(th_f), p1, g, on_r(th_a + kr * dr)]), th_f + kf * df)
+
+    best = None
+    for kf in (math.ceil(wrap_f / df), math.ceil(wrap_f / df) - 1):
+        for n_top in range(38, 44):
+            for n_bot in range(36, 42):
+                if (n_top + n_bot + kf + kr) % 2:
+                    continue
+
+                def uneven(dl):
+                    top, bot, _ = lay(dl, kf)
+                    return length(top) / n_top - length(bot) / n_bot
+
+                lo, hi = -0.35, 0.9
+                if uneven(lo) * uneven(hi) > 0:
+                    continue
+                for _ in range(45):
+                    mid = 0.5 * (lo + hi)
+                    if uneven(mid) < 0:
+                        lo = mid
+                    else:
+                        hi = mid
+                delta = 0.5 * (lo + hi)
+                link = length(lay(delta, kf)[0]) / n_top
+                clean = -0.02 <= delta <= kf * df - wrap_f + 0.02
+                cand = (not clean, abs(link / P520 - 1), link / P520 - 1, delta, kf, n_top, n_bot)
+                if best is None or cand < best:
+                    best = cand
+    _, _, stretch, delta, kf, n_top, n_bot = best
+    top, bot, th_b = lay(delta, kf)
+
+    def spaced(P, n):
+        d = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
+        w = np.linspace(0, d[-1], n + 1)
+        return np.stack([np.interp(w, d, P[:, 0]), np.interp(w, d, P[:, 1])], axis=1)
+
+    top_p, bot_p = spaced(top, n_top), spaced(bot, n_bot)
+    pins = list(top_p) + [on_f(th_b - k * df) for k in range(1, kf + 1)] + list(bot_p[1:])
+    pins += [on_r(th_a + k * dr) for k in range(kr - 1, 0, -1)]
+    return np.array(pins), th_a, th_b, bot_p, stretch
 
 
 CHAIN_LEVELS = (-0.0087, -0.00725, -0.00525, -0.005175, -0.003175, -0.0031, 0.0031, 0.003175, 0.005175, 0.00525,
@@ -612,12 +625,12 @@ def _chain(m, pins, y):
                 m.face((idx[0](i), idx[1](i), idx[1](i2), idx[0](i2)), "chain")
 
 
-def _chain_roller(m, x, z, r, y_frame=0.079, w=0.024):
+def _chain_roller(m, x, z, r, w=0.024, boss=0.012):
     """Rubber chain roller on the frame's left side, with its collar toward the frame and its flange bolt."""
     y = CHAIN_Y
     m.add(_at(lathe([(0.006, w / 2), (r - 0.003, w / 2), (r, w / 2 - 0.003), (r, -w / 2 + 0.003), (r - 0.003, -w / 2),
                      (0.006, -w / 2)], 24, "rubber_black"), (x, y, z)))
-    m.add(tube([(x, y_frame, z), (x, y - w / 2, z)], 0.008, 20, "alu_cast"))
+    m.add(tube([(x, y - w / 2 - boss, z), (x, y - w / 2, z)], 0.008, 20, "alu_cast"))
     m.add(tube([(x, y - w / 2, z), (x, y + w / 2, z)], 0.0062, 12, "steel", cap0=False))
     m.add(bolt((x, y + w / 2, z), (0, 1, 0), af=0.012, head_h=0.006, flange_d=0.020, mat="steel"))
 
@@ -626,23 +639,20 @@ def drive():
     """#520 chain of real links (inner and outer plates, rollers, riveted pins; SPEC sizes), the 13-tooth
     countershaft sprocket with washer and bolt, and the two chain rollers on the frame."""
     m = Mesh()
-    pins, _, th_b, bottom, (t2, t1), _ = chain_path()
+    pins, _, th_b, bottom, _ = chain_path()
     y = CHAIN_Y
     _chain(m, pins, y)
     c = (CS[0], 0.0, CS[2])
     m.add(_plate(sprocket_outline(13, th_b), [circle(0.0103, 24)], y, SPROCKET_T, "steel", 0.006, (CS[0], CS[2])))
     m.add(_at(_ring(0.0103, 0.0185, y - 0.0085, y - SPROCKET_T / 2, "steel", 24), c))       # sprocket's shoulder
-    m.add(tube([(CS[0], y - 0.020, CS[2]), (CS[0], y + 0.0045, CS[2])], 0.0104, 16, "steel"))    # shaft end
+    m.add(tube([(CS[0], y - 0.0085, CS[2]), (CS[0], y + 0.0045, CS[2])], 0.0104, 16, "steel"))   # shaft end
     m.add(_at(_ring(0.0045, 0.0145, y + 0.0045, y + 0.0070, "steel", 24), c))               # washer
     m.add(bolt((CS[0], y + 0.0070, CS[2]), (0, 1, 0), af=0.012, head_h=0.006, mat="steel"))
-    # chain rollers (EST positions on the frame behind the engine; the chain runs under both): the lower one where
-    # parts.py had it (DV photos), resting on the bottom run; the upper one clear above the top run
-    xl = 0.528
-    zl = float(np.interp(xl, bottom[::-1, 0], bottom[::-1, 1])) + 0.0073 + 0.019 + 0.0015
-    _chain_roller(m, xl, zl, 0.019)
+    # The lower chain roller (LEFT pixel (2297, 1557): LOWER_ROLLER, just under the bottom run) is part of the frame
+    # in detail_chassis.py, on its bracket; a second one here would stand in the same place. The upper roller is
+    # this module's: EST, clear above the top run behind the pivot.
     xu = 0.455
-    zu = float(t2[1] + (t1[1] - t2[1]) * (xu - t2[0]) / (t1[0] - t2[0])) + 0.0073 + 0.017 + 0.005
-    _chain_roller(m, xu, zu, 0.017)
+    _chain_roller(m, xu, float(chain_top(xu)) + 0.0073 + 0.017 + 0.005, 0.017)
     return m
 
 
@@ -652,23 +662,14 @@ def _flange(rh, yf):
             (rh, yf - 0.003), (rh - 0.008, yf - 0.003)]
 
 
-def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, anchor, stems):
-    """Tyre, rim, hub with seals and collars, spokes, valve and rim lock: one connected mesh (what turns as one)."""
+def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems):
+    """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
     m, na, a0, n_t = tyre(spec, ctrl, rows, tread_phase)
-    rim_off = _rim(m, spec, na, a0, n_t)
-    hub_off = _hub(m, prof, mats, spoke0)
-    at_r = {round(y, 6): p for p, (r, y) in enumerate(prof) if abs(r - rh) < 1e-9}
-
-    def rim_at(a):                                               # the rim's well floor (profile point 13) nearest A
-        return rim_off + 13 * na + int(round((a - a0) / (2 * math.pi / na))) % na
-
-    def hub_at(y, a):
-        return hub_off + at_r[round(y, 6)] * 72 + int(round((a - spoke0) / (2 * math.pi / 72))) % 72
-
-    _spokes(m, spec, rh, yl, yr, spoke0, hub_at, rim_at)
+    _rim(m, spec, na, a0, n_t)
+    _hub(m, prof, mats, spoke0)
+    _spokes(m, spec, rh, yl, yr, spoke0)
     for ang, lock in stems:
-        _stem(m, spec, math.radians(ang), lock, rim_at)
-    _swap0(m, hub_off + prof.index(anchor) * 72)
+        _stem(m, spec, math.radians(ang), lock)
     return m
 
 
@@ -677,18 +678,18 @@ def front_wheel():
     flanges on the fitted hole circle, six-lug disc flange, seals and collars; disc on the left."""
     yl, yr, rh = 0.0305, -0.0365, FRONT_HUB_R
     yc = DISC_F["y"] - DISC_F["t"] / 2 - 0.006                   # the disc flange: 6 mm, behind the disc
-    prof = [(0.010, 0.0725), (0.0155, 0.0725), (0.0155, 0.0668), (0.022, 0.0668), (0.022, 0.066), (0.024, 0.066),
+    prof = [(0.0104, 0.0725), (0.0155, 0.0725), (0.0155, 0.0668), (0.022, 0.0668), (0.022, 0.066), (0.024, 0.066),
             (0.026, 0.064), (0.026, yc), (0.026, 0.046), (0.030, 0.040)] + _flange(rh, yl) + [
             (0.024, 0.016), (0.021, 0.006), (0.021, -0.012), (0.025, -0.026)] + _flange(rh, yr) + [
             (0.028, -0.046), (0.025, -0.050), (0.024, -0.056), (0.022, -0.056), (0.022, -0.0568), (0.0155, -0.0568),
-            (0.0155, -0.0705), (0.010, -0.0705)]                 # collars to +72.5 / -70.5: the fork lugs clamp outside
+            (0.0155, -0.0705), (0.0104, -0.0705)]                 # collars to +72.5 / -70.5: the fork lugs clamp outside
     mats = ["steel", "steel", "rubber_black", "rubber_black"] + ["hub"] * (len(prof) - 9) + [
         "rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(FRONT, FRONT_SECTION, FRONT_ROWS, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0, (0.026, yc),
+    m = _wheel(FRONT, FRONT_SECTION, FRONT_ROWS, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
                ((245.0, False), (65.0, True)))
     b0 = DISC_F_DEEP + math.pi / 6
-    m.add(_plate(_lobes(6, 0.040, 0.063, 20.0, b0), [circle(0.0255, 96)] + _pilots(DISC_F_BOLT_R, b0, 6), yc + 0.003,
-                 0.006, "hub", 0.008, anchor=1, hi_first=True))
+    m.add(_plate(_lobes(6, 0.040, 0.063, 20.0, b0), [circle(0.0255, 48)] + _pilots(DISC_F_BOLT_R, b0, 6), yc + 0.003,
+                 0.006, "hub", 0.008))
     m.add(front_disc())
     return _at(m, FA)
 
@@ -696,7 +697,8 @@ def front_wheel():
 def rear_wheel():
     """Rear wheel about the rear axle: sprocket on the left on the chain line, disc on the right."""
     ys = CHAIN_Y
-    y_end = ys + 0.006                                           # LEFT: the hub's end shows inside the sprocket
+    y_end = min(ys + 0.006, ARM_FACE - 0.0011)                   # LEFT: the hub's end shows inside the sprocket;
+                                                                 # its seal stops 0.3 mm from the swingarm
     back = ys - SPROCKET_T / 2 - 0.012                           # REAR cols 1895..1915: sprocket nuts 16..29 mm inboard
     yl, yr, rh = min(0.046, ys - 0.046), -0.040, REAR_HUB_R
     if y_end + 0.0008 < ARM_FACE - 0.001:                        # left collar, up to the swingarm's inner face
@@ -711,11 +713,10 @@ def rear_wheel():
              (0.0125, -0.0855)]                                  # right collar, up to the caliper bracket
     mats += ["rubber_black", "rubber_black"]
     mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(REAR, REAR_SECTION, REAR_ROWS, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0, (0.0605, back),
+    m = _wheel(REAR, REAR_SECTION, REAR_ROWS, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
                ((115.0, False), (295.0, True)))
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
-                 [circle(0.059, 180)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008,
-                 anchor=1, hi_first=True))
+                 [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
@@ -723,7 +724,7 @@ def rear_wheel():
         m.add(bolt((x, back, z), (0, -1, 0), af=0.012, head_h=0.008, mat="steel"))
     yd = DISC_R["y"] + DISC_R["t"] / 2
     m.add(_plate(_lobes(4, 0.060, 0.080, 14.0, DISC_R_FLAT), [circle(0.0565, 48)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4),
-                 yd + 0.004, 0.008, "hub", 0.008, anchor=1))
+                 yd + 0.004, 0.008, "hub", 0.008))
     m.add(rear_disc())
     return _at(m, RA)
 

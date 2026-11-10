@@ -183,13 +183,30 @@ def plate(out_dir):
 
 
 def barpad(out_dir):
-    ppm = 3000
-    W, H = int(0.21 * ppm), int(0.05 * ppm)
+    """Three bands, bottom to top (build_bike.uv_for lays them on the pad):
+    1  RENTHAL as on the pad's front and rear faces (FRONT and REAR photos: white, heavy, slanted, 150 mm of the
+       176 mm pad, 15 mm tall);
+    2  the pad's top, plain for now (the real one carries Renthal's emblem: graphics pass);
+    3  the grey end cap with FATBAR (LEFT and RIGHT photos), in the band's left 56 mm."""
+    ppm = 4000
+    W, H = int(0.21 * ppm), int(0.18 * ppm)
+    B = H // 3
     im = Image.new("RGB", (W, H), RED)
-    d = ImageDraw.Draw(im)
-    f = ImageFont.truetype(F_BLACK, int(0.014 * ppm))
-    d.text((W / 2, H * 0.30), "RENTHAL", font=f, fill=WHITE, anchor="mm")
-    d.text((W / 2, H * 0.70), "RENTHAL", font=f, fill=WHITE, anchor="mm")
+    f = ImageFont.truetype(F_BLACK, int(0.0215 * ppm))
+
+    def word(text, width_m, height_m, slant):
+        layer = Image.new("L", (W, B), 0)
+        ImageDraw.Draw(layer).text((W / 2, B / 2), text, font=f, fill=255, anchor="mm")
+        box = layer.getbbox()
+        w = layer.crop(box).resize((int(width_m * ppm), int(height_m * ppm)), Image.LANCZOS)
+        return w.transform((w.width + int(slant * w.height), w.height), Image.AFFINE,
+                           (1, slant, -slant * w.height, 0, 1, 0), Image.BICUBIC)
+    w1 = word("RENTHAL", 0.150, 0.015, 0.22)
+    im.paste(WHITE, ((W - w1.width) // 2, 2 * B + (B - w1.height) // 2), w1)          # band 1 is the image's bottom
+    cap_w = int(0.056 * ppm)
+    ImageDraw.Draw(im).rectangle([0, 0, W, B], fill=(52, 52, 56))                     # band 3 is the image's top
+    w3 = word("FATBAR", 0.040, 0.008, 0.18)
+    im.paste((92, 92, 98), ((cap_w - w3.width) // 2, (B - w3.height) // 2), w3)
     im.save(os.path.join(out_dir, "barpad.png"))
 
 

@@ -111,7 +111,8 @@ def t_at_z(z):
 
 
 T_BOT_CLAMP = t_at_z(0.925)                         # GRID: lower clamp at z 0.90..0.96
-T_TOP_CLAMP = t_at_z(1.140)                         # GRID: top clamp at z 1.13..1.15
+T_TOP_CLAMP = t_at_z(1.140)                         # GRID: TOP FACE of the top clamp at the tubes (silver t 0.884 to 0.928
+# on both profiles), not its centre
 PIVOT = np.array([0.564, 0.0, 0.480])               # swingarm pivot bolt: its cap cast on its own plane (y 0.14) through
 # the left camera. Read on the centre plane it was 18 mm low (the camera looks down on it). Pivot to axle 584.5 (SPEC 585.2)
 PEG = np.array([0.556, 0.0, 0.378])                 # GRID: footpeg, read on the centre plane (the teeth, on their own plane, are
@@ -781,6 +782,7 @@ PIVOTS = {"front_wheel": FA, "rear_wheel": RA}         # wheels are built about 
 #              (existing names: MATS in build_bike.py)
 #   CLASS      {material name: "red" | "black"} for compare.py's material classes (default: metal)
 #   THIN       names of single-surface parts to solidify 3 mm in Blender;  BEVEL {name: width m};  SMOOTH {name: deg}
+#   UV         {material name: dict(...)} numbers build_bike.uv_for needs to lay that material's texture on the part
 # BIKE_PLUGINS=a,b limits which load (BIKE_PLUGINS=none: none), so one assembly can be worked on alone.
 PLUGINS = ("detail_chassis", "detail_engine", "detail_front", "detail_wheels", "detail_plastics")
 
@@ -801,7 +803,7 @@ def build():
     fns = {**FRONT_END, **CHASSIS}
     own = set(fns)
     front = set(FRONT_END)
-    meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}}
+    meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}, "uv": {}}
     for m in plugins():
         for old in getattr(m, "REPLACES", ()):
             fns.pop(old, None)
@@ -816,6 +818,7 @@ def build():
         meta["smooth"].update(getattr(m, "SMOOTH", {}))
         meta["materials"].update({k: dict(v) for k, v in getattr(m, "MATERIALS", {}).items()})
         meta["class"].update(getattr(m, "CLASS", {}))
+        meta["uv"].update(getattr(m, "UV", {}))
     parts = {}
     for name, fn in fns.items():
         mesh = fn()

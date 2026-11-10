@@ -88,3 +88,61 @@ def test_link_lengths_match_both_profile_photos():
     assert abs(np.linalg.norm(dc.LINK_B - dc.F_LINK) - 0.144) < 0.004
     assert abs(np.linalg.norm(dc.LINK_T - dc.LINK_B) - 0.049) < 0.004
     assert abs(np.linalg.norm(dc.LINK_T - dc.SHOCK_A) - 0.078) < 0.004
+
+
+# ---------------------------------------------------------------- round 2: fits with the merged bike
+def test_chain_slider_follows_the_shared_chain_line(V):
+    """The slider's upper face is parts.chain_top(x) - 0.009 from x 0.44 to the pivot; nothing of the swingarm
+    stands in the chain's top run (15 mm tall, 21 wide)."""
+    S = V["swingarm"]
+    band = S[np.abs(S[:, 1] - parts.CHAIN_Y) < 0.0105]
+    for x in (0.46, 0.50, 0.54, 0.564, 0.58):
+        top = band[np.abs(band[:, 0] - x) < 0.006][:, 2].max()
+        assert top < float(parts.chain_top(x)) - 0.0078, (x, top)
+        assert abs(top - (float(parts.chain_top(x)) - 0.009)) < 0.0015, (x, top)
+    assert dc.R_PIV <= 0.019
+
+
+def test_frame_keeps_out_of_the_chain_runs(V):
+    """Roller and lower cross member under the lower run (left photo: straight from (0.604, 0.428) to (0.171, 0.270),
+    15 mm tall, 21 wide); nothing of the frame in the top run either."""
+    F = V["frame"]
+    band = F[(np.abs(F[:, 1] - parts.CHAIN_Y) < 0.0105) & (F[:, 0] > 0.45) & (F[:, 0] < 0.60)]
+    low = 0.270 + (band[:, 0] - 0.171) * 0.3649
+    assert not (np.abs(band[:, 2] - low) < 0.0075).any()
+    assert not (np.abs(band[:, 2] - parts.chain_top(band[:, 0])) < 0.0075).any()
+
+
+def test_chain_guide_slot_takes_the_chain(V):
+    """The wear blocks leave a slot round the lower run, whichever way it comes onto the 50T sprocket."""
+    G = V["chain_guide"]
+    x0, z0, slope, half = dc.GUIDE_SLOT
+    band = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0165]              # between the two plates
+    assert (np.abs(band[:, 2] - (z0 + slope * (band[:, 0] - x0))) > half - 0.001).all()
+    assert np.hypot(band[:, 0], band[:, 2] - parts.RA[2]).min() > 0.1306 + 0.002       # clear of the sprocket's teeth
+    for x in (0.13, 0.15, 0.17, 0.19):
+        runs = (0.2485 + 0.375 * (x - 0.15), 0.270 + (x - 0.171) * 0.3649, 0.270 - max(0.171 - x, 0) * 0.494)
+        for z in runs:
+            assert abs(z - (z0 + slope * (x - x0))) + 0.0075 < half, (x, z)
+
+
+def test_frame_outline_is_clean_and_its_rim_even():
+    """Round 3 (crumpled, serrated frame plates): the cast outline is resampled and smoothed before use, and the
+    rounded edge is a function of the exact distance to it, so the rim's height cannot wander from vertex to vertex."""
+    o = dc._frame_outline()
+    d = np.diff(np.vstack([o, o[:1]]), axis=0)
+    turn = np.abs((np.diff(np.degrees(np.arctan2(d[:, 1], d[:, 0])), append=0.0) + 180) % 360 - 180)[:-1]
+    assert turn.max() < 45, turn.max()                               # no pixel steps, no folded tips
+    dist = dc._edge_dist([o])
+    mids = (o + np.roll(o, -1, axis=0)) / 2
+    assert max(dist(u, v) for u, v in mids[::10]) < 1e-9
+
+
+def test_head_tube_leaves_room_for_the_stem_and_clamps(V):
+    """detail_front.py: lower clamp's top face at t 0.716, top clamp's bridge from 0.913, stem r 14.5 mm."""
+    F = V["frame"]
+    t = (F - parts.STEER0) @ parts.UP
+    rad = np.linalg.norm(F - parts.STEER0 - np.outer(t, parts.UP), axis=1)
+    near = rad < 0.036
+    assert t[near].min() >= 0.716 + 0.001 - 1e-6 and t[near].max() <= 0.913 - 0.001 + 1e-6, (t[near].min(), t[near].max())
+    assert rad.min() > 0.0145 + 0.002, rad.min()
