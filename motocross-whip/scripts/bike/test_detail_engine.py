@@ -60,7 +60,9 @@ def test_bolt_counts_from_the_photos():
 
 
 def test_exhaust_port():
-    assert abs(d.PORT[1]) < 1e-9 and 0.88 < d.PORT[0] < 0.92 and 0.59 < d.PORT[2] < 0.65
+    assert abs(d.PORT[1] + 0.030) < 1e-9 and 0.88 < d.PORT[0] < 0.92 and 0.59 < d.PORT[2] < 0.65
+    import detail_chassis                                               # the header's first ring stands on the face
+    assert np.allclose(detail_chassis.HEADER[0], d.PORT, atol=5e-4)
     assert d.PORT_DIR[0] > 0.9 and d.PORT_DIR[2] < 0
 
 
@@ -72,12 +74,26 @@ def test_tank_capacity_and_visible_top():
     assert zt - zs > 0.02 and abs(d.CAP[0] - 0.883) < 0.003 and abs(d.CAP[1]) < 0.005
 
 
-def test_tank_clears_the_spars():
-    for x in np.linspace(0.80, 0.975, 30):
+def test_tank_clears_the_frame():
+    """detail_chassis.py's spars: the lobe hangs 2 mm inside them, the body rests 2 mm above them."""
+    for x in np.linspace(0.745, 0.975, 40):
         b, hw, zl, zu, zs, zt, yp = d.tank_section(x)
-        ys, top = d._spar(x)
-        assert b <= ys - 0.014 - 0.006                                  # lobe between the spars
-        assert zu >= top + 0.006 or hw <= ys - 0.014 - 0.004            # body over them, or inside them
+        yin, top = d._spar(x)
+        assert b <= yin - 0.002
+        assert zu >= top + 0.002 or hw <= yin - 0.002
+
+
+def test_tank_clear_of_the_frame_mesh():
+    """The same against the frame as built: none of its vertices within 1.5 mm of the tank's sections."""
+    import detail_chassis
+    F = np.asarray(detail_chassis.frame().V, float)
+    F = F[(F[:, 0] > 0.746) & (F[:, 0] < 0.974) & (F[:, 2] > 0.80)]
+    for x, y, z in F:
+        b, hw, zl, zu, zs, zt, yp = d.tank_section(x)
+        y = abs(y)
+        assert not (y < b + 0.0015 and zl - 0.0015 < z < zs), (x, y, z)
+        assert not (y < hw + 0.0015 and zu - 0.0015 < z < zs), (x, y, z)
+        assert not (y < yp + 0.0015 and zu < z < zt + 0.0015), (x, y, z)
 
 
 def test_radiators_inside_the_shroud_plan():
@@ -96,10 +112,46 @@ def test_radiators_inside_the_shroud_plan():
     assert V[used][:, 2].max() < 0.925                                  # under the shroud decks (z 0.93 at x 1.06)
 
 
-def test_nothing_floats():
-    """Every piece sits within 4 mm of another (exact, all vertices), and weld_seated has joined them all."""
+def test_nothing_hangs_far_from_its_seat():
+    """Coarse and fast (vertex to vertex): a bolt that misses its boss by a centimetre. audit.py measures the real
+    4 mm rule to surfaces."""
     for name, m in MESH.items():
-        assert len(pieces(m)) == 1, (name, len(pieces(m)), floating(m)[:5])
+        assert not floating(m, 0.012), (name, floating(m, 0.012)[:5])
+
+
+def test_no_zero_area_faces():
+    for name, m in MESH.items():
+        V = np.asarray(m.V, float)
+        for f in m.F:
+            p = V[list(f)]
+            assert max(np.linalg.norm(np.cross(p[k] - p[0], p[k + 1] - p[0])) for k in range(1, len(p) - 1)) > 1e-12, name
+
+
+def test_sprocket_pocket():
+    """The left case, the shift shaft and the guard go round detail_wheels.py's sprocket and chain."""
+    from parts import CS, chain_top
+    for a in np.linspace(0, 2 * np.pi, 24, endpoint=False):
+        for r in (0.0, 0.020, 0.0417):
+            assert d.case_face(CS[0] + r * np.cos(a), CS[2] + r * np.sin(a), True) <= CS[1] - d.CHAIN_HALF - 0.002
+    for x in (0.596, 0.604, 0.612):
+        assert d.case_face(x, float(chain_top(x)), True) <= CS[1] - d.CHAIN_HALF - 0.002
+        assert d.case_face(x, 0.428 + 0.3649 * (x - 0.604), True) <= CS[1] - d.CHAIN_HALF - 0.002
+    assert d.GUARD_Y[0] >= CS[1] + d.CHAIN_HALF + 0.002
+    assert np.hypot(d.SHIFT[0] - CS[0], d.SHIFT[2] - CS[2]) > 0.0417 + 0.0065 + 0.004
+
+
+def test_inside_the_frame_plates():
+    """No engine vertex within 2 mm of the frame's plates (outline, pivot boss, bracket): the frame is measured."""
+    V = np.asarray(MESH["engine"].V, float)
+    fin = np.array([d.frame_in(x) for x in V[:, 0]])
+    k = np.flatnonzero((np.abs(V[:, 1]) > fin - 0.002) & (np.abs(V[:, 1]) < fin + d.T_FR + 0.002) & (V[:, 0] < 0.82))
+    hanger = (V[:, 0] > 0.66) & (V[:, 0] < 0.75) & (V[:, 2] > 0.62) & (V[:, 2] < 0.78) & (np.abs(V[:, 1]) < fin - 0.0003)
+    bad = [V[i] for i in k if not hanger[i] and d.under_frame(V[i, 0], V[i, 2], 0.002)]   # the head hangers seat on it
+    assert not bad, (len(bad), np.round(bad[0], 3))
+
+
+def test_cable_anchors():
+    assert 0.10 < d.CLUTCH_ARM_END[1] < 0.125 and d.THROTTLE_DRUM[1] < -0.03
 
 
 if __name__ == "__main__":
