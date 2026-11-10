@@ -82,6 +82,10 @@ def fk(f, y, t):
     return TUBE0 + f * FWD + y * Y + t * UP
 
 
+PAD_HALF = (0.028, 0.030)                             # bar pad's section: 56 mm fore-aft, 60 mm tall
+PAD_C = fk(F_BAR, 0, T_BAR) + np.array([0.001, 0, 0.0045])    # its centre (axle-line frame)
+
+
 def fyz(f, y, z):
     """Point f ahead of the tubes' plane at lateral y and height z (front-photo readings)."""
     return fk(f, y, (z - TUBE0[2] - f * FWD[2]) / UP[2])
@@ -398,8 +402,8 @@ def bars():
         for df in (-0.0205, 0.0205):
             m.add(bolt(fk(F_BAR + df, yh, T_BAR + 0.0215), UP, af=0.010, flange_d=0.013))
     # ---- bar pad: FRONT "RENTHAL" face y -0.088..0.092, top z 1.214; TOP rows 1045, 1180: x 0.958..1.015
-    c0 = fk(F_BAR, 0, T_BAR) + np.array([0.001, 0, 0.0045])
-    sec = rounded_rect(0.056, 0.060, 0.017, 6)
+    c0 = PAD_C
+    sec = rounded_rect(2 * PAD_HALF[0], 2 * PAD_HALF[1], 0.017, 6)
     rings = [np.array([c0 + np.array([p[0] * k, yy, p[1] * k]) for p in sec])
              for yy, k in ((-0.095, 0.80), (-0.088, 1.0), (0.088, 1.0), (0.095, 0.80))]
     bore = []                                                      # the bar leaves the pad through a bore at each end
@@ -717,3 +721,5 @@ MATERIALS = {"btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4)}
 CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
+# bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
+UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=0.105)}

@@ -162,9 +162,15 @@ def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
         s = MAPS["plate"]
         along = (z - 0.94) / math.cos(RAKE)
         return (y - s["u0"]) / (s["u1"] - s["u0"]), (along - s["s0"]) / (s["s1"] - s["s0"])
-    if mat == "barpad":                           # lettering reads correctly from the front and from the seat
-        u = (y + 0.105) / 0.21 if nrm[0] > 0.3 else (0.105 - y) / 0.21
-        return u, (z - 1.17) / 0.05
+    if mat == "barpad":
+        # lower half of barpad.png: the lettering, on the front face read from the front and on the rear face read
+        # from the seat; upper half: the pad's top (and underside)
+        q = META.get("uv", {}).get("barpad", dict(centre=[0.99, 1.18], half=[0.028, 0.030], y_half=0.105))
+        (xc, zc), (hx, hz), yh = q["centre"], q["half"], q["y_half"]
+        if abs(nrm[0]) > abs(nrm[2]):
+            u = (y + yh) / (2 * yh) if nrm[0] > 0 else (yh - y) / (2 * yh)
+            return u, 0.5 * min(max((z - zc + hz) / (2 * hz), 0.02), 0.98)
+        return (yh - y) / (2 * yh), 0.5 + 0.5 * min(max((x - xc + hx) / (2 * hx), 0.02), 0.98)
     return 0.5, 0.5
 
 

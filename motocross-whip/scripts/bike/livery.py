@@ -183,13 +183,22 @@ def plate(out_dir):
 
 
 def barpad(out_dir):
-    ppm = 3000
-    W, H = int(0.21 * ppm), int(0.05 * ppm)
+    """Lower half: RENTHAL as on the pad's front and rear faces (FRONT and REAR photos: white, heavy, slanted,
+    150 mm of the 176 mm pad, 15 mm tall). Upper half: the pad's top, plain for now (the real one carries
+    Renthal's emblem: graphics pass)."""
+    ppm = 4000
+    W, H = int(0.21 * ppm), int(0.12 * ppm)
     im = Image.new("RGB", (W, H), RED)
-    d = ImageDraw.Draw(im)
-    f = ImageFont.truetype(F_BLACK, int(0.014 * ppm))
-    d.text((W / 2, H * 0.30), "RENTHAL", font=f, fill=WHITE, anchor="mm")
-    d.text((W / 2, H * 0.70), "RENTHAL", font=f, fill=WHITE, anchor="mm")
+    f = ImageFont.truetype(F_BLACK, int(0.0215 * ppm))
+    layer = Image.new("L", (W, H // 2), 0)
+    ImageDraw.Draw(layer).text((W / 2, H / 4), "RENTHAL", font=f, fill=255, anchor="mm")
+    box = layer.getbbox()
+    k = 0.150 * ppm / (box[2] - box[0])                                 # 150 mm wide
+    word = layer.crop(box).resize((int((box[2] - box[0]) * k), int(0.015 * ppm)), Image.LANCZOS)
+    sh = 0.22                                                           # slant
+    word = word.transform((word.width + int(sh * word.height), word.height), Image.AFFINE,
+                          (1, sh, -sh * word.height, 0, 1, 0), Image.BICUBIC)
+    im.paste(WHITE, ((W - word.width) // 2, H // 2 + (H // 2 - word.height) // 2), word)
     im.save(os.path.join(out_dir, "barpad.png"))
 
 

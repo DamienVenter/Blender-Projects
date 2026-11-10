@@ -782,6 +782,7 @@ PIVOTS = {"front_wheel": FA, "rear_wheel": RA}         # wheels are built about 
 #              (existing names: MATS in build_bike.py)
 #   CLASS      {material name: "red" | "black"} for compare.py's material classes (default: metal)
 #   THIN       names of single-surface parts to solidify 3 mm in Blender;  BEVEL {name: width m};  SMOOTH {name: deg}
+#   UV         {material name: dict(...)} numbers build_bike.uv_for needs to lay that material's texture on the part
 # BIKE_PLUGINS=a,b limits which load (BIKE_PLUGINS=none: none), so one assembly can be worked on alone.
 PLUGINS = ("detail_chassis", "detail_engine", "detail_front", "detail_wheels", "detail_plastics")
 
@@ -802,7 +803,7 @@ def build():
     fns = {**FRONT_END, **CHASSIS}
     own = set(fns)
     front = set(FRONT_END)
-    meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}}
+    meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}, "uv": {}}
     for m in plugins():
         for old in getattr(m, "REPLACES", ()):
             fns.pop(old, None)
@@ -817,6 +818,7 @@ def build():
         meta["smooth"].update(getattr(m, "SMOOTH", {}))
         meta["materials"].update({k: dict(v) for k, v in getattr(m, "MATERIALS", {}).items()})
         meta["class"].update(getattr(m, "CLASS", {}))
+        meta["uv"].update(getattr(m, "UV", {}))
     parts = {}
     for name, fn in fns.items():
         mesh = fn()
