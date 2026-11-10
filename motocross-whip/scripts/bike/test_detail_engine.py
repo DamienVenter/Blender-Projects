@@ -60,7 +60,9 @@ def test_bolt_counts_from_the_photos():
 
 
 def test_exhaust_port():
-    assert abs(d.PORT[1]) < 1e-9 and 0.88 < d.PORT[0] < 0.92 and 0.59 < d.PORT[2] < 0.65
+    assert abs(d.PORT[1] + 0.030) < 1e-9 and 0.88 < d.PORT[0] < 0.92 and 0.59 < d.PORT[2] < 0.65
+    import detail_chassis                                               # the header's first ring stands on the face
+    assert np.allclose(detail_chassis.HEADER[0], d.PORT, atol=5e-4)
     assert d.PORT_DIR[0] > 0.9 and d.PORT_DIR[2] < 0
 
 
@@ -79,6 +81,19 @@ def test_tank_clears_the_frame():
         yin, top = d._spar(x)
         assert b <= yin - 0.002
         assert zu >= top + 0.002 or hw <= yin - 0.002
+
+
+def test_tank_clear_of_the_frame_mesh():
+    """The same against the frame as built: none of its vertices within 1.5 mm of the tank's sections."""
+    import detail_chassis
+    F = np.asarray(detail_chassis.frame().V, float)
+    F = F[(F[:, 0] > 0.746) & (F[:, 0] < 0.974) & (F[:, 2] > 0.80)]
+    for x, y, z in F:
+        b, hw, zl, zu, zs, zt, yp = d.tank_section(x)
+        y = abs(y)
+        assert not (y < b + 0.0015 and zl - 0.0015 < z < zs), (x, y, z)
+        assert not (y < hw + 0.0015 and zu - 0.0015 < z < zs), (x, y, z)
+        assert not (y < yp + 0.0015 and zu < z < zt + 0.0015), (x, y, z)
 
 
 def test_radiators_inside_the_shroud_plan():

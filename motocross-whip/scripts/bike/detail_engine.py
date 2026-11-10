@@ -225,6 +225,7 @@ T_FR = chassis.T_SPAR
 FRAME_OUT = chassis._frame_outline()       # the plate's side outline (x, z); 26 mm deep, inner face at frame_in(x)
 _FRAME_EDGE = cKDTree(resample(FRAME_OUT, 0.002))
 _BRACKET = chassis._bracket_outline()
+PIVOT_BOSS_R = 0.026                       # detail_chassis.frame: the boss round the pivot on the plate
 # detail_chassis.frame's cradle rail: a bar 22 mm wide and 24 mm deep swept with geom.tube through these 30 stations
 # (copied: the path is not exported there)
 RAIL = chassis.spline([(0.922, 0.012, 0.490), (0.9145, 0.022, 0.452), (0.905, 0.038, 0.415), (0.880, 0.056, 0.392),
@@ -261,8 +262,13 @@ def frame_in(x):
 def under_frame(x, z, margin=0.002):
     """True where the frame's plate (photo outline, pivot boss, footpeg bracket) stands beside the point (x, z)."""
     q = np.array([[x, z]])
-    return bool(math.hypot(x - PIVOT[0], z - PIVOT[2]) < 0.040 + margin or inside(FRAME_OUT, q)[0]
+    return bool(math.hypot(x - PIVOT[0], z - PIVOT[2]) < PIVOT_BOSS_R + margin or inside(FRAME_OUT, q)[0]
                 or inside(_BRACKET, q)[0] or _FRAME_EDGE.query((x, z))[0] < margin)
+
+
+def frame_gap(x, z):
+    """Distance in the side view from a point ahead of the frame's plate to its outline and pivot boss."""
+    return min(float(_FRAME_EDGE.query((x, z))[0]), math.hypot(x - PIVOT[0], z - PIVOT[2]) - PIVOT_BOSS_R)
 
 
 def rail_at(x):
@@ -322,9 +328,11 @@ S_FV = _hs(_R(960, 440, -0.06))[1]                                        # RIGH
 S_FC = S_FH - 0.012                                                       # EST: cylinder front (behind the hoses)
 CYL_Y, HEAD_Y, COVER_Y = (-0.058, 0.068), (-0.062, 0.070), (-0.064, 0.072)   # EST: bore 79 + jackets; chain left
 H_PORT = H_HEAD + 0.40 * (H_COVER - H_HEAD)                               # EST: exhaust port height on the head
-# Mating face of the exhaust port (centre) and the header's direction: _a(H_PORT, S_FH + 0.020) to the millimetre.
-# detail_chassis.py copies these two and puts its flange, nuts and pipe on them; the port's boss stops 0.3 mm short.
-PORT = np.array([0.903, 0.0, 0.613])
+# Mating face of the exhaust port (centre) and the header's direction. MODEL: the frame's down tube stands 30 mm
+# ahead of the head on the centre line, so the port leaves 30 mm to its right and its stub is 30 mm long:
+# detail_chassis.py's header starts here (its first ring: HEADER[0]). The stub's face stops 0.3 mm short of this
+# point; the pipe's end stands in the stub's bore.
+PORT = np.array([0.9125, -0.030, 0.6106])
 PORT_DIR = np.array([0.970, 0.0, -0.242]) / math.hypot(0.970, 0.242)
 
 L_COVER = [(790, 950), (850, 925), (905, 890), (960, 875), (995, 830), (1060, 818), (1150, 822), (1178, 850),
@@ -416,7 +424,19 @@ def _cases(m):
 
 
 GUARD_Y = (CS[1] + CHAIN_HALF + 0.0025, CS[1] + CHAIN_HALF + 0.006)       # MODEL: 2.5 mm outside the chain
-CLUTCH_ARM_END = _p(_L, 1222, 905, 0.116)  # clutch cable's nipple on the release arm (LEFT 1222, 905): the cable ends here
+ARM_END = _p(_L, 1222, 905, 0.116)         # LEFT 1222, 905: end of the clutch release arm
+CABLE_HOLD = _p(_L, 1160, 890, 0.114) + np.array([0.0, 0.0, 0.0035])   # LEFT 1150..1160, 890: the cable's last guide, 4 mm over the arm (EST lift)
+_NIP = ARM_END + np.array([0.0, 0.0, 0.009])               # the nipple stands on the arm's end (r 4.2 mm)
+CLUTCH_ARM_END = _NIP + 0.0054 * (CABLE_HOLD - _NIP) / np.linalg.norm(CABLE_HOLD - _NIP)   # the clutch cable ends here, 1.2 mm off the nipple, coming from CABLE_HOLD
+
+
+# Route of the clutch cable on the engine (EST), from the tank's left edge (detail_front.py's CLUTCH_JOIN) to
+# CABLE_HOLD: down the left of the head ahead of the hanger, outside the temperature sender, back along the top
+# edge of the left cover over the idle gear's boss, then down over the cover's bolt. Checked clear of this module's
+# parts as a 3 mm cable splined through these points and on to CLUTCH_ARM_END.
+CLUTCH_CABLE = [(0.790, 0.074, 0.800), (0.768, 0.080, 0.770), (0.753, 0.090, 0.720), (0.748, 0.093, 0.667),
+                (0.746, 0.096, 0.630), (0.736, 0.103, 0.598), (0.708, 0.109, 0.587), (0.684, 0.1170, 0.582),
+                (0.6715, 0.1215, 0.5745), (0.6660, 0.1185, 0.5640), tuple(CABLE_HOLD)]
 
 
 def _left_cover(m):
@@ -438,12 +458,11 @@ def _left_cover(m):
     # clutch release shaft in its boss, arm on top, cable nipple (LEFT 1095..1107, 920..1085; arm to 1222, 905)
     b0, b1 = _p(_L, 1095, 1085, 0.110), _p(_L, 1107, 920, 0.110)
     m.add(hose([b0, b1], 0.0085, "engine_cover", seg=16, caps=(True, True)))
-    top, end = _p(_L, 1107, 913, 0.110), CLUTCH_ARM_END
+    top, end = _p(_L, 1107, 913, 0.110), ARM_END
     m.add(tube([b1 - (b1 - b0) * 0.02, top + (top - b0) * 0.03], 0.005, 12, "steel"))
-    m.add(hose([top, end], [(0.0035, 0.0075)] * 8, "steel", seg=12, n=8, caps=(True, True)))
-    m.add(rcyl(end - np.array([0, 0, 0.005]), (0, 0, 1), 0.0042, 0.010, "steel", rr=0.001, seg=12, sink=0.0))
-    hold = _p(_L, 1150, 890, 0.112)                                                        # cable holder
-    m.add(rcyl((hold[0], 0.104, hold[2]), YP, 0.005, 0.013, "engine_cover", rr=0.001, seg=12))
+    m.add(hose([top, end], [(0.0075, 0.0025)] * 8, "steel", seg=12, n=8, caps=(True, True)))   # flat lever
+    m.add(rcyl(_NIP - np.array([0, 0, 0.007]), (0, 0, 1), 0.0042, 0.012, "steel", rr=0.001, seg=12, sink=0.0))
+    # (the cable of detail_front.py passes CABLE_HOLD 1.5 mm over the cover and runs on over the arm to the nipple)
     # countershaft sprocket guard (black plastic, two openings) outside the chain, on two stand-offs clear of it
     g = _xz(_L, [(1135, 962), (1200, 940), (1290, 950), (1368, 978), (1372, 1040), (1340, 1075), (1300, 1085),
                  (1250, 1075), (1200, 1090), (1160, 1120), (1135, 1100), (1125, 1020)], 0.103)
@@ -473,7 +492,8 @@ def _shift(m):
 
 
 YRF = YR - 0.027                           # right cover's face (EST): 2 mm inside the frame plate's inner face
-CLUTCH_R = 0.075                           # RIGHT: 79 mm (215 crop px); MODEL: cut to stay 2 mm off the pivot boss
+_CL = _R(395, 1065, -0.12)                 # RIGHT: clutch cover's centre, radius 215 crop px = 79 mm;
+CLUTCH_R = min(0.079, frame_gap(_CL[0], _CL[2]) - 0.002)   # MODEL: never closer than 2 mm to the frame's plate
 PUMP_PIPE = np.array([_p(_R, 815, 1085, -0.119), _p(_R, 812, 1000, -0.115), _p(_R, 825, 930, -0.105),
                       _p(_R, 850, 890, -0.097)])
 
@@ -597,12 +617,22 @@ def _top_end(m):
     m.add(bolt((q[0], HEAD_Y[1] + 0.014, q[2]), YP))
     m.add(rcyl((JOINT2[0], CYL_Y[1] - 0.004, JOINT2[2]), YP, 0.015, 0.020, "engine_cover", rr=0.004, seg=24, sink=0.0))
     m.add(hose([JOINT2, JOINT2 + 0.026 * J2_DIR], 0.0105, "engine_cover", seg=14, caps=(True, True)))
-    # exhaust port: boss on the head's front face up to the mating face (flange, nuts and pipe: detail_chassis.py)
-    b = _a(H_PORT, S_FH, 0.0)
-    hb = float((PORT - b) @ PORT_DIR) + 0.004 - 0.0003     # the face stops 0.3 mm short of the header's flange;
-    m.add(turned(b - 0.004 * PORT_DIR, PORT_DIR,           # the pipe's end stands in the bore (43 mm for a 38 mm pipe)
-                 [(0.027, 0.0), (0.027, hb - 0.004), (0.0258, hb - 0.0012), (0.023, hb), (0.0215, hb),
-                  (0.0215, hb - 0.006), (0.0215, hb - 0.012), (0.012, hb - 0.012)], "engine_case", 32))
+    # exhaust port: stub out of the head's front face to the mating face, bored for the pipe's end (51 mm for a
+    # 38 mm pipe that leaves 22 deg to the right); two lugs with their studs and nuts above and below the pipe
+    b = _a(H_PORT, S_FH, PORT[1])
+    hb = float((PORT - b) @ PORT_DIR) + 0.004 - 0.0003
+    m.add(turned(b - 0.004 * PORT_DIR, PORT_DIR,
+                 [(0.0305, 0.0), (0.0305, 0.006), (0.0283, 0.009), (0.0283, hb - 0.010), (0.0283, hb - 0.0012),
+                  (0.0273, hb), (0.0255, hb), (0.0255, hb - 0.006), (0.0255, hb - 0.012), (0.012, hb - 0.012)],
+                 "engine_case", 32))
+    face = PORT - 0.0003 * PORT_DIR
+    for sg in (-1, 1):
+        c = face + sg * 0.0375 * AX3
+        m.add(rcyl(c - 0.007 * PORT_DIR, PORT_DIR, 0.0105, 0.007, "engine_case", rr=0.0015, seg=20, sink=0.0))
+        m.add(hose([c - 0.007 * PORT_DIR - sg * 0.012 * AX3, c - 0.007 * PORT_DIR], [(0.0085, 0.0035)] * 6, "engine_case",
+                   seg=10, n=6, caps=(True, True)))          # web from the stub to the lug
+        m.add(bolt(c, PORT_DIR, af=0.010))
+        m.add(rcyl(c + 0.0055 * PORT_DIR, PORT_DIR, 0.003, 0.004, "steel", rr=0.0008, seg=10, sink=0.001))   # stud's end
     # head hangers: LEFT and RIGHT outlines and bolts
     _hanger(m, _L, 1, [(975, 372), (1060, 400), (1145, 505), (1145, 560), (1060, 600), (1015, 690), (958, 690),
                        (950, 620), (968, 480)], (985, 652), [(1015, 430), (1088, 490), (1125, 535)])
@@ -616,7 +646,7 @@ TB_DIR = np.array([-math.cos(math.radians(50)), 0.0, math.sin(math.radians(50))]
 TB_UP = np.array([math.sin(math.radians(50)), 0.0, math.cos(math.radians(50))])
 TB_R = TB_BORE / 2 + 0.008
 TB_MID = TB0 + 0.062 * TB_DIR
-THROTTLE_DRUM = TB_MID + np.array([0.0, -TB_R - 0.008, 0.0]) + 0.019 * TB_UP   # top of the throttle drum (right of the body): both throttle cables end here
+THROTTLE_DRUM = TB_MID + np.array([0.0, -TB_R - 0.008, 0.019])   # highest point of the throttle drum (right of the body): the two throttle cables end lying on it
 
 
 def _intake_and_electrics(m):
@@ -836,10 +866,10 @@ def radiators():
     m.add(hose([BLEED0 + 0.006 * AX3, BLEED0 + 0.024 * AX3, _p(_R, 800, 290, -0.052), _p(_R, 900, 296, -0.056),
                 (0.930, -0.076, 0.800), (0.990, -0.090, 0.870), NECK + np.array([-0.034, 0.0, -0.014]),
                 NECK + np.array([-0.015, 0, 0.002])], 0.0058, "rubber_black", seg=10))
-    # overflow tube: from the neck, behind the down tube and under the frame's gusset to the left, down behind the
+    # overflow tube: from the neck, behind the down tube under the throttle cables (MODEL) to the left, down behind the
     # cradle (LEFT 480, 660 .. 560, 1190) to the skid plate (LEFT and RIGHT: clear tube at x 0.817)
     of = [NECK + np.array([0.0, 0.015, 0.003]), NECK + np.array([-0.012, 0.030, -0.010]), (1.014, -0.064, 0.880),
-          (0.992, -0.045, 0.836), (0.968, 0.000, 0.812), (0.955, 0.045, 0.760), (0.925, 0.062, 0.660),
+          (0.992, -0.052, 0.800), (0.962, -0.018, 0.760), (0.950, 0.030, 0.740), (0.925, 0.062, 0.660),
           (0.897, 0.064, 0.540), (0.880, 0.050, 0.445), (0.862, 0.030, 0.410), (0.838, 0.008, 0.384),
           (0.822, 0.000, 0.371)]
     m.add(hose(of, 0.004, "tube_clear", seg=8, caps=(True, True)))
@@ -850,17 +880,25 @@ def radiators():
 CAP = cams.CAMS["top"].on_plane(1854.0, 1120.0, "z", 1.04)[0]      # TOP: filler cap centre (x 0.883)
 TANK_GAP = 0.056                                                    # TOP cols 1840..1920: titanium +-0.053..0.056
 TANK_PLATEAU = 0.050                       # the raised top between the shroud decks (MODEL: their edges at 0.053+)
-# MODEL: detail_chassis.frame's spar under the shroud: a bar 24.5 mm wide and 80..88 mm deep through these stations
-SPAR_X = np.array([0.74, 0.82, 0.90, 0.98, 1.035, 1.066])
-_SPAR_Y = np.array([chassis._spar_y(x) for x in SPAR_X]) - T_FR / 2
-_SPAR_HH = np.linspace(0.080, 0.088, 6) / 2
+# MODEL: detail_chassis.frame's spar under the shroud: a bar 24.5 mm wide and 80..88 mm deep swept with geom.tube
+# through these stations, its top 8 mm lower ahead of x 0.92 (copied: the path is not exported there;
+# test_detail_engine.py checks the tank against the frame's mesh itself)
+SPAR_X = np.array([0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.058])
+_SLOW = np.interp(SPAR_X, [0.86, 0.92, 1.058], [0.0, 0.004, 0.004])
+_SP = np.stack([SPAR_X, np.array([chassis._spar_y(x) for x in SPAR_X]) - T_FR / 2,
+                chassis._spar_top(SPAR_X) - 0.047 - _SLOW], axis=1)
+_SN, _SB = _bar_frame(_SP)
+_SN, _SB = _SN * np.sign(_SN[:, 1:2]), _SB * np.sign(_SB[:, 2:3])          # outward, upward
+_SH = (np.linspace(0.080, 0.088, len(SPAR_X)) - 2 * _SLOW)[:, None] / 2
+_SPAR_IN = [_SP - 0.01225 * _SN + k * _SH * _SB for k in (-1, 1)]          # edges of the bar's inner face
+_SPAR_TOP = [_SP + _SH * _SB + k * 0.01225 * _SN for k in (-1, 1)]         # edges of its top face
 
 
 def _spar(x):
-    """(inner face |y|, top z) of the frame beside and under the tank at x: the hidden spar bar (its section stands
-    square to its path, which climbs 0.632 and runs in up to 0.31 per metre) and, behind x 0.816, the visible plate."""
-    yin = float(np.interp(x, SPAR_X, _SPAR_Y)) - 0.01225 * math.sqrt(1 + 0.31 ** 2)
-    top = float(chassis._spar_top(x)) - 0.047 + float(np.interp(x, SPAR_X, _SPAR_HH)) * math.sqrt(1 + 0.632 ** 2)
+    """(inner face |y|, top z) of the frame beside and under the tank at x: the hidden spar bar and, behind x 0.816,
+    the visible plate as well."""
+    yin = min(float(np.interp(x, e[np.argsort(e[:, 0]), 0], e[np.argsort(e[:, 0]), 1])) for e in _SPAR_IN)
+    top = max(float(np.interp(x, e[np.argsort(e[:, 0]), 0], e[np.argsort(e[:, 0]), 2])) for e in _SPAR_TOP)
     if x <= 0.816:
         yin, top = min(yin, frame_in(x)), max(top, float(chassis._spar_top(x)))
     return yin, top
@@ -869,19 +907,22 @@ def _spar(x):
 def tank_section(x):
     """(lobe half-width, half-width, lobe bottom, underside, shoulder, top, plateau half-width) at x.
     The top plateau is what shows between the shroud decks (TOP); the shoulders beside it stay 8 mm under the decks,
-    the side panels' tips and the seat's nose (MODEL); underneath it is a saddle: the body rests 3 mm above the
-    frame's spars and a lobe hangs between them, 3 mm off their inner faces and clear of the head cover (EST)."""
+    the side panels' tips and the seat's nose (MODEL); underneath it is a saddle: the body stays 2.5 mm inside the
+    frame's spars, or 3 mm above them where it reaches over, and a lobe hangs below, clear of the head cover (EST)."""
     zt = float(np.interp(x, [0.745, 0.77, 0.795, 0.82, 0.88, 0.96, 0.975], [0.909, 0.928, 0.961, 0.997, 1.022, 1.015, 1.003]))
     zs = min(zt - 0.004, float(np.interp(x, [0.745, 0.78, 0.82, 0.86, 0.888, 0.90, 0.94, 0.975],
                                          [0.915, 0.950, 0.978, 0.984, 0.984, 0.958, 0.946, 0.938])))
     hw = float(np.interp(x, [0.745, 0.80, 0.85, 0.895, 0.918, 0.95, 0.975], [0.060, 0.086, 0.100, 0.098, 0.052, 0.040, 0.030]))
     yin, top = _spar(x)
-    zu = float(np.interp(x, [0.745, 0.80], [0.890, 0.867])) if x < 0.80 else zs - 0.006
-    if hw > yin - 0.0025:                                  # the body reaches over the frame: rest 3 mm above it
-        zu = max(zu, top + 0.003) if x < 0.80 else top + 0.003
-        if zs - zu < 0.006:                                # no room over the spar: stay between the spars
-            hw, zu = yin - 0.0025, zs - 0.006
-    b = min(yin - 0.003, float(np.interp(x, [0.745, 0.80], [0.055, 0.075])), hw - 0.006)
+    zu = float(np.interp(x, [0.745, 0.80, 0.92, 0.975], [0.890, 0.867, 0.867, 0.900]))
+    if hw > yin - 0.0025:                                  # the body would reach over the frame:
+        if zs - (top + 0.003) >= 0.006:
+            zu = max(zu, top + 0.003)                      # rest 3 mm above it,
+        else:
+            hw = yin - 0.0025                              # or, with no room up there, stay between the spars
+    zu = min(zu, zs - 0.006)
+    # MODEL: detail_front.py's clutch cable runs under the tank's left edge at y 0.074: the lobe stops at 0.066
+    b = min(yin - 0.003, float(np.interp(x, [0.745, 0.80], [0.055, 0.066])), hw - 0.006)
     zl = float(np.interp(x, [0.745, 0.77, 0.80, 0.92, 0.945, 0.96, 0.975], [0.860, 0.825, 0.806, 0.806, 0.860, 0.915, 0.928]))
     return b, hw, min(zl, zu - 0.002), zu, zs, zt, min(TANK_PLATEAU, hw - 0.004)
 
