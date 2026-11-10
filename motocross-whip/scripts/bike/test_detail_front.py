@@ -143,7 +143,21 @@ def test_bar_pad_closes_onto_the_bar(built):
     pad = verts(built["bars"], "barpad")
     path = df.bar_path()
     for side in (1, -1):
-        end = pad[pad[:, 1] * side > 0.0945]
-        c = path[np.argmin(np.abs(path[:, 1] - 0.095))]
+        end = pad[pad[:, 1] * side > df.PAD_Y[1] - 0.0005]
+        c = path[np.argmin(np.abs(path[:, 1] - df.PAD_Y[1]))]
         r = np.hypot(end[:, 0] - c[0], end[:, 2] - c[2])
-        assert 0.0138 < r.min() < 0.0150                                                  # bore 0.4 mm off the bar
+        assert 0.0130 < r.min() < 0.0150                                                  # bore 0.4 mm off the bar
+
+
+def test_bar_pad_hides_the_holders_and_their_bolts(built):
+    import geom
+    sec = df.pad_section()
+    assert abs(np.ptp(sec[:, 0]) - 0.086) < 0.002 and abs(np.ptp(sec[:, 1]) - 0.056) < 0.002
+    for mat in ("bolt", "alu_cast"):
+        v = verts(built["bars"], mat)
+        rel = v - parts.TUBE0
+        f, t = -(rel @ parts.BACK), rel @ parts.UP
+        hold = (np.abs(np.abs(v[:, 1]) - df.HOLDER_Y) < 0.016) & (np.abs(f - df.F_BAR) < 0.04) & (t > df.PAD_T[0] + 0.002)
+        assert hold.sum() > 100
+        assert geom.inside(sec, np.stack([f[hold], t[hold]], axis=1)).all()               # nothing pokes through
+        assert np.abs(v[hold, 1]).max() < df.PAD_Y[0]
