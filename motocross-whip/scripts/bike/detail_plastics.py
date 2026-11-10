@@ -6,7 +6,7 @@
   shroud_bolts, seat_bolts, panel_bolts   the 8 body bolts (SPEC: 8 bolts, 8 mm heads, hold both shrouds, both side
                   panels and the seat), each in its collar with the boss that reaches inward to what it fixes to
   plate_details   the number plate's mounts (boss behind the bolt pocket, two pegs to the lower clamp) and hose guide
-  fender_pad      the front fender's mounting pad under the lower triple clamp, with its four bolts
+The front fender sits on the bosses of detail_front's lower clamp (its shell is under its surface: plastics.py).
 
 Tags as in parts.py and plastics.py: LEFT/RIGHT/FRONT/REAR/TOP photo pixels, SPEC, EST.
 """
@@ -147,7 +147,7 @@ def tail_under():
     the arch (metal blobs 29 px wide at (1895, 766) and (2113, 775)). Left of u 1872 the red of the old stand-in
     plate was the left side panel's inner face, not this wall.
     Cast onto an upright plane at x 0.20 (EST: hidden behind the side panels and the seat in the other photos; the
-    seat's base is raised over it). Behind each bolt a post runs 25 mm forward to the subframe (EST)."""
+    seat's base is raised over it). What it bolts to (the subframe's rear cross member) is detail_chassis's."""
     X0 = plastics.TAIL_X0
     # top corners as the photo has them (row 610: red u 1898..2102, row 624: 1890..2110, rows 638..652: 1885..2129)
     px = np.array([(1898, 608), (2102, 608), (2112, 624), (2129, 640), (2130, 700), (2128, 760), (2124, 800),
@@ -180,14 +180,14 @@ def tail_under():
         ax = np.array([-1.0, 0.0, 0.0])
         m.add(tube([c, c + ax * 0.006], 0.012, 20, "plastic_red"))
         m.add(bolt(c + ax * 0.006, ax, af=0.008, head_h=0.005, flange_d=0.020))
-        m.add(tube([c - ax * 0.004, c - ax * 0.029], 0.008, 12, "plastic_red"))
     return m
 
 
 # ---------------------------------------------------------------- the 8 body bolts
-def _fastener(c, axis, collar_mat, boss=0.022, collar_r=0.0115):
-    """An 8 mm flange bolt (SPEC) in its collar, which stands on the panel's face, and behind the panel's 3 mm shell
-    the boss that runs inward to what the panel fixes to (length EST). Nothing cuts through the shell."""
+def _fastener(c, axis, collar_mat, boss=0.0, collar_r=0.0115):
+    """An 8 mm flange bolt (SPEC) in its collar, which stands on the panel's face. boss: length of a boss behind the
+    panel's 3 mm shell, running inward to what the panel fixes to (not drawn: 22 mm bosses ran into the radiators
+    and the subframe of the merged modules; their mounting points are not read yet)."""
     a = np.asarray(axis, float) / np.linalg.norm(axis)
     c = np.asarray(c, float)
     m = tube([c + a * 0.0008, c + a * 0.0035], np.array([collar_r, collar_r - 0.002]), 20, collar_mat)
@@ -218,8 +218,7 @@ def shroud_bolts():
         fn = lambda a, b, s=side: plastics.shroud_point(s, a, b)
         m.add(_fastener(fn(u, v), _normal(fn, u, v, side), "plastic_red"))
         q = TOP.on_plane(np.array([1826.0]), np.array([1219.0 if side > 0 else 1030.0]), "z", 1.0)[0]
-        m.add(_fastener(plastics.deck_point(side, q[0], q[1]) + np.array([0, 0, 0.003]), (0, 0, 1), "plastic_red",
-                        boss=0.008))                       # short boss: parts.tank is right under the deck here
+        m.add(_fastener(plastics.deck_point(side, q[0], q[1]) + np.array([0, 0, 0.003]), (0, 0, 1), "plastic_red"))
     return m
 
 
@@ -257,7 +256,7 @@ def plate_details():
     m = Mesh()
     uc, vc = plastics.PLATE_POCKET[:2]
     # everything starts 0.5 mm behind the plate's back face (the plate is 3 mm thick): nothing cuts through it
-    m.add(tube([Pl.hit(uc, vc, 0.0035), P.on_tube(P.T_TOP_CLAMP) - P.BACK * 0.031], 0.008, 12, "plastic_red"))
+    m.add(tube([Pl.hit(uc, vc, 0.006), P.on_tube(P.T_TOP_CLAMP) - P.BACK * 0.031], 0.006, 12, "plastic_red"))
     for u in (1968.0, 2032.0):
         p = Pl.hit(u, 598.0, 0.0035)
         m.add(tube([p, P.on_tube(P.T_BOT_CLAMP) - P.BACK * 0.031 + np.array([0, p[1], 0])], 0.006, 10, "plastic_red"))
@@ -272,38 +271,9 @@ def plate_details():
     return m
 
 
-# ---------------------------------------------------------------- front fender mount
-def fender_pad():
-    """The front fender's mounting pad: the part of the fender that lies flat under the lower triple clamp
-    (parts.clamps: underside 22.5 mm under T_BOT_CLAMP, from 30 mm ahead of the tube axis to 54 mm behind it), 8 mm
-    thick, with the four flange bolts that go up through it into the clamp (Honda's fender fixing). An apron joins
-    its front edge to the rear end of the fender's blade (x 1.218) and the flap between the fork legs hangs from its
-    underside (plastics.fender_flap). Pad 80 x 84 mm, bolt spacing 44 x 56 mm: EST, hidden in every photo."""
-    tu = P.T_BOT_CLAMP - 0.0225 - 0.0005
-    at = lambda b, y, dn=0.0: P.on_tube(tu - dn) + P.BACK * (b + 0.007) + np.array([0.0, y, 0.0])
-    loop = rounded_rect(0.080, 0.084, 0.012, 4)
-    m = grid(Mesh(), [np.array([at(b, y, 0.008) for b, y in loop]), np.array([at(b, y) for b, y in loop])],
-             "plastic_red", cap0=True, cap1=True)
-    for b in (-0.022, 0.022):
-        for y in (-0.028, 0.028):
-            m.add(bolt(at(b, y, 0.008), -P.UP, af=0.008, head_h=0.005, flange_d=0.016))
-    # The apron runs under the number plate's lower edge (which hangs 8 mm behind the blade's rear end), steps up
-    # onto the blade and laps 30 mm onto its top, 0.5 mm over it (the blade's shell is the 3 mm above its surface),
-    # inside the blade's deck (its creases are at 0.70 of the half-width, 43 mm here).
-    ys = np.linspace(-0.040, 0.040, 9)
-    zp = float(plastics._plate().hit(2000.0, 607.0)[2]) - 0.005
-    r0 = np.array([at(-0.040, y, 0.004) for y in ys])
-    r0[:, 2] = np.minimum(r0[:, 2], zp)
-    r2, r3 = (np.array([(x, y, plastics.front_fender_z(x, y) + 0.0035) for y in ys]) for x in (1.2185, 1.250))
-    r1 = r2.copy()
-    r1[:, 0], r1[:, 2] = 1.2145, np.minimum(r2[:, 2], zp)
-    m.add(grid(Mesh(), [r0, r1, r2, r3], "plastic_red", closed_u=False))
-    return m
-
-
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
-         "plate_details": plate_details, "fender_pad": fender_pad}
+         "plate_details": plate_details}
 REPLACES = ("fork_guards", "fender_mounts")
-FRONT_END = ("fork_guards", "guard_hardware", "plate_details", "fender_pad")
-SMOOTH = {"fork_guards": 60, "tail_under": 50, "fender_pad": 40}
+FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
+SMOOTH = {"fork_guards": 60, "tail_under": 50}

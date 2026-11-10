@@ -556,7 +556,9 @@ def _deck(side):
     def edges(x):
         zt = float(np.interp(x, tx, tz))
         u = float(cam.project(np.array([[x, side * 0.17, zt]]))[0][0])
-        y_out = S.plan(x) - S.inset(u) * smoothstep((x - 0.72) / 0.15) + 0.002
+        # 0.5 mm inside the shoulder's top edge (2 mm outside it, as in the first pass, the deck cut through the
+        # shoulder all along: 1066 face pairs in the audit)
+        y_out = S.plan(x) - S.inset(u) * smoothstep((x - 0.72) / 0.15) - 0.0005
         return zt, y_out, min(float(np.interp(x, DECK_X, DECK_Y)), y_out - 0.004)
     return xs, edges
 
@@ -991,6 +993,8 @@ def front_fender():
     # stations every 5 mm, every 1.5 mm over the last 30 mm: the nose narrows fast
     xs = np.concatenate([np.linspace(1.218, 1.677, 92), np.linspace(1.6785, X_NOSE, 20)])
     A = np.concatenate([np.linspace(0, FF_A1, 18), np.linspace(FF_A1, FF_A2, 7)[1:], np.linspace(FF_A2, 1.0, 6)[1:]])
+    # (ring order right to left: reversed, the audit's clash with the lower clamp's bosses of detail_front grew from
+    # 2.5 to 3.5 mm and the fender came loose by 4.8 mm, so Blender's 3 mm shell lies under this surface as it is)
     U = np.concatenate([-A[::-1], A[1:]])
     rings = [np.array([(x, u * hw(x), z(x, abs(u))) for u in U]) for x in xs]
     return grid(Mesh(), rings, "plastic_red", closed_u=False)
@@ -1157,7 +1161,7 @@ def mud_flap():
     xr = np.array([0.336, 0.339, 0.342, 0.339, 0.333, 0.326, 0.318])
     z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])      # mudguard's lower edge
     rings = []
-    for z in (0.700, 0.688):
+    for z in (0.735, 0.715, 0.700, 0.688):                  # up to where the mudguard is at its full width
         rings.append(np.array([(MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(u) * 0.060 / 0.084, 1.0) ** 2) + 0.004
                                 + 0.007 * abs(u) ** 2.2, u * 0.060, z) for u in np.linspace(-1, 1, 13)]))
     for z in np.linspace(0.675, 0.485, 20):
