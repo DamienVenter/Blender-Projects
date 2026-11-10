@@ -73,7 +73,7 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
     return m
 
 
-RED = (200, 16, 28)
+RED = (208, 10, 22)             # photo mean of the lit plastics is (240, 50, 60): tuned in the studio views
 MATS = {
     "livery_L": dict(image="side_L.png", rough=0.34, coat=0.08),
     "livery_R": dict(image="side_R.png", rough=0.34, coat=0.08),
@@ -132,6 +132,8 @@ if STOCK:
     MATS["seat"] = dict(rgb=(176, 18, 26), rough=0.8, bump=0.35)
     MATS["swing_L"] = MATS["swing_R"] = dict(rgb=(200, 200, 204), metal=1.0, rough=0.32, aniso=0.6)
 # single surfaces: solidify (the number plate, panels and mudguard are built with their thickness)
+# studio look for the honda_* cameras: world strength, lamp scale, exposure (BIKE_STUDIO="w,l,e" to test others)
+STUDIO = tuple(float(v) for v in os.environ.get("BIKE_STUDIO", "0.7,0.5,-0.9").split(","))
 THIN = {"front_fender", "rear_fender", "fork_guards", "fender_flap", "shroud_decks", "mud_flap"}
 BEVEL = {"engine": 0.006, "frame": 0.003, "swingarm": 0.003, "clamps": 0.003}           # rounded machined edges
 SMOOTH_ANGLE = {"shrouds": 70, "side_panels": 70, "seat": 70, "front_fender": 70, "rear_fender": 70,
@@ -293,6 +295,7 @@ def studio():
         lo.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         sc.collection.objects.link(lo)
         lo.visible_camera = False                           # the front and rear studio cameras look past the lights
+        lo["base_energy"] = power
 
     area("key", (1.8, 3.2, 3.2), (0.75, 0, 0.6), 3.0, 420)
     area("fill", (0.2, -3.0, 2.2), (0.75, 0, 0.6), 3.5, 160)
@@ -354,7 +357,8 @@ def studio_camera(view, root, res=(2000, 1125)):
 def cameras(root=None):
     cams = []
     if root is not None:
-        cams += [studio_camera(v, root) for v in ("left", "right", "front", "rear", "top")]
+        cams += [studio_camera(v, root, res=tuple(int(q) for q in os.environ.get("BIKE_STUDIO_RES", "2000,1125").split(",")))
+                 for v in ("left", "right", "front", "rear", "top")]
     # Honda's left profile, reproduced: orthographic, same scale and framing as the 4000x2250 studio photo
     s = BP["mm_per_px"] / 1000.0
     fa, ra = np.array(BP["front_axle_px"]), np.array(BP["rear_axle_px"])
@@ -401,7 +405,13 @@ def render(cams):
         sc.render.film_transparent = honda
         # AgX turns the brightly lit red plastics salmon in the studio set-up: Standard keeps Honda's red there
         vs = sc.view_settings
-        vs.view_transform, vs.look, vs.exposure = ("Standard", "None", -0.5) if honda else ("AgX", "AgX - Punchy", -0.6)
+        vs.view_transform, vs.look, vs.exposure = ("Standard", "None", STUDIO[2]) if honda else ("AgX", "AgX - Punchy", -0.6)
+        # studio views: an even dome of light and weaker lamps (the lamps alone left a grey haze on the shadow
+        # catcher and washed the red to salmon); values tuned against the red of Honda's photo (STUDIO)
+        sc.world.node_tree.nodes["Background"].inputs["Strength"].default_value = STUDIO[0] if honda else 0.30
+        for lo in bpy.data.objects:
+            if lo.type == "LIGHT":
+                lo.data.energy = lo["base_energy"] * (STUDIO[1] if honda else 1.0)
         sc.render.resolution_x, sc.render.resolution_y = co["res"]
         sc.render.resolution_percentage = 100
         sc.render.filepath = os.path.join(OUT, f"render_{co.name}.png")
