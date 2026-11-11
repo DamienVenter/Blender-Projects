@@ -45,7 +45,7 @@ def _grip_frame(built, side, mat=None):
     g = g[g[:, 1] * side > 0] - sd.T
     a = -(g @ sd.d)
     r = np.linalg.norm(g + np.outer(a, sd.d), axis=1)
-    th = np.arctan2(g[:, 2], g @ sd.f)                                                    # 0 ahead, pi/2 up
+    th = np.arctan2(g @ sd.u, g @ sd.f)                                                   # 0 ahead, pi/2 up
     return a, r, th
 
 
@@ -197,3 +197,29 @@ def test_bar_pad_hides_the_holders_and_their_bolts(built):
         assert hold.sum() > 100
         assert geom.inside(sec, np.stack([f[hold], t[hold]], axis=1)).all()               # nothing pokes through
         assert np.abs(v[hold, 1]).max() < df.PAD_Y[0]
+
+
+def test_fatbar_diameters_taper_and_knurl(built):
+    bar = verts(built["bars"], "bar_black")
+    path = df.bar_path()
+    for y, d in ((0.12, 0.0286), (0.25, 0.0222), (0.35, 0.0222)):                     # SPEC 28.6 / 22.2 mm
+        c = path[np.argmin(np.abs(path[:, 1] - y))]
+        ring = bar[np.abs(bar[:, 1] - c[1]) < 0.0015]
+        r = np.linalg.norm((ring - c)[:, [0, 2]], axis=1)
+        assert abs(2 * np.median(r[r < 0.016]) - d) < 0.0012, (y, 2 * np.median(r))
+    kn = verts(built["bars"], "bar_knurl")
+    assert len(kn) > 500
+    assert np.abs(kn[:, 1]).min() > df.BAR_KNURL[0] - 5e-4 and np.abs(kn[:, 1]).max() < df.BAR_KNURL[1] + 5e-4
+    m = built["bars"]
+    knurl = [fi for fi, mm in enumerate(m.M) if mm == "bar_knurl"]
+    assert all(fi in m.uv for fi in knurl)                                                # the normal map needs UVs
+
+
+def test_bar_end_runs_along_the_grip_axis():
+    path = df.bar_path()
+    for side in (1, -1):
+        sd = df._Side(side)
+        q = path[path[:, 1] > 0.30] * [1, side, 1] - sd.T
+        off = q - np.outer(q @ sd.d, sd.d)
+        assert np.linalg.norm(off, axis=1).max() < 0.0006                                # on the axis, upsweep included
+    assert abs(math.degrees(df.UPSWEEP) - 1.85) < 0.01

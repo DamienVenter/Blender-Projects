@@ -51,6 +51,8 @@ R_GRIP = 0.0158                                       # where the end lip's roun
 # The bar ends sit on cams.BAR_END: both side photos, the rear photo and the top photo agree on it.
 _TXZ = (cams.BAR_END[0], cams.BAR_END[2])
 _C0X = float((TUBE0 + F_BAR * FWD + T_BAR * UP)[0])
+UPSWEEP = math.radians(1.85)                          # the grips rise outwards: FRONT top edge falls 4.5 mm from a 8 to
+#   104, REAR top 4.6 and bottom 1.7 (axis 3.1 mm over 96 mm with the grip's 2.8 mm taper taken out; component 1)
 SWEEP = 0.25                                          # plan angle of the grips: from the corner at YC to the bar end
 for _ in range(4):                                    # (TOP rows 685..1585 give 0.288 = 16 deg to the photo's bar end)
     SWEEP = math.atan((_C0X - _TXZ[0]) / (cams.BAR_END[1] - R_GRIP * math.sin(SWEEP) - YC))
@@ -353,11 +355,13 @@ class _Side:
         self.side = side
         self.shift = shift
         self.T = TIP * [1, side, 1]
-        self.d = np.array([-math.sin(SWEEP), side * math.cos(SWEEP), 0.0])      # along the grip, outwards
+        dh = np.array([-math.sin(SWEEP), side * math.cos(SWEEP), 0.0])
+        self.d = math.cos(UPSWEEP) * dh + math.sin(UPSWEEP) * Z                # along the grip, outwards (and up)
         self.f = np.array([math.cos(SWEEP), side * math.sin(SWEEP), 0.0])       # ahead of the grip
+        self.u = -math.sin(UPSWEEP) * dh + math.cos(UPSWEEP) * Z               # up, square to the grip
 
     def p(self, a, f=0.0, u=0.0):
-        return self.T - (a + self.shift) * self.d + f * self.f + u * Z
+        return self.T - (a + self.shift) * self.d + f * self.f + u * self.u
 
 
 # ================================================================ grips (Honda stock, 53165 / 53140 group)
@@ -532,7 +536,8 @@ def _outward_open(m, s):
 def bar_path():
     """Centre line of the left half of the Fatbar, clamp to bar end. TOP: straight across to y 0.15, then swept
     back in one line to the bar end (bar centre x 0.980 at y 0.168, 0.969 at 0.207, 0.9165 at 0.404). FRONT cols
-    2205..2340: it rises between y 0.075 and 0.225 (centre z 1.189 at y 0.153, 1.199 at 0.186) and is level beyond."""
+    2205..2340: it rises between y 0.075 and 0.225 (centre z 1.189 at y 0.153, 1.199 at 0.186); beyond it follows
+    the grips' axis (UPSWEEP)."""
     c0 = fk(F_BAR, 0, T_BAR)
     k, w = math.tan(SWEEP), 0.020                                  # w: softness of the plan bend (EST)
     q = (c0[0] - TIP[0]) / k
@@ -540,9 +545,50 @@ def bar_path():
     ys = np.append(np.arange(0.0, TIP[1] - 0.004, 0.008), TIP[1])
     v = ys - yc
     x = c0[0] - k * (v + np.sqrt(v * v + w * w)) / 2
-    s = np.clip((ys - 0.075) / 0.150, 0, 1)
-    z = c0[2] + (TIP[2] - c0[2]) * s * s * (3 - 2 * s)
+    m_ = math.tan(UPSWEEP) / math.cos(SWEEP)                                  # slope of the grips' axis in y
+    zl = TIP[2] - (TIP[1] - ys) * m_                                       # the grips' axis, run inwards
+    y1, y2 = RISE
+    h = y2 - y1
+    t = np.clip((ys - y1) / h, 0, 1)                                       # cubic Hermite: level at y1, on the
+    z2 = TIP[2] - (TIP[1] - y2) * m_                                       # grips' axis with its slope at y2
+    zr = c0[2] * (2 * t ** 3 - 3 * t ** 2 + 1) + z2 * (3 * t ** 2 - 2 * t ** 3) + m_ * h * (t ** 3 - t ** 2)
+    z = np.where(ys >= y2, zl, zr)
     return np.stack([x, ys, z], axis=1)
+
+
+RISE = (0.075, 0.185)         # the bar rises from the clamps and meets the grips' axis (with its upsweep) at y 0.185:
+#   FRONT centre z 1.189 at y 0.153 and 1.199 at 0.186 (cols 2205..2340, earlier pass); the grips' axis is at 1.1993
+#   there, so the end section is one straight 1.85 deg line from the rise to the bar end
+
+
+BAR_R = (0.0143, 0.0111)      # SPEC: Renthal Fatbar, 28.6 mm in the clamps, 22.2 mm at the controls
+BAR_TAPER = (0.150, 0.185)    # |y| where the taper starts and ends: TOP crops (rul_top_L / _R) and DR05, the bar is
+#   thick out to the cable tie (TOP a 250..255 left, 280 right) and thin from the perch's clamp inwards; d835 the same
+BAR_KNURL = (0.020, 0.074)    # knurled clamping zone each side of the centre (under the pad, hidden in every photo):
+#   Renthal knurls the 28.6 mm section where the holders can sit (four positions over 26 mm, SPEC), EST extent
+KNURL_PITCH = 0.0010          # knurl diamond pitch, EST (a fine straight-diamond knurl)
+
+
+def bar_r(y):
+    """Fatbar radius at lateral y: 28.6 mm, a smooth taper, 22.2 mm."""
+    k = np.clip((np.abs(y) - BAR_TAPER[0]) / (BAR_TAPER[1] - BAR_TAPER[0]), 0, 1)
+    return BAR_R[0] + (BAR_R[1] - BAR_R[0]) * k * k * (3 - 2 * k)
+
+
+def knurl_map(path, n=256, tiles=8):
+    """Tangent-space normal map (OpenGL, +Y up) of a straight diamond knurl: TILES pitches across N pixels, the
+    pyramids' faces at 30 deg."""
+    from PIL import Image
+    t = (np.arange(n) + 0.5) / n * tiles
+    u, v = np.meshgrid(t, t)
+    a, b = (u + v) % 1.0 - 0.5, (u - v) % 1.0 - 0.5                      # distance to the two groove families
+    gx = -(np.sign(a) + np.sign(b))                                      # gradient of -(|a| + |b|)
+    gy = -(np.sign(a) - np.sign(b))
+    k = math.tan(math.radians(30)) / 2
+    nx, ny, nz = -gx * k, -gy * k, np.ones_like(gx)
+    ln = np.sqrt(nx * nx + ny * ny + nz * nz)
+    img = np.stack([nx / ln, ny / ln, nz / ln], axis=2) * 0.5 + 0.5
+    Image.fromarray((img[::-1] * 255).round().astype(np.uint8)).save(path)       # row 0 is the top (v = 1)
 
 
 def _block(s, a0, a1, wf, wu, mat, cf=0.0, cu=0.0, r=0.006, ch=0.0015):
@@ -569,9 +615,45 @@ def _wire(s, a0, f, u):
     path = bar_path() * [1, side, 1]
     y0 = abs(s.p(a0)[1])
     sel = path[(abs(path[:, 1]) > 0.070) & (abs(path[:, 1]) < y0 - 0.02)]
-    rr = np.interp(abs(sel[:, 1]), [0.085, 0.19], [0.0143, 0.0111])
+    rr = bar_r(sel[:, 1])
     pts = np.vstack([sel - (rr + 0.003)[:, None] * Z, [s.p(a0 + 0.012, f * 0.5, u), s.p(a0 - 0.002, f, u)]])
     return sweep(pts, 0.0025, "cable", 8)
+
+
+def _bar(path):
+    """The Fatbar: plain black tube, its knurled clamping zones (own material with a knurl normal map, UVs in knurl
+    pitches), the open ends with a 1.6 mm wall and a black plastic plug pressed in (both hidden by the closed grips)."""
+    from scipy.interpolate import interp1d
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))]
+    marks = sorted(set([0.0, float(s[-1])] + [float(np.interp(y, path[:, 1], s)) for y in
+                   (-BAR_TAPER[1], -BAR_TAPER[0], -BAR_KNURL[1], -BAR_KNURL[0], BAR_KNURL[0], BAR_KNURL[1],
+                    BAR_TAPER[0], BAR_TAPER[1])]))
+    ss = []                     # rows every 2 mm in the knurl zones and the taper, 6 mm elsewhere, on the zone edges
+    for s0, s1 in zip(marks[:-1], marks[1:]):
+        mid = abs(float(np.interp((s0 + s1) / 2, s, path[:, 1])))
+        step = 0.002 if (BAR_KNURL[0] < mid < BAR_KNURL[1] or BAR_TAPER[0] < mid < BAR_TAPER[1]) else 0.006
+        k = max(1, int(math.ceil((s1 - s0) / step)))
+        ss += list(np.linspace(s0, s1, k + 1)[:-1])
+    ss = np.array(ss + [float(s[-1])])
+    P = interp1d(s, path, axis=0)(ss)
+    seg = 32
+    m = tube(P, bar_r(P[:, 1]), seg, "bar_black", cap0=False, cap1=False)
+    circ = 2 * math.pi * BAR_R[0]
+    for k in range(len(P) - 1):
+        if BAR_KNURL[0] < abs(0.5 * (P[k, 1] + P[k + 1, 1])) < BAR_KNURL[1]:
+            for i in range(seg):
+                fi = k * seg + i
+                m.M[fi] = "bar_knurl"
+                u0, u1 = i * circ / seg / KNURL_PITCH / 8, (i + 1) * circ / seg / KNURL_PITCH / 8
+                v0, v1 = ss[k] / KNURL_PITCH / 8, ss[k + 1] / KNURL_PITCH / 8
+                m.uv[fi] = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+    for end, nxt in ((P[0], P[1]), (P[-1], P[-2])):      # open ends: wall, bore, plug 1 mm inside
+        ax = unit(end - nxt)
+        ri = BAR_R[1] - 0.0016
+        m.add(rev(end, -ax, [(BAR_R[1], 0.0), (ri + 0.0003, 0.0), (ri, 0.0003), (ri, 0.006)], "bar_black", seg))
+        m.add(rev(end - 0.001 * ax, -ax, [(ri + 0.0001, 0.0), (ri + 0.0001, 0.0045), (0.0, 0.0045)], "plastic_black",
+                  seg, cap0=True))
+    return m
 
 
 def bars():
@@ -583,8 +665,7 @@ def bars():
     path = np.vstack([(left * [1, -1, 1])[::-1][:-1], left])
     path[-1] -= 0.003 * unit(path[-1] - path[-2])                           # bar ends 3 mm inside the grips' ends
     path[0] -= 0.003 * unit(path[0] - path[1])
-    rr = np.interp(abs(path[:, 1]), [0.085, 0.19], [0.0143, 0.0111])        # SPEC diameters; taper over the rise
-    m.add(tube(path, rr, 24, "bar_black"))
+    m.add(_bar(path))
     # ---- holders: rubber cushion on the top clamp, post, cradle, cap with two bolts (EST sizes)
     cradle = rounded_rect(0.060, 0.026, 0.009, 4)
     for side in (-1, 1):
@@ -610,7 +691,7 @@ def bars():
         j = int(np.argmin(np.abs(path[:, 1] - r_[0][1])))
         d = (r_ - path[j]) * [1, 0, 1]
         bore.append(path[j] * [1, 0, 1] + [0, r_[0][1], 0]
-                    + (rr[j] + 0.0004) * d / np.linalg.norm(d, axis=1, keepdims=True))
+                    + (bar_r(path[j, 1]) + 0.0004) * d / np.linalg.norm(d, axis=1, keepdims=True))
     m.add(_outward(grid(Mesh(), [bore[0]] + rings + [bore[1]], "barpad",
                         mats=["barpad", "pad_cap", "pad_cap", "barpad", "pad_cap", "pad_cap", "barpad"])))
     # ---- hand controls (the grips are their own part, grips())
@@ -926,13 +1007,21 @@ PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "grips": grips, "front_br
          "disc_guard": disc_guard, "cables": cables}
 REPLACES = ["fork", "clamps", "bars", "cables", "disc_guard"]
 FRONT_END = ["fork", "clamps", "bars", "grips", "front_brake", "disc_guard"]
-MATERIALS = {"btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
+MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="stock/bar_knurl_n.png",
+                           normal_strength=0.8),        # the Fatbar's clamping zones (BAR_KNURL)
+             "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
              "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
              "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
-CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
+CLASS = {"bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "grips": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
                      tilt=float(PAD_TILT))}
+
+
+if __name__ == "__main__":
+    import os
+    knurl_map(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock",
+                           "bar_knurl_n.png"))

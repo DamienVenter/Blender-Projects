@@ -95,3 +95,51 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
 - The top photo's bars are turned about 2.6 deg (left grip 13.3 deg of sweep in plan, right 18.6): the model's grip
   sits 5 mm further back at its end there; the side and end photos agree with the model.
 - The "688" mould number on the collar is not modelled (hidden by the switch housing in every studio view).
+
+## 2. Handlebar (Renthal Fatbar, Honda 53100-MKE-A70)
+
+### Anatomy
+- One tube, no crossbar: 28.6 mm through the clamps and the bend, a short taper, 22.2 mm at the controls.
+- Bend: straight across the clamps, a plan bend at y 0.15 sweeping the ends back 16 deg, a rise from y 0.075 that
+  runs straight into the end section, the end section rising outwards (upsweep) to the bar ends.
+- Knurled clamping zones on the 28.6 mm section (under the holders, inside the pad: no photo shows them).
+- Open ends with a thin wall and a pressed-in plastic plug (inside the closed grips: no photo shows them).
+- Finish: satin black (its upper half reflects the studio's white in FRONT and REAR); printed FATBAR logos are left
+  to the graphics pass.
+
+### References
+- FRONT 2050..2420 x 205..330, REAR 1580..1950 x 195..320 (left half: rise, bend, taper); TOP ruler crops
+  (`ref/rul_top_L.jpg`, `_R.jpg`); DR05 (taper at the cable tie, FATBAR logo on the thick part); d835.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Diameters | 28.6 / 22.2 mm | SPEC (Fatbar, 1-1/8 in clamp area) |
+| Taper | between abs(y) 0.150 and 0.185 | TOP crops: thick out to the cable tie (a 250..255 left, 280 right), thin at the perch; DR05 |
+| Upsweep | 1.85 deg, the end section straight from y 0.185 to the bar end | component 1: grip axis 3.1 mm over 96 mm (FRONT and REAR edges); the earlier pass's FRONT rise points (1.199 at y 0.186) lie on that line |
+| Rise | Hermite from level at y 0.075 to the end line at 0.185 | FRONT centre z 1.189 at y 0.153 (model 1.1917) and 1.199 at 0.186 (model 1.1994) |
+| Knurl zone | abs(y) 0.020..0.074, 1.0 mm diamond pitch | EST (Renthal knurls where the holders may sit: four positions over 26 mm, SPEC) |
+| Ends | wall 1.6 mm, plug 1 mm inside, 4.5 mm deep | EST (hidden) |
+
+### What was built
+- `bar_path()`: plan curve unchanged (earlier TOP measurements); the height now rises from the clamps straight
+  into the grips' 1.85 deg axis, which `_Side` carries too (`UPSWEEP`, its `u` vector square to the grip), so grips,
+  bar end and controls share one axis.
+- `_bar()`: the tube resampled 2 mm in the knurl zones and the taper (rows on the zone edges), `bar_r()` (smooth
+  taper), `bar_knurl` material with a knurl normal map (`textures/stock/bar_knurl_n.png`, made by
+  `python3 detail_front.py` from `knurl_map()`: four-facet pyramids at 30 deg, 8 pitches a tile) on UVs in knurl
+  pitches; the open ends and plugs.
+- Tests: `test_fatbar_diameters_taper_and_knurl`, `test_bar_end_runs_along_the_grip_axis`; the 827 mm and 1262 mm
+  SPEC tests still pass.
+
+### Checks
+- `chk/p5_front.jpg` (first): the upsweep run across the whole bar put the rise 6 mm low (FRONT stack
+  `p5_front_st.jpg`); fixed by joining the rise to the end line at y 0.185.
+- `chk/p6_front_st.jpg`, `p6_rear_st.jpg` (photo above model, same grid): top edge of the bar and the turn-down to
+  the clamps agree within 2 px in both views; the grip in REAR is 1 to 3 px fuller at the bottom (ribs).
+- Render log: no UV warnings (the knurl UVs reach Blender). Audit: no clash on the bar.
+
+### Still different
+- The bar's lower edge cannot be read in FRONT (levers, adjuster and boot in front of it) and its upper half merges
+  with the white background in both end photos: the diameters rest on SPEC, not on the photos.
+- Knurl and plugs are hidden in every photo (EST extents).
