@@ -159,3 +159,44 @@ hoses crossed (3.3 mm): both addressed here; re-audit at the end.
 Still different: the cylinder body is a plain cylinder (the photo's casting has a flat face with cast lettering and
 ribs); the photo's reservoir is narrower front to back; the pedal's arm is a swept rounded bar, the photo's has a flat
 face with a ridge; the pedal stop bolt and the brake light switch (none on this bike) are not modelled.
+
+## 6. Shock (part `shock`): partly
+Anatomy (fiche K95CF3300 and Dirt Rider 07-08, 09): body with the upper eye (bearing and two seals), the
+reservoir cast across the head to the right with its end cap, circlip (22) and the two-stage compression adjuster
+(a 14 mm hexagon with a slotted screw in it), the thread for the rings, lock ring (7) and preload ring (6) each with
+eight notches, the spring (closed and ground ends), the shaft, the bump rubber (11), the lower spring seat (25) with
+its stopper ring (24), the bright stepped bottom cup with grooves (Dirt Rider 09), the clevis with the rebound
+adjuster's slotted screw and a cut arrow mark, upper and lower bolts with washers and nuts.
+References: RIGHT 1580..1800 x 1050..1640 (the reservoir's cap through the frame at px (1727, 1096)); LEFT 2200..
+2450 x 1050..1640 (coils behind the plate); Dirt Rider 07-08 (cap), 09 (cup and clevis, "S" and arrow).
+Numbers: the cap cast on y -0.075: (0.546, 0.730), 19 mm behind the shock's axis: the reservoir lies across the
+bike (it was parallel to the body, behind it). Cap 34 mm (45 px). The rest as before (EST from the real part: 481
+mm eye to eye, 50 mm body, 8.25 coils of 12 mm wire on a 71 mm mean diameter).
+Built: new `shock()`.
+Checks: close-up cu_link (cu3/) for the cup and clevis; cu_res shows only the cap's edge (the side panel hides it,
+as in every photo). Audit: the clevis's nut and the connecting rods (2 mm) fixed by a 14 mm nut with its flats up.
+Still different / not done: the "S" letter is not cut (only the arrow's shaft); the body's colour and the spring's
+colour are EST (the photos show only dark coils); no close-up matches Dirt Rider 09's exact angle.
+
+## 7. Pro-Link (part `linkage`): partly
+Anatomy (Dirt Rider 09, right side): two forged connecting rods, each a dog-bone with round eyes and an I-section
+(flanges along both edges, the web between them), joined by a bridge; the cast cushion arm (a triangle with three
+bosses); M14 bolts with flange heads on the left, washers, U-nuts and two threads of the bolt's end on the right;
+the shock's clevis bolt just under the rods.
+References: Dirt Rider 09; LEFT px (2469,1552) (2386,1607) (2471,1617) (2298,1558); RIGHT px (1524,1551)
+(1611,1606) (1524,1608) (1702,1557) (the old pass's pivot readings, kept).
+Numbers: rods 18 mm deep (0.55 of the eye, Dirt Rider 09), eyes 31.6 mm, web 4.8 mm, flanges 9.2 mm; nuts 22 mm on
+T and B (0.73 of the eye in Dirt Rider 09: M14), 17 mm on F (M10: clear of the frame's lower cross member), 14 mm
+on the shock's bolts.
+Built: `_dogbone`, `_pivot_bolt` (new), the rods replace the old one-piece triangular plates (which wrongly took in
+the shock's bolt).
+Checks: close-up cu_link (cu3/). Audit: F's nut cut the frame's lower cross member 8 mm with M14 hardware: M10 there.
+Still different: the cushion arm keeps its old plain triangle (no recessed web: a raised rim clashed with the
+clevis ears and was taken out); the grease nipples (none seen) and the seals at the bosses are not modelled.
+
+## 9. Footpegs: not started in this pass (the old pass's cage pegs, spring and pin stand).
+## 10. Subframe and frame rear: not started in this pass. Noted on the way: the right photo's frame below the pivot
+(the lower spar and its large opening, RIGHT 1560..1980 x 1260..1600) differs from the model's plate there.
+
+## Audit and tests at the end of this pass
+See the final report: clash list for the chassis parts, floating pieces, the test count.
