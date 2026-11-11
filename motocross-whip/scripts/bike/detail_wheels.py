@@ -27,8 +27,9 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.40),
              "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.40),
              "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22),           # DR13: bright plated nipples
-             "hub_cast": dict(rgb=(82, 84, 88), metal=0.6, rough=0.62),            # rear hub (see _hub_ribs; pair
-                                                                                   # p_spr3: 108 read lighter than the photo)
+             # rear hub (see _hub_ribs): the LEFT photo's end, recessed in the sprocket, reads 96..102; the RIGHT
+             # photo's open end reads about 160 (pair p_disc1): one cast finish between, lit as the photos are
+             "hub_cast": dict(rgb=(124, 126, 130), metal=0.6, rough=0.58),
              "hub_machined": dict(rgb=(176, 178, 182), metal=1.0, rough=0.3),     # its turned sprocket spigot
              # LEFT pair p_spr1: the bare aluminium sprocket reads 150..157 in the photo, the old 170 rendered white
              "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48),
@@ -1033,36 +1034,48 @@ def front_disc():
 
 
 def rear_disc_r(a):
-    """Outer radius of the rear disc: four wide scallops over the four bolts and 28 small ones (RIGHT polar scan:
-    edge harmonics 4 and 28; at r 110 the wide ones are 19 deg wide, at r 115 28 deg)."""
+    """Outer radius of the rear wave disc (RIGHT photo unwrapped about the disc's own centre on its plane,
+    disc_polar_c / disc_edge, then disc_fit against the model): eight petals 45 deg apart, each a flat arc at r 120
+    for 21 deg (SPEC 240 mm), a steep drop over 4.5 deg to r 109.5, 6 deg flat at the bottom and a ramp back over
+    13.5 deg. Petals start at 63.5 + 45 k deg: the drops then fall at 84, 129, 174, 219, 264, 309 deg, the photo's
+    at 131, 172, 222, 263, 313 (the first hidden by the caliper)."""
     a = np.asarray(a, float)
-    r = DISC_R["r"] - 0.0015 * (1 - np.cos(28 * (a - DISC_R_FLAT)))
-    for k in range(4):
-        d = (a - DISC_R_FLAT - k * math.pi / 2 + math.pi) % (2 * math.pi) - math.pi
-        r = r - 0.0150 * np.exp(-(d / math.radians(12.0)) ** 2)
-    return r
+    d = np.degrees((a - math.radians(DISC_R_PETAL0)) % (math.pi / 4))
+    r0, dep = DISC_R["r"], 0.0105
+    drop = np.clip((d - 21.0) / 4.5, 0, 1)
+    ramp = np.clip((d - 31.5) / 13.5, 0, 1)
+    s = np.where(d < 21.0, 0.0, np.where(d < 25.5, 0.5 - 0.5 * np.cos(math.pi * drop),
+                                         np.where(d < 31.5, 1.0, (1 - ramp) ** 1.2)))
+    return r0 - dep * s
 
 
 def rear_disc_r_in(a):
-    """Inner edge: a rounded square, flats at the four bolts (RIGHT crop; white fraction 0 at r 86 mm)."""
-    d = (np.asarray(a, float) - DISC_R_FLAT + math.pi / 4) % (math.pi / 2) - math.pi / 4
-    return np.minimum(0.088, 0.064 / np.cos(d))
+    """Inner edge: the braking band's inner edge at r 89.5 between the bolts, and at each of the four bolts an arm
+    down to the bolt's boss (RIGHT unwrap: arms 15 deg wide at r 80, 30 deg where they leave the band; the bosses
+    8 mm round the bolts on r 72)."""
+    d = np.degrees((np.asarray(a, float) - DISC_R_FLAT + math.pi / 4) % (math.pi / 2) - math.pi / 4)
+    w = np.clip((np.abs(d) - 9.0) / 9.0, 0, 1)                  # 0 on the arm, 1 on the band
+    return 0.0630 + (0.0895 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * w))
+
+
+DISC_R_PETAL0 = 63.5    # deg, the first petal's plateau start (above)
 
 
 def rear_disc():
     a = np.radians(np.arange(0, 360, 1.25))
-    ai = np.radians(np.arange(0, 360, 3.0))
+    ai = np.radians(np.arange(0, 360, 1.0))
     holes = [_pol(rear_disc_r_in(ai), ai)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4)
     for j in range(28):                                          # RIGHT scan: holes at r 94, 103 and 111 mm
         for r, da in ((0.1115, 0.0), (0.1030, 4.3), (0.0945, 8.6)):
             ah = DISC_R_FLAT + j * 2 * math.pi / 28 + math.radians(da)
             if rear_disc_r(ah) - r > 0.0065 and r - rear_disc_r_in(ah) > 0.0065:
-                holes.append(circle(0.003, 8, *_pol(r, ah)))
-    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007)
-    for k in range(4):
+                holes.append(circle(0.003, 12, *_pol(r, ah)))
+    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007, chamfer=0.0004,
+               chamfered=range(5, len(holes) - 1))               # drilled holes: a small chamfer each face
+    for k in range(4):                                           # RIGHT unwrap: round socket heads on the bosses
         x, z = _pol(DISC_R_BOLT_R, DISC_R_FLAT + k * math.pi / 2)
-        m.add(bolt((x, DISC_R["y"] - DISC_R["t"] / 2, z), (0, -1, 0), af=0.010, head_h=0.005, flange_d=0.015,
-                   mat="steel"))
+        m.add(bolt((x, DISC_R["y"] - DISC_R["t"] / 2, z), (0, -1, 0), af=0.0125, head_h=0.005, mat="steel",
+                   kind="cap"))
     return m
 
 
@@ -1381,7 +1394,7 @@ def front_wheel():
 # Rear hub (LEFT photo, sprocket plane unwrapped and rectified: spr_plan / spr_overlay): a dark grey casting, RGB
 # 96 / 99 / 102 in the photo where the bare aluminium sprocket reads 150 / 153 / 157 (r 40..56 mm, 180..300 deg);
 # its sprocket-side end, seen through the sprocket's bore, carries twelve tear-shaped radial ribs (r 36..54 mm).
-def _hub_ribs(m, y_face, n=12):
+def _hub_ribs(m, y_face, n=12, side=1):
     """Radial ribs on the hub's sprocket-side end face (plane y = Y_FACE, facing +y), between r 36 and 54 mm."""
     for k in range(n):
         a = SPROCKET_BOLT0 + (k + 0.5) * 2 * math.pi / n
@@ -1389,7 +1402,7 @@ def _hub_ribs(m, y_face, n=12):
         def xf(s, t, z, a=a):
             s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
             ang = a + s / t
-            return np.stack([t * np.cos(ang), y_face + z, t * np.sin(ang)], axis=-1)
+            return np.stack([t * np.cos(ang), y_face + side * z, t * np.sin(ang)], axis=-1)
 
         # tear-shaped, 8 mm across at the outer end, low and soft: the photo's ribs are subtle bumps of the casting
         # (coordinator's whole-wheel pair: 2.6 mm ribs with crisp edges read as bright marks on a dark disc)
@@ -1426,6 +1439,7 @@ def rear_wheel():
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub_cast",
                  0.008))
     _hub_ribs(m, 0.5 * (y_end - 0.003 + y_end - 0.004))
+    _hub_ribs(m, -0.0765, side=-1)                              # RIGHT pair p_disc1: the disc side has them too
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
