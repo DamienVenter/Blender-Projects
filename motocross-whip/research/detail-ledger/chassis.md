@@ -261,3 +261,90 @@ the hinge bracket's shape.
   plastics, not in the can.
 - Not done in round 2: 10 (the frame casting round the pivot: ribs, pockets, bosses and its window), the rest of
   6 (the "S" mark, a Dirt Rider 09 angle check) and 7 (the cushion arm's recessed web), the subframe rails.
+
+
+# Round 3 (2026-11-11, third chassis agent; scratch images under `agents/micro/chassis3/`)
+
+## 10. Frame rear (part `frame`): the cast pivot section, both sides
+Anatomy at 30 cm: each side is an extruded spar (brushed along its length) whose rounded end is a tongue welded
+into the rear casting with a U-shaped TIG bead (10 mm wide, rippled, its top run going on along the spar's top
+edge under the upper mount's ear); the casting (matte, fine sand-cast grain, lighter than the spar: photo grey 192
+to 205 against the spar's 165) runs down as one leg, its front edge a large concave C round the engine (softly
+rounded, about 7 mm), its rear edge crisper (4 mm); round the pivot a boss 52 mm across, 2 mm proud, with a cast
+fold where it meets the C; RIGHT: the pivot's 21 mm nut sits in a 31.8 mm counterbore (a dark ring round it), the
+bolt's end 16 mm with a 7 mm bore; LEFT: the bolt's head sits in a hexagonal recess 27.7 mm across flats (corners
+fore and aft) with a dark 1.4 mm gap round it, its face darker than the casting, a 10.6 mm bore; RIGHT: two tabs
+behind the leg with round bosses (24 px) for the master cylinder's M6 flange bolts, a '>' of two small ribs from each
+boss into the leg, a square pocket between them; below the pivot the casting splits round a shallow triangular
+pocket with a lit rib on its upper side into the footpeg pad (raised) and a front branch down to the cradle rail,
+which it meets at a second bead; the chain roller's bolt on the right's lower rear.
+References: RIGHT 1450..2150 x 850..1680 (r_frame), 3x crops r_fz1 (1620..1900 x 1150..1470), r_low3 (1600..1900 x
+1250..1620), r_weld, r_mc, r_pocket; LEFT l_frame, l_low (2060..2360 x 1400..1620), l_weld, l_pocket (6x), l_shift
+(5x); piv2 (6x of both pivots with intensity rows/columns); REAR rear_frame; equalised crops r_leg_eq, l_leg_eq.
+Numbers: outline = OUT2 'frame' (LEFT, it fits the right photo's leg within 4 px, o1_right) + the footpeg bracket +
+each side's own lower section (LOW_PX) + the right's tabs (TAB_PX), cast on the plate's mid plane and joined by a
+0.5 mm raster union softened 1 mm (cast fillets). The two photos' lower sections agree within 10 mm (the bottom of
+the cradle weld: LEFT z 0.348, RIGHT 0.358; each side keeps its own). U bead lines TONGUE_PX (x 0.578..0.72, z 0.674
+..0.81). Pivot ends in PIV_* (piv2 profiles: right row 1432 and column 1751, left row 1433 and column 2249). Tab
+bolts RIGHT (1645, 1338), (1652, 1402): the round-2 master cylinder bolts at (1655, 1318), (1652, 1382) were 15 mm
+high and stood on a 2 mm plate stuck on the leg, removed. Tabs 4.5 mm thick (EST). Edge radii 7 / 4 mm, tabs 1.2.
+Built: `_Cast` (a height field over the side outline: outer face at _spar_y with blended edge radii, the boss, the
+footpeg pad (+4 mm, carrying the pedal's pivot), tab bosses, the pocket; inner face 26 mm in, reaching in round the
+cradle rail's end), `_union_outline`, `_frame_welds` (`_bead`: open rippled bead on a face), `_pivot_ends`,
+`_tab_bolts`, `_cast_ribs` (smooth beads), `cast_map` -> textures/stock/cast_n.png (grain 0.3 mm over a 1 to 2 mm
+orange peel), materials frame_cast (grain, strength 0.3), frame_spar (brushed map along the spar), steel_dark.
+Master cylinder (brake_pedal) re-read to sit inboard of the tabs: bore column 20.5 mm (r_mc: u 1620..1647) with its
+front flat 5.5 mm ahead of the axis where it passes under the tabs, the reservoir as a second column 18 mm behind
+(19 mm, u 1597..1622) with a round black cap and screw, the banjo's black fitting and bolt on the bore's top, two lugs
+behind the tabs; the return spring moved out to y -0.1425 (the lower section now reaches under it).
+Checks: o2 outline overlays (left, right); f2/f4/f8 pair sheets right 1600..2000 x 950..1620, left 2000..2400 x
+950..1620 and the brief's box; close-ups cu1..cu6 (cu_pl, cu_pr at the pivots, cu_wl the left U bead, cu_mc).
+Three cycles: (1) torn white shards round the pocket, pad and chevrons: not the bevel (frame bevel now 0.1 mm), not
+the UVs (one side projection now), not the normal map (off: still there) but narrow ridges and steep steps in the
+height field on a 2.5 mm Delaunay mesh; the ribs became swept beads, the pad and pocket gentler (8 mm and 5 mm
+ramps), the edge radius blended between neighbouring outline points; (2) the left head read proud and bright: now
+flat-topped, 1 mm under the face, darker; (3) a saw tooth along the spar's top edge where the bead runs on the edge
+(spar and casting finishes alternating): faces under the bead take the spar's finish.
+Tests: `test_frame_rear_casting_follows_both_photos`, `test_pivot_ends_are_the_photos_nut_and_recessed_head`,
+`test_master_cylinder_clears_the_frame_tabs`.
+Still different: the leg's section is flat with rounded edges (the photo's front face may be slightly crowned; no
+photo shows the section); the upper ear's own bead (between the ear and the spar, LEFT 2147..2187 x 990..1017) is
+the U's top run continued, not a separate bead; the engine hanger plates belong to detail_engine.py (they sit on the
+frame's inner face; in both photos their plates and bolt heads are OUTSIDE the spar, over its lower bead: reported).
+Shared: detail_engine's shift shaft SHIFT (0.609, 0.403) is EST; LEFT l_shift shows the lever's clamp centred at
+about (2185, 1505), z 0.425 cast on the plate: its clamp now cuts the frame's front branch 2.4 mm.
+
+## 2. Muffler cap and nose (part `exhaust`), round 3
+Rear profile (RIGHT, the rear-most pixel of each row, cast on y -0.14, scratch r_cap): the cap's face is upright at
+x -0.0072 from z 0.866 to 0.838, a knee of about 50 mm radius (x -0.0047 at 0.820, -0.0027 at 0.811), then one 45
+deg facet (0.0111, 0.793), (0.0199, 0.784), (0.0309, 0.775) to the can's underside at (0.0465, 0.765); the top corner
+rolls over about 25 mm. Round 2 leaned the whole face 14.5 deg on one line (13 mm too far back at the top) and the
+18 mm roll met the bottom as a crease. Now `_cap_x(z)` shapes the face (12 rings, fine enough for the knee), the roll
+shrinks from 18 mm to 2 mm where the cap's seam meets the lower facet at the bottom (as in the photo), every cap
+vertex takes the can's section at its own station (the cap's sides follow the can's sloping lines). Outlet square to
+the upright face. Three rivets seen from behind (REAR rear_cap: lower corners (2142, 870), (2268, 870), bottom (2205,
+898)) placed where the rear camera's ray meets the cap.
+Nose (RIGHT r_nose, cast on the can's flank y -0.17): the can's front edge is slanted, (0.3176, 0.6373) at the bottom
+to (0.3411, 0.6875) under the side panel (round 2: square at x 0.296, 2 to 4.5 cm behind); the nose is a separate
+pressed cone of darker satin steel (header_steel) from 4 mm under the can's edge to the inlet's weld ring at x 0.371,
+level for its first third, then turning into the pipe tangentially.
+Brushed finish: brushed_n.png had a 2 deg spread of normals across its lines (y std 0.038; x quantised to 0): now
+k 0.16, std 0.099 (about 6 deg); UVs along the can (u = x) and level on the cap's face (checked in cu_capr at 30 cm:
+the streaks read). The cap's roll keeps the can's map (the face's plane map streaked it sideways).
+The octagon's corner smoothing stays at 6 samples: 3 made the outer top corner stand 12 mm over LEFT row 878 (test).
+Checks: cu6 (cu_cap from behind beside rear_cap, cu_nose beside r_nose, cu_capr from the right at 30 cm), f8 pairs
+right 960..1560 x 860..1280 and rear 2100..2330 x 680..920.
+Still different: from behind the knee still reads as a darker band in the studio render where the photo's cap is
+evenly lit (muffler roughness raised 0.26 to 0.36 for it; not re-rendered); the photo's octagon has longer upper
+chamfers on the inner side; the nose's pressed facets (a crease in the photo) are a smooth morph; in the right view
+the plastics agent's side panel hangs over the can's upper half (theirs).
+
+## Coordinator's items (round 3)
+- Brake hose joint: this part's hose now starts exactly at the wheels hose's end, leaving it along that run's own last
+  direction (0.718, -0.182, 0.672), both read off detail_wheels' built mesh (`_wheels_hose`), inside a 16 mm crimped
+  sleeve centred on the joint; no stub forward past it. The banjo moved with the reservoir column (r_mc).
+- Hose guide clip on the right arm's top (RIGHT 7x crop 1370..1450 x 1428..1480, r_clip; rr34 1595..1630 x 1370..
+  1400): a black band 12 mm along the hose over a ribbed base 31 mm long (three ribs), cast with detail_wheels'
+  `_cal_px` to x 0.281..0.312 (band 0.287..0.299). In the photos the hose rides on the clip's base about 9 mm over
+  the arm; the wheels module lays it 1.2 mm over the arm, so the base is two cheeks either side of the hose with the
+  band arching over (0.3 mm clear of the hose). Part `swingarm`. Check: cu4/render_cu_clip.png.

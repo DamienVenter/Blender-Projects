@@ -23,7 +23,7 @@ ground = parts.to_ground
 
 
 def test_vertex_budget(V):
-    assert sum(len(v) for v in V.values()) < 200000          # micro pass brief: up to 200,000
+    assert sum(len(v) for v in V.values()) < 260000          # micro pass round 3 brief: up to 260,000
 
 
 def test_footpeg_height_is_422_mm(V):
@@ -221,3 +221,45 @@ def test_muffler_section_is_the_rear_photos_octagon():
     r = np.linalg.norm(np.cross(E - dc.OUTLET, dc.OUT_AXIS), axis=1)
     lip = r[(ax > -0.004) & (ax < 0.001) & (r < 0.021)]                  # the part standing proud of the cap
     assert abs(lip.max() - 0.0185) < 0.0006, lip.max()
+
+
+# ---------------------------------------------------------------- round 3: the frame's rear casting
+def test_frame_rear_casting_follows_both_photos():
+    """Each side's plate covers its own photo's lower section (front branch, bottom, cradle weld) and, on the right
+    only, the master cylinder's two tabs; the two sides' lower sections agree within 11 mm (one casting, mirrored;
+    the photos disagree by 10 mm at the bottom of the cradle weld, LEFT z 0.348, RIGHT 0.358: each side keeps its own)."""
+    from scipy.spatial import cKDTree
+    from geom import inside
+    L, R = dc._side_outline(1), dc._side_outline(-1)
+    for s, o in ((1, L), (-1, R)):
+        view = "left" if s > 0 else "right"
+        low = dc._cast_px(view, dc.LOW_PX[view], s * dc.Y_MID)
+        g = np.stack(np.meshgrid(np.arange(0.50, 0.70, 0.002), np.arange(0.33, 0.50, 0.002)), -1).reshape(-1, 2)
+        dist = dc._edge_dist([low])
+        g = g[inside(low, g)]
+        g = g[np.array([dist(u, v) for u, v in g]) > 0.003]          # 3 mm inside the traced polygon
+        assert inside(o, g).all()
+    tabs = dc._cast_px("right", dc.TAB_BOLTS_PX, -dc.Y_MID)
+    assert inside(R, tabs).all() and not inside(L, tabs).any()
+    lowL = L[(L[:, 1] < 0.42) & (L[:, 0] > 0.55)]
+    assert cKDTree(R).query(lowL)[0].max() < 0.011
+
+
+def test_pivot_ends_are_the_photos_nut_and_recessed_head():
+    """piv2: right, a 21 mm nut in a 31.8 mm counterbore (its corners clear the bore); left, a head in a hexagonal
+    recess 27.7 mm across flats with a dark gap round it; both ends hollow."""
+    af, _ = dc.PIV_NUT
+    assert af / math.cos(math.pi / 6) < 2 * dc.PIV_CB[0] - 0.003
+    assert 0.002 < dc.PIV_HEX[0] - dc.PIV_HEAD[0] < 0.004
+    assert dc.PIV_END[1] > 0.003 and dc.PIV_HEAD[1] > 0.004
+
+
+def test_master_cylinder_clears_the_frame_tabs(V):
+    """The tabs are lugs outside the cylinder's own lugs: nothing of the brake part inside the right plate."""
+    from geom import inside
+    c = dc._Cast(-1)
+    B = V["brake_pedal"]
+    P = B[inside(c.o, B[:, [0, 2]])]
+    yo, yi = c.surf(P[:, [0, 2]], True), c.surf(P[:, [0, 2]], False)
+    depth = np.minimum(yo - np.abs(P[:, 1]), np.abs(P[:, 1]) - yi)
+    assert depth.max() < 0.0005, depth.max()
