@@ -1179,6 +1179,8 @@ HEADER = [
 # can's front 11 cm: those were the lumps.
 MUF_LOW = (0.029, 0.775, -0.496)            # z_low = a + b (x - x0)
 MUF_H = 0.108                               # LEFT row 878 and REAR (0.901) disagree by 11 mm: the top splits it
+MUF_TAPER = 0.18                            # the can's height falls 18 mm per 100 mm, straight, to clear the side panel
+#                                             over the nose (audit: 20.8 mm into it at x 0.26..0.32 without; hidden part)
 MUF_FACE = -0.008                           # the cap's rear face (at z 0.840, before its lean)
 MUF_ROLL = 0.018                            # the cap's pressed edge: an 18 mm roll into its rear face (rr34, REAR)
 MUF_NOSE = (0.296, 0.350, 0.026)            # the nose cone: from its seam to the inlet, the inlet's radius (RIGHT)
@@ -1205,7 +1207,7 @@ def _smin(a, b, k=0.008):
 def _muf(x):
     """z of the can's lower and upper edges, its plan centre and half width at station x (straight lines)."""
     zl = MUF_LOW[1] + MUF_LOW[2] * (x - MUF_LOW[0])
-    zt = zl + MUF_H
+    zt = zl + MUF_H - MUF_TAPER * max(x - 0.013, 0.0)
     yc = -0.138 + (-0.127 + 0.138) * (x + 0.008) / 0.243
     hw = 0.056 + (0.046 - 0.056) * (x + 0.004) / 0.239
     return zl, zt, yc, hw
@@ -1619,12 +1621,13 @@ def rear_brake():
     bj[0] = a0[0] + (bj[2] - a0[2]) / d[2] * d[0] - 0.0128 - 0.004
     m.add(turned(bj, (-1, 0, 0), [(0, 0.0001), (0, 0.0075), (0.008, 0.0075), (0.008, 0.0001)], "steel", 20))     # banjo
     m.add(hexbolt(bj + np.array([0.0, -0.0075, 0.0]), -Y3, 0.012, 0.006, mat="steel", seg=36))
-    # the hose meets detail_wheels.py's run end to end at its end (0.470, -0.086, 0.515), heading (0.574, 0.078, 0.815)
-    # there, inside a crimped joint sleeve; from it up and back round the cylinder's inner side into the banjo
-    E = np.array([0.470, -0.086, 0.515])
-    dE = np.array([0.574, 0.078, 0.815])
+    # the hose meets detail_wheels.py's run end to end at its end (HOSE_END there: 0.452, -0.100, 0.505), heading
+    # (0.826, 0.032, 0.562) (measured on their mesh), inside a crimped joint sleeve; from it up, round the cylinder's
+    # inner side and back into the banjo
+    E = np.array([0.452, -0.100, 0.505])
+    dE = np.array([0.826, 0.032, 0.562])
     dE /= np.linalg.norm(dE)
-    hose = spline([E + dE * 0.0011, E + dE * 0.014, (0.476, -0.104, 0.552), (0.452, -0.118, 0.560), (0.430, -0.132, 0.552),
+    hose = spline([E + dE * 0.0011, E + dE * 0.012, (0.468, -0.108, 0.530), (0.456, -0.113, 0.549), (0.436, -0.124, 0.549),
                    bj + (-0.010, 0.0, 0.0), bj + (-0.004, 0.0, 0.0)], 40)
     m.add(tube(hose, 0.0042, 10, "cable"))
     m.add(turned(E - dE * 0.010, dE, [(0.0, 0.0047), (0.0, 0.0060), (0.004, 0.0062), (0.0055, 0.0057), (0.0075, 0.0057),

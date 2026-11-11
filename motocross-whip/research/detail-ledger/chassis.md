@@ -248,3 +248,16 @@ Detail 475839 and RIGHT: the pegs are black with the teeth's tips worn bright, a
 root and shallow at the tip (a triangle from behind). Now `peg_black` (CLASS black) with `peg_edge` crests, rails
 21 mm deep at the root to 8 mm at the tip. Not done: the cast cage's own shape (open cells, the brace's section),
 the hinge bracket's shape.
+
+## Round 2 follow-ups
+- The can's height now falls straight, 18 mm per 100 mm (MUF_TAPER), from 108 mm at the cap: with the plastics
+  agent's side panel the straight can stood 20.8 mm into the panel over the nose (x 0.26..0.32, hidden part). A
+  straight taper keeps every facet flat (the old bend under the panel was the kink).
+- Brake hose: detail_wheels now ends its run at (0.452, -0.100, 0.505) heading (0.826, 0.032, 0.562); this part's
+  hose starts there inside the joint sleeve and loops up round the cylinder's inner side into the banjo.
+- test_bike.test_nothing_shows_through_the_plastics, with the plastics agent's branch merged locally: a 3.2 cm2 hole
+  in the left view inside the plastics' outline. With the round-1 can in the same build the can fills it (and is
+  flagged as an intruder, 3.8 cm2); with main's plastics and the new can there is no hole: a gap in the new
+  plastics, not in the can.
+- Not done in round 2: 10 (the frame casting round the pivot: ribs, pockets, bosses and its window), the rest of
+  6 (the "S" mark, a Dirt Rider 09 angle check) and 7 (the cushion arm's recessed web), the subframe rails.
