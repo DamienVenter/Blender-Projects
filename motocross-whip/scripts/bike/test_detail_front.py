@@ -232,3 +232,41 @@ def test_bar_end_runs_along_the_grip_axis():
         off = q - np.outer(q @ sd.d, sd.d)
         assert np.linalg.norm(off, axis=1).max() < 0.0006                                # on the axis, upsweep included
     assert abs(math.degrees(df.UPSWEEP) - 1.85) < 0.01
+
+
+def test_left_switch_buttons_sit_on_the_rear_and_top_photos():
+    """Round 2, component 1: the three buttons' tops land on the photo's button centres (REAR within 2.5 px, TOP
+    within 3 px; the picks that triangulated them) and keep the measured sizes and the face's 12.5 deg lean."""
+    s = df._Side(1)
+    P, nf, up, right = df._face_frame(s, df.SW_TILT, df.SW_FACE_F)
+    picks = {"m": ((1657.0, 225.3), (1812, 1436)), "tc": ((1657.3, 246.5), (1816.5, 1435)),
+             "stop": ((1681.5, 238.2), (1808, 1414))}
+    for key, (pr, pt) in picks.items():
+        c, rb, rw = df.SW_BTN[key]
+        top = P(*c) + 0.0012 * nf
+        assert np.linalg.norm(cams.CAMS["rear"].project([top])[0] - pr) < 2.5, key
+        assert np.linalg.norm(cams.CAMS["top"].project([top])[0] - pt) < 3.0, key
+        assert rw - rb > 0.003                                                          # a dished well round it
+    assert abs(df.SW_BTN["stop"][1] / df.SW_BTN["m"][1] - 1.31) < 0.03                # DR06 red / blue
+    assert abs(2 * df.SW_BTN["m"][1] - 0.0095) < 0.0005                               # REAR 9.1..9.6 mm
+    assert abs(math.degrees(df.SW_TILT) - 12.5) < 0.2
+
+
+def test_start_switch_frame_sits_on_the_rear_and_top_photos():
+    c = df._Side(-1).p(*df.SS_C)
+    assert np.linalg.norm(cams.CAMS["rear"].project([c])[0] - (2302.5, 256.5)) < 4.0
+    assert np.linalg.norm(cams.CAMS["top"].project([c])[0] - (1805, 845)) < 5.0
+    assert df.SS_MOUNT[1] < df.MC_CLAMP[0]                                             # clear of the MC clamp
+
+
+def test_switch_buttons_carry_their_symbols(built):
+    import os
+    from PIL import Image
+    stock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock")
+    for name in ("sw_m", "sw_stop", "sw_tc", "sw_start"):
+        n = np.asarray(Image.open(os.path.join(stock, name + "_n.png")), float)
+        assert n.shape[:2] == (512, 512) and (np.abs(n[..., 0] - 128) > 40).mean() > 0.005   # engraved, not flat
+        assert df.MATERIALS[name]["normal"] == "stock/%s_n.png" % name
+        m = built["hand_controls"]
+        faces = [i for i, mm in enumerate(m.M) if mm == name]
+        assert faces and all(i in m.uv for i in faces)                                   # every face has UVs

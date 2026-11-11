@@ -333,3 +333,83 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
   under them). Audit after the split: two seats only (throttle cables 0.7 mm into their spouts, holder bush 0.0 mm).
 - Module vertices: 66,479 (fork 3,920, clamps 5,000, bars 33,652, hand_controls 10,137, front_brake 4,206,
   disc_guard 3,102, cables 6,462); budget 220,000.
+
+# Round 2 (brief FRONT2.md: nine components, each its own build)
+
+Check images and tools for this round are in `SCRATCH2/` =
+`/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/front2/`
+(not committed). New tools there: `tri.py` (one feature picked in two calibrated photos -> the 3D point that fits
+both, printed in the grip frame), `ruler2.py` (a and u / f scales over a calibrated crop), `blobs.py` (button blob
+sizes and centres in both halves of a pair sheet), `overlap.py` (face pairs that cut each other, by material, in a
+built .blend), `patch.py`.
+
+## R2-1. Switches (fiche K95CF0400: left switch 4 with its lead, holder 3; start switch 6 with its lead, holder 5)
+
+### Anatomy
+- Left switch: a black housing behind the bar, matte and finely textured. Its rear face leans back towards the rider
+  and is a rounded pentagon: a big chamfer on the top-outboard corner (with a small slot in it), a straight top edge,
+  the inboard side, a point at the bottom; the wells' lips form the outline at the bottom and the outboard side.
+- Three round buttons in dished wells, each well with a raised lip, held apart by a ridge: blue M (engine mode,
+  upper outboard), red engine stop (the larger one, inboard), green T in two circling arrows (traction control,
+  bottom). Symbols are engraved. A curved rib in a groove round the stop button's outboard side.
+- Two LED lenses (rounded rectangles, taller than wide) in raised bezels over the stop button.
+- The top: a raised pad with an arrow mark (TOP). Collar (holder 3) round the bar; a grommet block on the front-top
+  outboard corner, the lead out of its front, down in front of the bar (lf34) and along under the bar to the pad.
+- Start switch (right): a black box behind the bar between the throttle housing and the master cylinder, its face
+  square to the bike; a deep square guard frame whose top bar is a hood; a recessed square button with the engraved
+  start symbol (a circling arrow round a lightning bolt); a bright cross-head screw under the box; a mount to a strap
+  round the bar; the lead.
+
+### References
+- DR06 whole photo; crops `ref/dr06_block.jpg` (490..900 x 230..700, 2x), `dr06_red.jpg`, `dr06_green.jpg` (symbols).
+- DET829 crops 1800..2800 x 1300..1950 (`d829_block.jpg`), 1980..2480 x 1360..1600 (`d829_top.jpg`: chamfer slot,
+  lenses, the dark block behind the chamfer).
+- DET830 1400..2000 x 1000..1700 (`d830_start.jpg`: start switch).
+- REAR 1569..1773 x 154..339 at 6x with scales (`r2_rear_L.jpg`); TOP 1740..1830 x 1380..1460 at 10x
+  (`top_block10.jpg`); LEFT grid (`grid_left_L.jpg`), lf34 / lr34 (`lf_lr_block.jpg`); start: REAR 2266..2354 x
+  202..287 and TOP 1729..1810 x 801..881 at 10x (`start_rear.jpg`, `start_top.jpg`). Fiche `K95CF0400`.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Blue / green / red centres | a 131.1 / 130.9 / 150.7, u 16.6 / -0.1 / 7.1, then +1 mm in a | tri.py REAR + TOP (residual 1.0..1.3 px); the +1 mm from the REAR and TOP pairs (model 1.1..1.3 px outboard in both) |
+| Face lean | 12.5 deg, face at f -38.6 + 0.2216 u mm | green 3.7 mm behind blue, 16.7 mm lower (tri.py); TOP pair (moved 0.8 mm back) |
+| Button sizes | 9.5 mm (blue, green), 12.5 (red), 1.2 mm proud | REAR 9.1..9.6; DR06 red / blue 1.31; REAR pair blobs 89.5 / 87.0 / 113.7 px against the photo's 90.1 / 88.7 / 114.1; TOP pair blobs 58.2 / 52.6 / 69.4 against 58.8 / 55.3 / 69.7 |
+| Wells | radius 8.3 (small), 9.6 (red), lip 0.4 mm, floor 2.6 mm deep | DR06 1.9 x and 1.57 x the buttons, kept 0.5 mm apart |
+| LED lenses | a 145.9 / 154.3, u 26.3; 6 x 9 mm, bezel 7.6 x 10.6 | tri.py; REAR 6.5 x 10 with the bezel |
+| Outline | a 122.5..164.2, u -12.2..+33.7 | REAR edges read on the face's plane (a point 25 mm behind the ruler reads 7 mm inboard: the sweep), TOP rear face a 120.9..158.7; top 1.8 mm lower after the REAR pair |
+| Top pad | a 144..159, f -27..-18 | TOP cast at u 37 |
+| Start frame | centre a 161.7 f -39.2 u -6.9; 18.5 x 20 mm, opening 12.5 x 13, 5 mm deep, hood +2 | tri.py REAR + TOP (0.2 px), 3 mm outboard after the pairs; REAR corners; DET830 proportions |
+| Start button | 7.5 mm square, 1.8 mm proud of the recess floor, 3 mm inside the frame | DET830 (90 / 240 px of the frame) |
+| Start box | 21 x 29 mm, 12 mm deep, top 8 mm over the frame | TOP pair (11.3 mm deep), REAR pair (box top over the frame) |
+| Engraving | 0.25 mm, floor 20 % darker | EST (DR06: the symbols read by their shadowed walls) |
+
+### What was built
+- `switch_left()`, `switch_start()` (in `hand_controls`; the leads in `bars` through `switch_leads()`, since they run
+  into the bar pad). Helpers `_hull_outline`, `_inset`, `_face_frame`, `_button` (round, UVs on its top),
+  `_square_button`. The face is a 3 mm plate (plate2d) with the wells' holes and a rounded edge, 0.3 mm proud of the
+  body behind it (the parting line); body rings with a rounded front; wells revolved; buttons; the stop button's rib;
+  lenses in bezels; the chamfer slot; the top pad and arrow; the collar; the grommet block.
+- `switch_maps()` (run by `python3 detail_front.py`) writes `textures/stock/sw_m`, `sw_stop`, `sw_tc`, `sw_start`
+  (colour and normal maps, 512 px over the button). Materials `sw_m`, `sw_stop`, `sw_tc`, `sw_start` (colour map +
+  normal map), `led_lens`, `sw_body` (matte, fine bump). The old solid blocks and their buttons are gone from `bars`.
+- Tests: `test_left_switch_buttons_sit_on_the_rear_and_top_photos`, `test_start_switch_frame_sits_on_the_rear_and_
+  top_photos`, `test_switch_buttons_carry_their_symbols`.
+
+### Checks
+- Close-ups: `chk/s1_a.jpg`, `s1_b.jpg` (first build), `s2_a.jpg` (DR06 and DET829 angles), `s2_b.jpg` (DET830).
+- Pairs: `chk/p1_rear`, `p1_left`, `p1_top`, `p1_lf34` (first build), `p3_rear_1604`, `p3_top_1721`, `p3_rear_2261`,
+  `p3_top_1735`, `p4_rear_start`, `p4_top_start` (after the fixes).
+- Fixed after cycle 1: the lead's loop over the top (REAR shows nothing above the housing), top 1.8 mm lower, all a
+  +1 mm, buttons 1.2 mm proud (they were 0.4), housing matte charcoal (it rendered as glossy black, the wells lost),
+  smoky lenses. After cycle 2: the face 0.8 mm back; start frame 5 mm deep, box taller and shallower, 3 mm outboard.
+- Audit: the two leads seat 0.4..0.5 mm into their grommet and box (bars / hand_controls). No floating piece.
+
+### Still different
+- LEFT and lf34 show a dark edge 42..44 mm over the bar's axis above the housing (their rays cross near a 163,
+  f -17.5); REAR shows nothing there (`ref/rear_top_chk.jpg`), nor do DR06 and DET829. Left as REAR has it; the
+  cause (a pose difference between the photos, or a part I could not identify) is not found.
+- The photo's wells catch the light as wide grey dishes; the model's read as darker rings.
+- The start switch's housing fills more of the space towards the bar in TOP than the model's narrow mount (the
+  throttle boot and cables are over it there, so its shape is not readable); its bottom lip and notch (DET830) are
+  not modelled. Clamp screws of the left holder: none visible in any photo, none modelled.

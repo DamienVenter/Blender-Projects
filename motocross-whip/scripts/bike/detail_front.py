@@ -726,15 +726,16 @@ def _lever(s, pts):
     return m
 
 
-def _wire(s, a0, f, u):
-    """Switch lead: from a housing along the underside of the bar into the bar pad."""
+def _wire(s, a0, f, u, loop=None):
+    """Switch lead: from a housing along the underside of the bar into the bar pad (loop: the lead's own end
+    points (a, f, u) from under the bar to the housing, instead of the two default ones)."""
     side = s.side
     path = bar_path() * [1, side, 1]
     y0 = abs(s.p(a0)[1])
     sel = path[(abs(path[:, 1]) > 0.070) & (abs(path[:, 1]) < y0 - 0.02)]
     rr = bar_r(sel[:, 1])
-    pts = np.vstack([sel - (rr + 0.0092)[:, None] * Z,                  # under the bar, outside the clamp rings
-                     [s.p(a0 + 0.012, f * 0.5, u), s.p(a0 - 0.002, f, u)]])
+    end = [s.p(a0 + 0.012, f * 0.5, u), s.p(a0 - 0.002, f, u)] if loop is None else [s.p(*q) for q in loop]
+    pts = np.vstack([sel - (rr + 0.0092)[:, None] * Z, end])          # under the bar, outside the clamp rings
     return sweep(pts, 0.0025, "cable", 8)
 
 
@@ -806,17 +807,8 @@ def bars():
     # ---- grips (component 1): part of the bars, so the bars span the SPEC 827 mm (test_bike.py)
     m.add(grip(_Side(1)))
     m.add(grip(_Side(-1), right=True))
-    # ---- switch blocks, not yet rebuilt (component 7): solid blocks round the bar, so they stay in the bar's part
-    L, R = _Side(1, CTRL_SHIFT[0]), _Side(-1, CTRL_SHIFT[1])
-    # ---- left: switch cluster (DET 475829: blue, red and green buttons facing the rider) and its lead
-    m.add(_block(L, 0.109, 0.131, 0.034, 0.040, "plastic_black", cf=-0.002, cu=0.003, r=0.008))
-    for a, u, mat in ((0.114, 0.012, "btn_blue"), (0.126, 0.012, "btn_red"), (0.120, -0.004, "btn_green")):
-        m.add(cyl(L.p(a, -0.0185, u), L.p(a, -0.0212, u), 0.0042, mat, 12, 0.0006))
-    m.add(_wire(L, 0.131, -0.004, -0.014))
-    # ---- right: start button and its lead
-    m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
-    m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
-    m.add(_wire(R, 0.159, -0.006, -0.0215))               # from the block's underside, under the MC clamp
+    # ---- the switches' leads (the switches themselves are in hand_controls: round 2, component 1)
+    m.add(switch_leads())
     return m
 
 
@@ -825,7 +817,10 @@ def hand_controls():
     a part of their own, so the bars' part keeps the bar's SPEC height (the throttle hood and the reservoir stand
     higher in Honda's photos)."""
     m = Mesh()
-    L, R = _Side(1, CTRL_SHIFT[0]), _Side(-1, CTRL_SHIFT[1])
+    # ---- left: engine mode / stop / traction control switch on its holder, and its lead (round 2, component 1)
+    m.add(switch_left())
+    # ---- right: start switch on its holder, and its lead (round 2, component 1)
+    m.add(switch_start())
     # ---- left: clutch perch, lever, boot, cable adjuster (component 6)
     m.add(clutch_perch())
     # ---- right: throttle housing, cable hood and boot (component 4)
@@ -1103,6 +1098,338 @@ def _clutch_adjuster(start=False):
     return (q0 if start else q1), unit(q1 - q0)
 
 
+# ================================================================ switches (fiche K95CF0400: left switch 4 with its lead
+# and holder 3, start switch 6 with its lead and holder 5). Anatomy, photos and readings: research/detail-ledger/
+# front.md, round 2, component 1. Positions triangulated from the REAR and TOP studio photos (tri.py: one feature
+# picked in both, the 3D point that fits both pixels, residual 1.0..1.3 px), in the grip frame without CTRL_SHIFT.
+SW_TILT = math.atan(0.2216)   # the left switch's face leans back 12.5 deg (green sits 3.7 mm further back than blue,
+#   16.7 mm lower: REAR + TOP)
+SW_FACE_F = -0.0386           # face at u 0 (button tops f -38.8 + 0.2216 u mm (blue, green), red -37.7; the buttons stand
+#   1.2 mm proud of the face: TOP pair, the photo's buttons show more of their sides than 0.4 mm did; then 0.8 mm back:
+#   TOP pair, the model's buttons 0.7 to 1.7 px ahead of the photo's)
+SW_BTN = {"m": ((0.1321, 0.0166), 0.00475, 0.0083), "tc": ((0.1319, -0.0001), 0.00475, 0.0083),
+          "stop": ((0.1517, 0.0071), 0.00625, 0.0096)}  # (a, u) centre, button radius, well radius. REAR + TOP: blue
+#   a 131.1 u 16.6, green 130.9 / -0.1, red 150.7 / 7.1, all 1 mm further inboard after the REAR and TOP pairs (model
+#   1.1 to 1.3 px outboard in both); diameters REAR 9.1..9.6 mm (blue, green), red / blue 1.31 (DR06) -> 12.5: the REAR
+#   pair's blobs 89.5 / 87.0 / 113.7 px against the photo's 90.1 / 88.7 / 114.1; wells DR06 1.9 x the small buttons,
+#   1.57 x the red one (held off each other by a 0.5 mm ridge)
+SW_WIN = ((0.1459, 0.0263), (0.1543, 0.0266))     # LED lenses (a, u): REAR + TOP (+1 mm as the buttons); 6 x 9 mm
+#   (REAR 6.5 x 10 with the bezel, DET829 1.6 tall to 1 wide)
+SW_POLY = ((0.1225, 0.0175), (0.1448, 0.0328), (0.1620, 0.0337), (0.1642, 0.0315), (0.1635, 0.0050),
+           (0.1447, -0.0122))   # face outline corners (a, u): REAR edges read on the face's plane (the 16 deg sweep moves a
+#   point 25 mm behind the ruler 7 mm inboard), TOP: rear face a 120.9..158.7 at f -38.5; the outline is the hull of
+#   these and the three wells (DR06: the wells' lips are the outline at the bottom and the outboard side). Top: the
+#   REAR pair put the first build's top edge 1.8 mm high (33.7 mm over the axis); LEFT and lf34 show a dark edge at
+#   u 42..44 that REAR, DR06 and DET829 do not (ledger)
+SW_FRONT = -0.0162            # body's front face behind the bar (clears the grip's collar, r 15.6), EST
+SW_PAD = ((0.1515, -0.0225), (0.0145, 0.0090))    # raised pad on the top with an arrow mark: TOP (1782..1799,
+#   1410..1424) cast at u 37 mm: a 143..160, f -27.7..-17.5
+SW_COLLAR = (0.1262, 0.1600, 0.0172)              # collar round the bar (holder 3), EST: the block's front over the bar
+#   reaches f 0 at a 150 (TOP tab cast at u 30)
+
+
+def _hull_outline(pts, n=120, cut=2):
+    """Convex outline through PTS (2D), corners rounded by corner cutting, resampled to N points by arc length,
+    counter-clockwise."""
+    p = np.asarray(pts, float)
+    h = p[ConvexHull(p).vertices]
+    for _ in range(cut):
+        nx = np.roll(h, -1, axis=0)
+        h = np.stack([0.75 * h + 0.25 * nx, 0.25 * h + 0.75 * nx], axis=1).reshape(-1, 2)
+    c = np.vstack([h, h[:1]])
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(c, axis=0), axis=1))]
+    t = np.linspace(0, s[-1], n, endpoint=False)
+    return np.stack([np.interp(t, s, c[:, 0]), np.interp(t, s, c[:, 1])], axis=1)
+
+
+def _inset(o, d):
+    """Convex counter-clockwise outline moved D inwards along its normals."""
+    t = np.roll(o, -1, axis=0) - np.roll(o, 1, axis=0)
+    n = np.stack([-t[:, 1], t[:, 0]], axis=1)
+    return o + d * n / np.linalg.norm(n, axis=1, keepdims=True)
+
+
+def _face_frame(s, tilt, f0):
+    """A switch face leaning back by TILT: the point at projected (a, u) on it, its outward normal, up and across
+    (towards the rider's right) vectors."""
+    nf = -math.cos(tilt) * s.f + math.sin(tilt) * s.u
+    up = math.sin(tilt) * s.f + math.cos(tilt) * s.u
+    right = -s.d if s.side > 0 else s.d
+    return (lambda a, u: s.p(a, f0 + math.tan(tilt) * u, u)), nf, up, right
+
+
+def _button(c, nf, up, right, rb, h0, h1, mat, dome=0.0001):
+    """Round push button standing from h0 to h1 along NF at C, its top edge rounded 0.6 mm; the top disc carries
+    UVs over the button's diameter (the symbol's normal and colour maps), the sides the map's plain border."""
+    m = Mesh()
+    ang = np.linspace(0, 2 * math.pi, 48, endpoint=False)
+    rad = np.outer(np.cos(ang), right) + np.outer(np.sin(ang), up)
+    prof = [(rb, h0), (rb, h1 - 0.0006), (rb - 0.0002, h1 - 0.00018), (rb - 0.0006, h1)]
+    prof += [(rb * k, h1 + dome * (1 - k * k)) for k in (0.8, 0.6, 0.4, 0.2)]
+    base = [m.verts(c + h * nf + r * rad) for r, h in prof]
+    cen = m.verts([c + (h1 + dome) * nf])
+    for k in range(len(prof) - 1):
+        for i in range(48):
+            j = (i + 1) % 48
+            fi = len(m.F)
+            m.face((base[k] + i, base[k] + j, base[k + 1] + j, base[k + 1] + i), mat)
+            uv = []
+            for kk, ii in ((k, i), (k, j), (k + 1, j), (k + 1, i)):
+                r = prof[kk][0]
+                uv.append((0.5 + 0.5 * r / rb * math.cos(ang[ii]), 0.5 + 0.5 * r / rb * math.sin(ang[ii]))
+                          if kk >= 3 else (0.5, 0.02))
+            m.uv[fi] = uv
+    for i in range(48):
+        j = (i + 1) % 48
+        fi = len(m.F)
+        m.face((base[-1] + i, base[-1] + j, cen), mat)
+        r = prof[-1][0] / rb
+        m.uv[fi] = [(0.5 + 0.5 * r * math.cos(ang[i]), 0.5 + 0.5 * r * math.sin(ang[i])),
+                    (0.5 + 0.5 * r * math.cos(ang[j]), 0.5 + 0.5 * r * math.sin(ang[j])), (0.5, 0.5)]
+    return _outward(m)
+
+
+def switch_maps(folder, n=512):
+    """Colour and tangent-space normal maps (OpenGL, +Y up) of the engraved button symbols, the canvas spanning the
+    button's diameter: M (engine mode, blue), the engine stop symbol (a circling arrow crossed out, red), T in two
+    circling arrows (traction control, green), DR06 close-ups; the start symbol (a circling arrow round a lightning
+    bolt, black) DET830. Engraved 0.25 mm, the floor darkened 20 % (it holds shadow and dust in the photos)."""
+    from PIL import Image, ImageDraw, ImageFilter
+    import os
+    k = 4
+    N = n * k
+
+    def px(x, y):
+        return ((0.5 + x) * N, (0.5 - y) * N)
+
+    def arc(d, r, a0, a1, w, head=None):
+        box = [px(-r, r), px(r, -r)]
+        d.arc([box[0], box[1]], -a1, -a0, fill=255, width=int(w * N))
+        if head is not None:                              # arrowhead at angle head, pointing along +-tangent
+            ang, sgn = head
+            t = math.radians(ang)
+            c = np.array([r * math.cos(t), r * math.sin(t)])
+            tg = sgn * np.array([-math.sin(t), math.cos(t)])
+            nr = np.array([math.cos(t), math.sin(t)])
+            pts = [c + 0.10 * tg, c - 0.02 * tg + 0.075 * nr, c - 0.02 * tg - 0.075 * nr]
+            d.polygon([px(*p) for p in pts], fill=255)
+
+    def line(d, pts, w):
+        d.line([px(*p) for p in pts], fill=255, width=int(w * N), joint="curve")
+        for p in (pts[0], pts[-1]):
+            q = px(*p)
+            rr = w * N / 2
+            d.ellipse([q[0] - rr, q[1] - rr, q[0] + rr, q[1] + rr], fill=255)
+
+    syms = {}
+    im = Image.new("L", (N, N), 0); d = ImageDraw.Draw(im)
+    line(d, [(-0.19, -0.20), (-0.19, 0.20), (0.0, -0.03), (0.19, 0.20), (0.19, -0.20)], 0.10)
+    syms["sw_m"] = (im, (35, 88, 190))
+    im = Image.new("L", (N, N), 0); d = ImageDraw.Draw(im)
+    arc(d, 0.29, 62, 292, 0.045, head=(292, 1))
+    line(d, [(-0.39, 0.035), (0.37, -0.005)], 0.042)
+    line(d, [(-0.16, -0.36), (0.19, 0.35)], 0.042)
+    syms["sw_stop"] = (im, (205, 50, 50))
+    im = Image.new("L", (N, N), 0); d = ImageDraw.Draw(im)
+    line(d, [(-0.15, 0.12), (0.15, 0.12)], 0.09)
+    line(d, [(0.0, 0.12), (0.0, -0.17)], 0.10)
+    arc(d, 0.31, 28, 148, 0.05, head=(150, 1))
+    arc(d, 0.31, 208, 328, 0.05, head=(330, 1))
+    syms["sw_tc"] = (im, (32, 150, 72))
+    im = Image.new("L", (N, N), 0); d = ImageDraw.Draw(im)
+    arc(d, 0.27, 100, 425, 0.045)
+    line(d, [(0.035, 0.17), (-0.045, 0.01), (0.045, 0.0), (-0.03, -0.17)], 0.04)
+    syms["sw_start"] = (im, (26, 26, 28))
+    for name, (im, rgb) in syms.items():
+        mask = np.asarray(im.resize((n, n), Image.LANCZOS).filter(ImageFilter.GaussianBlur(2.2)), float) / 255.0
+        h = -0.25 * mask                                              # mm
+        mm_px = 9.5 / n                                               # the canvas spans about one button (mm a pixel)
+        gy, gx = np.gradient(h, mm_px)                                # rows run down the image (-v)
+        nx, ny, nz = -gx, gy, np.ones_like(h)
+        ln = np.sqrt(nx * nx + ny * ny + nz * nz)
+        Image.fromarray(((np.stack([nx, ny, nz], axis=2) / ln[..., None] * 0.5 + 0.5) * 255).round().astype(np.uint8)
+                        ).save(os.path.join(folder, name + "_n.png"))
+        col = np.array(rgb, float)[None, None, :] * (1.0 - 0.2 * mask[..., None])
+        Image.fromarray(col.round().astype(np.uint8)).save(os.path.join(folder, name + ".png"))
+
+
+def switch_left():
+    """Honda's left switch (engine mode M, engine stop, traction control T, two LED lenses) on its holder: a housing
+    behind the bar whose rear face leans back 12.5 deg towards the rider, the three buttons in dished wells, the
+    parting line between the rear shell and the body, the chamfer with its slot, the raised pad with an arrow on the
+    top, the collar round the bar, the lead's grommet on the front-top corner and the lead looping over the bar's
+    front into the run under the bar (lf34, LEFT)."""
+    s = _Side(1)
+    m = Mesh()
+    hs = "sw_body"
+    P, nf, up, right = _face_frame(s, SW_TILT, SW_FACE_F)
+    pts = [p for p in SW_POLY]
+    for (c, rb, rw) in SW_BTN.values():
+        pts += [(c[0] + (rw + 0.0012) * math.cos(t), c[1] + (rw + 0.0012) * math.sin(t))
+                for t in np.linspace(0, 2 * math.pi, 36, endpoint=False)]
+    face = _hull_outline(pts, 120)
+    # rear shell: 3 mm plate, the wells' holes, its rear edge rounded r 1.5 (rows at 0.3, 0.8, 1.5 mm)
+    from scipy.spatial import cKDTree
+    dense = _hull_outline(pts, 900)
+    tree = cKDTree(dense)
+    holes = [circle(rw, 40, *c) for (c, rb, rw) in SW_BTN.values()]
+
+    def to3d(a, u, w):
+        d = tree.query([a, u])[0]
+        r = 0.0015
+        dr = r - math.sqrt(max(r * r - (r - min(d, r)) ** 2, 0.0)) if w > 0 else 0.0
+        return P(a, u) + (w - 0.0015 - dr) * nf
+    m.add(_outward(plate2d(face, holes, 0.003, hs, to3d, step=0.0012, rings=(0.0003, 0.0008, 0.0015))))
+    # body (the front shell), 0.3 mm inside the rear shell's outline (the parting line), front edge rounded
+    body = _inset(face, 0.0003)
+    body[:, 0] = np.maximum(body[:, 0], 0.1228)            # inboard of the grip's flange (a 122)
+    rings = []
+    for f, k in ((SW_FRONT, 0.0012), (SW_FRONT - 0.0004, 0.00045), (SW_FRONT - 0.0012, 0.0)):
+        rings.append(np.array([s.p(a, f, u) for a, u in _inset(body, k)]))
+    rings.append(np.array([P(a, u) - 0.0025 * nf for a, u in body]))
+    m.add(_outward(grid(Mesh(), rings, hs, cap0=True, cap1=True)))
+    hs = "plastic_black"                                    # wells, rib, bezels: the darker gloss of REAR's rings
+    # wells (a dished ring with a raised lip) and the buttons with their engraved symbols
+    mats = {"m": "sw_m", "tc": "sw_tc", "stop": "sw_stop"}
+    for key, (c, rb, rw) in SW_BTN.items():
+        o = P(*c)
+        prof = [(rw + 0.0002, -0.0030), (rw + 0.0002, -0.0002), (rw, 0.0003), (rw - 0.0006, 0.0004),
+                (rw - 0.0012, 0.0), (rb + 0.0018, -0.0019), (rb + 0.0008, -0.0025), (rb + 0.0003, -0.0026)]
+        m.add(rev(o, nf, prof, hs, 48, cap1=True, ref=up))
+        m.add(_button(o, nf, up, right, rb, -0.0027, 0.0012, mats[key]))
+    # the guard rib round the stop button's outboard side (DR06: a curved rib in a groove)
+    c, rb, rw = SW_BTN["stop"]
+    ang = np.linspace(math.radians(118), math.radians(232), 14)
+    path = [P(c[0] + (rw + 0.0016) * math.cos(t), c[1] + (rw + 0.0016) * math.sin(t)) + 0.0002 * nf for t in ang]
+    m.add(tube(np.array(path), 0.0006, 8, hs))
+    # LED lenses in raised bezels (DET829: clear, rounded; REAR: blue-grey)
+    for c in SW_WIN:
+        o = P(*c)
+        for (w_, h_, r_), z0, z1, mat in (((0.0076, 0.0106, 0.0024), -0.0005, 0.0005, hs),
+                                          ((0.0060, 0.0090, 0.0018), 0.0, 0.0008, "led_lens")):
+            loop = rounded_rect(w_, h_, r_, 4)
+            m.add(slab(loop, z0, z1, mat, lambda x, y, h, o=o: o + x * right + y * up + h * nf, ch=0.0002))
+    # chamfer slot (DET829): a dark slot 5 x 1.2 mm on the chamfer, 7 mm ahead of the face
+    q0, q1 = np.array(SW_POLY[0]), np.array(SW_POLY[1])
+    mid = q0 + 0.40 * (q1 - q0)
+    nc = unit(s.p(mid[0], -0.030, mid[1]) - s.p(mid[0] + 0.001, -0.030, mid[1] - 0.001))   # outward on the chamfer
+    along = unit(s.p(q1[0], -0.03, q1[1]) - s.p(q0[0], -0.03, q0[1]))
+    ctr = s.p(mid[0], SW_FACE_F + math.tan(SW_TILT) * mid[1] + 0.007, mid[1]) + 0.0001 * nc
+    m.add(box(ctr, (0.0050, 0.0012, 0.0006), "rubber_black", np.column_stack([along, s.f, np.cross(along, s.f)])))
+    # raised pad on the top with its arrow mark (TOP)
+    (pa, pf), (la, lf) = SW_PAD
+    top = 0.0333
+    m.add(slab(rounded_rect(la, lf, 0.002, 4), top - 0.0006, top + 0.0005, "sw_body",
+               lambda x, y, h: s.p(pa + x, pf + y, h), ch=0.0003))
+    tri_ = [(-0.003, -0.0005), (0.003, -0.0005), (0.0, 0.0035)]
+    m.add(slab(tri_, top + 0.0004, top + 0.0008, "sw_body", lambda x, y, h: s.p(pa + x, pf + y, h), ch=0.0001))
+    # collar round the bar and the block's upper front over it (holder 3)
+    a0, a1, rc = SW_COLLAR
+    rb_ = BAR_R[1] + 0.0003
+    m.add(rev(s.T, -s.d, [(rb_, a0), (rc - 0.0008, a0), (rc, a0 + 0.0008), (rc, a1 - 0.0008), (rc - 0.0008, a1),
+                          (rb_, a1)], hs, 48, solid=True))
+    m.add(_block(s, 0.1400, 0.1600, 0.0160, 0.0185, "sw_body", cf=-0.0095, cu=0.0238, r=0.0025, ch=0.001))
+    # lead: a grommet block on the front-top outboard corner (lf34: a black bracket there, the lead dropping from its
+    # front in front of the bar; DET829: a dark block with a hole behind the chamfer's top), the lead out of its front,
+    # down in front of the bar and into the run under the bar (TOP: its front at a 138, f 14)
+    m.add(_block(s, 0.1275, 0.1395, 0.0125, 0.0180, "sw_body", cf=-0.0100, cu=0.0215, r=0.002, ch=0.0008))
+    m.add(cyl(s.p(0.1335, -0.0040, 0.0245), s.p(0.1335, 0.0035, 0.0245), 0.0036, "rubber_black", 16, 0.0006))
+    return m
+
+
+def switch_leads():
+    """The two switches' leads (in the bars' part: they run under the bar into the bar pad): the left one from its
+    grommet's front over the bar's front and down into the run under the bar, the start switch's from its box's
+    front under the bar; each ends 0.5 mm inside the face it enters."""
+    m = Mesh()
+    m.add(_wire(_Side(1), 0.160, 0.0, 0.0, loop=[(0.140, 0.006, -0.0218), (0.1365, 0.0165, -0.0150),
+                                                 (0.1345, 0.0215, -0.0010), (0.1338, 0.0205, 0.0140),
+                                                 (0.1335, 0.0140, 0.0235), (0.1335, 0.0060, 0.0245),
+                                                 (0.1335, 0.0030, 0.0245)]))
+    s = _Side(-1)
+    e = s.p(*SS_C) + np.array([SS_DEPTH - 0.0004, 0.0, 0.0]) + 0.0002 * s.d - 0.0080 * Z    # 0.4 mm into the box's
+    ends = []                                                                                # front face, square to it
+    for p in (e + np.array([0.006, 0.0, 0.0]), e + np.array([0.003, 0.0, 0.0]), e):
+        q = p - s.T
+        ends.append((-(q @ s.d), q @ s.f, q @ s.u))
+    m.add(_wire(s, 0.160, 0.0, 0.0, loop=[(0.172, -0.004, -0.0215), (0.1690, -0.0120, -0.0200)] + ends))
+    return m
+
+
+SS_C = (0.1617, -0.0392, -0.0069)   # start switch: centre of its guard frame's rear face (a, f, u, right grip frame):
+#   REAR (2302.5, 256.5) + TOP (1805, 848.5), residual 0.2 px, then 3 mm outboard after the pairs (REAR 2..4 px, TOP
+#   the box's middle at row 844.6, not 848.5); the face is square to the bike (TOP: its rear edge runs from a 153.7
+#   f -36.7 to a 174.7 f -42.7, 16 deg off the grip)
+SS_FRAME = ((0.0185, 0.0200), (0.0125, 0.0130))   # guard frame outer and opening (across, tall): REAR corners cast
+#   on f -30 (a 158.3..176.7, u -17.0..+3.3: 18.4 x 20.3), triangulated 155.2..173.8 / -17.1..+3.2; the opening from
+#   DET830's proportions (165 / 240 px of the frame)
+SS_BTN = 0.0075               # square button, DET830: 90 / 240 px of the frame -> 6.9 mm, REAR 9.6 x 8.8 (blurred)
+SS_DEPTH = 0.0120             # box from the frame's face forward: TOP pair, the box 13 px (11.3 mm) deep along x; the
+#   mount reaches on to the bar
+SS_MOUNT = (0.1680, 0.1810)   # the box's mount and strap round the bar (holder 5): REAR's dark block inboard of the
+#   frame, cast a 182..185 at f -30 (a 175..181 nearer the bar), clear of the master cylinder's clamp (a 182)
+
+
+def _square_button(c, nb, up, right, w, h0, h1, mat):
+    """Rounded square push button from h0 to h1 along NB, its top's UVs over the button's width."""
+    m = Mesh()
+    sq = rounded_rect(w, w, w * 0.16, 4)
+    prof = [(1.0, h0), (1.0, h1 - 0.0004), (0.96, h1 - 0.0001), (0.90, h1)]
+    base = [m.verts([c + h * nb + k * (q[0] * right + q[1] * up) for q in sq]) for k, h in prof]
+    n = len(sq)
+    for kk in range(len(prof) - 1):
+        for i in range(n):
+            j = (i + 1) % n
+            fi = len(m.F)
+            m.face((base[kk] + i, base[kk] + j, base[kk + 1] + j, base[kk + 1] + i), mat)
+            m.uv[fi] = [(0.5, 0.03)] * 4
+    cen = m.verts([c + h1 * nb])
+    k = prof[-1][0]
+    for i in range(n):
+        j = (i + 1) % n
+        fi = len(m.F)
+        m.face((base[-1] + i, base[-1] + j, cen), mat)
+        m.uv[fi] = [(0.5 + k * sq[i][0] / w, 0.5 + k * sq[i][1] / w), (0.5 + k * sq[j][0] / w, 0.5 + k * sq[j][1] / w),
+                    (0.5, 0.5)]
+    return _outward(m)
+
+
+def switch_start():
+    """Start switch on the right bar, between the throttle housing and the master cylinder (DET830, REAR, TOP): a
+    black box behind the bar with its face square to the bike, the raised guard frame round the recessed square
+    button (start symbol), the guard's top bar standing further out as a hood, a cross-head screw under the box,
+    the mount and strap round the bar (holder 5), and the lead forward under the bar."""
+    s = _Side(-1)
+    m = Mesh()
+    hs = "sw_body"
+    c = s.p(*SS_C)
+    nb, up = np.array([-1.0, 0.0, 0.0]), Z.copy()             # out of the face (towards the rider), up
+    right = np.cross(up, nb)                                  # the rider's right (outboard): -y
+    to = lambda x, y, h: c + x * right + y * up + h * nb
+    # box: from 5 mm inside the frame's face forward SS_DEPTH, rounded r 2.5, its edges 1.2 mm
+    m.add(slab(rounded_rect(0.0210, 0.0290, 0.0025, 4), -SS_DEPTH, -0.0050, hs,         # its top 8 mm over the
+               lambda x, y, h: to(x, y + 0.0035, h), ch=0.0012))                       # frame's (REAR pair)
+    # guard frame: a square ring standing 5 mm out of the box (DET830: its walls deep round the sunken button), its top
+    # bar a hood 2 mm further out
+    (ow, oh), (iw, ih) = SS_FRAME
+    outer, inner = rounded_rect(ow, oh, 0.0022, 4), rounded_rect(iw, ih, 0.0015, 4)
+    m.add(_outward(plate2d(outer, [inner], 0.0054, hs, lambda x, y, w: to(x, y, w - 0.0025), step=0.0010)))
+    m.add(slab(rounded_rect(ow, oh / 2 - ih / 2 + 0.0004, 0.0012, 3), -0.0003, 0.0020, hs,
+               lambda x, y, h: to(x, y + oh / 4 + ih / 4, h), ch=0.0006))
+    # the recess floor and the button with the start symbol, 3 mm inside the frame's face
+    m.add(slab(rounded_rect(iw + 0.0004, ih + 0.0004, 0.0015, 3), -0.0052, -0.0046, "plastic_black", to, ch=0.0))
+    m.add(_square_button(c - 0.0005 * up, nb, up, right, SS_BTN, -0.0048, -0.0030, "sw_start"))
+    # cross-head screw under the box (REAR: a bright head under the frame's right half), M4, EST length
+    p = to(-0.0020, -0.0108, -0.0080)
+    m.add(fastener(p, -Z, "button", af=0.0070, h=0.0022, recess=0.0028, mat="steel"))
+    # mount from the box's inboard front to a strap round the bar (holder 5)
+    a0, a1 = SS_MOUNT
+    m.add(_block(s, a0, a1, 0.0170, 0.0150, hs, cf=-0.0200, cu=-0.0040, r=0.003, ch=0.001))
+    m.add(rev(s.T, -s.d, [(BAR_R[1] + 0.0003, a0 + 0.0045), (0.0140, a0 + 0.0045), (0.0145, a0 + 0.0050),
+                          (0.0145, a1 - 0.0005), (0.0140, a1), (BAR_R[1] + 0.0003, a1)], hs, 40, solid=True))
+    return m
+
+
 THROTTLE_F = (-0.005, 0.005)                          # the two cables leave side by side over the bar, EST
 
 
@@ -1368,9 +1695,20 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
              "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
-             "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
+             "grip_bead": dict(rgb=(26, 26, 28), rough=0.22),       # the rings' beads shine as thin lines (DR05, DR06)
+             # switch buttons: colour and engraved symbol (switch_maps); base colours from the REAR photo's lit
+             # buttons (blue 45 103 194, green 40 159 86, red 207 64 65) darkened to the render's studio light
+             "sw_m": dict(rgb=(35, 88, 190), rough=0.45, image="stock/sw_m.png", normal="stock/sw_m_n.png"),
+             "sw_stop": dict(rgb=(205, 50, 50), rough=0.45, image="stock/sw_stop.png", normal="stock/sw_stop_n.png"),
+             "sw_tc": dict(rgb=(32, 150, 72), rough=0.45, image="stock/sw_tc.png", normal="stock/sw_tc_n.png"),
+             "sw_start": dict(rgb=(26, 26, 28), rough=0.5, image="stock/sw_start.png",
+                              normal="stock/sw_start_n.png"),
+             "led_lens": dict(rgb=(40, 52, 66), rough=0.05, spec=1.0),    # smoky lens: REAR (studio) blue-grey 90 117
+             #   142 from the reflection, DR06 dark, DET829 clear over a light diffuser
+             "sw_body": dict(rgb=(26, 26, 28), rough=0.62, bump=0.08)}    # textured matte switch housing (DR06)
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
-         "grip_bead": "black"}
+         "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
+         "led_lens": "black", "sw_body": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "hand_controls": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
@@ -1379,5 +1717,6 @@ UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HA
 
 if __name__ == "__main__":
     import os
-    knurl_map(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock",
-                           "bar_knurl_n.png"))
+    stock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock")
+    knurl_map(os.path.join(stock, "bar_knurl_n.png"))
+    switch_maps(stock)
