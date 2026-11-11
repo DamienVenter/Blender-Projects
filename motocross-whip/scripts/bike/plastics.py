@@ -921,16 +921,15 @@ RIDGE_PX = [(2640, 968), (2700, 938), (2760, 910), (2820, 877), (2880, 846)]
 # can's end, its lower edge along the red's lower edge to the cut at (2826, 917). lr34 shows
 # the same tail lapping over the fender's flank. The fender's own edges in plan at the root (TOP rows 1022 / 1227 at
 # u 2720) are the seams to these tails; outside them the plan envelope (0.13 to 0.15 at x 0.06 to 0.10) is the tails.
-PANEL_TAIL_PX = [(2826, 800.5), (2846, 787), (2900, 800), (2947, 811), (2948, 850), (2946, 896), (2930, 896),
-                 (2910, 896), (2890, 896), (2880, 896), (2870, 897), (2860, 899), (2850, 904), (2845, 907),
-                 (2840, 910), (2835, 913), (2830, 916), (2826, 917)]
-# Its lower edge is the photo's red-to-grey edge, the last row of the red run per column by the fit34 rule (r > 120,
-# r - g > 70, r - b > 50; gaps of 3 px bridged): 916 / 910 / 904 / 899 / 897 at u 2830 / 2840 / 2850 / 2860 / 2870.
-# Behind it (u 2880..2946) the left photo draws the muffler, which is on the bike's far side, half-transparent: the
-# red seen through it ends in a straight band at rows 887..896 as far back as the can's end (u 2950), and the can's
-# top edge (rows 872..881) and a bolt head at (2853, 915) show over the plastic. So the plastic runs on behind the
-# can to row 896 (the old outline stopped 5 to 10 px short of the photo's red, and the see-through test found the
-# can there).
+PANEL_TAIL_PX = [(2826, 800.5), (2846, 787), (2900, 800), (2947, 811), (2948, 850), (2946, 896), (2920, 899),
+                 (2900, 903), (2890, 908), (2870, 911), (2850, 912), (2840, 913), (2830, 916), (2826, 917)]
+# Its lower edge (LEFT): the red run ends 916 / 910 / 904 / 899 / 897 at u 2830 / 2840 / 2850 / 2860 / 2870 (last
+# red row by the fit34 rule, r > 120, r - g > 70, r - b > 50, gaps of 3 px bridged). Under that the left photo draws
+# the muffler, on the bike's far side, half-transparent: through it the plastic shows pink (rows 896..912 at u
+# 2848..2890 are 58 % red by the same rule, mean (195, 116, 119)), down to a straight band ending at row 896 from
+# u 2880 to the can's end at 2950; the can's top edge (rows 872..881) and a bolt head at (2853, 915) are drawn over
+# the plastic. So the panel runs on behind the can to rows 912 (u 2850) .. 896 (u 2946). (Cut at the red run's end,
+# the see-through test found the can, and with the narrower can of 2026-11-11 the background, under it.)
 
 
 def _union(px, poly):
@@ -1010,15 +1009,19 @@ def _panel(side):
     hgt = np.array([pl_[np.abs(pl_[:, 0] - q) < 4.0, 1].max() - top_v(q) if (np.abs(pl_[:, 0] - q) < 4.0).any()
                     else 60.0 for q in ub])
     hgt = _gauss(np.clip(hgt, 25.0, None), 10.0)
-    # plan envelope (TOP), smoothed over 40 mm (behind x 0.12 it is the tails': 0.12 to 0.15 at x 0.04 to 0.10)
+    # plan envelope (TOP), smoothed over 40 mm. Behind x 0.12 it is the tails' (TOP, the red outside the fender's
+    # seam per column: out to 0.148 / 0.139 / 0.134 / 0.120 / 0.113 / 0.107 at x 0.087 / 0.074 / 0.060 / 0.047 /
+    # 0.040 / 0.033, the point at x 0.027), smoothed over 10 mm only
     tx_ = TT["x"]
     tw_ = _gauss(_PLAN[1 if side > 0 else -1], 8.0)
     fx, fhw = _fender_lines()[:2]
 
+    tw3 = _gauss(_PLAN[1 if side > 0 else -1], 2.0)         # behind x 0.12 less smoothed: the tails taper in plan
+
     def width(x):
-        lap = float(np.interp(x, fx, fhw)) + 0.0035
-        W = max(float(np.interp(min(max(x, -0.19), 0.80), tx_, tw_)), lap)
-        return lap + (W - lap) * smoothstep((x - 0.030) / 0.045)      # the tail's end is flush with the flank
+        W = float(np.interp(min(max(x, -0.19), 0.80), tx_, tw_))
+        W += (float(np.interp(x, tx_, tw3)) - W) * smoothstep((0.14 - x) / 0.03)
+        return max(W, float(np.interp(x, fx, fhw)) + 0.0035)
 
     def surf(u, v):
         ul = left_u(u)
@@ -1035,16 +1038,16 @@ def _panel(side):
         def f(x, z):
             W = width(x)
             ys = min(max(seat_hem_hw(min(max(x, 0.09), 0.78)), 0.064), W - 0.004)
-            if x < 0.125:                                  # the tail's top edge laps over the fender's flank
-                lap = float(np.interp(x, fx, fhw)) + 0.0035
-                ys = ys + (lap - ys) * smoothstep((0.125 - x) / 0.02)
+            if x < 0.105:                                  # the tail's top edge laps over the fender's lip
+                lap = fender_outer_y(x, z) + 0.0060      # (ahead of x 0.105 it tucks under the seat's hem)
+                ys = ys + (max(lap, ys) - ys) * smoothstep((0.105 - x) / 0.02)
             y = ys + (W - ys) * (1.0 - (1.0 - sat(d / reach)) ** 1.3)
             if d < db:
                 y -= 0.55 * (db - d) * MPP * smoothstep((x - 0.03) / 0.06)
             if x > 0.585:                                  # the panel's nose lies 5 mm inside the shroud's tail
                 y = min(y, shroud_w(x) - 0.005 * smoothstep((x - 0.585) / 0.015))
-            if x < 0.125:                                  # never inside the fender's flank (0.5 mm clear)
-                y = max(y, float(np.interp(x, fx, fhw)) + 0.0035)
+            if x < 0.125:                                  # never inside the fender: 3 mm clear of its face
+                y = max(y, fender_outer_y(x, z) + 0.0060)      # at the vertices (its 7 mm faces span the lip's roll)
             return side * y
         return f
     return SimpleNamespace(view=view, px=px, E=E, width=width, surf=surf, seam=seam, crease=cl, extra=extra,
@@ -1091,18 +1094,46 @@ def side_panels():
             r0 = np.array([_on_surface(cam, u, v, Pn.surf(u, v), side * 0.15) for u, v in hr])
             r1 = np.array([_on_surface(cam, u, v, back(u, v), side * 0.15) for u, v in c + (hr - c) * 0.92])
             m.add(grid(Mesh(), [r0, r1], "plastic_red", closed_u=True))
-            m.add(photo_panel(view, hin, back, 0.002, "louvre", step=9.0))
+            # the filter's screen behind it: a dark green diamond mesh (detail 475833, u 2350..2650, v 600..800 at 4x:
+            # strands on two diagonals about 11 px, 2 mm, apart, lit (18, 63, 5), in the shadow (8, 35, 2)),
+            # detail_plastics.INTAKE_MESH, laid on x and z
+            sc = photo_panel(view, hin, back, 0.002, "intake_mesh", step=9.0)
+            V = np.asarray(sc.V)
+            for fi, f in enumerate(sc.F):
+                sc.uv[fi] = [(float(-side * V[i, 0] / 0.016), float(V[i, 2] / 0.016)) for i in f]
+            m.add(sc)
         # black textured lower panel (airbox side): its own exact outline, 6 mm inside the red panel's envelope.
         # Its moulded Y ribs are a normal map (detail_plastics.SIDE_COVER) laid on x and z, the tile 34.2 x 29.6 mm
         # (two lattice steps each way), u running backward on the left and forward on the right
-        lp = photo_panel(view, clean_outline(view, OUT2[low], sigma=4.0),
-                         lambda u, v, q=side: (lambda x, z: q * (Pn.width(x) - 0.006)), 0.003, "black_texture")
+        # the panel bolt sits in a round pocket (detail 475833, 0.186 mm/px from the bolt's 8 mm hex: the dark recess
+        # 160 px, 30 mm across; depth 8 mm EST): a hole in the black part, a wall and a floor behind it
+        bc = _mpx(view, [PANEL_BOLT_PX])[0]
+        lsurf = lambda u, v, q=side: (lambda x, z: q * (Pn.width(x) - 0.006))
+        pr = POCKET_R / MPP
+        ang = np.linspace(0.0, 2 * math.pi, 33)[:-1]
+        hole = np.stack([bc[0] + pr * np.cos(ang), bc[1] + pr * np.sin(ang)], axis=1)
+        lp = photo_panel(view, clean_outline(view, OUT2[low], sigma=4.0), lsurf, 0.003, "black_texture",
+                         holes_px=[hole])
+        rim = np.array([_on_surface(cam, u, v, lsurf(u, v), side * 0.15) for u, v in hole])
+        rings = [rim]
+        for k_ in (0.3, 0.7, 1.0):                         # the wall, rounded into the floor
+            rr = rim - np.array([0.0, side * POCKET_D * k_, 0.0])
+            cen = rr.mean(axis=0)
+            rings.append(cen + (rr - cen) * (1.0 - 0.12 * k_ ** 4))
+        pk = grid(Mesh(), rings, "plastic_black", closed_u=True, cap1=True)
+        if side < 0:
+            pk.F = [f[::-1] for f in pk.F]
+        m.add(pk)
         V = np.asarray(lp.V)
         tw, th = 0.0342, 0.0342 * math.sqrt(3) / 2
         for fi, f in enumerate(lp.F):
             lp.uv[fi] = [(float(-side * V[i, 0] / tw), float(V[i, 2] / th)) for i in f]     # (u, v, n) right-handed
         m.add(lp)
     return m
+
+
+PANEL_BOLT_PX = (2426.0, 1136.0)   # LEFT: the side panel's bolt in its black lower part (detail_plastics.panel_bolts)
+POCKET_R, POCKET_D = 0.015, 0.008  # its pocket's radius and depth
 
 
 # ---------------------------------------------------------------- lofted parts: seat, fenders
@@ -1471,20 +1502,11 @@ def _fender_lines():
     return px, phw, T[np.argsort(T[:, 0])][:, [0, 2]], E[np.argsort(E[:, 0])][:, [0, 2]]
 
 
-def rear_fender():
-    """Rear fender: plan from the top photo (FENDER_PLAN_PX: a straight taper and an arrow point), top line and the
-    near flank's lower edge from the left photo (FENDER_TOP_PX, FENDER_LOW_PX). Section: a crowned deck, a facet
-    from the crease, a lip rolling over into a flank that leans out a little to its lower edge.
-    Root: the blade runs on under the seat's tail to the red wall under it (x 0.195: detail_plastics.tail_under,
-    which is this moulding's front leg), between the side panels, the seat's tail resting on it (0.5 mm under the seat's
-    underside: LEFT, the top line leaves the seat's tip 6 px under it, row 774 against 768); its lower edge carries
-    on down at the photo's slope, hidden by the muffler and the side panels' tails, which lap over its upright flank.
-    Rings run left to right, so Blender's 3 mm shell lies under the measured top."""
+@functools.lru_cache(maxsize=None)
+def _fender_top_edge():
+    """The fender's top line zt(x) and the near flank's lower edge ze(x): the photo's, carried on at their slopes
+    ahead of where the photo shows them (under the seat's tail, behind the muffler and the panels' tails)."""
     px, phw, T, E = _fender_lines()
-    x_tip, x_root = float(px[0]), 0.195
-    xs = np.concatenate([np.linspace(x_tip, x_tip + 0.06, 31)[:-1], np.linspace(x_tip + 0.06, 0.055, 54)[:-1],
-                         np.linspace(0.055, 0.105, 26)[:-1], np.linspace(0.105, x_root, 18)])   # 2 mm round the seat's tail
-    # top line: the photo's, then under the seat's tail; lower edge: the photo's, then on at its slope
     sl_t = (T[-1, 1] - T[-4, 1]) / (T[-1, 0] - T[-4, 0])
     sl_e = (E[-1, 1] - E[-5, 1]) / (E[-1, 0] - E[-5, 0])
 
@@ -1494,60 +1516,79 @@ def rear_fender():
     def edge(x):
         z = float(np.interp(x, E[:, 0], E[:, 1])) if x <= E[-1, 0] else E[-1, 1] + sl_e * (x - E[-1, 0])
         return max(z, 0.86)
+    return top, edge
 
+
+def _fender_half(x, w):
+    """Half section (y >= 0, z) of the fender at x with half-width w, from the centre out: deck, eased facet, lip,
+    flank."""
+    top, edge = _fender_top_edge()
+    zt, ze = top(x), edge(x)
+    hgt = max(zt - ze, 0.004)
+    fade = sat(w / 0.035)                                 # the creases die out into the point
+    # toward the root the facet and the lip are shallower: LEFT, the crease line is 23 px under the top line at
+    # u 3100 (x -0.09) but 15 px at u 2890 (x 0.06), and the panel's tail meets the lip 11 px under it at u 2846
+    kr = smoothstep((x + 0.02) / 0.08)
+    c1, c2 = FENDER_CROWN * fade, min(FENDER_FACET * fade * (1.0 - 0.4 * kr), 0.35 * hgt)
+    r = max(min((1.0 - FENDER_A2) * w, 0.45 * (hgt - c1 - c2), 0.010 - 0.007 * kr), 0.0005)
+    flank = max(hgt - c1 - c2 - r, 0.0)
+    # the lip's outer face (the flank's top); at the root, under the side panels' tails, the flank is upright
+    wl = w - flank * math.tan(FENDER_FLARE) * smoothstep(-x / 0.06)
+    half = [(a * FENDER_A1 * (wl - r), zt - c1 * a * a) for a in np.linspace(0.0, 1.0, 8)]
+    for s_ in np.linspace(0.0, 1.0, 6)[1:]:
+        q = s_ * s_ * (3.0 - 2.0 * s_) * 0.6 + 0.4 * s_     # eased out of the crease
+        half.append((FENDER_A1 * (wl - r) + s_ * (wl - r - FENDER_A1 * (wl - r)), zt - c1 - c2 * q))
+    for th in np.linspace(0.0, math.pi / 2, 6)[1:]:       # the lip rolls over into the flank
+        half.append((wl - r + r * math.sin(th), zt - c1 - c2 - r * (1.0 - math.cos(th))))
+    for s_ in np.linspace(0.0, 1.0, 5)[1:]:
+        half.append((wl + s_ * (w - wl), zt - c1 - c2 - r - s_ * flank))
+    return np.array(half)
+
+
+def fender_outer_y(x, z):
+    """How far out the fender's outer surface is at x and height z (its table width, before it narrows between the
+    side panels): what the panels' tails lap over."""
+    px, phw = _fender_lines()[:2]
+    h = _fender_half(x, max(float(np.interp(x, px, phw)), 0.0006))
+    k = int(np.argmax(h[:, 0] >= h[:, 0].max() * 0.75))   # from the facet's end down the lip and flank
+    q = h[k:]
+    return float(np.interp(z, q[::-1, 1], q[::-1, 0])) if z <= q[0, 1] else float(q[0, 0])
+
+
+def rear_fender():
+    """Rear fender: plan from the top photo (FENDER_PLAN_PX: a straight taper and an arrow point), top line and the
+    near flank's lower edge from the left photo (FENDER_TOP_PX, FENDER_LOW_PX). Section (_fender_half): a crowned
+    deck, a facet from the crease, a lip rolling over into a flank that leans out a little to its lower edge.
+    Root: the blade runs on under the seat's tail to the red wall under it (x 0.195: detail_plastics.tail_under,
+    which is this moulding's front leg), between the side panels, the seat's tail resting on it (2 mm under the
+    seat's underside: LEFT, the top line leaves the seat's tip 6 px under it, row 774 against 768); its lower edge
+    carries on down at the photo's slope, hidden by the muffler and the side panels' tails, which lap over it.
+    Rings run left to right, so Blender's 3 mm shell lies under the measured top."""
+    px, phw, T, E = _fender_lines()
+    x_tip, x_root = float(px[0]), 0.195
+    xs = np.concatenate([np.linspace(x_tip, x_tip + 0.06, 31)[:-1], np.linspace(x_tip + 0.06, 0.055, 54)[:-1],
+                         np.linspace(0.055, 0.105, 26)[:-1], np.linspace(0.105, x_root, 18)])   # 2 mm round the seat's tail
     # ahead of the side panels' rear edges (x 0.112) it runs on between their top edges (which tuck in under the
     # seat's hem over a bead: 70 to 80 mm out), 0.5 mm inside them, to the wall under the tail
     Vp = np.asarray(side_panels().V)
-    Vp = Vp[(Vp[:, 0] > 0.105) & (Vp[:, 2] > 0.88)]
-    pin_x = np.arange(0.100, 0.200, 0.004)
+    Vp = Vp[(Vp[:, 0] > 0.080) & (Vp[:, 2] > 0.88)]
+    pin_x = np.arange(0.084, 0.200, 0.004)
     pin = np.array([np.abs(Vp[np.abs(Vp[:, 0] - q) < 0.006, 1]).min() if (np.abs(Vp[:, 0] - q) < 0.006).any() else 0.2
                     for q in pin_x]) - 0.0005
 
     def hw(x):
         w = float(np.interp(x, px, phw))
-        return w + (min(w, float(np.interp(x, pin_x, pin))) - w) * smoothstep((x - 0.100) / 0.012)
-    # section, half: (fraction of the half-width at the lip, height below the top), deck, facet, lip; then the flank
-    k_deck = np.linspace(0.0, 1.0, 8)
-    from scipy.spatial import cKDTree
-    S_ = _seat_sections()
-    S_out, S_zb = S_.B, S_.zb
-    otree = cKDTree(S_out)
+        return w + (min(w, float(np.interp(x, pin_x, pin))) - w) * smoothstep((x - 0.084) / 0.010)
     rings = []
     for x in xs:
-        w, zt, ze = max(hw(x), 0.0006), top(x), edge(x)
-        hgt = max(zt - ze, 0.004)
-        fade = sat(w / 0.035)                             # the creases die out into the point
-        c1, c2 = FENDER_CROWN * fade, min(FENDER_FACET * fade, 0.35 * hgt)
-        r = min((1.0 - FENDER_A2) * w, 0.45 * (hgt - c1 - c2), 0.010)
-        r = max(r, 0.0005)
-        flank = max(hgt - c1 - c2 - r, 0.0)
-        # the lip's outer face (the flank's top); at the root, under the side panels' tails, the flank is upright
-        wl = w - flank * math.tan(FENDER_FLARE) * smoothstep(-x / 0.06)
-        half = [(a * FENDER_A1 * (wl - r), zt - c1 * a * a) for a in k_deck]
-        for s in np.linspace(0.0, 1.0, 6)[1:]:
-            q = s * s * (3.0 - 2.0 * s) * 0.6 + 0.4 * s     # eased out of the crease
-            half.append((FENDER_A1 * (wl - r) + s * (wl - r - FENDER_A1 * (wl - r)), zt - c1 - c2 * q))
-        for th in np.linspace(0.0, math.pi / 2, 6)[1:]:   # the lip rolls over into the flank
-            half.append((wl - r + r * math.sin(th), zt - c1 - c2 - r * (1.0 - math.cos(th))))
-        for s in np.linspace(0.0, 1.0, 5)[1:]:
-            half.append((wl + s * (w - wl), zt - c1 - c2 - r - s * flank))
-        half = np.array(half)
+        half = _fender_half(x, max(hw(x), 0.0006))
         ring = np.vstack([half[::-1] * [1, 1], half[1:] * [-1, 1]])     # left (y > 0) to right
         ring = np.column_stack([np.full(len(ring), x), ring[:, 0], ring[:, 1]])
-        if x > 0.05:                                      # the seat's tail rests on it: 0.5 mm under the seat
+        if x > 0.05:                                      # the seat's tail rests on it: 2 mm under the seat
             zu = seat_under_z(ring[:, :2])
-            ring[:, 2] = np.where(np.isfinite(zu), np.minimum(ring[:, 2], zu - 0.0005), ring[:, 2])
-            # and sits in a shallow cup: round the seat's tail the deck comes up to 2 mm under the hem's rounded
-            # edge, falling back to the top line over 10 mm (TOP: a dark seam 6 to 8 px outside the seat's tail all
-            # round it; lr34: the tail tucks into the fender with a tight seam; LEFT: the top line is 6 px under the
-            # seat's tip 11 mm behind it, u 2880)
-            dd, jj = otree.query(ring[:, :2])
-            out = ~inside(S_out, ring[:, :2])
-            zh = S_zb[jj] - HEM_R - 0.002                 # 2 mm under the hem's rounded edge (a tight seam;
-            #                                               closer, it poked through the hem between its vertices)
-            gap = zh - ring[:, 2]
-            near = out & (dd < 0.010) & (gap > 0.0) & (gap < 0.015)
-            ring[:, 2] += np.where(near, (1.0 - smoothstep_arr(dd / 0.010)) * gap, 0.0)
+            # (2 mm: 0.5 mm under the seat's underside at the vertices, the blade's coarser faces cut through the
+            # hem's rounded edge between them)
+            ring[:, 2] = np.where(np.isfinite(zu), np.minimum(ring[:, 2], zu - 0.002), ring[:, 2])
         rings.append(ring)
     return grid(Mesh(), rings, "plastic_red", closed_u=False)
 

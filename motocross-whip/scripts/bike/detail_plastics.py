@@ -280,12 +280,16 @@ def seat_bolts():
 
 
 def panel_bolts():
-    """One a side panel, in its black lower half. LEFT / RIGHT: centred on (2426, 1136) and (1572, 1136)."""
+    """One a side panel, in its black lower half, at the floor of a round pocket (plastics.POCKET_R, POCKET_D).
+    LEFT / RIGHT: centred on (2426, 1136) and (1572, 1136). Detail 475833: an 8 mm flange bolt and its washer at the
+    bottom of the dark recess, no collar standing proud."""
     m = Mesh()
     for side in (1, -1):
-        u, v = _px(side, 2426.0, 1136.0)
-        fn = lambda a, b, s=side: plastics.panel_point(s, a, b, inset=0.006)
-        m.add(_fastener(fn(u, v), _normal(fn, u, v, side), "plastic_black"))
+        u, v = _px(side, *plastics.PANEL_BOLT_PX)
+        c = plastics.panel_point(side, u, v, inset=0.006 + plastics.POCKET_D)
+        a = np.array([0.0, float(side), 0.0])
+        m.add(tube([c + a * 0.0002, c + a * 0.0015], 0.0085, 20, "steel"))          # washer on the floor
+        m.add(bolt(c + a * 0.0015, a, af=0.008, head_h=0.005, flange_d=0.013))
     return m
 
 
@@ -422,6 +426,27 @@ def make_textures():
     st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
     h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
     _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
+    h, mm = _intake_height()
+    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_mesh_n.png"))
+
+
+INTAKE_MESH = dict(pitch=2.0, strand=0.45, height=0.25, size=512)
+# The air intake's screen (detail 475833 at 4x, u 2350..2650, v 600..800; 0.186 mm/px from the panel bolt's hex):
+# strands on two diagonals about 11 px (2 mm) apart, small bright specks where they cross. Strand width and height
+# EST. One 16 mm tile (8 cells each way) per texture.
+
+
+def _intake_height():
+    g = INTAKE_MESH
+    n = g["size"]
+    t = (np.arange(n) + 0.5) / n * 16.0
+    X, Y = np.meshgrid(t, t)
+    h = np.zeros((n, n))
+    step = g["pitch"] / math.sqrt(2.0)                       # strands at +-45 deg, 2 mm apart along x and y
+    for sgn in (1.0, -1.0):
+        d = np.abs(((X + sgn * Y) / math.sqrt(2.0)) % step - step / 2)
+        h = np.maximum(h, g["height"] * np.clip(1.0 - (d / (g["strand"] / 2)) ** 2, 0.0, 1.0) ** 0.5)
+    return h, 16.0 / n
 
 
 MATERIALS = {
@@ -434,7 +459,10 @@ MATERIALS = {
     # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
     # (plastics.side_panels, x and z over the tile)
     "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
+    # the intake's screen: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow), satin
+    "intake_mesh": dict(rgb=(10, 58, 2), rough=0.5, normal="stock/intake_mesh_n.png", normal_strength=1.0),
 }
+CLASS = {"intake_mesh": "black"}                             # dark, as the louvre panel it replaces
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
