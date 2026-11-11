@@ -117,9 +117,14 @@ def test_chain_guide_slot_takes_the_chain(V):
     """The wear blocks leave a slot round the lower run, whichever way it comes onto the 50T sprocket."""
     G = V["chain_guide"]
     x0, z0, slope, half = dc.GUIDE_SLOT
-    band = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0165]              # between the two plates
+    band = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0115]              # the chain's width (21 mm) and 1 mm each side
     assert (np.abs(band[:, 2] - (z0 + slope * (band[:, 0] - x0))) > half - 0.001).all()
-    assert np.hypot(band[:, 0], band[:, 2] - parts.RA[2]).min() > 0.1306 + 0.002       # clear of the sprocket's teeth
+    teeth = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0065]                 # the 50T's plane, 2 mm each side
+    assert np.hypot(teeth[:, 0], teeth[:, 2] - parts.RA[2]).min() > 0.1306 + 0.002     # clear of the sprocket's teeth
+    ang = np.degrees(np.arctan2(band[:, 2] - parts.RA[2], band[:, 0]))
+    on = (ang > 95) | (ang < -64)                                       # the chain wraps the 50T from the top run's
+    wrap = band[on & (np.hypot(band[:, 0], band[:, 2] - parts.RA[2]) < 0.1306 + 0.012)]   # tangent round to the lower's
+    assert (np.hypot(wrap[:, 0], wrap[:, 2] - parts.RA[2]) < 0.1264 - 0.0075).all()
     for x in (0.13, 0.15, 0.17, 0.19):
         runs = (0.2485 + 0.375 * (x - 0.15), 0.270 + (x - 0.171) * 0.3649, 0.270 - max(0.171 - x, 0) * 0.494)
         for z in runs:
@@ -192,3 +197,12 @@ def test_brake_pedal_is_not_shadowed_by_the_caliper():
     import detail_wheels
     assert "rear_brake" not in dc.PARTS and "brake_pedal" in dc.PARTS
     assert "rear_brake" in detail_wheels.PARTS
+
+
+def test_chain_guide_is_the_stock_plate(V):
+    """LEFT u 2743..2913: the plate reaches from the block's nose (x 0.183) back over the 50T (x 0.051); it lies
+    outside the chain (0.0985) and inside the arm's outer face; three M6 flange bolts (fiche K95CF3200 18, 19)."""
+    G = V["chain_guide"]
+    assert G[:, 0].min() < 0.056 and 0.180 < G[:, 0].max() < 0.205, (G[:, 0].min(), G[:, 0].max())
+    assert dc.GUIDE_Y[0] > parts.CHAIN_Y + 0.0105 + 0.005 and dc.GUIDE_Y[1] < 0.129
+    assert len(dc.GUIDE_BOLTS) == 3

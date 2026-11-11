@@ -94,3 +94,24 @@ Still different: the arm's brushed texture is a material, not a normal map; the 
 top photo has them under the side panels); the inner rear face (REAR: a dark band 0.1145..0.1276) is lighting, not
 modelled; the caliper bracket's stopper is not seen in any photo and is not modelled; the chain slider keeps its
 old two-strip shape (not rebuilt in this pass).
+
+## 4. Chain guide (part `chain_guide`)
+Anatomy: an aluminium plate on the outside with a rounded front window and a long sloping rear slot (the chain
+shows through both), three M6 flange bolts with bright washer faces, two tabs welded under the left arm (a wide
+front tab, a narrow rear strut) that the plate bolts to, nuts on their inner side; behind the plate the black
+plastic block: an inner wall and two wear rails round the lower run, its nose showing ahead of the plate's front
+edge (a dark band 6 mm wide).
+References: LEFT 2700..2930 x 1590..1790 (outline read on a 7x crop 2730..2920 x 1640..1780); lr34 2440..2700 x
+1520..1780; fiche K95CF3200 (plate 11, block 10, bolts 18 and 19, nuts 23).
+Numbers: outline, windows, bolt centres and tabs as pixel lists (GUIDE_PLATE, GUIDE_WIN, GUIDE_SLOTW, GUIDE_BOLTS,
+GUIDE_TAB, GUIDE_STRUT), cast on the plate's plane (y 0.108) and carried from the photo's arm onto the model's (the
+8 mm datum, see above) by `_photo_px`. The plate reaches from x 0.051 (over the 50T) to 0.181: the old guide (0.100 to
+0.201) stood 5 cm too far forward and had no windows. Bolt heads: bright rings 12 mm across (M6 flange bolts, 8 mm
+hex). Plate 3 mm (EST), tabs 4 mm (EST).
+Built: `slab2` plate with two holes, tabs whose tops run into the arm's underside, `hexbolt`/`hexnut`/`thread`,
+`_clip_below` (new) for the block's wall, rails kept on GUIDE_SLOT and clear of the 50T's teeth.
+Checks: g2/g3 pair sheets (left, lr34), close-ups cu_guide, cu_guideb (cu2/). Tests: `test_chain_guide_is_the_
+stock_plate`; `test_chain_guide_slot_takes_the_chain` refined (the chain's 21 mm width, the 50T's plane, the arc
+the chain wraps).
+Still different: the block's upper part (lr34: a black rounded hump above the front window) is a plain rail; the
+plate's edges are a little rounder than the photo's sheared edges.

@@ -911,32 +911,90 @@ def rear_axle():
 
 
 GUIDE_SLOT = (0.150, 0.2554, 0.39, 0.0165)      # x, z of the slot's centre line, its slope, half its height
+PHOTO_AXLE = {"left": (-0.0007, 0.3343), "right": (0.0002, 0.3377)}   # the photos' axle (see the ledger)
+
+
+def _photo_px(view, pts, y):
+    """Pixels of a part that hangs on the swingarm, cast on its plane y and carried from the photo's arm (axle to
+    pivot) onto the model's: (x, z) points."""
+    a = np.array(PHOTO_AXLE[view])
+    pv = np.array([PIVOT[0], PIVOT[2]])
+    e = (pv - a) / np.linalg.norm(pv - a)
+    n = np.array([-e[1], e[0]])
+    k = ARM_L / float(np.linalg.norm(pv - a))
+    out = []
+    for u, v in pts:
+        q = _px(view, u, v, "y", y)
+        d = np.array([q[0], q[2]]) - a
+        out.append(_fr(ARM_A, float(d @ e) * k, float(d @ n)))
+    return np.array(out)
+
+
+# chain guide (LEFT px, 7x crop 2730..2920 x 1640..1780; lr34 for the depth order): outer plate, windows, bolts
+GUIDE_Y = (0.1050, 0.1080)               # alu plate: inner and outer face (EST 3 mm, outside the chain's 0.0985)
+GUIDE_PLATE = [(2743.6, 1648.6), (2747.5, 1645.0), (2753.0, 1644.0), (2760.0, 1646.5), (2777.0, 1653.0), (2783.0, 1656.0),
+               (2787.0, 1664.3), (2797.0, 1674.3), (2804.3, 1678.6), (2830.0, 1680.0), (2838.0, 1677.5), (2845.0, 1677.0),
+               (2851.0, 1679.0), (2855.7, 1682.9), (2872.9, 1704.3), (2894.3, 1722.9), (2907.0, 1728.6), (2912.5, 1734.5),
+               (2912.0, 1747.0), (2905.7, 1755.7), (2887.0, 1758.6), (2844.0, 1759.3), (2830.0, 1754.3), (2798.6, 1742.9),
+               (2772.9, 1734.3), (2760.0, 1727.1), (2754.5, 1723.5), (2752.9, 1715.0), (2751.4, 1664.3), (2747.0, 1657.0)]
+GUIDE_WIN = [(2770.0, 1682.9), (2779.3, 1682.9), (2792.0, 1694.0), (2805.0, 1707.1), (2806.4, 1728.6), (2802.0, 1733.0),
+             (2797.0, 1733.6), (2772.9, 1720.0), (2770.0, 1712.0)]
+GUIDE_SLOTW = [(2822.9, 1717.1), (2832.9, 1715.7), (2894.3, 1737.1), (2897.0, 1742.9), (2894.0, 1750.0), (2888.6, 1754.3),
+               (2838.6, 1735.7), (2822.9, 1725.7)]
+GUIDE_BOLTS = [(2752.1, 1649.3), (2777.1, 1660.0), (2845.0, 1685.0)]   # flange bolts M6 (heads: bright rings 12 mm)
+GUIDE_TAB = [(2736.0, 1600.0), (2786.0, 1612.0), (2788.0, 1661.0), (2760.0, 1652.0), (2739.0, 1644.0)]   # front tab
+GUIDE_STRUT = [(2846.0, 1624.0), (2860.0, 1628.0), (2852.0, 1683.0), (2840.0, 1683.0)]                 # rear strut
+
+
+def _clip_below(poly, z):
+    """The part of a closed polygon (x, z) under the line Z (Sutherland-Hodgman)."""
+    out = []
+    n = len(poly)
+    for i in range(n):
+        p, q = poly[i], poly[(i + 1) % n]
+        if p[1] <= z:
+            out.append(p)
+        if (p[1] - z) * (q[1] - z) < 0:
+            t = (z - p[1]) / (q[1] - p[1])
+            out.append(p + t * (q - p))
+    return np.array(out)
 
 
 def chain_guide():
-    """Chain guide under the left arm: two aluminium plates hung 0.3 mm under the arm, tied by two bolts with their
-    spacers ahead of the 50T sprocket's teeth (r 0.131), and two wear blocks 33 mm apart round the lower run (LEFT px
-    2735..2834 x 1624..1752: x 0.107..0.185, z 0.229..0.328). The slot takes the chain (15 mm tall, 21 wide) wherever
-    it runs between the photo's straight line to (0.171, 0.270) and the tangent onto the sprocket."""
+    """Stock chain guide under the left arm (fiche K95CF3200: plate 11, block 10, bolts 18/19, nuts 23): the alu
+    plate with its front window and long rear slot, bolted by three M6 flange bolts to two tabs welded under the arm
+    (a wide front tab and a narrow rear strut); behind it the black block: an inner wall and two wear rails round the
+    lower run (GUIDE_SLOT keeps the model's chain in it), its nose showing ahead of the plate (LEFT u 2743..2751)."""
     m = Mesh()
-
-    def zt(x):
-        return float(_arm_bot(x)) - 0.0003
-    ties = ((0.192, zt(0.196) - 0.0085), (0.142, zt(0.142) - 0.0085))
-    gp = np.array([(0.196, ties[0][1]), (0.196, zt(0.196)), (0.112, zt(0.112)), (0.100, 0.300), (0.103, 0.232), (0.120, 0.212),
-                   (0.188, 0.238), (0.196, 0.270)])
-    for dy in (-0.0185, 0.0185):
-        m.add(slab(gp, CHAIN_Y + dy, 0.003, "alu_machined", r=0.001, step=0.007, holes=[circle(0.011, 20, 0.150, 0.318)], to=_xz))
-    for x, z in ties:
-        m.add(tube([(x, CHAIN_Y - 0.0205, z), (x, CHAIN_Y + 0.0205, z)], 0.004, 10, "bolt"))
-        m.add(bolt((x, CHAIN_Y + 0.0198, z), Y3, af=0.010, head_h=0.005))
-        m.add(bolt((x, CHAIN_Y - 0.0198, z), -Y3, af=0.010, head_h=0.005))
+    yo, yi = GUIDE_Y[1], GUIDE_Y[0]
+    plate = _clean(_photo_px("left", GUIDE_PLATE, yo), 0.0015, 0.0012)
+    win = _clean(_photo_px("left", GUIDE_WIN, yo), 0.0012, 0.001)
+    slw = _clean(_photo_px("left", GUIDE_SLOTW, yo), 0.0012, 0.001)
+    m.add(slab2(plate, (yo + yi) / 2, yo - yi, "alu_satin", r=0.0012, step=0.005, holes=[win, slw], to=_xz, r_hole=0.0009))
+    # tabs welded under the arm, 4 mm, inboard of the plate; their tops run into the arm's underside
+    for pts in (GUIDE_TAB, GUIDE_STRUT):
+        o = _photo_px("left", pts, yo)
+        top = o[:, 1] > o[:, 1].mean()
+        o[top, 1] = [float(_arm_bot(x)) + 0.004 for x in o[top, 0]]
+        m.add(slab2(o, yi - 0.0021, 0.0040, "alu_satin", r=0.0012, step=0.005, to=_xz))
+    for u, v in GUIDE_BOLTS:
+        c = _photo_px("left", [(u, v)], yo)[0]
+        m.add(hexbolt((c[0], yo + 0.0001, c[1]), Y3, 0.008, 0.0055, flange_d=0.012, flange_h=0.0012, mat="zinc", seg=36))
+        m.add(hexnut((c[0], yi - 0.0042, c[1]), -Y3, 0.010, 0.005, 0.0031, "zinc", seg=24))
+        m.add(thread((c[0], yi - 0.0092, c[1]), -Y3, 0.003, 0.001, 0.0012, "zinc", seg=16, per=5))   # 1.2 mm past the nut
+    # black block: inner wall (the plate's lower part), wear rails above and below the run, the nose ahead
     x0, z0, slope, half = GUIDE_SLOT
+    wall = _clip_below(plate, 0.300)
+    m.add(slab(wall, CHAIN_Y - 0.0185, 0.004, "plastic_black", r=0.001, step=0.006, to=_xz))       # outside the slot band
     a = math.atan(slope)
     e, nrm = np.array([math.cos(a), 0.0, math.sin(a)]), np.array([-math.sin(a), 0.0, math.cos(a)])
     for q in (-1, 1):
-        c = np.array([0.158, CHAIN_Y, z0 + slope * (0.158 - x0)]) + nrm * q * (half * math.cos(a) + 0.004)
-        m.add(bar([c + e * w for w in np.linspace(-0.027, 0.035, 9)], 0.0336, 0.008, "plastic_black"))
+        c = np.array([0.158, CHAIN_Y + 0.0029, z0 + slope * (0.158 - x0)]) + nrm * q * (half * math.cos(a) + 0.004)
+        w1 = (0.1835 - c[0]) / e[0]                                     # front ends at the nose (LEFT u 2743..2751)
+        m.add(bar([c + e * w for w in np.linspace(-0.027, w1, 10)], 0.0270, 0.008, "plastic_black"))   # inside the plate
+    nose = _photo_px("left", [(2742.5, 1667.0), (2754.0, 1665.0), (2756.0, 1727.0), (2746.0, 1729.0)], yo)   # LEFT dark band
+    y0n = CHAIN_Y + 0.0117                                          # the block's outer wall: 1.2 mm outside the chain
+    m.add(slab(nose, (y0n + yi - 0.0002) / 2, yi - 0.0002 - y0n, "plastic_black", r=0.0012, step=0.005, to=_xz))
     return m
 
 
