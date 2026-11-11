@@ -472,3 +472,19 @@ Test: `test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stampe
 Still different: in Dirt Rider 09 the ear's face is a straight-sided block about 25 mm wide (the model's ears are a
 rounded hull 33 mm wide); the bike there sits at another point of its travel, so the connecting rods pass 25 mm lower
 across the clevis than in the studio pose (where they hide the marks); the spring's colour stays EST (dark).
+
+## 5. Pro-Link, the rest (part `linkage`): the cushion arm's pocketed faces
+Anatomy (Dirt Rider 09): the cast cushion arm's faces are recessed inside a lit rim that runs round its edges and
+round each boss, the floor smooth and darker, the lightening hole with its own rim; the nuts with bright washer faces,
+the bolts' ends with a dark centre mark.
+Built: `_arm_sdf` (the hull of the three bosses, 24 mm, edges rounded 2.5 mm, the hole, both faces pocketed 2 mm deep
+inside a 4.5 mm rim, 2.5 mm round the bosses) meshed by `_surface_nets` at 1.5 mm (9.6k vertices); the round-2 reason
+for leaving it plain (a raised rim clashed with the clevis's ears) is gone: the pocket is cut in, the faces stay at
+|y| 0.012 inside the ears (0.01255). First cycle: the rim's crease rounded 1.2 mm on a 1.5 mm grid came out serrated
+(cu3_b); now 1.8 / 2.0 mm (cu3_c).
+Numbers: pocket 1.75k mm2 a face (the arm 6.0k), EST depth (the rim's shadow is about a third of its width in the
+photo). Test: `test_cushion_arm_faces_are_pocketed_inside_their_rims`.
+Checks: cu3 close-ups cu_dr9, cu_dr9b (side on), cu3_c.
+Still different / not done: the casting marks (ejector-pin rings about 3 mm, below the 1.5 mm grid) and the bolts'
+end marks are not modelled; the bolt heads and nuts stand as in round 2 (flange heads left, washer, nut and two
+threads right, as Dirt Rider 09).

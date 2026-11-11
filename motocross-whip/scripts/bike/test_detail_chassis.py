@@ -323,3 +323,24 @@ def test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stamped()
     P = P[np.abs(P[:, 1] + 0.0208) < 0.0006]
     tp = (P - U) @ d
     assert len(P) > 200 and 0.450 < tp.min() and tp.max() < 0.462      # under the cup (0.445), above the bolt
+
+
+def test_cushion_arm_faces_are_pocketed_inside_their_rims(V):
+    """Round 4 (Dirt Rider 09): both faces of the cushion arm recessed inside a rim round its edges and bosses; the
+    faces stay inside the shock clevis's ears (inner faces at |y| 0.01255)."""
+    from geom import inside
+    f = dc._arm_sdf()
+    T, A, B = dc.LINK_T, dc.SHOCK_A, dc.LINK_B
+    arm = dc.hull([(T[0], T[2], 0.020), (A[0], A[2], 0.016), (B[0], B[2], 0.017)])
+    X, Z = np.meshgrid(np.linspace(0.36, 0.47, 111), np.linspace(0.30, 0.40, 101))
+    Q = np.column_stack([X.ravel(), Z.ravel()])
+    Q = Q[inside(arm, Q)]
+    for y in (0.0112, -0.0112):
+        v = f(np.column_stack([Q[:, 0], np.full(len(Q), y), Q[:, 1]]))
+        assert 1200 < (v > 0.0003).sum() < 2600                    # mm2 of pocket (and the hole) on each face
+    rim = dc.resample(arm, 0.002)
+    rim = rim + 0.004 * (np.array([0.4107, 0.343]) - rim) / np.linalg.norm(np.array([0.4107, 0.343]) - rim, axis=1)[:, None]
+    assert (f(np.column_stack([rim[:, 0], np.full(len(rim), 0.0112), rim[:, 1]])) < 0).mean() > 0.9   # the rim stands
+    L = V["linkage"]
+    near = L[(np.linalg.norm(L[:, [0, 2]] - A[[0, 2]], axis=1) < 0.035) & (np.abs(L[:, 1]) < 0.02)]
+    assert np.abs(near[:, 1]).max() < 0.0122

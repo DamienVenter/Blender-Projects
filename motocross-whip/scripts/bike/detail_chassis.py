@@ -1623,6 +1623,36 @@ def _dogbone(p0, p1, y, mat="alu_forged"):
     return m
 
 
+ARM_POCKET = (0.0045, 0.0020, 0.0025)   # round 4, cushion arm (Dirt Rider 09): the faces recessed inside a rim 4.5 mm
+#   wide along the edges and round the bosses (the rim lit round a smooth darker floor, the arm's edges rounded), 2.2
+#   mm deep (EST: the rim's shadow is about a third of its width), the bosses' rims 2.5 mm
+
+
+def _arm_sdf():
+    """The cushion arm as a distance field: the hull of its three bosses, 24 mm thick, rounded 2.5 mm, its lightening
+    hole, both faces pocketed inside a rim (ARM_POCKET; a raised rim clashed with the shock's clevis ears: the pocket
+    is cut into the faces, which stay 0.55 mm inside the ears)."""
+    T, A, B = LINK_T, SHOCK_A, LINK_B
+    circ = [(T[0], T[2], 0.020), (A[0], A[2], 0.016), (B[0], B[2], 0.017)]
+    arm = hull(circ)
+    out = _poly_sdist(arm, 0.0002)
+    c = (T + A + B) / 3
+    rim, depth, rb = ARM_POCKET
+
+    def f(P):
+        q = P[:, [0, 2]]
+        d2 = out(q)
+        d2 = np.maximum(d2, 0.0075 - np.linalg.norm(q - c[[0, 2]], axis=1))          # the lightening hole
+        d = _sd_round(d2, np.abs(P[:, 1]) - 0.012, 0.0025)
+        pk = out(q) + rim                                                            # inside the rim
+        for cx, cz, r in circ:
+            pk = np.maximum(pk, r + rb - np.linalg.norm(q - (cx, cz), axis=1))        # off the bosses
+        pk = np.maximum(pk, 0.0075 + rb - np.linalg.norm(q - c[[0, 2]], axis=1))     # and the hole's rim
+        cut = _sd_round(pk, (0.012 - depth) - np.abs(P[:, 1]), 0.0018)   # rounded past the 1.5 mm grid: at 1.2 mm
+        return -_sm(-d, cut, 0.0020)                                 # the rim's crease came out serrated (cu3)
+    return f
+
+
 def linkage():
     """Cushion arm (on the swingarm at T, shock clevis at A, link at B) and the connecting rods to the frame at F:
     link length B-F 144 mm, T-B 49 mm, T-A 78 mm (LEFT and RIGHT zooms, both sides agree within 6 mm). Dirt Rider 09
@@ -1630,9 +1660,9 @@ def linkage():
     arm a cast triangle with a recessed face and rims; M14 bolts, U-nuts with washers on the right."""
     m = Mesh()
     T, A, B, F = LINK_T, SHOCK_A, LINK_B, F_LINK
-    arm = hull([(T[0], T[2], 0.020), (A[0], A[2], 0.016), (B[0], B[2], 0.017)])
-    c = (T + A + B) / 3
-    m.add(slab(arm, 0.0, 0.024, "alu_cast", r=0.003, step=0.006, holes=[circle(0.0075, 16, c[0], c[2])], to=_xz))
+    am = _surface_nets(_arm_sdf(), (0.355, -0.016, 0.300), (0.475, 0.016, 0.405), 0.0015, "alu_cast")   # 9.6k vertices
+    _uv_box(am, 0.08)
+    m.add(am)
     m.add(hollow(T - 0.031 * Y3, Y3, 0.020, 0.008, 0.062, "alu_cast", 32))
     m.add(hollow(B - 0.0245 * Y3, Y3, 0.017, 0.007, 0.049, "alu_cast", 28))
     for s in (1, -1):
