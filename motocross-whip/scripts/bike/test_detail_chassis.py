@@ -23,7 +23,7 @@ ground = parts.to_ground
 
 
 def test_vertex_budget(V):
-    assert sum(len(v) for v in V.values()) < 70000
+    assert sum(len(v) for v in V.values()) < 200000          # micro pass brief: up to 200,000
 
 
 def test_footpeg_height_is_422_mm(V):
@@ -58,7 +58,7 @@ def test_swingarm_turns_on_the_shared_pivot_and_reaches_the_axle(V):
     nose = S[S[:, 0] > parts.PIVOT[0] + 0.010]             # pivot tube and the slider wrapped round it
     r = np.hypot(nose[:, 0] - parts.PIVOT[0], nose[:, 2] - parts.PIVOT[2])
     assert r.max() < 0.036 and len(nose) > 20
-    assert S[:, 0].min() < -0.03 and abs(np.abs(S[:, 1]).max() - 0.141) < 0.004      # REAR: nut out to 0.139
+    assert S[:, 0].min() < -0.028                                     # LEFT, RIGHT: the cast end 28 to 31 mm behind the axle
 
 
 def test_muffler_outlet_is_where_the_rear_photo_has_it():
@@ -77,7 +77,7 @@ def test_muffler_top_reaches_the_left_photo_line(V):
 
 def test_rear_tyre_has_room(V):
     """Nothing of the chassis inside the rear tyre's sweep (tyre 105 mm wide, 12 mm of air each side)."""
-    for name in ("swingarm", "linkage", "shock", "exhaust", "subframe", "frame", "rear_brake"):
+    for name in ("swingarm", "linkage", "shock", "exhaust", "subframe", "frame", "brake_pedal"):
         P = V[name]
         near = (np.hypot(P[:, 0], P[:, 2] - parts.R_REAR) < parts.R_REAR + 0.012) & (np.abs(P[:, 1]) < 0.0525 + 0.012)
         assert not near.any(), (name, int(near.sum()))
@@ -117,9 +117,14 @@ def test_chain_guide_slot_takes_the_chain(V):
     """The wear blocks leave a slot round the lower run, whichever way it comes onto the 50T sprocket."""
     G = V["chain_guide"]
     x0, z0, slope, half = dc.GUIDE_SLOT
-    band = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0165]              # between the two plates
+    band = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0115]              # the chain's width (21 mm) and 1 mm each side
     assert (np.abs(band[:, 2] - (z0 + slope * (band[:, 0] - x0))) > half - 0.001).all()
-    assert np.hypot(band[:, 0], band[:, 2] - parts.RA[2]).min() > 0.1306 + 0.002       # clear of the sprocket's teeth
+    teeth = G[np.abs(G[:, 1] - parts.CHAIN_Y) < 0.0065]                 # the 50T's plane, 2 mm each side
+    assert np.hypot(teeth[:, 0], teeth[:, 2] - parts.RA[2]).min() > 0.1306 + 0.002     # clear of the sprocket's teeth
+    ang = np.degrees(np.arctan2(band[:, 2] - parts.RA[2], band[:, 0]))
+    on = (ang > 95) | (ang < -64)                                       # the chain wraps the 50T from the top run's
+    wrap = band[on & (np.hypot(band[:, 0], band[:, 2] - parts.RA[2]) < 0.1306 + 0.012)]   # tangent round to the lower's
+    assert (np.hypot(wrap[:, 0], wrap[:, 2] - parts.RA[2]) < 0.1264 - 0.0075).all()
     for x in (0.13, 0.15, 0.17, 0.19):
         runs = (0.2485 + 0.375 * (x - 0.15), 0.270 + (x - 0.171) * 0.3649, 0.270 - max(0.171 - x, 0) * 0.494)
         for z in runs:
@@ -146,3 +151,73 @@ def test_head_tube_leaves_room_for_the_stem_and_clamps(V):
     near = rad < 0.036
     assert t[near].min() >= 0.716 + 0.001 - 1e-6 and t[near].max() <= 0.913 - 0.001 + 1e-6, (t[near].min(), t[near].max())
     assert rad.min() > 0.0145 + 0.002, rad.min()
+
+
+# ---------------------------------------------------------------- micro pass (2026-11-11): axle ends, blocks, arm
+def test_axle_ends_stand_out_as_in_the_rear_photo(V):
+    """REAR row 1545: the left head's lit edge at y 0.1303, the right axle's end at col 2205 (y -0.1405)."""
+    A = V["rear_axle"]
+    assert abs(A[:, 1].max() - 0.1303) < 0.0012, A[:, 1].max()
+    assert abs(A[:, 1].min() + 0.1402) < 0.0012, A[:, 1].min()
+
+
+def test_axle_nut_is_a_32_mm_hexagon(V):
+    """Honda's 22 mm U-nut takes a 32 mm socket: corners at 18.5 mm from the axle, flats at 16."""
+    A = V["rear_axle"]
+    hexp = A[(A[:, 1] < -dc.Y_BLK_O - 0.0013) & (A[:, 1] > -dc.Y_BLK_O - dc.NUT_H + 0.0013)]
+    r = np.hypot(hexp[:, 0] - parts.RA[0], hexp[:, 2] - parts.RA[2])
+    assert abs(r.max() - 0.016 / math.cos(math.pi / 6)) < 0.0003, r.max()
+    assert dc.NUT_AF == 0.032
+
+
+def test_block_slides_in_its_slot():
+    """The block (37.3 x 37.4) is 0.2 mm inside the slot's height and clear of its arc-shaped rear end."""
+    assert dc.SLOT_H - dc.BLK[1] >= 0.00015
+    fc = dc.WIN[0] + dc.REAR_R
+    corner = fc - math.sqrt(dc.REAR_R ** 2 - dc.BLK[1] ** 2)
+    assert corner < -dc.BLK[0] - 0.0001, corner
+    assert dc.POCKET_F > dc.BLK[0]
+
+
+def test_arm_is_the_tall_box_of_the_photos():
+    """Both side photos: the arm is 60 mm tall at its rear weld and 75 mm from s 0.26 on (it was 37 and 57 mm)."""
+    h = lambda s: float(dc._t_top(s) - dc._t_bot(s))
+    assert abs(h(0.08) - 0.0618) < 0.003 and abs(h(0.30) - 0.0760) < 0.003 and abs(h(0.40) - 0.0760) < 0.003
+
+
+def test_index_marks_two_rows_of_nine_each_side(V):
+    """lr34, rr34: a row of nine marks above and below each window, 2 mm apart."""
+    m = dc.swingarm()
+    assert sum(1 for q in m.M if q == "groove") == 2 * 2 * 9 * 6
+    assert dc.MARKS[:2] == (9, 0.002)
+
+
+def test_brake_pedal_is_not_shadowed_by_the_caliper():
+    """detail_wheels.py's caliper is called rear_brake: the pedal and master cylinder keep their own name."""
+    import detail_wheels
+    assert "rear_brake" not in dc.PARTS and "brake_pedal" in dc.PARTS
+    assert "rear_brake" in detail_wheels.PARTS
+
+
+def test_chain_guide_is_the_stock_plate(V):
+    """LEFT u 2743..2913: the plate reaches from the block's nose (x 0.183) back over the 50T (x 0.051); it lies
+    outside the chain (0.0985) and inside the arm's outer face; three M6 flange bolts (fiche K95CF3200 18, 19)."""
+    G = V["chain_guide"]
+    assert G[:, 0].min() < 0.056 and 0.180 < G[:, 0].max() < 0.205, (G[:, 0].min(), G[:, 0].max())
+    assert dc.GUIDE_Y[0] > parts.CHAIN_Y + 0.0105 + 0.005 and dc.GUIDE_Y[1] < 0.129
+    assert len(dc.GUIDE_BOLTS) == 3
+
+
+def test_muffler_section_is_the_rear_photos_octagon():
+    """REAR (cast on x 0): the cap's outer side is flat from z 0.799 to 0.866 and its top flat from y -0.1015 to
+    -0.1658; the outlet's lip is 37 mm (54.8 px) and square to the cap's leaning face."""
+    S = dc.MUF_SEC
+    side = S[np.abs(S[:, 1]) < 0.35]
+    assert (side[side[:, 0] > 0][:, 0] > 0.97).all()
+    top = S[(S[:, 1] > 0.97)]
+    assert top[:, 0].min() < -0.55 and top[:, 0].max() > 0.35
+    E = np.asarray(dc.exhaust().V, float)
+    ax = (E - dc.OUTLET) @ dc.OUT_AXIS
+    r = np.linalg.norm(np.cross(E - dc.OUTLET, dc.OUT_AXIS), axis=1)
+    lip = r[(ax > -0.004) & (ax < 0.001) & (r < 0.021)]                  # the part standing proud of the cap
+    assert abs(lip.max() - 0.0185) < 0.0006, lip.max()
