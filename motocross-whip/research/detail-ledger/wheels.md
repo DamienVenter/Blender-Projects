@@ -269,9 +269,15 @@ the `rim` material overridden to a plain satin black (no other module uses it).
 ### Checks
 - `SCRATCH/p_spr1.jpg` (LEFT pair, the box of the coordinator's example).
 
+### Round 2 (coordinator's review: "light, high-contrast tear marks on a dark disc; the photo shows a dark cast hub
+with subtle ribs and a lighter machined ring")
+- Ribs lowered to 1.3 mm with 40 deg walls and a 1 mm round (subtle bumps); the cast finish made diffuse (metal
+  0.6, rough 0.62) and darker (82 / 84 / 88, after `SCRATCH/p_spr3.jpg` read lighter than the photo); the end face's
+  outer chamfer and the sprocket spigot (r 56..60.5 mm) are `hub_machined`, the lighter turned ring of the photo.
+
 ### Not done
 - Spoke-flange hole chamfers, the barrel's own casting shape (hidden by spokes and discs in every photo), the
-  seals' lips. The front hub keeps the old light "hub" finish (no photo shows its colour clearly).
+  seals' lips.
 
 ## 8. Rear sprocket 50T
 
@@ -297,7 +303,8 @@ the `rim` material overridden to a plain satin black (no other module uses it).
 - The photo's sprocket sits 6.4 mm from the model's axle (above): the model keeps the shared axle (`parts.RA`);
   reported.
 - Stamped marks (tooth count, part number) are not visible in any photo: not modelled.
-- The photo's window edges catch the light along a small chamfer; the model's window edges are square.
+- Round 2: the twelve windows now have a 0.7 mm 45 deg chamfer on both faces (`_plate(..., chamfer=)`), the
+  bright edge the LEFT photo shows round each window (`SCRATCH/p_spr3.jpg`).
 
 ## 9. Chain, D.I.D 520
 

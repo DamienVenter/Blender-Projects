@@ -27,7 +27,9 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.40),
              "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.40),
              "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22),           # DR13: bright plated nipples
-             "hub_cast": dict(rgb=(106, 108, 113), metal=1.0, rough=0.45),         # rear hub (see _hub_ribs)
+             "hub_cast": dict(rgb=(82, 84, 88), metal=0.6, rough=0.62),            # rear hub (see _hub_ribs; pair
+                                                                                   # p_spr3: 108 read lighter than the photo)
+             "hub_machined": dict(rgb=(176, 178, 182), metal=1.0, rough=0.3),     # its turned sprocket spigot
              # LEFT pair p_spr1: the bare aluminium sprocket reads 150..157 in the photo, the old 170 rendered white
              "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48),
              # chain (LEFT pair p_spr1, 475832): plain grey steel plates and pins, not the dark grey of before
@@ -133,12 +135,14 @@ def _ccw(L):
     return L if area > 0 else L[::-1]
 
 
-def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0)):
+def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0), chamfer=0.0, chamfered=()):
     """Flat plate in the wheel's plane: outline and holes are (x, z) loops about ORIGIN, used point for point (no
-    resampling: tooth forms and small holes keep their shape), plus an interior grid; thickness along y about Y."""
+    resampling: tooth forms and small holes keep their shape), plus an interior grid; thickness along y about Y.
+    CHAMFER: the holes numbered in CHAMFERED (0 = the first hole) get a 45 deg chamfer that wide on both faces."""
     from scipy.spatial import Delaunay, cKDTree
     outer = _ccw(outer)
-    hs = [_ccw(h) for h in holes]
+    hs0 = [_ccw(h) for h in holes]
+    hs = [_mitre(h, chamfer) if (chamfer and i in chamfered) else h for i, h in enumerate(hs0)]
     loops = [outer] + hs
     B = np.vstack(loops)
     lo, hi = outer.min(axis=0), outer.max(axis=0)
@@ -171,10 +175,18 @@ def _plate(outer, holes, y, thick, mat, step, origin=(0.0, 0.0)):
         m.face((hi_ + i, hi_ + k, hi_ + j), mat)
     o = 0
     for n, L in enumerate(loops):
-        for i in range(len(L)):
-            j = (i + 1) % len(L)
-            f = (lo_ + o + i, hi_ + o + i, hi_ + o + j, lo_ + o + j)
-            m.face(f if n == 0 else f[::-1], mat)
+        if n > 0 and chamfer and (n - 1) in chamfered:          # face edge -> the hole's own size -> face edge
+            H = hs0[n - 1] + np.asarray(origin)
+            r1 = m.verts(np.stack([H[:, 0], np.full(len(H), y - thick / 2 + chamfer), H[:, 1]], axis=1))
+            r2 = m.verts(np.stack([H[:, 0], np.full(len(H), y + thick / 2 - chamfer), H[:, 1]], axis=1))
+            rings = [lo_ + o, r1, r2, hi_ + o]
+        else:
+            rings = [lo_ + o, hi_ + o]
+        for a_, b_ in zip(rings, rings[1:]):
+            for i in range(len(L)):
+                j = (i + 1) % len(L)
+                f = (a_ + i, b_ + i, b_ + j, a_ + j)
+                m.face(f if n == 0 else f[::-1], mat)
         o += len(L)
     return m
 
@@ -1089,7 +1101,8 @@ def rear_sprocket(phase):
         b_win = [(0.0905, ab + math.radians(d)) for d in (-5.5, 5.5)] + \
                 [(0.1085, ab + math.radians(d)) for d in (12.5, -12.5)]
         holes.append(_window(b_win, (0.0045, 0.0045, 0.004, 0.004)))
-    m = _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.005)
+    m = _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.005, chamfer=0.0007,
+               chamfered=range(7, 19))                          # the twelve windows (LEFT: a bright edge round each)
     rp = sprocket_r(50)
     V = np.asarray(m.V)
     r = np.hypot(V[:, 0], V[:, 2])
@@ -1378,9 +1391,10 @@ def _hub_ribs(m, y_face, n=12):
             ang = a + s / t
             return np.stack([t * np.cos(ang), y_face + z, t * np.sin(ang)], axis=-1)
 
-        # tear-shaped, 8 mm across at the outer end (LEFT pair p_spr1: the first try at 5 mm read as thin lines)
-        plan = [(-0.0015, 0.0360), (0.0015, 0.0360), (0.0040, 0.0490), (0.0, 0.0545), (-0.0040, 0.0490)]
-        _knob(m, xf, _fillet(plan, 0.0015), lambda s, t: 0.0026, math.radians(25.0), mat="hub_cast", rnd=0.0010)
+        # tear-shaped, 8 mm across at the outer end, low and soft: the photo's ribs are subtle bumps of the casting
+        # (coordinator's whole-wheel pair: 2.6 mm ribs with crisp edges read as bright marks on a dark disc)
+        plan = [(-0.0018, 0.0360), (0.0018, 0.0360), (0.0042, 0.0490), (0.0, 0.0545), (-0.0042, 0.0490)]
+        _knob(m, xf, _fillet(plan, 0.0020), lambda s, t: 0.0013, math.radians(40.0), mat="hub_cast", rnd=0.0010)
 
 
 def rear_wheel():
@@ -1402,6 +1416,10 @@ def rear_wheel():
              (0.0125, -0.0855)]                                  # right collar, up to the caliper bracket
     mats += ["rubber_black", "rubber_black"]
     mats += ["hub_cast"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
+    i_ring = [i for i in range(len(prof) - 1) if prof[i][0] >= 0.0559 and prof[i + 1][0] >= 0.0559 and
+              prof[i][1] > back - 0.0005][:2]
+    for i in i_ring:                                            # the turned ring round the end face and the spigot
+        mats[i] = "hub_machined"                                # (LEFT: a lighter annulus inside the sprocket bore)
     m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
                ((84.8, False), (308.2, True)), rear_tyre)        # valve, rim lock: unwraps (above)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
