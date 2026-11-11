@@ -58,6 +58,24 @@ def test_tyre_widths(built):
         assert abs(V[:, 1].max() + V[:, 1].min()) < 0.001, name
 
 
+def test_rear_sidewall_marks():
+    """Raised marks where the LEFT and RIGHT photos show them (unwrapped about the rear axle)."""
+    lay = dw.REAR_WALL
+    left = {(txt or kind): (lay["emblem"][0] + d0, lay["emblem"][0] + (d1 if d1 is not None else d0), r, cap)
+            for kind, txt, d0, d1, r, cap in lay["items"]}
+    a0, a1, r, cap = left["SCORPION  MX32"]
+    assert abs(a0 - 84) < 2 and abs(a1 - 160) < 2 and abs(r - 0.2665) < 0.001 and abs(cap - 0.016) < 0.001
+    a0, a1, r, cap = left["100/90-19  57M  NHS"]
+    assert abs(a0 - 272) < 2 and abs(a1 - 337.5) < 2 and abs(cap - 0.0115) < 0.001
+    assert lay["emblem"][1] - 2 < 97 < lay["emblem"][1] + 2                # RIGHT: the emblem before SCORPION
+    polys, w = dw._text_polys("SCORPION", 0.016)
+    V = np.vstack(polys)
+    assert abs(V[:, 1].max() - 0.016) < 0.0006                            # cap height (O overshoots a little)
+    # the marks stand MARK_H proud of the sidewall and stay below the shoulder knobs' roots (r 294)
+    assert all(r + cap * (0.6 if kind == "emblem" else 1.3) < 0.290 for kind, txt, d0, d1, r, cap in lay["items"])
+    assert 0.0005 <= dw.MARK_H <= 0.0012
+
+
 def test_rear_tread():
     """The rear MX32 pattern (REAR_TREAD): 46 rows, each a slit centre knob, two intermediates, two shoulders half
     a pitch on, a pad; the outline the LEFT photo shows; vent hairs on the knobs."""

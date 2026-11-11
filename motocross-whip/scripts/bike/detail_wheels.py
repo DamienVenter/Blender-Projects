@@ -597,6 +597,183 @@ def rear_tread(m, sec, n, a0, spec, seed=19):
                     _spew(m, pnt, o / np.linalg.norm(o) + 0.3 * rng.normal(size=3), rng.uniform(0.003, 0.005), rng)
 
 
+# ---------------------------------------------------------------- tyre sidewall: raised marks
+# Moulded marks stand 0.8 mm proud of the sidewall (EST, they cast a shadow at 30 cm: geometry, MICRO.md). Text is
+# DejaVu Sans Bold Oblique (bundled with matplotlib, so the build is the same everywhere), the nearest free face to
+# Pirelli's heavy italic. Every mark reads clockwise seen from its own side, tops outward (LEFT and RIGHT photos
+# unwrapped about the rear axle, unwrap.py: the left wall's text reads with the angle growing, the right wall's with
+# it falling).
+MARK_H = 0.0008
+MARK_SINK = 0.0003
+
+
+def _text_polys(text, cap, span=None):
+    """Glyph outlines of TEXT (u along the baseline from 0, v up) with cap height CAP; stretched along u to SPAN."""
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.textpath import TextPath
+    tp = TextPath((0, 0), text, size=1.0, prop=FontProperties(family="DejaVu Sans", weight="bold", style="oblique"))
+    k = cap / 0.729                                              # DejaVu Sans: cap height 0.729 em
+    polys = [np.asarray(p, float)[:-1] * k for p in tp.to_polygons() if len(p) > 3]
+    lo = min(p[:, 0].min() for p in polys)
+    hi = max(p[:, 0].max() for p in polys)
+    sx = 1.0 if span is None else span / (hi - lo)
+    return [np.stack([(p[:, 0] - lo) * sx, p[:, 1]], axis=1) for p in polys], (hi - lo) * sx
+
+
+def _frame_polys(u0, u1, v0, v1, w):
+    """A rectangular border W wide (outer loop and inner hole)."""
+    o = np.array([(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+    i = np.array([(u0 + w, v0 + w), (u0 + w, v1 - w), (u1 - w, v1 - w), (u1 - w, v0 + w)])
+    return [o, i]
+
+
+def _raised(m, polys, xf, mat="tyre", step=0.0003):
+    """Polygons (even-odd fill: outlines and their holes) raised MARK_H from a surface. XF(u, v, z) -> 3D."""
+    from matplotlib.path import Path
+    from scipy.spatial import Delaunay
+    loops = [resample(np.vstack([p, p[:1]]), step)[:-1] if len(p) > 2 else p for p in polys]
+    loops = [lp for lp in loops if len(lp) >= 3]
+    paths = [Path(lp) for lp in loops]
+
+    def filled(pts):
+        return sum(pa.contains_points(pts).astype(int) for pa in paths) % 2 == 1
+
+    P = np.vstack(loops)
+    tri = Delaunay(P).simplices
+    tri = tri[filled(P[tri].mean(axis=1))]
+    a, b, c = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
+    tri = tri[abs(area) > 1e-14]
+    area = area[abs(area) > 1e-14]
+    tri[area < 0] = tri[area < 0][:, ::-1]
+    top = m.verts(xf(P[:, 0], P[:, 1], MARK_H))
+    bot = m.verts(xf(P[:, 0], P[:, 1], -MARK_SINK))
+    o = 0
+    up = xf(P[0, 0], P[0, 1], 0.001) - xf(P[0, 0], P[0, 1], 0.0)
+    A, B, C = (xf(P[i, 0], P[i, 1], MARK_H) for i in tri[0]) if len(tri) else (None, None, None)
+    flip = len(tri) and np.cross(B - A, C - A) @ up < 0
+    for t in tri:
+        m.face(tuple(top + i for i in (t[::-1] if flip else t)), mat)
+    for lp in loops:
+        n = len(lp)
+        e = np.roll(lp, -1, axis=0) - lp
+        mid = lp + 0.5 * e
+        nrm = np.stack([e[:, 1], -e[:, 0]], axis=1)
+        nrm /= np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+        out_right = ~filled(mid + nrm * 1e-5)                     # the fill lies left of the edge
+        for i in range(n):
+            j = (i + 1) % n
+            f = (bot + o + i, bot + o + j, top + o + j, top + o + i)
+            m.face(f if out_right[i] != bool(flip) else f[::-1], mat)
+        o += n
+
+
+def _sidewall_y(sec):
+    """y of the sidewall (outer surface) against radius, below the shoulder."""
+    i0 = int(np.searchsorted(sec.t, 0.058))
+    r, y = sec.P[i0:, 1][::-1], sec.P[i0:, 0][::-1]
+    return lambda rho: np.interp(rho, r, y)
+
+
+def _arc_map(ysw, side, a_c, r_b, u_mid, sense):
+    """(u, v, z) of a mark -> wheel frame: u along the baseline (radius R_B) centred on wheel angle A_C, v outward,
+    z off the sidewall; SENSE +1: u grows with the wheel angle."""
+    def f(u, v, z):
+        u, v, z = np.broadcast_arrays(np.asarray(u, float), np.asarray(v, float), np.asarray(z, float))
+        rho = r_b + v
+        a = a_c + sense * (u - u_mid) / r_b
+        return np.stack([rho * np.cos(a), side * (ysw(rho) + z), rho * np.sin(a)], axis=-1)
+    return f
+
+
+def _emblem(cap):
+    """Pirelli's Scorpion emblem (DR13, at the shoulder: a scorpion seen from above, about 16 mm across), as raised
+    strokes: body, curled tail, two claws, eight legs. Returns polygons in (u, v) about (0, 0); overlapping strokes
+    are separate pieces (each raised on its own)."""
+    s = cap / 16.0
+    pieces = [circle(2.2 * s, 14, 0, 0) * [1.0, 1.5]]                                   # body
+    for x, y, r in [(0, 3.6, 1.5), (0.6, 5.6, 1.3), (1.8, 7.0, 1.1), (3.2, 7.4, 0.9), (4.2, 6.6, 0.8)]:
+        pieces.append(circle(r * s, 10, x * s, y * s))                                # tail segments, curling
+    for sg in (1, -1):
+        for k in range(4):                                                            # legs, fanned out
+            b = math.radians(35 - 25 * k)
+            p0 = np.array([sg * 1.6 * s, (1.2 - 1.0 * k) * s])
+            p1 = p0 + 4.0 * s * np.array([sg * math.cos(b), math.sin(b)])
+            pieces.append(slot((p0 + p1) / 2, math.atan2(*(p1 - p0)[::-1]), float(np.linalg.norm(p1 - p0)), 0.7 * s, 4))
+        c0 = np.array([sg * 1.4 * s, -2.6 * s])                                       # claw: arm and pincer
+        c1 = c0 + np.array([sg * 2.5, -2.5]) * s
+        pieces.append(slot((c0 + c1) / 2, math.atan2(*(c1 - c0)[::-1]), float(np.linalg.norm(c1 - c0)), 0.9 * s, 4))
+        pieces.append(circle(1.2 * s, 10, *(c1 + np.array([sg * 0.6, -0.8]) * s)))
+    return pieces
+
+
+# Rear wall layout (degrees along the reading direction from the emblem). LEFT photo, sidewall unwrapped beside the
+# model's (uwcmp.py, plane y 0.036): SCORPION MX32 84..160 deg, caps 16 mm on a baseline at r 266.5; the size code
+# 272..337.5 deg, caps 11.5 mm at r 259. RIGHT unwrap: SCORPION MX from 95 deg down to 27, a small box at 138..148.
+# The emblem stands just before SCORPION (DR13; RIGHT 97 deg, LEFT 78 by the same offset). The rest follows
+# Pirelli's own layout (web/pirelli-mx32ms-wheel-side): MID SOFT in a box after MX32, the big PIRELLI word, the
+# size code, the small PIRELLI box 45 deg before the emblem: places EST from that picture.
+REAR_WALL = dict(emblem=(78.0, 97.0), items=[
+    ("box", "PIRELLI", -49.0, -40.0, 0.2655, 0.0055),
+    ("emblem", None, 0.0, None, 0.2745, 0.016),
+    ("text", "SCORPION  MX32", 6.0, 82.0, 0.2665, 0.016),
+    ("box", "MID SOFT", 88.0, 102.0, 0.2665, 0.0065),
+    ("logo", "PIRELLI", 115.0, 150.0, 0.2640, 0.015),
+    ("text", "100/90-19  57M  NHS", 194.0, 259.5, 0.2590, 0.0115),
+    ("arrow", None, 265.0, 277.0, 0.2635, 0.008)])
+
+
+def sidewall(m, sec, spec, side, layout):
+    """Raised marks on one sidewall (SIDE +1: left), the rim line and the vent hairs of the wall."""
+    ysw = _sidewall_y(sec)
+    a_e = math.radians(layout["emblem"][0 if side > 0 else 1])
+    sense = 1 if side > 0 else -1
+    for kind, txt, d0, d1, r_b, cap in layout["items"]:
+        if kind == "emblem":
+            xf = _arc_map(ysw, side, a_e + sense * math.radians(d0), r_b, 0.0, sense)
+            for pc in _emblem(cap):
+                _raised(m, [pc], xf, step=0.0005)
+            continue
+        a0, a1 = a_e + sense * math.radians(d0), a_e + sense * math.radians(d1)
+        span = abs(a1 - a0) * r_b
+        a_c = 0.5 * (a0 + a1)
+        if kind == "arrow":
+            L, w = span, cap
+            poly = np.array([(0, 0.35 * w), (0.62 * L, 0.35 * w), (0.62 * L, 0.0), (L, 0.5 * w), (0.62 * L, w),
+                             (0.62 * L, 0.65 * w), (0, 0.65 * w)])
+            if side < 0:                                         # the arrow points the way the wheel turns
+                poly = poly * [-1, 1] + [L, 0]
+            _raised(m, [poly], _arc_map(ysw, side, a_c, r_b, L / 2, sense), step=0.0006)
+            continue
+        polys, w = _text_polys(txt, cap, span if kind == "text" else None)
+        if kind in ("box", "logo"):
+            pad = 0.35 * cap
+            if kind == "logo":                                   # Pirelli's long P: its top runs over the word
+                polys.append(np.array([(0.45 * cap, 0.86 * cap), (w, 0.86 * cap), (w - 0.03 * cap, cap),
+                                       (0.45 * cap, cap)]))
+            polys += _frame_polys(-pad, w + pad, -pad, cap + pad, 0.12 * cap if kind == "box" else 0.07 * cap)
+        _raised(m, polys, _arc_map(ysw, side, a_c, r_b, w / 2, sense), step=float(np.clip(cap / 36, 0.00025, 0.0006)))
+    # rim line: a rib 1.2 mm wide, 0.6 mm proud, 4 mm above the rim flange (EST: every tyre has one, DR13 shows it
+    # as the fine bright line just above the rim)
+    r_l = spec["rb"] + spec["hf"] + 0.004
+    prof = [(r_l - 0.0006, ysw(r_l - 0.0006) - 0.0003), (r_l - 0.0005, ysw(r_l - 0.0005) + 0.0006),
+            (r_l + 0.0005, ysw(r_l + 0.0005) + 0.0006), (r_l + 0.0006, ysw(r_l + 0.0006) - 0.0003)]
+    rib = lathe([(r, side * y) for r, y in prof], 288, "tyre")
+    if side < 0:
+        rib.F = [f[::-1] for f in rib.F]
+    m.add(rib)
+    # vent hairs of the sidewall mould: one a pitch, just under the shoulder knobs (DR13: a row of short dark
+    # whiskers there), leaning out and away from the rim
+    rng = np.random.default_rng(23 if side > 0 else 29)
+    n = spec["pitches"]
+    for k in range(n):
+        a = 2 * math.pi * (k + 0.25) / n + rng.normal() * 0.01
+        rho = 0.2885 if spec is REAR else 0.3130
+        p = np.array([rho * math.cos(a), side * (ysw(rho) - 0.0002), rho * math.sin(a)])
+        d = np.array([0.6 * math.cos(a), side * 0.8, 0.6 * math.sin(a)]) + 0.25 * rng.normal(size=3)
+        _spew(m, p, d, rng.uniform(0.0025, 0.004), rng)
+
+
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
 def rim_profile(spec):
     """Closed section (r, y) of the rim: well, bead seats, flanges with rolled lips (D.I.D DirtStar, WM contour)."""
@@ -966,6 +1143,8 @@ def rear_tyre():
     sec = Section(REAR, REAR_SECTION)
     m, na, a0, n_t = carcass(sec, REAR["pitches"], REAR_PHASE, 8, 0.054)
     rear_tread(m, sec, REAR["pitches"], a0, REAR)
+    for side in (1, -1):
+        sidewall(m, sec, REAR, side, REAR_WALL)
     return m, na, a0, n_t
 
 

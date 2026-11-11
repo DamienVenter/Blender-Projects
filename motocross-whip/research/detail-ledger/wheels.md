@@ -80,3 +80,49 @@ difference in pixels), `sbs.py` (images side by side), `cu.sh` (close-ups), `chk
   coordinator.
 - lr34: the model's tyre and rim sit about 13 px left of the photo's (camera, not shape: rim and knobs move
   together).
+
+## 2. Rear tyre sidewall
+
+### Anatomy
+- Raised marks, tops outward, reading clockwise seen from their own side: Pirelli's Scorpion emblem (a scorpion
+  seen from above, about 16 mm), SCORPION MX32, MID SOFT in a box, the PIRELLI word (long P) in a frame, the size
+  code 100/90-19 57M NHS, a small PIRELLI box, a rotation arrow.
+- The rim line (a fine rib just above the rim flange); vent hairs in a row under the shoulder knobs.
+- Mould parting line: not seen in any photo at this scale; not modelled.
+
+### References
+- LEFT and RIGHT studio photos unwrapped about the rear axle (`unwrap.py`, then `uwcmp.py`: photo above model):
+  LEFT: SCORPION MX32 84..160 deg (caps 16 mm, baseline r 266.5), size code 272..337.5 deg (caps 11.5 mm, baseline
+  r 259); RIGHT: SCORPION MX from 95 deg down to 27 (it reads the other way round on the right wall), emblem at
+  94..97 deg, a small box at 138..148 deg.
+- DR13: the emblem (scorpion) beside SCORPION, the PIRELLI word near the rim in a raised frame, the long P, vent
+  hairs as short dark ticks under the knobs.
+- Pirelli's side view (web/pirelli-mx32ms-wheel-side): the order of the marks round the wall.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| SCORPION MX32 | 84..160 deg left, 91..15 deg right, caps 16 mm at r 266.5 | LEFT / RIGHT unwraps |
+| Size code | 272..337.5 deg left, caps 11.5 mm at r 259 | LEFT unwrap |
+| Emblem | 78 deg left, 97 deg right, 16 mm | RIGHT unwrap; DR13 |
+| MID SOFT box, PIRELLI word, small box, arrow | offsets from the emblem as in Pirelli's side view | EST (Pirelli picture; LEFT shows a faint mark where the PIRELLI word falls) |
+| Mark height | 0.8 mm proud, 0.3 mm sunk | EST |
+| Rim line | rib 1.2 x 0.6 mm, 4 mm above the flange | EST (DR13 shows the line) |
+| Vent hairs | one a pitch at r 288.5 | DR13 |
+
+### What was built
+`_text_polys` (DejaVu Sans Bold Oblique outlines, bundled with matplotlib), `_raised` (any even-odd outline set
+raised from a surface: Delaunay top, walls facing out), `_arc_map` (text on an arc of the sidewall), `_emblem`,
+`sidewall()` with `REAR_WALL`. About 47k vertices for both walls.
+
+### Checks
+- `SCRATCH/uw_sw3.png` (LEFT, 60..345 deg) and `SCRATCH/uw_sw4.png` (RIGHT, 0..150 deg): photo unwrap above the
+  model's; the text spans and heights agree to about 2 deg and 1 mm.
+- `SCRATCH/r7/render_cu_size.png`, `render_cu_emb.png`: close-ups (size code upside down at the bottom as on a real
+  tyre; emblem before SCORPION as in DR13).
+
+### Still different, and why
+- Pirelli's own letter shapes (a custom heavy italic) are not available: DejaVu Sans Bold Oblique is a near
+  substitute; the long P is drawn as a bar over the word.
+- The MID SOFT box, the big PIRELLI word, the small box and the arrow sit where Pirelli's layout puts them (hidden
+  or too faint in Honda's photos to place better).
