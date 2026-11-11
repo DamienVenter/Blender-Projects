@@ -39,6 +39,11 @@ def smoothstep(x):
     return x * x * (3 - 2 * x)
 
 
+def smoothstep_arr(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
+
+
 # ---------------------------------------------------------------- plan tables from the top photo
 def _top_tables():
     xs, yl, yr, sl, sr, gl, gr = [], [], [], [], [], [], []
@@ -86,14 +91,61 @@ def _top_edge_table(ref):
     return lambda x: float(np.interp(x, xs, zs))
 
 
-# seat plan half-width (TOP, seat cover mask; the readings ahead of x 0.76 pick up shroud highlights and are replaced
-# by the seat's visible rounded nose)
-SEAT_X = [0.080, 0.100, 0.180, 0.250, 0.330, 0.400, 0.480, 0.550, 0.630, 0.700, 0.750, 0.780, 0.800]
-SEAT_HW = [0.040, 0.060, 0.086, 0.088, 0.088, 0.088, 0.088, 0.087, 0.079, 0.075, 0.062, 0.042, 0.015]
+# Seat plan: the cover's outermost line (its hem) in the TOP photo, half-widths in px about row SEAT_ROW, read at 4x
+# on a 10 px grid (nose, tail) and by a scan of the matte cover (g > 38, out from the centre row) checked on the
+# same zoom (middle). Nose: a straight front edge at u 1967.5 from row 1060 to 1185, corners at (1971, 1054) and
+# (1990, 1049 / 1200). Middle: u 2140 rows 1035.5 / 1213.5, u 2200 1029.5 / 1219.5, u 2260..2620 1024 / 1223.5.
+# Tail: u 2690 1031.5 / 1214.5, 2700 1036.5 / 1210.5, 2720 1043.5 / 1200.5, 2730 1058.5 / 1190.5, 2740 1072.5 /
+# 1176.5, 2750 1097.5 / 1152.5, a rounded point at u 2757.5. Centre row: the nose's corners and the two "HONDA"
+# prints (rows 1028..1036 and 1212..1220 at u 2500) are symmetric about 1124.5.
+# (The table of 2026-11-10 put the top's edge at 0.088 and the hem 14 mm further out: 13 mm a side too wide, and
+# the nose ran to a 15 mm point where the photo has a blunt front 112 mm wide.)
+SEAT_ROW = 1124.5
+SEAT_PLAN_PX = [(1967.5, 62.5), (1969.0, 67.0), (1972.0, 71.0), (1980.0, 74.0), (1990.0, 75.5), (2040.0, 80.5),
+                (2090.0, 84.5), (2140.0, 89.0), (2170.0, 92.5), (2200.0, 95.0), (2230.0, 97.5), (2260.0, 99.5),
+                (2620.0, 99.0), (2650.0, 97.0), (2675.0, 94.0), (2690.0, 91.5), (2700.0, 87.0), (2710.0, 83.0),
+                (2720.0, 78.0), (2730.0, 66.0), (2740.0, 52.0), (2750.0, 27.5), (2755.0, 16.0), (2757.5, 0.0)]
+
+
+@functools.lru_cache(maxsize=None)
+def _seat_plan():
+    """The seat's plan outline (TOP): x of each table column (on the plane z 0.96, the hem's mean height; the top
+    camera is 12.5 m above it, so 50 mm of height moves a point 0.2 mm) and its half-width."""
+    t = np.array(SEAT_PLAN_PX, float)
+    n = len(t)
+    c = TOP.on_plane(t[:, 0], np.full(n, SEAT_ROW), "z", 0.96)
+    lt = TOP.on_plane(t[:, 0], SEAT_ROW + t[:, 1], "z", 0.96)
+    rt = TOP.on_plane(t[:, 0], SEAT_ROW - t[:, 1], "z", 0.96)
+    x, hw = c[:, 0], (lt[:, 1] - rt[:, 1]) / 2
+    o = np.argsort(x)
+    return x[o], hw[o]
+
+
+def seat_hem_hw(x):
+    """Half-width of the seat's hem (its outermost line in plan) at x (0 beyond the seat's ends)."""
+    xs, hw = _seat_plan()
+    return float(np.interp(x, xs, hw, left=0.0, right=0.0))
 
 
 def seat_hw(x):
-    return float(np.interp(x, SEAT_X, SEAT_HW))
+    """Half-width of the seat's flat top (kept for callers of the first passes): the hem less 35 mm of skirt lean
+    and shoulder (the shoulder has fallen 1.3 mm there, SEAT_SHOULDER), at least 30 mm."""
+    return max(seat_hem_hw(x) - 0.035, 0.03)
+
+
+@functools.lru_cache(maxsize=None)
+def seat_outline(step=0.004):
+    """The hem's plan outline as a closed curve (x, y), counter-clockwise from the nose's front centre, sampled every
+    STEP (4 mm: see SEAT_RINGS_MM) and smoothed over 2 mm (the table's corners stay; the tail's point is rounded to
+    about 8 mm, as in the photo)."""
+    from scipy.ndimage import gaussian_filter1d
+    xs, hw = _seat_plan()
+    left = np.stack([xs[::-1], hw[::-1]], axis=1)                  # nose to tail tip, y > 0
+    right = (left[::-1] * np.array([1.0, -1.0]))[1:]               # tail tip to nose, y < 0
+    P = resample(np.vstack([[[xs[-1], 0.0]], left, right]), step / 3.0)
+    k = 0.002 / (step / 3.0)
+    P = np.stack([gaussian_filter1d(P[:, 0], k, mode="wrap"), gaussian_filter1d(P[:, 1], k, mode="wrap")], axis=1)
+    return resample(P, step)
 
 
 # ---------------------------------------------------------------- panels seen through a profile photo
@@ -574,7 +626,9 @@ POCKET_WALL = 5.0    # px
 # off the centre line, from the plate's front edge (x 0.93) back under the seat's nose.
 DECK_X = [0.790, 0.854, 0.929, 0.960]
 DECK_Y = [0.053, 0.055, 0.060, 0.075]
-DECK_END_U = 1950.0  # LEFT column where the plate ends under the seat's nose (x 0.792)
+DECK_END_U = 2120.0  # LEFT column where the plate ends under the seat (x 0.665): TOP, the red beside the seat's
+#                      nose runs back to u 2100..2160 between its hem and the shroud (it ended at x 0.792, under the old
+#                      seat's nose, which was 13 mm a side too wide and hid that strip)
 DECK_DROP = 0.003    # the plate's inner edge lies this much lower than its outer edge (EST)
 
 
@@ -850,8 +904,6 @@ def _vent_holes(view, name, min_area=120):
 
 
 # ---------------------------------------------------------------- side panels
-SEAM_OUT = 0.014     # TOP columns 2400..2700: the panel's top bead shows as a bright line 10 to 18 px outside the edge
-#                      of the seat cover: the seat's skirt leans out that far down to the seam
 PANEL_H = 0.100      # the face reaches the plan envelope this far under the seam (LEFT: the panel is 93 to 139 mm
 #                      tall; TOP: evenly lit from the seam out to the envelope, so one even lean; distribution EST)
 # Width of the bead along the panel's top edge, under the seam with the seat. LEFT: a bright band 8 px wide at
@@ -860,19 +912,13 @@ BEAD_U, BEAD_PX = [2300, 2540, 2600, 2820], [8, 8, 19, 21]
 # Ridge across the panel's tail. LEFT: bright band at rows 904..917 (column 2760), 859..895 (2820), 830..862 (2880);
 # below it the face turns in toward the muffler (angle EST: 19 deg, at most 10 mm).
 RIDGE_PX = [(2640, 968), (2700, 938), (2760, 910), (2820, 877), (2880, 846)]
-# The seam between the seat's skirt and the side panel: a dark line 8 px wide. LEFT, per column the rows of its two
-# edges (steps of -85..-167 and +50..+141 in r+g): 2040: 806/815, 2100: 830/838, 2220: 875/883, 2280: 894/907,
-# 2340: 888/896, 2400: 879/887, 2460: 869/877, 2520: 860/868, 2580: 850/859, 2640: 841/849, 2700: 831/840,
-# 2760: 821/829; column 2160 is the seat bolt's pocket (rows 855..883). Both ends EST from the neighbouring slope.
-SEAM_PX = [(1988, 784), (2000, 790), (2040, 810), (2100, 834), (2160, 857), (2220, 879), (2280, 900), (2340, 892),
-           (2400, 883), (2460, 873), (2520, 864), (2580, 855), (2640, 845), (2700, 836), (2760, 825), (2820, 812),
-           (2862, 803)]
+# The seam between the seat's skirt and the side panel: SEAM_PX, the seat's hem line (SEAT_HEM_PX).
 
 
 @functools.lru_cache(maxsize=None)
 def _panel(side):
-    """A side panel's outline and surface. Section, top to bottom: the top edge sits at the seam with the seat's
-    skirt (TOP: SEAM_OUT outside the seat cover's edge) and tucks under it over a bead; from the bead's crease the
+    """A side panel's outline and surface. Section, top to bottom: the top edge sits at the seam under the seat's
+    hem (TOP: the hem is the seat's outermost line, seat_hem_hw) and tucks under it over a bead; from the bead's crease the
     face leans out evenly to the plan envelope of the top photo (TOP: left 0.159, right 0.175 where it bulges over
     the muffler; REAR rows 694..778: the lit face of the left panel ends 213 px left of the centre column, 0.151 m);
     under the ridge across its tail it turns in again. The rear photo's outer silhouette cannot confirm more: the
@@ -921,7 +967,7 @@ def _panel(side):
 
         def f(x, z):
             W = width(x)
-            ys = min(max(seat_hw(min(max(x, 0.08), 0.80)) + SEAM_OUT, 0.064), W - 0.004)
+            ys = min(max(seat_hem_hw(min(max(x, 0.09), 0.78)), 0.064), W - 0.004)
             y = ys + (W - ys) * (1.0 - (1.0 - sat(d / reach)) ** 1.3)
             if d < db:
                 y -= 0.55 * (db - d) * MPP
@@ -954,8 +1000,15 @@ def side_panels():
             # hands it to the side panel (its hand-drawn seam), but it is the shroud's roof running on under the
             # seat. On the panel's own surface it stood 6 to 9 mm clear of everything as a fin (audit: floating); on
             # the roof itself it lay in the skin where the two traces overlap (audit: 3 mm). So: 6 mm under the
-            # roof, below the skin's 3 mm shell and its turned edge.
-            m.add(photo_panel(view, piece, shroud_roof(side, 0.006), 0.003, "plastic_red", step=9.0))
+            # roof, below the skin's 3 mm shell and its turned edge. Its upper part is the seat's nose (LEFT, 6x: the
+            # cover's hem runs from (1964, 758) down to (1980, 780) across it, SEAT_HEM_PX; it stood 9 mm proud of
+            # the remodelled nose as a fin): only the part under the hem, and ahead of the nose, is kept.
+            hm = np.array(SEAT_HEM_PX, float)
+            ul = (lambda uu: uu) if side > 0 else (lambda uu: 3999.0 - uu)
+            keep = lambda uu, vv: (ul(uu) < hm[0, 0] - 2.0) | (vv > np.interp(ul(uu), hm[:, 0], hm[:, 1]) + 2.0)
+            for part in _cut(piece, keep, every=True):
+                if len(part) >= 8:
+                    m.add(photo_panel(view, part, shroud_roof(side, 0.006), 0.003, "plastic_red", step=9.0))
         for h in holes:
             # air intake: the opening's edge turns in 16 mm (LEFT, zoomed: a lighter lip 8 px wide above the
             # opening; depth EST) onto a dark panel (the photo shows the filter's dark green behind it)
@@ -980,8 +1033,6 @@ def _line(view, name, y):
     return P[o]
 
 
-SEAT_R = 0.028       # radius of the foam's edge. LEFT columns 2220..2820: the top's far edge shows 11 to 13 px under
-#                      the silhouette; TOP: the "HONDA" on the skirt, 13 mm tall in profile, is 12 mm deep in plan
 TAIL_X0 = 0.20       # the red wall under the tail (detail_plastics.tail_under): EST, hidden in the other photos
 TAIL_TOP_ROW = 606   # REAR: its top edge
 
@@ -999,6 +1050,29 @@ def _tank_tree():
     return cKDTree(V[:, :2]), V[:, 2]
 
 
+@functools.lru_cache(maxsize=None)
+def _subframe_tree():
+    import importlib
+    from scipy.spatial import cKDTree
+    import parts
+    for name in parts.PLUGINS:                              # the subframe a merged module builds, if one does
+        if name != "detail_plastics" and os.path.exists(os.path.join(HERE, name + ".py")):
+            fn = getattr(importlib.import_module(name), "PARTS", {}).get("subframe")
+            if fn is not None:
+                V = np.asarray(fn().V)
+                return cKDTree(V[:, :2]), V[:, 2]
+    return None
+
+
+def _subframe_z(x, y):
+    """Top of the subframe within 12 mm of (x, y) (-1: none there): the seat's base rests on its rails."""
+    t = _subframe_tree()
+    if t is None:
+        return -1.0
+    i = t[0].query_ball_point((x, y), 0.012)
+    return float(t[1][i].max()) if len(i) else -1.0
+
+
 def _tank_z(x, y):
     """Top of the tank within 10 mm of (x, y), so the seat's nose stays clear of it (-1: no tank there)."""
     tree, z = _tank_tree()
@@ -1006,63 +1080,230 @@ def _tank_z(x, y):
     return float(z[i].max()) if len(i) else -1.0
 
 
-def seat():
-    """Seat: cover, foam shape and base.
-    Top line from the left photo (its upper silhouette, seen from a camera above it, is the far edge: the line is
-    cast onto y = -0.6 x half-width); plan half-width of the cover's top from the top photo (TOP, seat cover mask).
-    Section: a top crowned by 2 mm, the foam's edge radius SEAT_R, then the skirt leaning out SEAM_OUT down to the
-    seam with the side panel, which is that panel's top edge in each profile photo (LEFT: the dark seam runs from
-    row 810 at column 2040 down to 900 at 2280 and back up to 812 at 2820; the "HONDA" is printed on the skirt).
-    The cover stops 3 mm above the panel; the black base shows in that gap (the dark seam line of the photos) and
-    closes the underside. The base is raised over the red wall under the tail, and over the tank at the nose."""
-    seams = []
-    for side in (1, -1):
-        Pn = _panel(side)
-        W = cams.CAMS[Pn.view].on_plane(Pn.seam[:, 0], Pn.seam[:, 1], "y", side * 0.10)
-        o = np.argsort(W[:, 0])
-        seams.append((W[o, 0], _gauss(W[o, 2], 2.0)))
-    z_wall = float(REAR.on_plane(np.array([2000.0]), np.array([float(TAIL_TOP_ROW)]), "x", TAIL_X0)[0][2])
-    cover, base = [], []
-    for x in np.linspace(0.082, 0.798, 72):
-        hw = seat_hw(x)
-        top_line = _line("left", "seat_top", -0.6 * hw)
-        zt = float(np.interp(x, top_line[:, 0], _smooth(top_line[:, 1], 5)))
-        out = SEAM_OUT * sat(hw / 0.07)
-        ends = sat((x - 0.082) / 0.05 + 0.25) * sat((0.798 - x) / 0.06 + 0.2)       # the skirt shortens at both ends
-        # over the tank the base and the skirts' lower edges stop 0.5 mm above it (the nose sits on the tank)
-        over_tank = max(_tank_z(x, y) for y in (-0.6 * hw, 0.0, 0.6 * hw)) + 0.0005
-        zb = [min(max(float(np.interp(x, sx, sz)) - 0.002, zt - 0.012 - 0.105 * ends,
-                      _tank_z(x, sgn * (hw + out)) + 0.0005), zt - 0.012) for (sx, sz), sgn in zip(seams, (1, -1))]
+# The hem (the cover's rounded lower edge): the dark seam line under it, per column the centre of the darkest run of
+# r + g within 16 px of a first reading (half-depth edges, 3 columns averaged), every 20 px from u 1966 to 2846 in the
+# LEFT photo. The RIGHT photo at mirrored columns gives the same rows within 0.5 px all along. Over the seat bolt's
+# pocket (u 2160..2190, rows 855..883) the line is the pocket's: interpolated across. The V at u 2266 (row 904.5) is
+# the cover's lowest corner, over the joint of the shroud's tail and the side panel. Nose and tail ends read at 6x on
+# a 10 px grid: (1964, 758) the nose's front, (2856, 779) and (2866, 768) the tail's tip. This line is also the side
+# panels' top edge (SEAM_PX).
+SEAT_HEM_PX = [(1964, 758.0), (1966, 759.5), (1986, 783.0), (2006, 796.0), (2026, 804.5), (2046, 813.5), (2066, 821.5),
+               (2086, 828.5), (2106, 836.5), (2126, 844.0), (2146, 851.5), (2226, 881.0), (2246, 888.0), (2266, 904.5),
+               (2286, 900.5), (2306, 898.0), (2326, 894.5), (2346, 891.0), (2366, 888.0), (2386, 885.0), (2406, 882.0),
+               (2426, 879.0), (2446, 875.5), (2466, 872.0), (2486, 869.0), (2506, 866.0), (2526, 863.0), (2546, 860.0),
+               (2566, 857.0), (2586, 854.0), (2606, 851.0), (2626, 848.0), (2646, 844.0), (2666, 841.0), (2686, 838.0),
+               (2706, 835.0), (2726, 831.5), (2746, 828.0), (2766, 824.5), (2786, 818.0), (2806, 809.5), (2826, 799.0),
+               (2846, 786.0), (2856, 779.0), (2866, 768.0)]
+SEAM_PX = SEAT_HEM_PX
+# The top line: the seat's upper silhouette in the LEFT photo, the first non-white row of each column (sub-pixel, where
+# the darkest channel crosses half-way from the white background (255) to the cover 3 px in), every 4 px from u 1958 to 2866. It
+# lies 1.5 to 2 px above the traced line OUT 'seat_top' (a mask contour); the RIGHT photo (mirrored columns) gives the
+# same rows within 1 px (peak 732 at u 2005..2020 = left 1979..1994, dip 787 at 1690..1735 = left 2264..2309, tail
+# 755 at 1150..1165 = left 2834..2849). Used between the nose's and the tail's own rounding (LEFT, 6x: the nose's
+# top at (1985, 731) rounds over to its front at (1962, 746); the tail's top at (2850, 755.5) to its tip at (2866,
+# 762)): those are the shoulder's, at both ends (SEAT_END_L).
+SEAT_TOP_U = (1986.0, 2846.0)
+SEAT_END_L = (0.025, 0.020)     # the shoulder's length at the nose's front and at the tail's end: LEFT, the nose
+#                                 falls 3 mm in its last 20 mm then 12 mm to its front (u 1985..1962), the tail 5 mm
+#                                 in its last 16 px (12.5 mm, u 2850..2866)
+SEAT_SHOULDER = 0.021  # D: the top falls D to the skirt over its shoulder (seat_cover_z). REAR rows 514..562, the nose
+#                      seen from behind (0.775 mm/px at x 0.76): half-widths 34 / 52 / 60 / 65.5 / 71.5 / 74.5 / 76.5 /
+#                      79.5 / 81.5 / 83.5 / 85 / 85.5 / 87 px every 4 rows under the top. Projected model vertices with
+#                      D 21 mm and power 2.5 (sides plus nose): rms 2.9 px (power 4: 5.7, power 3: 3.5; D 26: 2.4).
+#                      LEFT: the "HONDA" print's top edge is 21 mm under the silhouette (u 2500), where the skirt
+#                      starts. TOP: the cover's light band ends 69 mm out at u 2300, where this shoulder is at 29 deg
+SEAT_POWER = 2.5
+SEAT_LEAN = math.radians(12.0)   # the skirt leans out toward the hem: the "HONDA" print, 43 px (34 mm) tall in the
+#                      LEFT photo (u 2475..2515), is 8 px (7 mm) deep in the TOP photo (rows 1028..1036, 1212..1220)
+SEAT_NOSE_LEAN = math.radians(3.0)   # LEFT, 6x: the nose's front is upright within 2 px over its lower 10 px (EST 3)
+HEM_R = 0.0012       # the hem's rounded edge (LEFT, 6x: a light line 1 to 2 px over the dark seam: EST 1.2 mm)
+HEM_LIFT = 0.0025    # the hem's outer point above the dark seam line's centre (the line is the shadow under the hem
+#                      and the gap to the panel, 8 px = 6 mm: SEAM_PX)
+TUCK = (0.004, 0.002)  # the cover turns under the base this far in from the hem and this far up (EST, hidden: it
+#                      clears the side panel's top edge, which stands under the hem, by 1.5 mm or more)
+SEAT_RINGS_MM = (0.5, 1.2, 2.2, 3.5, 5.2, 7.4, 10.0, 13.2, 17.0, 21.5, 26.5, 32.0, 38.0, 45.0)
+# rows of vertices parallel to the hem (mm in from it), the hem itself sampled every 4 mm: compare.raster draws a
+# triangle under 2 px (3.6 mm in the top view) as one pixel, so with 3 mm samples and 22 rows 19 % of the cover
+# fell through as dots in the top view's score (the base showed between them)
 
-        def half(zb_):
-            r = min(SEAT_R, 0.75 * hw, 0.8 * (zt - zb_))
-            yt = max(hw - 0.85 * r, 0.0)
-            pts = [(yt * q, zt - 0.002 * q * q) for q in np.linspace(0, 1, 6)]
-            for a in np.linspace(0, math.radians(80), 9)[1:]:
-                pts.append((yt + r * math.sin(a), zt - 0.002 - r * (1 - math.cos(a))))
-            y1, z1 = pts[-1]
-            for q in np.linspace(0, 1, 5)[1:]:
-                pts.append((y1 + (max(hw + out, y1) - y1) * q, z1 + (zb_ - z1) * q))
-            return pts
-        L, Rr = half(zb[0]), half(zb[1])
-        cover.append([(x, y, z) for y, z in L[::-1]] + [(x, -y, z) for y, z in Rr[1:]])
-        # base: recessed 4 mm above the skirt's lower edge and 6 mm inside the cover everywhere, so it shows from
-        # nowhere outside (a base flush with the skirt showed as a black band along the seam and came through the
-        # foam's edge over the tail)
-        zu = max(max(zb) + 0.004, over_tank, (z_wall + 0.003) * smoothstep((0.30 - x) / 0.04))
-        zu = min(zu, zt - 0.010)
-        inner = lambda pts, z: max(float(np.interp(z, [p[1] for p in pts[::-1]], [p[0] for p in pts[::-1]])) - 0.006, 0.0)
-        base.append([(x, -max(Rr[-1][0] - 0.006, 0.0), min(zb[1] + 0.004, zu)), (x, -inner(Rr, zu), zu),
-                     (x, -0.5 * inner(Rr, zu), zu), (x, 0.0, zu), (x, 0.5 * inner(L, zu), zu), (x, inner(L, zu), zu),
-                     (x, max(L[-1][0] - 0.006, 0.0), min(zb[0] + 0.004, zu))])
-    m = grid(Mesh(), [np.array(r) for r in cover], "seat", closed_u=False)
-    grid(m, [np.array(r) for r in base], "plastic_black", closed_u=False)
-    for k, rev in ((0, True), (-1, False)):                # closed ends
-        loop = np.array(cover[k] + base[k])
-        o = m.verts(np.vstack([loop, loop.mean(axis=0)[None]]))
-        for i in range(len(loop)):
-            tri = (o + i, o + (i + 1) % len(loop), o + len(loop))
-            m.face(tri[::-1] if rev else tri, "seat")
+
+@functools.lru_cache(maxsize=None)
+def _seat_lines():
+    """The seat's hem height z(x) and top-line height z(x), each cast on the plane it lies on: the hem on the near
+    side's hem (y = its half-width), the top line on the far side, 25 mm out (from the camera, 1.13 m up and 4.7 m
+    away, the ray grazes the top's shoulder where its slope is 0.032: 25 mm out, 0.2 mm under the centre line)."""
+    hem = []
+    for cam, sg in ((LEFT, 1.0), (RIGHT, -1.0)):                # each side through its own photo's camera
+        h = np.array(SEAT_HEM_PX, float)
+        if sg < 0:
+            h[:, 0] = 3999.0 - h[:, 0]
+        W = np.array([cam.on_plane(np.array([u]), np.array([v]), "y", 0.0)[0] for u, v in h])
+        for _ in range(3):                                     # on the hem's own plane
+            W = np.array([cam.on_plane(np.array([u]), np.array([v]), "y", sg * max(seat_hem_hw(w[0]), 0.02))[0]
+                          for (u, v), w in zip(h, W)])
+        o = np.argsort(W[:, 0])
+        hem.append((W[o, 0], W[o, 2] + HEM_LIFT))
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(HERE, "..", "..", "reference", "crf250r-2026", cams.FILES["left"]))
+                   .convert("RGB").crop((1950, 650, 2880, 900))).astype(float).min(axis=2)
+    raw = []
+    for u in np.arange(SEAT_TOP_U[0], SEAT_TOP_U[1] + 1.0, 4.0):
+        col = a[:, int(u) - 1950]
+        i = int(np.argmax(col < 235.0))
+        lvl = 0.5 * (col[max(i - 4, 0)] + col[i + 3])
+        k = max(i - 1, 0) + float(np.clip((col[max(i - 1, 0)] - lvl) / max(col[max(i - 1, 0)] - col[i], 1e-6), 0, 1))
+        raw.append((u, 650.0 + k))
+    raw = np.array(raw)
+    T = np.array([LEFT.on_plane(np.array([u]), np.array([v]), "y", -0.025)[0] for u, v in raw])
+    o = np.argsort(T[:, 0])
+    tx, tz = T[o, 0], _gauss(T[o, 2], 2.0)
+    return hem, tx, tz
+
+
+def seat_top_z(x, y=0.0):
+    """Height of the seat's centre line at x (the shoulder's fall to the sides is seat_cover_z's)."""
+    hem, tx, tz = _seat_lines()
+    return float(np.interp(x, tx, tz))
+
+
+def seat_hem_z(x, y=None):
+    """Height of the hem's outer point at x on the side of y (None: the higher side). The two sides' cameras put the
+    same photo rows (the photos agree within 0.5 px) at heights 2.5 mm apart in the middle (right higher): each side
+    follows its own photo, so each side panel's top edge stays under its own side of the hem."""
+    hem, tx, tz = _seat_lines()
+    zl, zr = (float(np.interp(x, hx, hz)) for hx, hz in hem)
+    if y is None:
+        return max(zl, zr)
+    return zr + (zl - zr) * smoothstep(0.5 + y / 0.04)
+
+
+@functools.lru_cache(maxsize=None)
+def _seat_sections():
+    """Per point of the hem's outline: inward normal, hem height, skirt lean and the section's widths. Section
+    (inward distance w from the hem): the skirt rises from the hem leaning in at LEAN to w_s, D under the top; from
+    there the top's shoulder (seat_cover_z) rises to the centre line, L in on the sides (the half-width 25 and 40 mm
+    in from the ends)."""
+    B = seat_outline()
+    t = np.roll(B, -1, axis=0) - np.roll(B, 1, axis=0)
+    nin = np.stack([-t[:, 1], t[:, 0]], axis=1)                 # counter-clockwise: left of the direction is inward
+    nin /= np.linalg.norm(nin, axis=1)[:, None]
+    a = SEAT_LEAN - (SEAT_LEAN - SEAT_NOSE_LEAN) * np.maximum(-nin[:, 0], 0.0) ** 2
+    zb = np.array([seat_hem_z(p[0], p[1]) for p in B])
+    zt = np.array([seat_top_z(p[0]) for p in B])
+    zb = np.minimum(zb, zt - 0.008)                             # the tail's tip: 8 mm thick at least (LEFT: the tip
+    #                                                             is 8 px tall at u 2866, rows 762..770)
+    D = np.minimum(SEAT_SHOULDER, 0.75 * (zt - zb))
+    ws = (zt - D - zb) * np.tan(a)
+    xs = _seat_plan()[0]
+    L = np.array([seat_hem_hw(min(max(p[0], xs[0] + 0.04), xs[-1] - 0.025)) for p in B]) - ws
+    i0, i1 = int(np.argmax(B[:, 0])), int(np.argmin(B[:, 0]))       # the nose's front, the tail's end
+    from types import SimpleNamespace
+    return SimpleNamespace(B=B, nin=nin, a=a, zb=zb, zt=zt, D=D, ws=ws, L=L, ws_end=(ws[i0], ws[i1]))
+
+
+def seat_cover_z(P2):
+    """Heights of the cover at plan points P2 (n, 2). In the skirt (closer to the hem than w_s) the height rises
+    evenly from the hem. Above it the top falls D (1 - (1 - qs^4)(1 - qf^4)(1 - qt^4)) under the centre line, qs
+    from the distance to the side hem across (L the half-width), qf and qt from the distances to the nose's front
+    and the tail's end (SEAT_END_L): the shoulders of the sides and the ends add up at the nose's corners, which come
+    out round as the rear photo has them (REAR rows 514..534: the nose's top is within 1.2 mm of its peak for only
+    26 mm either side of the centre line). D, w_s and the hem height are the nearest hem points' (averaged over
+    those within 8 mm of the nearest, so they blend where the nearest jumps from a side to the front)."""
+    from scipy.spatial import cKDTree
+    S = _seat_sections()
+    B = S.B
+    P2 = np.asarray(P2, float)
+    d = cKDTree(_dense(B, sub=12, closed=True)[:-1]).query(P2)[0]
+    dk, jk = cKDTree(B).query(P2, k=24)
+    wt = np.exp(-((dk - dk[:, :1]) / 0.008) ** 2)
+    wt /= wt.sum(axis=1, keepdims=True)
+    par = {k: (getattr(S, k)[jk] * wt).sum(axis=1) for k in ("zb", "zt", "D", "ws")}
+    x, y = P2[:, 0], np.abs(P2[:, 1])
+    xs = _seat_plan()[0]
+    zc = np.array([seat_top_z(q) for q in x])
+    hw = np.array([seat_hem_hw(q) for q in x])
+    Ls = np.array([seat_hem_hw(min(max(q, xs[0] + 0.04), xs[-1] - 0.025)) for q in x]) - par["ws"]
+    qs = np.clip(1.0 - (hw - y - par["ws"]) / Ls, 0.0, 1.0)
+    qf = np.clip(1.0 - (xs[-1] - x - S.ws_end[0]) / SEAT_END_L[0], 0.0, 1.0)
+    qt = np.clip(1.0 - (x - xs[0] - S.ws_end[1]) / SEAT_END_L[1], 0.0, 1.0)
+    p = SEAT_POWER
+    drop = par["D"] * (1.0 - (1.0 - qs ** p) * (1.0 - qf ** p) * (1.0 - qt ** p))
+    skirt = par["zb"] + (par["zt"] - par["D"] - par["zb"]) * d / np.maximum(par["ws"], 1e-6)
+    return np.where(d < par["ws"], skirt, zc - drop)
+
+
+SEAT_UV_TILE = 0.064  # metres of cover per repeat of its grain texture (detail_plastics.SEAT_GRAIN)
+
+
+def _box_uv(V, f, tile=SEAT_UV_TILE):
+    """Corner UVs of a face by the axis its normal is closest to (top: x, y; sides: x, z; ends: y, z)."""
+    P = V[list(f)]
+    nr = np.cross(P[1] - P[0], P[2] - P[0])
+    k = int(np.argmax(np.abs(nr)))
+    a, b = {2: (0, 1), 1: (0, 2), 0: (1, 2)}[k]
+    return [(float(p[a] / tile), float(p[b] / tile)) for p in P]
+
+
+def seat():
+    """Seat: cover (foam shape) and base, built on the hem's plan outline (seat_outline, TOP).
+    Every point of the cover is placed by its distance w from the hem in plan (exact rows of vertices at
+    SEAT_RINGS_MM carry the skirt and the shoulder): the skirt rises from the hem leaning in at SEAT_LEAN, the top
+    falls to it over the measured shoulder (SEAT_SHOULDER), all round the seat, so the blunt nose and the rounded tail
+    get the same edge as the sides. Profile: hem and top lines of the LEFT photo (SEAT_HEM_PX, OUT 'seat_top').
+    Under the hem the cover's edge is rounded (HEM_R) and turns in under the black base, which closes the seat 4 mm
+    above the hem, clear of the tank at the nose and of the red wall under the tail."""
+    S = _seat_sections()
+    B = S.B
+    nb = len(B)
+    from scipy.spatial import cKDTree
+    P2, tri, nb2 = conforming_mesh(B * 1000.0, rings=SEAT_RINGS_MM, step=7.0)
+    assert nb2 == nb
+    P2 = P2 / 1000.0
+    X = np.column_stack([P2, seat_cover_z(P2)])
+    X[:nb, 2] = S.zb
+    m = Mesh()
+    top = m.verts(X)
+    for f in tri:
+        a, b, c = (int(q) for q in f)
+        if np.cross(X[b] - X[a], X[c] - X[a])[2] < 0:
+            b, c = c, b
+        m.face((top + a, top + b, top + c), "seat")
+    # the hem's rounded edge and the tuck under the base: (inward w, height above the hem's outer point)
+    rb = HEM_R
+    sec = [(rb * (1 - math.cos(q)), -rb * math.sin(q)) for q in np.radians([30.0, 60.0, 90.0, 120.0])]
+    sec += [(2.6 * rb, -0.45 * rb), TUCK]
+    rings = [X[:nb]] + [np.column_stack([B + w * S.nin, S.zb + dz]) for w, dz in sec]
+    # base: the tuck's end ring, then 4 mm further in at the base's height, then flat
+    z_wall = float(REAR.on_plane(np.array([2000.0]), np.array([float(TAIL_TOP_ROW)]), "x", TAIL_X0)[0][2])
+
+    def z_base(x, y):
+        z = max(seat_hem_z(x) + 0.004, _tank_z(x, y) + 0.0005, _subframe_z(x, y) + 0.0005,
+                (z_wall + 0.003) * smoothstep((0.30 - x) / 0.04))
+        return max(min(z, seat_top_z(x, y) - 0.010), seat_hem_z(x) + 0.001)
+    BT = rings[-1][:, :2]
+    Pb, trib, nbb = conforming_mesh(BT * 1000.0, rings=(4.0,), step=12.0)
+    Pb = Pb / 1000.0
+    Zb = np.array([z_base(p[0], p[1]) for p in Pb])
+    Zb[:nbb] = rings[-1][:, 2]
+    base = m.verts(np.column_stack([Pb, Zb]))
+    VB = np.column_stack([Pb, Zb])
+    for f in trib:
+        a, b, c = (int(q) for q in f)
+        if np.cross(VB[b] - VB[a], VB[c] - VB[a])[2] > 0:       # normals down
+            b, c = c, b
+        m.face((base + a, base + b, base + c), "plastic_black")
+    idx = [top + np.arange(nb)] + [m.verts(r) for r in rings[1:-1]] + [base + np.arange(nb)]
+    idx = [np.asarray(k) if np.ndim(k) else k + np.arange(nb) for k in idx]
+    for k in range(len(idx) - 1):
+        for i in range(nb):
+            q = (i + 1) % nb
+            # going round counter-clockwise, from the outer ring to the inner: normals point out and down
+            m.face((int(idx[k][i]), int(idx[k + 1][i]), int(idx[k + 1][q]), int(idx[k][q])), "seat")
+    V = np.asarray(m.V)
+    for fi, (f, mat) in enumerate(zip(m.F, m.M)):
+        if mat == "seat":
+            m.uv[fi] = _box_uv(V, f)
+    seat.sections = S
     return m
 
 
