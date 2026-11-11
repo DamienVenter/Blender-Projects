@@ -288,6 +288,28 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
 - Against the spec sheet the photo bike's seat is 20 mm and its belly up to 18 mm high while length, bar height,
   width, swingarm and footpegs agree within 3 mm. Cause not found; the model follows the photos.
 
+### Micro pass (2026-11-11, "perform as if each tiny component is a separate build"): what the first round taught
+- Brief = one list of separate builds per agent, each with anatomy, references, numbers, build, check (`pair.py`
+  photo beside model, same camera, any box of any of the nine studio photos), ledger entry and commit
+  (`research/detail-ledger/<module>.md`). Agents finish 5 to 9 of 10 to 12 components per 700k-token run; an agent
+  that "ran out of room" is replaced by a fresh one briefed with the ledger, not resumed.
+- Look at the agents' own check images before merging: "done" muffler had lumpy faces, "done" frame rear was a flat
+  slab beside a ribbed casting. Send the agent back with the image name and pixel boxes of each difference.
+- **Rear axle in Honda's photos is higher than `parts.RA`.** Five independent reads, each cast on its own plane:
+  sprocket bolt circle +5.7 mm, axle bore +8 (left) and +11 (right), rear disc bolt circle +8.4, the tyre's own
+  outline (rear-most knob and top) +5; the front tyre's outline puts the front axle only +2. The studio bike's
+  swingarm sits about 0.7 deg lower than the build pose (sag). RA stays (the whole rear hangs on it, and the whole
+  wheel pair is under 6 px off); hub parts are measured about the photo's own centre and built about RA. When the
+  rear suspension is rigged, the studio pose is the swingarm 0.7 deg down from the build pose.
+- An agent's "the camera scale is 6 % off" (tread rows closer in the end photos than predicted) was rejected: the
+  end cameras' vertical scale is pinned at the wheel by the tyre (axle to ground) and their distance by the
+  bar-to-axle perspective, and the model's rear tyre is 100.9 mm at its widest against a nominal 100.
+- Two modules both named a part `rear_brake`; the later plugin silently dropped the other's pedal. `parts.build()`
+  now raises when a plugin's part would replace another plugin's (unless it lists it in REPLACES) or two plugins
+  define one material differently (test in test_bike.py).
+- `compare.intruders` flagged the muffler "inside the fender" after the fender changed. Check the photo's pixels
+  there before blaming the traced outline: 58 % were red, so the panel's edge was short, not the trace wrong.
+
 ### The audit (`audit.py`)
 - `blender -b BIKE.blend --python-exit-code 1 --python audit.py -- OUT.json 25`: every pair of objects that cut
   each other (face pairs, depth, box, deepest point: WORLD coordinates) and every loose piece more than 4 mm from

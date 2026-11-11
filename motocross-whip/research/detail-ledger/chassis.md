@@ -210,3 +210,54 @@ Whole-bike audit (audit.py, 25 mm) on the merged build of this worktree, chassis
 Before the fixes the audit had: link nut into the frame's lower cross member 8.0 mm, cylinder's tab into the frame
 plate 3.4 mm, guide tabs into the arm 3.2 mm, rods against the shock's clevis nut 2.0 mm: all fixed.
 Module: 140,510 vertices (budget 200,000).
+
+
+# Round 2 (2026-11-11, after the coordinator's review)
+
+## 5. Muffler, again: the lumps, the cap as a pressed part, brushed finish, the mount
+Cause of the lumps (found in the code): the old section table's top line changed slope five times (-0.32, -0.67,
+-0.30, -0.67, -1.14), a 20 mm dent was pressed into the inner top for the side panel's lip (x 0.09..0.235), and the
+section morphed from the octagon into a circle over the can's front 11 cm. Fixed at the source: the can is now the
+octagon on two straight lines (RIGHT: the lower edge is straight from x 0.029 to 0.301 within 4 mm of the old table;
+the top line parallel to it, 108 mm above: LEFT row 878 and REAR's 0.901 disagree by 11 mm and the top splits it),
+straight in plan (TOP and REAR lines). The octagon's inner chamfer already clears the panel's lip by 3 to 9 mm, so
+no dent. The morph into the circle is only in the nose (x 0.296..0.350), a separate part with its own 0.6 mm step.
+The end cap is a separate pressed part: its flat leaning face, an 18 mm roll (rr34, REAR), its sides out to its
+front edge, cut per vertex on the plane through the three cap rivets (the photo's seam line from px (1125, 895) to
+(1048, 1060) lies within 3 to 7 mm of it), then a 0.6 mm step down to the can.
+Brushed finish: textures/stock/brushed_n.png (`brushed_map()`, numpy: streaks along u, 0.08 m per repeat), UVs
+along the can's length on the can, cap and nose (`_uv_grid`), a plane map on the cap's face (REAR: level lines).
+Mount (the coordinator's audit: a piece floated once the new rear fender dropped its root bulge): two brackets
+welded on the can's inner flank up to a tab square to the right subframe rail's underside, an 8 mm rubber bush, a
+steel collar and an M8 flange bolt up into the rail; the stack 4 mm inboard on the rail, clear of the panel's lip.
+Checks: m3, m4, r2a, r2b pair sheets (right, rear, rr34).
+Still different: the rear view's cap edge crosses the bottom 1 to 2 cm higher than the photo's; the brushing does
+not show at the studio photos' scale (it does in close-ups).
+
+## 3. Swingarm, again: the "coil" in front of the pedal
+It is the right arm's front weld bead (RIGHT px 1587..1618 x 1420..1512: a weld there too), drawn 2.8 mm tall with
+deep regular ripples in a bright material: it read as a spring. Now 2.0 mm, shallower uneven ripples, duller.
+
+## 8. Brake hose joint
+This module's hose now starts inside a crimped joint sleeve at detail_wheels' hose end (0.470, -0.086, 0.515),
+heading (0.574, 0.078, 0.815) (the end of their run, measured on their mesh), and loops up and back round the
+cylinder's inner side into the banjo: the two hoses meet end to end inside the sleeve's bore (0.5 mm clear).
+
+## 9. Footpegs (partly)
+Detail 475839 and RIGHT: the pegs are black with the teeth's tips worn bright, and the side rails are deep at the
+root and shallow at the tip (a triangle from behind). Now `peg_black` (CLASS black) with `peg_edge` crests, rails
+21 mm deep at the root to 8 mm at the tip. Not done: the cast cage's own shape (open cells, the brace's section),
+the hinge bracket's shape.
+
+## Round 2 follow-ups
+- The can's height now falls straight, 18 mm per 100 mm (MUF_TAPER), from 108 mm at the cap: with the plastics
+  agent's side panel the straight can stood 20.8 mm into the panel over the nose (x 0.26..0.32, hidden part). A
+  straight taper keeps every facet flat (the old bend under the panel was the kink).
+- Brake hose: detail_wheels now ends its run at (0.452, -0.100, 0.505) heading (0.826, 0.032, 0.562); this part's
+  hose starts there inside the joint sleeve and loops up round the cylinder's inner side into the banjo.
+- test_bike.test_nothing_shows_through_the_plastics, with the plastics agent's branch merged locally: a 3.2 cm2 hole
+  in the left view inside the plastics' outline. With the round-1 can in the same build the can fills it (and is
+  flagged as an intruder, 3.8 cm2); with main's plastics and the new can there is no hole: a gap in the new
+  plastics, not in the can.
+- Not done in round 2: 10 (the frame casting round the pivot: ribs, pockets, bosses and its window), the rest of
+  6 (the "S" mark, a Dirt Rider 09 angle check) and 7 (the cushion arm's recessed web), the subframe rails.
