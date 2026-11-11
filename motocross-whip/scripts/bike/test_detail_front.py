@@ -26,16 +26,55 @@ def verts(mesh, mat=None):
 
 
 def test_overall_width_is_the_handlebar_827_mm(built):
-    assert abs(np.ptp(verts(built["bars"])[:, 1]) - 0.827) < 0.002                       # SPEC overall width
+    v = np.vstack([verts(built["bars"]), verts(built["grips"])])
+    assert abs(np.ptp(v[:, 1]) - 0.827) < 0.002                                          # SPEC overall width
 
 
 def test_bar_ends_sit_on_the_shared_bar_end(built):
-    grip = verts(built["bars"], "grip")
+    grip = verts(built["grips"])
     assert df.TIP[0] == cams.BAR_END[0] and df.TIP[2] == cams.BAR_END[2]                  # no FRONT_TIP override
     for side in (1, -1):
         d = np.linalg.norm(grip - df.TIP * [1, side, 1], axis=1)
-        assert (np.abs(d - df.R_GRIP) < 0.0005).sum() >= 20                               # the end face's rim
+        assert (np.abs(d - 0.01525) < 0.0002).sum() >= 70                                 # the end face's flat rim
         assert abs((side * grip[:, 1]).max() - cams.BAR_END[1]) < 0.0005                  # its outermost point
+
+
+def _grip_frame(built, side, mat=None):
+    sd = df._Side(side)
+    g = verts(built["grips"], mat)
+    g = g[g[:, 1] * side > 0] - sd.T
+    a = -(g @ sd.d)
+    r = np.linalg.norm(g + np.outer(a, sd.d), axis=1)
+    th = np.arctan2(g[:, 2], g @ sd.f)                                                    # 0 ahead, pi/2 up
+    return a, r, th
+
+
+def test_grip_diamonds_36_round_2_5_mm_along(built):
+    for side in (1, -1):
+        a, r, th = _grip_frame(built, side, "grip_rubber")
+        z = (a > df.G_ZONES[1][0] + 0.003) & (a < df.G_ZONES[1][1] - 0.003)
+        tips = z & (np.abs(r - np.array([df.g_tip(x) for x in a])) < 2e-5)
+        top = tips & (np.abs(th - math.pi / 2) < 0.06)                                    # tips along the top line
+        rows = np.unique(np.round(a[top], 5))
+        assert abs(np.median(np.diff(rows)) - 2 * df.G_PITCH) < 0.0002                    # DET829 FFT: 2.47 mm
+        ring = tips & (np.abs(a - rows[3]) < 1e-5)
+        t = np.unique(np.round(th[ring], 4))
+        assert abs(np.median(np.diff(t)) - 2 * math.pi / df.G_ROUND) < 1e-3                # 36 round, 10 deg apart
+        assert len(t) == df.G_ROUND - int(round((df.G_BAND[1] - df.G_BAND[0]) / (2 * math.pi / df.G_ROUND)))  # band
+
+
+def test_grip_diameters_flange_and_rings(built):
+    for side in (1, -1):
+        a, r, th = _grip_frame(built, side)
+        body = r[(a > 0.0085) & (a < 0.0095) & (np.abs(th - math.pi / 2) < 0.5)]
+        assert abs(2 * body.max() - 0.0300) < 0.0003                                      # FRONTv / REARv: 30 mm
+        assert abs(2 * r[(a > 0.104) & (a < 0.111)].max() - 0.0283) < 0.0004              # tapering to 28.2
+        assert abs(2 * r.max() - 0.058) < 0.0003                                          # flange 58 mm (lf34, TOPv)
+        fl = a[r > 0.0285]
+        assert 0.118 < fl.min() and fl.max() < 0.1225                                     # TOPv: a 118..121
+        for c in df.G_RINGS:                                                              # groove round the top
+            top = r[(np.abs(a - c) < 0.0009) & (np.abs(th - math.pi / 2) < 0.3)]
+            assert top.max() < df.g_tip(c) - df.G_BEAD[1] + 1e-5
 
 
 def test_overall_height_is_1262_mm_at_the_bars(built):
@@ -77,19 +116,16 @@ def test_axle_is_on_the_front_axle_and_clamps_hold_both_tubes(built):
 def test_steering_parts_and_budget(built):
     assert set(df.REPLACES) == {"fork", "clamps", "bars", "cables", "disc_guard"}
     assert "cables" not in df.FRONT_END and set(df.FRONT_END) <= set(df.PARTS)
-    assert sum(len(m.V) for m in built.values()) < 70000
+    assert sum(len(m.V) for m in built.values()) < 220000                                 # brief's budget
     for m in built.values():
         assert np.isfinite(np.asarray(m.V, float)).all()
         assert max(max(f) for f in m.F) < len(m.V)
 
 
-def test_grips_close_onto_the_bar(built):
-    grip = verts(built["bars"], "grip")
-    for side in (1, -1):
-        sd = df._Side(side)
-        g = grip[grip[:, 1] * side > 0] - sd.T
-        r = np.linalg.norm(g - np.outer(g @ sd.d, sd.d), axis=1)
-        assert 0.0111 < r[r > 0.001].min() < 0.0116                                       # 22.2 mm bar, 0.3 mm short
+def test_grips_close_onto_the_bar_and_the_throttle_tube(built):
+    for side, lo, hi in ((1, 0.0111, 0.0116), (-1, df.G_THROTTLE_R - 0.0001, df.G_THROTTLE_R + 0.0001)):
+        a, r, th = _grip_frame(built, side)
+        assert lo < r[a > 0.12].min() < hi                                                # bar 22.2 mm / tube
 
 
 def test_only_the_stem_is_inside_the_head_tube(built):

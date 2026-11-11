@@ -47,7 +47,7 @@ T_BAR = 0.968                                         # bar centre, EST: the hol
 #   it and must stay under the bar pad's measured top (PAD_T)
 F_BAR = F_STEER + 0.003                               # TOP rows 1045, 1180: pad centred on x 0.988
 YC = 0.152                                            # TOP rows 1270..1360: the bar is straight across out to here
-R_GRIP = 0.0155
+R_GRIP = 0.0158                                       # where the end lip's rounded rim reaches furthest out
 # The bar ends sit on cams.BAR_END: both side photos, the rear photo and the top photo agree on it.
 _TXZ = (cams.BAR_END[0], cams.BAR_END[2])
 _C0X = float((TUBE0 + F_BAR * FWD + T_BAR * UP)[0])
@@ -340,19 +340,193 @@ def clamps():
 
 # ================================================================ handlebar and hand controls
 HOLDER_Y = 0.046                                      # EST: bar holders 92 mm apart
+CTRL_SHIFT = (0.017, 0.019)   # left and right controls moved inboard to clear the grips' flanges (TOP: switch housing
+#   from a 122, throttle housing from a 122 on the right); each control is measured again in its own component
 
 
 class _Side:
-    """Grip frame of one side: p(a, f, u) is a metres inboard of the bar end along the grip, f ahead, u up."""
+    """Grip frame of one side: p(a, f, u) is a metres inboard of the bar end along the grip, f ahead, u up.
+    shift: added to every a (the hand controls moved inboard when the grips grew to their measured length; each
+    control is placed again from the photos in its own component)."""
 
-    def __init__(self, side):
+    def __init__(self, side, shift=0.0):
         self.side = side
+        self.shift = shift
         self.T = TIP * [1, side, 1]
         self.d = np.array([-math.sin(SWEEP), side * math.cos(SWEEP), 0.0])      # along the grip, outwards
         self.f = np.array([math.cos(SWEEP), side * math.sin(SWEEP), 0.0])       # ahead of the grip
 
     def p(self, a, f=0.0, u=0.0):
-        return self.T - a * self.d + f * self.f + u * Z
+        return self.T - (a + self.shift) * self.d + f * self.f + u * Z
+
+
+# ================================================================ grips (Honda stock, 53165 / 53140 group)
+# Anatomy and sources: research/detail-ledger/front.md, component 1. a is measured inboard from the end face (mm in
+# the comments, metres in the code). TOPv = top studio photo, silhouette cast on the plane z = BAR_END z (gripscan.py,
+# 0.78 mm a pixel); FRONTv / REARv = edge scans of the end photos on the grip's own plane; DET829 / DET830 / DR05 /
+# DR06 = detail photos (counts, proportions, which features are grooves and which ribs).
+G_TIP = (0.0150, 0.0141)      # outside diameter over the diamond tips 30.0 mm at a 8 and 28.2 mm at a 110: FRONTv top
+#   edge falls 4.5 mm and REARv's bottom 1.7 mm over that run (so 2.8 mm of taper, the rest is the bar's upsweep),
+#   TOPv widths 28.6 -> 27.0 (left) and 29.6 -> 28.6 (right) under a threshold that reads about 0.4 mm narrow
+G_DEPTH = 0.00055             # pyramid height, EST: DR06 shows sharp pyramids about a third as tall as they are wide
+G_PITCH = 0.00125             # half the pyramid diagonal along the axis: DET829 2D FFT of zone 2, both diagonal
+#   families repeat every 20.4 px along the axis where zone 2 (46 mm) spans 380 px -> 2.47 mm a diagonal
+G_ROUND = 36                  # pyramids round the grip: 2.47 mm round a 29 mm grip -> 36.9; 36 keeps the square
+#   diamonds of DR06 (2.6 mm round, 2.5 along)
+G_RINGS = (0.0279, 0.0738)    # full rings, centres: mean of TOPv silhouette notches (28.5, 74.5 left; 29.5, 75 right),
+#   TOPv dark lines on the grip's top (27.3, 73.0; 26.3, 72.0) and FRONTv / REARv dark lines (25.8..31.8, 70.3..78.8;
+#   axprof.py). A groove round the palm side with a bright bead in it (DR06, DR05); a rib across the waffle side
+#   (DET829, DET830: they stand below the bottom edge there)
+G_ZONES = ((0.0080, 0.0267), (0.0291, 0.0726), (0.0750, 0.1120))    # diamond fields between the end collar, the two
+#   ring grooves and the flange's fillet; the pattern starts after a smooth collar behind the end lip (DET829 crop)
+G_GROOVE = 0.0024             # groove width over the field edges, EST from DR06 (bead 1.3 mm, walls either side)
+G_FLOOR = 0.0016              # groove floor below the tips; TOPv dips 1.5..2.5 mm at the rings
+G_BEAD = (0.0005, 0.0010)     # bead radius and its top below the tips, EST: it catches the light in DR05 / DR06
+G_PARTIAL = (0.0510, 0.0975)  # ribs across the waffle side between the full rings: FRONTv dark lines at a 51.0 and
+#   97.3 (right grip), DR05 48.9 and 98, DET829 about 53 and 104, TOPv front-edge step at 97 (left) and 98 (right)
+G_LONG = tuple(math.radians(t) for t in (20, 205, 336))   # ribs along the grip (deg from the front, up positive):
+#   FRONTv shows two lines on the front face, +20 and -24 deg (33 % and 71 % down the grip), diamond panels between
+#   them; lf34 (calibrated, candidate lines drawn, riblines.py) about +28. Behind, one line only, low: DET830 71 %
+#   down from behind (about 200 deg), DET829 from behind and below (about 236), DR06 none on the upper rear (a second
+#   rear rib at 158 deg was tried and showed in the DR06 / DET829 close-ups where the photos have none).
+#   They run from the end collar to the last partial rib (DR05)
+G_BAND = (math.radians(205), math.radians(336))    # smooth band under the grip between the lower ribs (DET829: no
+#   diamonds below the line near the bottom; FRONTv: the face below -24 deg reads smooth and dark)
+G_RIB = (0.0013, 0.0010, 0.0003)    # rib width at the root and at the top, top above the tips: DET829 / DET830 ribs
+#   across the smooth band stand 5..10 px (0.5..0.9 mm) below the bottom edge (the band lies 0.75 mm under the tips)
+G_LIP = 0.01675               # end lip radius (33.5 mm): FRONTv 34.9 at a 4, REARv 34.2, TOPv 32.5..34.0 at a 2..5
+G_FLANGE = (0.1190, 0.1220, 0.0290)     # flange disc a0, a1 and radius: TOPv widest at a 118..121 (both), its front-
+#   rear extent 57.7 mm (left, threshold reads narrow); lf34 pair: flange 82 px tall over a body of 40 (model 76 at
+#   28 mm); DET829 and DR05 flange twice the body's height next to it
+G_COLLAR = (0.0156, 0.1256)   # collar behind the flange (DR05 "688" moulded on it) and where the grip ends on the bar,
+#   EST: the switch housing starts at a 122..126 in TOPv and wraps it
+G_THROTTLE_R = 0.0130         # throttle tube under the right grip, EST (a 1.2 mm grip wall on a 26 mm pipe)
+
+
+def g_tip(a):
+    """Radius over the diamond tips at a (linear taper, constant over the end collar)."""
+    k = (min(max(a, 0.008), 0.110) - 0.008) / 0.102
+    return G_TIP[0] + (G_TIP[1] - G_TIP[0]) * k
+
+
+def _rows():
+    """Rings of the grip body from the end face to the bar: (a, kind, data). kind 'r': a plain ring of radius data;
+    'p': a pattern row (data = row parity). Pattern rows sit on each field's own pitch so both its edges are rows."""
+    out = []
+    # end face: recessed disc, raised rim, rolled lip, step down to the smooth collar (DET829 crop of the end cap)
+    for r, a in ((0.0110, 0.0006), (0.0118, 0.00035), (0.0126, 0.00005), (0.0135, 0.0), (0.01525, 0.0),
+                 (0.0158, 0.00005), (0.01625, 0.0004), (0.0166, 0.0009), (G_LIP, 0.0015), (G_LIP, 0.0028),
+                 (0.0165, 0.0036), (0.0160, 0.0042), (0.0153, 0.0046), (0.0150, 0.0050)):
+        out.append((a, "r", r))
+    out.append((0.0074, "r", g_tip(0.0074) - G_DEPTH))
+    edges = []
+    for z, (a0, a1) in enumerate(G_ZONES):
+        n = int(round((a1 - a0) / G_PITCH))
+        for i in range(n + 1):
+            out.append((a0 + (a1 - a0) * i / n, "p", i % 2))
+        if z < len(G_RINGS):                                # ring groove after this field
+            c, w = G_RINGS[z], G_GROOVE / 2
+            fl, bead = G_FLOOR, G_BEAD
+            for a, dr in ((c - w + 0.00015, -G_DEPTH - 0.00015), (c - w + 0.0003, -fl), (c - bead[0] - 0.0001, -fl),
+                          (c - bead[0] * 0.7, -bead[1] - bead[0] * 0.3), (c - bead[0] * 0.35, -bead[1] - 0.00006),
+                          (c, -bead[1]), (c + bead[0] * 0.35, -bead[1] - 0.00006),
+                          (c + bead[0] * 0.7, -bead[1] - bead[0] * 0.3), (c + bead[0] + 0.0001, -fl),
+                          (c + w - 0.0003, -fl), (c + w - 0.00015, -G_DEPTH - 0.00015)):
+                out.append((a, "b" if abs(a - c) < bead[0] * 0.8 else "r", g_tip(a) + dr))
+    # fillet from the field into the flange, the flange with its rounded rim, the collar (DET829, DR05, DR06)
+    a0, a1, rf = G_FLANGE
+    for r, a in ((g_tip(0.1123) - G_DEPTH, 0.1123), (0.0145, 0.1142), (0.0154, 0.1158), (0.0168, 0.1172),
+                 (0.0186, 0.1183), (0.0210, 0.1189), (0.0235, a0), (rf - 0.0008, a0 + 0.0002),
+                 (rf - 0.0002, a0 + 0.0008), (rf, a0 + 0.0015), (rf - 0.0002, a1 - 0.0008), (rf - 0.0008, a1 - 0.0002),
+                 (0.0250, a1), (0.0175, a1), (G_COLLAR[0] + 0.0004, a1 + 0.0003), (G_COLLAR[0], a1 + 0.0008),
+                 (G_COLLAR[0], G_COLLAR[1] - 0.0006), (G_COLLAR[0] - 0.0006, G_COLLAR[1])):
+        out.append((a, "r", r))
+    return out
+
+
+def grip(s, right=False):
+    """Honda stock grip on one side (s: _Side): a closed rubber body from the end face to the bar (or the throttle
+    tube), its diamond fields as true pyramids (36 round, 2.5 mm diagonal), two ring grooves with beads, the end lip,
+    flange and collar; the underside's waffle ribs (two along it, the rings and two partial ribs across) on top."""
+    mat = "grip_rubber"
+    n = 2 * G_ROUND
+    th = np.arange(n) * 2 * math.pi / n
+    cs, sn = np.cos(th), np.sin(th)
+    band = (th > G_BAND[0] + 0.01) & (th < G_BAND[1] - 0.01)
+    rows = _rows()
+    rows.append((G_COLLAR[1] + 0.0001, "r", G_THROTTLE_R if right else 0.0114))      # onto the pipe / the bar
+    m = Mesh()
+    base = []
+    for a, kind, q in rows:
+        if kind == "p":
+            r = np.where((np.arange(n) + q) % 2 == 0, g_tip(a), g_tip(a) - G_DEPTH)
+            r = np.where(band, g_tip(a) - G_DEPTH - 0.0002, r)        # the smooth band under the grip
+        else:
+            r = np.full(n, q)
+        base.append(m.verts([s.p(a, ri * c, ri * si) for ri, c, si in zip(r, cs, sn)]))
+    for k in range(len(rows) - 1):
+        b0, b1 = base[k], base[k + 1]
+        pat = rows[k][1] == "p" and rows[k + 1][1] == "p"
+        fm = "grip_bead" if rows[k][1] == "b" and rows[k + 1][1] == "b" else mat
+        for i in range(n):
+            j = (i + 1) % n
+            q = (b0 + i, b0 + j, b1 + j, b1 + i)
+            if not pat:
+                m.face(q, fm)
+            elif (i + rows[k][2]) % 2 == 0:                  # corner i of row k is a tip: split along the valleys
+                m.face((q[0], q[1], q[3]), mat)
+                m.face((q[1], q[2], q[3]), mat)
+            else:
+                m.face((q[0], q[1], q[2]), mat)
+                m.face((q[0], q[2], q[3]), mat)
+    c = m.verts([s.p(rows[0][0])])                           # end face centre, recessed with its ring
+    for i in range(n):
+        m.face((base[0] + (i + 1) % n, base[0] + i, c), mat)
+    m = _outward_open(m, s)
+    # ---- underside waffle: ribs along at G_LONG, across at the rings and the partial ribs
+    w0, w1, hgt = G_RIB
+    lo = -G_FLOOR - 0.0003                                   # root below the groove floor, inside the body
+
+    sec = [(-w0 / 2, lo), (-w0 / 2, -G_DEPTH), (-w1 / 2, hgt - 0.0003), (-w1 / 2 + 0.0002, hgt),
+           (w1 / 2 - 0.0002, hgt), (w1 / 2, hgt - 0.0003), (w0 / 2, -G_DEPTH), (w0 / 2, lo)]    # (across, radial)
+    for z, (a0, a1) in enumerate(G_ZONES):                   # ribs along, from the end collar to the fillet
+        aa = (a0 + 0.0006 if z == 0 else G_RINGS[z - 1], G_PARTIAL[1] if z == 2 else G_RINGS[z])
+        for t in G_LONG:
+            e_r, e_t = np.array([math.cos(t), math.sin(t)]), np.array([-math.sin(t), math.cos(t)])
+            rings = [np.array([s.p(a, *((g_tip(a) + dr) * e_r + dt * e_t)) for dt, dr in sec])
+                     for a in np.linspace(aa[0], aa[1], 3)]
+            m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+    for c in list(G_RINGS) + list(G_PARTIAL):                # ribs across: partials over the whole lower arc (FRONTv,
+        prof = [(dt, dr) for dt, dr in sec]                  # lf34, rr34), the rings' beads rise into ribs only
+        t0, t1 = (G_LONG[1], G_LONG[0] + 2 * math.pi) if c in G_PARTIAL else G_BAND   # across the smooth band
+        tt = np.linspace(t0 - 0.046, t1 + 0.046, 48 if c in G_PARTIAL else 30)      # over the long ribs' width
+        rings = [np.array([s.p(c + da, *((g_tip(c) + dr) * np.array([math.cos(t), math.sin(t)])))
+                           for da, dr in prof]) for t in tt]
+        m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+    # ---- mould parting line across the flange's outboard face, front and rear (DET829: a fine line at mid-height),
+    # 0.4 mm wide, 0.12 mm proud of the flat face
+    for t in (0.0, math.pi):
+        e, e_t = np.array([math.cos(t), math.sin(t)]), np.array([-math.sin(t), math.cos(t)])
+        loop = [(0.0003, -0.0002), (0.0003, 0.0002), (-0.00012, 0.0002), (-0.00012, -0.0002)]
+        rings = [np.array([s.p(G_FLANGE[0] + da, *(r0 * e + dt * e_t)) for da, dt in loop])
+                 for r0 in (0.0220, G_FLANGE[2] - 0.0010)]
+        m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+    return m
+
+
+def _outward_open(m, s):
+    """Wind the grip body so its normals point away from the grip's axis (checked on the widest ring)."""
+    v = np.asarray(m.V, float)
+    for f in m.F[:200]:
+        q = v[list(f)]
+        nrm = np.cross(q[1] - q[0], q[2] - q[0])
+        c = q.mean(axis=0) - s.T
+        radial = c - (c @ s.d) * s.d
+        if np.linalg.norm(nrm) > 1e-12 and np.linalg.norm(radial) > 0.008:
+            if nrm @ radial < 0:
+                m.F = [tuple(reversed(f)) for f in m.F]
+            break
+    return m
 
 
 def bar_path():
@@ -380,7 +554,7 @@ def _lever(s, pts):
     """Forged lever blade through grip-frame points (a, f, u), ball end. FRONT: ball at |y| 0.389, z 1.18;
     TOP rows 685..865 and 1405..1540: blade 52 mm ahead of the grip at |y| 0.265, 70 at 0.345, 95 at the ball
     (offsets kept relative to the grip)."""
-    q = spline([s.p(*p) for p in pts], 26)
+    q = spline([s.p(a - s.shift * (1 - min(1.0, max(0.0, (a - 0.06) / 0.10))), f, u) for a, f, u in pts], 26)
     k = np.linspace(0, 1, len(q))
     rad = np.stack([np.interp(k, [0, 0.25, 1], [0.0060, 0.0042, 0.0036]),
                     np.interp(k, [0, 0.25, 1], [0.0080, 0.0068, 0.0052])], axis=1)
@@ -439,12 +613,8 @@ def bars():
                     + (rr[j] + 0.0004) * d / np.linalg.norm(d, axis=1, keepdims=True))
     m.add(_outward(grid(Mesh(), [bore[0]] + rings + [bore[1]], "barpad",
                         mats=["barpad", "pad_cap", "pad_cap", "barpad", "pad_cap", "pad_cap", "barpad"])))
-    # ---- both grips: FRONT flange at |y| 0.3115 (102 mm of y), 31 mm across; DET 475829
-    grip = [(R_GRIP, 0.0), (0.0165, 0.003), (0.0158, 0.009), (0.0155, 0.094), (0.0165, 0.0985), (0.0225, 0.0995),
-            (0.0225, 0.1035), (0.0165, 0.105), (0.0140, 0.106), (0.0114, 0.1063)]      # closes onto the bar
-    L, R = _Side(1), _Side(-1)
-    for s in (L, R):
-        m.add(rev(s.T, -s.d, grip, "grip", 24, cap0=True))
+    # ---- hand controls (the grips are their own part, grips())
+    L, R = _Side(1, CTRL_SHIFT[0]), _Side(-1, CTRL_SHIFT[1])
     # ---- left: switch cluster (DET 475829: blue, red and green buttons facing the rider) and its lead
     m.add(_block(L, 0.109, 0.131, 0.034, 0.040, "plastic_black", cf=-0.002, cu=0.003, r=0.008))
     for a, u, mat in ((0.114, 0.012, "btn_blue"), (0.126, 0.012, "btn_red"), (0.120, -0.004, "btn_green")):
@@ -509,7 +679,7 @@ def bars():
 
 
 def _clutch_adjuster():
-    s = _Side(1)
+    s = _Side(1, CTRL_SHIFT[0])
     return s.p(0.188, 0.036, -0.002), unit(-s.d + 0.25 * s.f)
 
 
@@ -517,11 +687,11 @@ THROTTLE_F = (-0.005, 0.005)                          # the two cables leave sid
 
 
 def _throttle_start(k):
-    return _Side(-1).p(0.168, THROTTLE_F[k], 0.029)
+    return _Side(-1, CTRL_SHIFT[1]).p(0.168, THROTTLE_F[k], 0.029)
 
 
 def _hose_start():
-    return _Side(-1).p(0.2365, 0.054, -0.019)
+    return _Side(-1, CTRL_SHIFT[1]).p(0.2365, 0.054, -0.019)
 
 
 # ================================================================ front brake
@@ -687,7 +857,7 @@ def clutch_path():
     w = unit(np.array([0.815, 0.074, 0.795]) - CLUTCH_JOIN)
     route = _engine("CLUTCH_CABLE")                      # the engine module's own route, from CLUTCH_JOIN to its last guide
     tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
-    pts = [a0 + 0.0466 * ad, a0 + 0.062 * ad, (1.045, 0.160, 1.205),      # leaves along the adjuster
+    pts = [a0 + 0.0466 * ad, a0 + 0.062 * ad, a0 + 0.085 * ad,            # leaves along the adjuster
            (1.058, 0.118, 1.190), fk(0.041, 0.095, 0.972),
            fk(0.042, 0.072, 0.968), fk(0.043, 0.060, 0.945), fk(0.040, 0.057, 0.915), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),
@@ -704,7 +874,7 @@ def throttle_paths():
     of it on a frame carried along the path (always square to it, so the cables stay 7.6 mm apart), turned
     evenly along the way so that they arrive side by side across the drum."""
     end = throttle_end()
-    sd = _Side(-1)
+    sd = _Side(-1, CTRL_SHIFT[1])
     pts = [sd.p(0.168, 0.0, 0.029), sd.p(0.200, 0.0, 0.030), sd.p(0.236, 0.004, 0.030),
            (1.035, -0.150, 1.238), (1.060, -0.100, 1.230), (1.066, -0.060, 1.2195), (1.066, 0.000, 1.206),
            (1.060, 0.055, 1.203), (1.048, 0.118, 1.199), (1.022, 0.118, 1.164), (0.989, 0.118, 1.134),
@@ -744,14 +914,25 @@ def cables():
     return m
 
 
-PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "front_brake": front_brake, "disc_guard": disc_guard,
-         "cables": cables}
+def grips():
+    """Both grips (the right one on the throttle tube)."""
+    m = Mesh()
+    m.add(grip(_Side(1)))
+    m.add(grip(_Side(-1), right=True))
+    return m
+
+
+PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "grips": grips, "front_brake": front_brake,
+         "disc_guard": disc_guard, "cables": cables}
 REPLACES = ["fork", "clamps", "bars", "cables", "disc_guard"]
-FRONT_END = ["fork", "clamps", "bars", "front_brake", "disc_guard"]
+FRONT_END = ["fork", "clamps", "bars", "grips", "front_brake", "disc_guard"]
 MATERIALS = {"btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
-             "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65)}
-CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black"}
-SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
+             "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
+             "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
+             "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
+CLASS = {"btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
+         "grip_bead": "black"}
+SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "grips": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
                      tilt=float(PAD_TILT))}
