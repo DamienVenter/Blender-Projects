@@ -667,7 +667,8 @@ def _arm_yo(s):
     """Outer face in plan: straight arm, then the pivot casting closes in to the boss inside the frame plates (their
     inner faces at 0.111 from x 0.50)."""
     s = np.asarray(s, float)
-    k = np.clip((s - S_WF) / (0.505 - S_WF), 0, 1)                    # inside 0.110 wherever the ring reaches x 0.499
+    k = np.clip((s - 0.492) / (0.507 - 0.492), 0, 1)                  # wide to the frame plate's edge (RIGHT: the casting
+    #                                                                   covers the shock there), inside 0.110 from x 0.499
     arm = Y_ARM_O[0] + (Y_ARM_O[1] - Y_ARM_O[0]) * np.clip((s - S_WR) / (S_WF - S_WR), 0, 1)
     return np.where(s < S_WF, arm, Y_ARM_O[1] + (0.1100 - Y_ARM_O[1]) * (3 * k ** 2 - 2 * k ** 3))
 
@@ -1299,59 +1300,109 @@ def footpegs():
 
 
 # ---------------------------------------------------------------- rear brake: pedal, master cylinder, hose
-def rear_brake():
+# RIGHT px (3.25x crop 1680..1990 x 1420..1620): the pedal's arm centre line from the pivot over the top of its arc
+# and down to the folding tip; its width square to that line (21 mm at the arc, 14 mm at the tip); the tip's pin
+PEDAL_LINE = [(1709.2, 1493.2), (1726.2, 1472.3), (1750.8, 1465.5), (1772.3, 1464.6), (1793.8, 1473.8),
+              (1812.3, 1493.8), (1840.0, 1512.3), (1870.8, 1523.1), (1901.5, 1530.8), (1926.2, 1532.3),
+              (1950.8, 1529.2)]
+PEDAL_W = (0.021, 0.021, 0.021, 0.021, 0.0205, 0.020, 0.019, 0.017, 0.015, 0.014, 0.014)
+MC_Y = -0.1345                               # EST: the master cylinder's line, outboard of the swingarm's front casting
+
+
+def _toe(pin):
+    """Folding tip: two side cheeks and a serrated tread between them on a pin through the arm's end (RIGHT px
+    1932..1975 x 1508..1537: 32 mm long, 22 mm tall, five teeth; TOP rows 922..955: y -0.161..-0.193)."""
     m = Mesh()
-    piv = _px("right", 1706, 1493, "y", -0.143)                 # RIGHT zoom: pedal pivot bolt
-    piv[1] = -(Y_PLATE + 0.0002)
-    m.add(turned(piv, -Y3, [(0, 0.014), (0.0125, 0.013)], "alu_cast", 20))
-    m.add(bolt(piv - 0.0122 * Y3, -Y3, af=0.017, head_h=0.006, mat="steel", kind="cap"))
-    # arm: cast boomerang under the pivot nut and over the clutch cover's lower edge to the toe piece
-    # (RIGHT zoom, middle of the arm; TOP: tip at px (2045,932), arm from row 955 to row 975)
-    arm = [piv - 0.0065 * Y3] + [_px("right", u, v, "y", y) for u, v, y in
-                                 ((1720, 1478, -0.1445), (1734.7, 1468, -0.1455), (1755.4, 1466, -0.147), (1796.7, 1478.3, -0.150),
-                                  (1838, 1507.2, -0.154), (1862.9, 1530, -0.157), (1915, 1541, -0.160), (1944, 1545, -0.161))]
-    ap = spline(arm, 26)
-    m.add(bar(ap, 0.009, np.linspace(0.024, 0.013, len(ap)), "alu_cast"))
-    tip = ap[-1]
-    # toe piece: ribbed block across the arm's end (TOP rows 922..955: y -0.161..-0.193)
-    tp = [(0.001, -0.005), (0.015, -0.005), (0.015, 0.004)]
-    for k in range(4):
-        tp += [(0.0125 - 0.0055 * k, 0.007), (0.0098 - 0.0055 * k, 0.004)]
-    tp += [(-0.007, 0.004), (-0.007, -0.005)]
-    m.add(slab(np.array(tp) + (tip[0], tip[2]), -0.1775, 0.032, "steel", r=0.0012, step=0.004, to=_xz))
-    # rear lever to the master cylinder's clevis (RIGHT px (1635,1505)), push rod, boot, body with the reservoir on
-    # top (RIGHT px 1623..1652 x 1370..1445, top at px (1600,1295)), two bolts into the plate's rear edge
-    pin = _px("right", 1635.5, 1505, "y", -0.129)
+    x0, z0 = pin[0], pin[2]
+    prof = [(-0.008, -0.009), (0.024, -0.006), (0.026, 0.004), (0.024, 0.010)]
+    for k in range(5):                                            # teeth along the top, rearmost first
+        xt = 0.020 - 0.0055 * k
+        prof += [(xt, 0.013), (xt - 0.0022, 0.013), (xt - 0.0028, 0.010)]
+    prof += [(-0.010, 0.010), (-0.012, 0.000)]
+    o = np.array(prof) + (x0, z0)
+    for ya, yb in ((-0.1610, -0.1640), (-0.1900, -0.1930)):
+        m.add(slab(o, (ya + yb) / 2, abs(yb - ya), "alu_cast", r=0.0008, step=0.004, to=_xz))
+    tread = np.array([p for p in prof if p[1] >= 0.010] + [(0.024, 0.006), (-0.010, 0.006)])
+    m.add(slab(tread + (x0, z0), -0.1770, 0.0258, "alu_cast", r=0.0008, step=0.004, to=_xz))
+    m.add(turned((x0, -0.1595, z0), -Y3, [(0, 0.0045), (0.0012, 0.0045), (0.0015, 0.003), (0.0355, 0.003)], "steel", 16))
+    m.add(turned((x0, -0.1938, z0), -Y3, [(0, 0.0032), (0.0012, 0.0032)], "steel", 12))           # retaining washer
+    return m
+
+
+def rear_brake():
+    """Rear brake pedal, master cylinder and its fittings (part brake_pedal): the cast arm from the photo's line,
+    its round pivot boss on an M8 socket bolt, the folding tip; the rear lever to the push rod's clevis, the rubber
+    boot, the cylinder body with its integral reservoir and cap, two mounting bolts, the banjo and the hose's first
+    bend (the hose along the swingarm is detail_wheels.py's), the return spring."""
+    m = Mesh()
+    piv = _px("right", 1709.2, 1493.2, "y", -0.150)                # the boss: round, 25 mm (17 px radius)
+    piv[1] = -0.1414                                               # on the footpeg bracket's outer face (0.141)
+    m.add(turned(piv, -Y3, [(0, 0.0001), (0, 0.0122), (0.0006, 0.0127), (0.0114, 0.0127), (0.012, 0.0121), (0.012, 0.0001)],
+                 "alu_cast", 32))
+    head = piv - 0.0121 * Y3                                       # M8 socket cap screw, 13 mm head, 6 mm hex
+    m.add(lathe2(head, -Y3, [(0.0, 0.0001), (0.0, 0.0065), (0.0072, 0.0065), (0.0080, 0.0058), (0.0080, 1.0, 0.006),
+                             (0.0050, 1.0, 0.006), (0.0047, 0.0001)], "anod_black", 36, cap0=True, cap1=True))
+    # arm: cast, 9 mm thick, its width from the photo; its plane moves out 13 mm to the tip (TOP rows 955..975)
+    ys = np.linspace(-0.1470, -0.1600, len(PEDAL_LINE))
+    pts = np.array([_px("right", u, v, "y", y) for (u, v), y in zip(PEDAL_LINE, ys)])
+    pts[:, 1] = ys
+    path = spline(pts, 40)
+    w = np.interp(np.linspace(0, 1, 40), np.linspace(0, 1, len(PEDAL_W)), PEDAL_W)
+    m.add(bar(path, 0.0090, w, "alu_cast"))
+    m.add(_toe(pts[-1]))
+    # rear lever from the boss to the push rod's clevis (RIGHT px (1640, 1505)), a tab for the spring
+    pin = _px("right", 1640, 1505, "y", MC_Y)
     lever_mid = (piv + pin) / 2 + (0, -0.003, 0.004)
-    m.add(bar([piv - 0.0065 * Y3, lever_mid, pin], 0.007, (0.022, 0.016, 0.014), "alu_cast"))
-    m.add(box(pin + (0, 0, 0.004), (0.011, 0.013, 0.020), "steel"))
-    m.add(bolt(pin - 0.0063 * Y3, -Y3, af=0.008, head_h=0.004))
-    a0, a1 = np.array([0.4765, -0.128, 0.468]), np.array([0.4525, -0.128, 0.585])
+    m.add(bar([piv - 0.0065 * Y3, lever_mid, pin + (0.0, 0.0, -0.006)], 0.007, (0.022, 0.016, 0.012), "alu_cast"))
+    for sg in (-1, 1):                                             # clevis cheeks astride the lever's eye
+        cc = pin + (0.0, sg * 0.0055, 0.004)
+        m.add(box(cc, (0.010, 0.0022, 0.022), "zinc"))
+    m.add(turned(pin - 0.0075 * Y3, Y3, [(0, 0.0032), (0.0012, 0.0032), (0.0012, 0.002), (0.0152, 0.002)], "zinc", 12))
+    m.add(tube([pin + (0, 0.0072, -0.0015), pin + (0, 0.0072, 0.0015)], 0.0006, 6, "steel"))      # split pin
+    top_c = pin + (0.0, 0.0, 0.015)
+    m.add(box(top_c, (0.010, 0.013, 0.006), "zinc"))
+    # push rod, lock nut, boot (three convolutions), body, reservoir block and cap (RIGHT px 1595..1650 x 1290..1505)
+    a0 = _px("right", 1640, 1452, "y", MC_Y)
+    a1 = _px("right", 1615, 1290, "y", MC_Y)
     d = (a1 - a0) / np.linalg.norm(a1 - a0)
-    m.add(tube([pin + (0, 0.001, 0.008), a0 + d * 0.004], 0.003, 8, "steel"))
-    m.add(turned(a0, d, [(0.0, 0.006), (0.004, 0.0095), (0.020, 0.0095), (0.022, 0.006)], "rubber_black", 14))
-    m.add(turned(a0, d, [(0.021, 0.0125), (0.076, 0.0125), (0.079, 0.0165), (0.112, 0.0165)], "alu_cast", 18))
-    m.add(turned(a0, d, [(0.112, 0.0175), (0.1185, 0.0175), (0.1195, 0.015)], "plastic_black", 18))
-    for sb in (0.032, 0.066):                                   # mounting ears, 0.2 mm off the plate's face
-        b = a0 + d * sb
-        ear = np.array([(0.519, b[2] + 0.008), (b[0] - 0.006, b[2] + 0.008), (b[0] - 0.006, b[2] - 0.008), (0.519, b[2] - 0.008)])
-        m.add(slab(ear, -(Y_PLATE + 0.0027), 0.005, "alu_cast", r=0.001, step=0.005, to=_xz))
-        m.add(bolt((0.509, -(Y_PLATE + 0.0049), b[2]), -Y3, af=0.010, head_h=0.005))
-    # pressure hose: banjo on the body, along the right arm in two clips (RIGHT px (1404,1466)), up to the caliper
-    bj = a0 + d * 0.030 + np.array([-0.0122, 0, 0])
-    m.add(bolt(bj, (-1, 0, 0.15), af=0.012, head_h=0.006))
-    hose = spline([bj + (-0.004, 0, 0), (0.440, -0.118, 0.497), (0.400, -0.110, float(_arm_top(0.40)) + 0.014),
-                   (0.297, -0.108, float(_arm_top(0.297)) + 0.0125), (0.200, -0.108, float(_arm_top(0.20)) + 0.012),
-                   (0.130, -0.105, float(_arm_top(0.13)) + 0.016), (0.092, -0.100, 0.436)], 40)
-    m.add(tube(hose, 0.0042, 8, "rubber_black"))
-    m.add(turned(hose[-1], (0, -1, 0), [(-0.003, 0.0065), (0.003, 0.0065)], "bolt", 12))
-    hd = np.gradient(hose, axis=0)
-    for x in (0.297, 0.170):
-        i = int(np.argmin(np.abs(hose[:, 0] - x)))
-        hpnt, tg = hose[i], hd[i] / np.linalg.norm(hd[i])
-        m.add(hollow(hpnt - tg * 0.006, tg, 0.0075, 0.0044, 0.012, "plastic_black", 12))
-        z0, z1 = float(_arm_top(hpnt[0])) + 0.0012, hpnt[2] - 0.0065
-        m.add(box((hpnt[0], hpnt[1], (z0 + z1) / 2), (0.006, 0.010, z1 - z0), "plastic_black"))
+    m.add(turned(top_c + d * 0.003, d, [(0, 0.0035), (np.linalg.norm(a0 - top_c) + 0.004, 0.0035)], "zinc", 10))
+    m.add(hexnut(top_c + d * 0.004, d, 0.010, 0.004, 0.0036, "zinc", seg=24))
+    bel = [(0.0, 0.0040), (0.002, 0.0072)]
+    for k in range(3):
+        bel += [(0.004 + 0.006 * k, 0.0098), (0.007 + 0.006 * k, 0.0080)]
+    bel += [(0.022, 0.0098), (0.025, 0.0110)]
+    m.add(turned(a0, d, bel, "rubber_black", 20))
+    body = [(0.024, 0.0124), (0.026, 0.0128), (0.070, 0.0128), (0.072, 0.0124)]
+    m.add(turned(a0, d, body, "alu_cast", 28))
+    rc = a0 + d * 0.093
+    res = rounded_rect(0.040, 0.028, 0.006, 4)                    # reservoir: 40 x 28 mm in plan, 42 tall
+    ring = lambda h, k: np.array([rc + d * h + np.array([p[0] * k, p[1] * k, 0.0]) for p in res])
+    m.add(grid(Mesh(), [ring(-0.021, 0.92), ring(-0.019, 1.0), ring(0.019, 1.0), ring(0.021, 0.95)], "alu_cast", cap0=True,
+               cap1=True))
+    cap = [ring(0.021, 0.95), ring(0.0212, 0.97), ring(0.0262, 0.97), ring(0.0272, 0.90)]
+    m.add(grid(Mesh(), cap, "plastic_black", cap0=False, cap1=True))
+    for sx in (-1, 1):                                            # the cap's two screws
+        m.add(lathe2(rc + d * 0.0270 + np.array([sx * 0.013, 0.0, 0.0]), d, [(0, 0.0001), (0, 0.0028), (0.0016, 0.0025),
+                                                                               (0.0018, 0.001), (0.0012, 0.0001)], "steel", 16,
+                     cap0=True, cap1=True))
+    # mounting: two bosses on the body's front to a tab on the frame plate's rear edge (RIGHT px (1655,1318),
+    # (1652,1382)), flange bolts M6 heads outward
+    for (u, v) in ((1655, 1318), (1652, 1382)):
+        b = _px("right", u, v, "y", -0.1395)
+        boss = np.array([(a0[0] + (b[2] - a0[2]) / d[2] * d[0] - 0.004, b[2] + 0.007),
+                         (b[0] + 0.007, b[2] + 0.007), (b[0] + 0.007, b[2] - 0.007),
+                         (a0[0] + (b[2] - a0[2]) / d[2] * d[0] - 0.004, b[2] - 0.007)])
+        m.add(slab(boss, MC_Y - 0.0005, 0.010, "alu_cast", r=0.0015, step=0.004, to=_xz))
+        m.add(hexbolt((b[0], MC_Y - 0.0056, b[2]), -Y3, 0.008, 0.0055, flange_d=0.0125, flange_h=0.0012, mat="zinc", seg=36))
+    tab = np.array([(0.4835, 0.5105), (0.5030, 0.5105), (0.5030, 0.5775), (0.4835, 0.5775)])
+    m.add(slab(tab, MC_Y + 0.0060, 0.0020, "alu_frame", r=0.0006, step=0.004, to=_xz))
+    # banjo on the body's rear (RIGHT px (1595, 1345)) and the hose's first bend down toward the swingarm
+    bj = _px("right", 1595, 1345, "y", MC_Y)
+    bj[0] = a0[0] + (bj[2] - a0[2]) / d[2] * d[0] - 0.0128 - 0.004
+    m.add(turned(bj, (-1, 0, 0), [(0, 0.0001), (0, 0.0075), (0.008, 0.0075), (0.008, 0.0001)], "steel", 20))     # banjo
+    m.add(hexbolt(bj + np.array([0.0, -0.0075, 0.0]), -Y3, 0.012, 0.006, mat="steel", seg=36))
+    hose = spline([bj + (-0.004, 0.0, 0.0), bj + (-0.012, 0.004, -0.012), (0.452, -0.100, 0.505), (0.468, -0.088, 0.513)], 16)
+    m.add(tube(hose, 0.0042, 10, "cable"))
     # return spring from the lever's tab down to the bracket's rear edge (RIGHT px (1654,1522) to (1697,1547))
     sa, sb = _px("right", 1654, 1522, "y", -0.131), _px("right", 1697.5, 1546.6, "y", -0.131)
     m.add(coil(sa, sb, 0.0045, 0.0008, 13, "steel", seg=6, dead=0, per=12))

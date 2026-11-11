@@ -136,3 +136,26 @@ Still different: the cap's edge in REAR crosses the can 1 to 2 cm higher than th
 it is lower at the bottom); the dent along the can's top (the old pass's drop under the side panel's inner wall)
 shows where the panel ends; the mount (strap, grommet, collar, bolt) is hidden under the side panel in every photo
 and stays the old EST strap; the header and its clamps were not reworked in this pass.
+
+## 8. Rear brake pedal and master cylinder (part `brake_pedal`)
+Anatomy: a cast aluminium pedal: a round boss on an M8 socket screw, the arm rising in an arc over the pivot and
+sweeping down past the clutch cover to a folding serrated tip on a pin; behind the pivot a short lever to the push
+rod's clevis (cheeks, pin, split pin), the push rod with its lock nut, a rubber boot of three convolutions, the
+cylinder body, the reservoir cast on top with a black cap and two screws, two mounting bosses bolted to a tab on
+the frame plate's rear edge, the banjo on the body's rear with the hose's first bend, the return spring.
+References: RIGHT 1560..1980 x 1260..1600 and a 3.25x crop 1680..1990 x 1420..1620; fiche K95CF1500, K95CF2900.
+Numbers: pedal line (11 points, PEDAL_LINE) and its width (21 mm at the arc, 14 at the tip, PEDAL_W) read square to
+the line; boss 25 mm (17 px radius); socket head 13 mm (18.5 px); tip 32 x 22 mm, five teeth (RIGHT px 1932..1975 x
+1508..1537); y of the arm and tip from the old pass's top-photo reading (arm -0.1445..-0.161, tip -0.161..-0.193).
+Master cylinder from RIGHT px: boot's foot (1640, 1452), reservoir top (1615, 1290), clevis pin (1640, 1505), banjo
+(1595, 1345), mounting bolts (1655, 1318) and (1652, 1382), all cast on the cylinder's line y -0.1345 (EST: 6.5 mm
+further out than before, clear of the swingarm's front casting, which the photo shows wide up to the frame plate).
+Built: new `rear_brake()` (part `brake_pedal`), `_toe()`. The part's own long hose was removed: detail_wheels.py's
+`rear_brake` already draws the hose from the caliper's banjo along the arm to (0.47, -0.086, 0.515) by the
+cylinder; this part's hose now only leaves the banjo and turns down to meet it there. (Who owns the hose: the brief
+gives it to this module; the coordinator should keep one of the two.)
+Checks: p1/p2 pair sheets (right). Audit before this pass: the cylinder's clevis cut the swingarm 3.2 mm and the two
+hoses crossed (3.3 mm): both addressed here; re-audit at the end.
+Still different: the cylinder body is a plain cylinder (the photo's casting has a flat face with cast lettering and
+ribs); the photo's reservoir is narrower front to back; the pedal's arm is a swept rounded bar, the photo's has a flat
+face with a ridge; the pedal stop bolt and the brake light switch (none on this bike) are not modelled.
