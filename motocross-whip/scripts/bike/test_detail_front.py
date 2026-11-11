@@ -78,7 +78,13 @@ def test_grip_diameters_flange_and_rings(built):
 
 
 def test_overall_height_is_1262_mm_at_the_bars(built):
-    assert abs(ground(verts(built["bars"]))[:, 2].max() - 1.262) < 0.008                 # SPEC overall height
+    bar = np.vstack([verts(built["bars"], "bar_black"), verts(built["grips"])])
+    assert abs(ground(bar)[:, 2].max() - 1.262) < 0.008                                  # SPEC overall height
+
+
+def test_throttle_hood_top_is_the_rear_photo_s():
+    top = np.asarray(df.throttle_housing().V, float)[:, 2].max()
+    assert abs(top - 1.2488) < 0.002          # REAR photo: hood's top edge cast on its own x plane, cols 2290..2330
 
 
 def test_fork_tubes_spacing_and_diameters(built):

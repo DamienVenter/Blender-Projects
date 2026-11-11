@@ -185,3 +185,50 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
 - DET835 shows about 15 mm of each base below the pad, the model hides it: the photo's pad stands higher over a
   bulkier top clamp whose top face lies well under the fork caps (the model's clamp is a thin plate with box pinch
   lugs). The clamp's shape is part of component 9 (fork tops); the holder heights follow the model's clamp.
+
+## 4. Throttle housing (fiche K95CF0400: pipe 7, housings 11 / 12, screws 21, cables 1)
+
+### Anatomy
+- Round black body over the throttle pipe's flange right inboard of the grip's flange, a narrower collar clamping
+  the bar, the parting seam of the two halves, two black M5 socket screws on the rear face (top and bottom).
+- Cable hood: one thick black tube rising beside the grip's flange in a wide arc and running inboard along the top
+  of the bar; a smooth tapered rubber boot over its end with a ring at the hood end, a short spout for each cable.
+- The two cables leave the boot level along the top-rear of the bar; the pull cable carries a bright crimped ferrule,
+  a lock nut and a black ribbed in-line adjuster; the cables part slightly round it.
+- The throttle pipe shows as a thin dark ring between the grip's mouth and the housing.
+
+### References
+- DET830 (475830) crop 0..2600 x 700..1950 (`ref/d830_controls.jpg`): hood, boot, screws, ferrule and adjuster.
+- rf34 1900..2120 x 280..420 and ruler crop `ref/rul_rf34_R.jpg`; REAR 2230..2420 x 170..300 (hood arc, screws,
+  body height); TOP `ref/rul_top_R.jpg` (positions along the bar; the cables behind the bar, down behind the pad).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Body | a 126.3..149, radius 25 mm; collar to 156.5, radius 17.5 | TOP (black from a 122 after the flange to 156); REAR pair 360 px tall where the grip's 29 mm is 210 px |
+| Hood | centre line from a 135.5 (beside the flange) up to 38 mm over the axis, radius 8.5 mm | REAR pair; hood top cast on its own x plane: z 1.2488 (model 1.2499) |
+| Boot | a 163..204, 21 mm at the ring, 16 mm at the mouth | REAR pair x 220..540, DET830 |
+| Screws | M5 socket, 8 mm heads, f -17.5, u +-13.5 at a 140 | DET830, REAR pair (positions within 3 px) |
+| Adjuster | ferrule 32..44 mm out of the boot, nut, ribbed body 48..82 mm, 11.6 mm across the ribs | DET830 (ferrule 60 px, adjuster 180 px against the 41 mm boot's 200 px) |
+
+### What was built
+- `throttle_housing()` (in the bars part): pipe ring, revolved body and collar, seam strips, screw bosses and two
+  `fastener()` socket screws (new material `bolt_black`), the hood swept along `HOOD`, its collar, the boot with its
+  ring and two spouts. `throttle_paths()` now start at the spouts, run level along the top-rear of the bar, down
+  behind the pad's right end close behind the top clamp and ahead of the tank, then the earlier route to the drum;
+  `cables()` adds the ferrule, nut and ribbed adjuster on the pull cable.
+- Test: `test_throttle_hood_top_is_the_rear_photo_s`; the SPEC 1262 mm height test now measures the bar and grips
+  (the hood stands 12 mm above it in Honda's photos).
+
+### Checks
+- Pairs: `chk/p8_rf34_st.jpg`, `p8_rear_st.jpg` (hood too small and too central, boot ribbed: fixed),
+  `p9_rear_st.jpg` (hood arc and screws within 2 to 3 px), `p9_rf34_st.jpg`.
+- Close-ups beside DET830: `chk/t10.jpg`, `t11.jpg` (spouts and adjuster added after t10).
+- Audit: the hood first reached into the grip's collar (5.8 mm), the cables kinked into the boot (2 mm) and hit the
+  tank behind the pad (3.1 mm): all fixed; no clash on these parts now.
+
+### Still different
+- DET830's boot is a little fatter than the hood and its cable necks longer; the model's mouth is a plain lip with
+  two short spouts.
+- The housing's lower inboard lobe seen in REAR (it reaches 4 mm lower) is not modelled.
+- The cable route below the pad is provisional (component 8).

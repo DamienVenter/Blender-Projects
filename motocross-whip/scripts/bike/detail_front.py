@@ -824,17 +824,8 @@ def bars():
     m.add(cyl(a0, a0 + 0.007 * ad, 0.009, "anod_black", 16, 0.001))
     m.add(cyl(a0 + 0.007 * ad, a0 + 0.022 * ad, 0.0055, "steel", 12))
     m.add(rev(a0 + 0.022 * ad, ad, [(0.0062, 0.0), (0.0058, 0.008), (0.0042, 0.024)], "rubber_black", 12, cap1=True))
-    # ---- right: throttle housing (FRONT col 1620: black z 1.185..1.247 at y -0.283; DET 475830) and elbows
-    m.add(_block(R, 0.107, 0.138, 0.040, 0.044, "plastic_black", cf=0.002, cu=0.002, r=0.012))
-    m.add(cyl(R.p(0.107), R.p(0.121), 0.0245, "plastic_black", 24, 0.003))
-    for k in (0, 1):
-        g, ge = 0.004 + 0.008 * k, THROTTLE_F[k]
-        m.add(sweep([R.p(0.124, g, 0.016), R.p(0.127, g, 0.0245), R.p(0.137, (g + ge) / 2, 0.028),
-                     R.p(0.156, ge, 0.029)], 0.0032, "steel", 8))
-        b0, tp = R.p(0.156, ge, 0.029), throttle_paths()[k]        # the boot stops 0.3 mm short of the cable's end
-        ax = unit(tp[0] - b0)                                      # (whose first ring is square to the cable)
-        gap = 0.0003 + 0.0035 * math.sqrt(max(0.0, 1.0 - float(unit(tp[1] - tp[0]) @ ax) ** 2))
-        m.add(cyl(b0, tp[0] - gap * ax, 0.0048, "rubber_black", 10))
+    # ---- right: throttle housing, cable hood and boot (component 4)
+    m.add(throttle_housing())
     # ---- right: start button and its lead
     m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
     m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
@@ -865,6 +856,76 @@ def bars():
     m.add(cyl(R.p(0.2365, 0.034, -0.009), _hose_start() + 0.0008 * unit(_hose_start() - R.p(0.2365, 0.034, -0.009)),
               0.0040, "steel", 10))
     return m
+
+
+# ---- throttle housing (fiche K95CF0400: throttle pipe 7, housing upper 11 and lower 12, screws 21)
+TH_A = (0.1263, 0.1490, 0.1565)    # outboard face, step to the clamp collar, inboard face (a): TOP widest black after
+#   the grip's flange from a 122, the collar round the bar to 156 (rul_top_R); rf34 the same order
+TH_R = (0.0250, 0.0175)       # body and collar radii: REAR pair (p8_rear) body 360 px tall where the grip's 29 mm is
+#   210 px -> 50 mm; collar EST
+HOOD = [(0.1355, -0.004, 0.012), (0.1355, -0.004, 0.0245), (0.1395, -0.004, 0.0335), (0.1480, -0.004, 0.0378),
+        (0.1630, -0.004, 0.0380)]  # cable hood (a, f, u): rises right beside the grip's flange in one wide arc and
+#   runs inboard along the top of the bar 38 mm over its axis (REAR pair: top 46 mm over the grip's axis, the straight
+#   run 38; rf34; TOP on the bar a 122..165; DET830 a thick curved black tube)
+HOOD_R = 0.0085               # REAR pair: the hood about 0.6 of the grip's thickness
+BOOT = (0.1630, 0.2040)       # smooth tapered boot over the cable ends, a ring at its hood end (REAR pair x 220..540,
+#   DET830, rf34)
+TH_SCREW = ((0.1400, -0.0175, 0.0135), (0.1400, -0.0175, -0.0135))   # the two clamp screws on the rear face, top and
+#   bottom (DET830: black socket heads), M5, EST positions
+
+
+def throttle_housing():
+    """Honda two-cable throttle housing on the right bar: round body over the throttle pipe's flange with its parting
+    seam, clamp collar, two black socket screws from behind, the cable hood rising from its top and running inboard,
+    and the ribbed rubber boot from which the two cables leave (their adjuster rides on the pull cable, cables())."""
+    s = _Side(-1)
+    m = Mesh()
+    pipe = "plastic_black"
+    # throttle pipe (7) between the grip's collar and the housing (shows as a thin dark ring)
+    m.add(rev(s.T, -s.d, [(G_THROTTLE_R - 0.0001, G_COLLAR[1] - 0.0006), (G_THROTTLE_R - 0.0001, TH_A[0] + 0.001)],
+              pipe, 32))                                            # (inside the grip's mouth, which closes on it)
+    a0, a1, a2 = TH_A
+    r0, r1 = TH_R
+    prof = [(G_THROTTLE_R + 0.0004, a0), (r0 - 0.003, a0), (r0 - 0.0008, a0 + 0.0004), (r0, a0 + 0.0022),
+            (r0, a1 - 0.0025), (r0 - 0.001, a1 - 0.0005), (r0 - 0.0025, a1), (r1 + 0.001, a1), (r1, a1 + 0.0008),
+            (r1, a2 - 0.0012), (r1 - 0.0012, a2), (BAR_R[1] + 0.0003, a2)]
+    m.add(rev(s.T, -s.d, prof, "plastic_black", 48))
+    # parting seam of the two halves (11 / 12): a fine groove line front and rear at mid-height, as a dark strip
+    for f0 in (1, -1):
+        for a_, r_ in (((a0 + 0.0025, a1 - 0.003), r0), ((a1 + 0.001, a2 - 0.0015), r1)):
+            q = [s.p(x, f0 * (r_ + 0.00005), z) for x in a_ for z in (-0.0003, 0.0003)]
+            mm = Mesh()
+            i = mm.verts(q)
+            mm.face((i, i + 1, i + 3, i + 2) if f0 > 0 else (i, i + 2, i + 3, i + 1), "rubber_black")
+            m.add(mm)
+    # clamp screws (21): M5 socket heads, black, on bosses
+    for a_, f_, u_ in TH_SCREW:
+        c = s.p(a_, f_, u_)
+        ax = -s.f
+        m.add(cyl(c + 0.004 * s.f, c, 0.0055, "plastic_black", 20, 0.0006))
+        m.add(fastener(c, ax, "socket", af=0.0080, h=0.0045, recess=0.004, mat="bolt_black"))
+    # hood: one thick curved tube, its end a collar the boot pulls over
+    hp = [s.p(*q) for q in HOOD]
+    m.add(sweep(hp, HOOD_R, "plastic_black", 20))
+    e, ed = hp[-1], unit(hp[-1] - hp[-2])
+    m.add(cyl(e - 0.002 * ed, e + 0.0015 * ed, HOOD_R + 0.0007, "plastic_black", 20, 0.0005))
+    # boot: a raised ring over the hood's collar, then a smooth taper to a lip round the two cables
+    L = BOOT[1] - BOOT[0]
+    prof = [(HOOD_R + 0.0005, -0.0015), (HOOD_R + 0.0016, -0.0010), (HOOD_R + 0.0018, 0.0020),
+            (HOOD_R + 0.0010, 0.0030), (HOOD_R + 0.0006, 0.0060), (0.0084, L * 0.55), (0.0078, L - 0.0025),
+            (0.0082, L - 0.0018), (0.0082, L - 0.0006), (0.0079, L)]
+    b0 = s.p(BOOT[0], HOOD[-1][1], HOOD[-1][2])
+    m.add(rev(b0, -s.d, prof, "rubber_black", 24, cap1=True))
+    for sg in (1, -1):                                   # a short spout for each cable (DET830)
+        c0 = b0 - (L - 0.001) * s.d + sg * THR_GAP * s.f
+        m.add(rev(c0, -s.d, [(0.0047, 0.0), (0.0044, 0.003), (0.0043, 0.0050), (0.0040, 0.0055)], "rubber_black", 16,
+                  cap1=True))
+    return m
+
+
+def throttle_boot_end():
+    """Centre of the boot's end, where the two cables leave it."""
+    return _Side(-1).p(BOOT[1], HOOD[-1][1], HOOD[-1][2])
 
 
 def _clutch_adjuster():
@@ -1063,12 +1124,12 @@ def throttle_paths():
     of it on a frame carried along the path (always square to it, so the cables stay 7.6 mm apart), turned
     evenly along the way so that they arrive side by side across the drum."""
     end = throttle_end()
-    sd = _Side(-1, CTRL_SHIFT[1])
-    pts = [sd.p(0.168, 0.0, 0.029), sd.p(0.200, 0.0, 0.030), sd.p(0.236, 0.004, 0.030),
-           (1.035, -0.150, 1.238), (1.060, -0.100, 1.230), (1.066, -0.060, 1.2195), (1.066, 0.000, 1.206),
-           (1.060, 0.055, 1.203), (1.048, 0.118, 1.199), (1.022, 0.118, 1.164), (0.989, 0.118, 1.134),
-           (0.978, 0.105, 1.108),                     # round the pad's left end and under its rear lower corner
-           (0.974, 0.062, 1.101), (0.983, 0.038, 1.039), (0.995, 0.014, 0.974), (0.995, 0.003, 0.907),
+    sd = _Side(-1)
+    b = throttle_boot_end()                          # out of the boot along the top-rear of the bar (TOP, DET830),
+    pts = [b + 0.0050 * (-sd.d), sd.p(BOOT[1] + 0.016, -0.005, 0.0372), sd.p(0.250, -0.010, 0.0355),
+           sd.p(0.282, -0.016, 0.0345), fk(-0.075, -0.098, 0.985),           # level out of the boot (REAR pair) (0.972, -0.075, 1.120),   # down behind the pad's
+           (0.976, -0.040, 1.103), (0.986, -0.010, 1.045), (0.995, 0.000, 0.974),             # right end (TOP, DET835),
+           (0.995, 0.003, 0.907),                                     # close behind the top clamp, ahead of the tank
            (0.996, -0.006, 0.840), (0.953, -0.019, 0.805), (0.902, -0.028, 0.784), (0.845, -0.031, 0.783),
            (0.789, -0.035, 0.781), end + np.array([0.030, 0.0, 0.004]), end]
     c = spline(pts, 260)
@@ -1083,8 +1144,13 @@ def throttle_paths():
     turn = min((math.atan2(sgn * (Y @ bn), sgn * (Y @ n[-1])) for sgn in (1, -1)), key=abs)
     ang = turn * arc / arc[-1]
     n = np.cos(ang)[:, None] * n + np.sin(ang)[:, None] * np.cross(t, n)
-    g = np.interp(arc, [0.0, 0.06], [THROTTLE_F[1], 0.0038])[:, None]
-    return [c - g * n, c + g * n]
+    g = np.interp(arc, [0.0, 0.020, 0.030, 0.090, 0.120], [THR_GAP, THR_GAP, 0.0050, 0.0050, THR_GAP])[:, None]
+    return [c - g * n, c + g * n]                # they part round the pull cable's adjuster (DET830)
+
+
+THR_GAP = 0.0038              # the two throttle cables' centres either side of their common line (7 mm cables)
+THR_ADJ = (0.032, 0.044, 0.048, 0.082)   # along the pull cable from the boot (m): crimped ferrule, lock nut, ribbed
+#   adjuster body: DET830 ferrule 60 px and adjuster 180 px where the 41 mm boot is 200 px, 32 mm out of the boot
 
 
 def cables():
@@ -1098,8 +1164,22 @@ def cables():
     d = unit(q[i + 1] - q[i - 1])
     m.add(cyl(q[i] - 0.016 * d, q[i] + 0.016 * d, 0.0058, "steel", 12, 0.001))          # in-line adjuster
     m.add(cyl(q[i] + 0.016 * d, q[i] + 0.030 * d, 0.0052, "rubber_black", 10, 0.001))
-    for q in throttle_paths():
+    for k, q in enumerate(throttle_paths()):
         m.add(tube(q, 0.0035, 8, "cable"))
+        if k == 1:                                       # the pull cable's in-line adjuster (DET830)
+            arc = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(q, axis=0), axis=1))])
+            at = lambda d: np.array([np.interp(d, arc, q[:, j]) for j in range(3)])
+            f0, f1, n0, a1 = THR_ADJ
+            p0, p1 = at(f0), at(f1)
+            m.add(cyl(p0, p1, 0.0042, "alu_machined", 16, 0.0006))                       # bright crimped ferrule
+            m.add(fastener(at(f1), at(n0) - at(f1), "hex", af=0.010, h=n0 - f1, mat="anod_black"))   # lock nut
+            ax = unit(at(a1) - at(n0))
+            prof = [(0.0040, 0.0)]
+            for i in range(7):                                                          # knurled ribs
+                z = 0.003 + i * (a1 - n0 - 0.006) / 6
+                prof += [(0.0053, z - 0.0012), (0.0058, z - 0.0005), (0.0058, z + 0.0005), (0.0053, z + 0.0012)]
+            prof += [(0.0050, a1 - n0 - 0.001), (0.0040, a1 - n0)]
+            m.add(rev(at(n0), ax, prof, "anod_black", 16))
     return m
 
 
@@ -1117,11 +1197,12 @@ REPLACES = ["fork", "clamps", "bars", "cables", "disc_guard"]
 FRONT_END = ["fork", "clamps", "bars", "grips", "front_brake", "disc_guard"]
 MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="stock/bar_knurl_n.png",
                            normal_strength=0.8),        # the Fatbar's clamping zones (BAR_KNURL)
+             "bolt_black": dict(rgb=(28, 28, 30), metal=0.8, rough=0.35),     # black-finished screws (DET830)
              "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
              "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
              "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
-CLASS = {"bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
+CLASS = {"bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "grips": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
