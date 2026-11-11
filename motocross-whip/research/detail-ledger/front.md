@@ -232,3 +232,50 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
   two short spouts.
 - The housing's lower inboard lobe seen in REAR (it reaches 4 mm lower) is not modelled.
 - The cable route below the pad is provisional (component 8).
+
+## 5. Front master cylinder, Nissin (fiche K95CF0500) - partly
+
+### Anatomy
+- Cast body (satin grey): a reservoir box square to the bike on top, the barrel under it running along the bar, a
+  clamp half round the bar and the holder (5) behind it with two M6 flange bolts from behind (zinc, DET830).
+- Cap (4) a shade darker with its diaphragm plate's rim and two cross-head screws (19) on its long axis; printed
+  warning text on it (graphics pass, not modelled).
+- Rear face: round sight window (dark lens in a bright ring) and the cast LWR level mark (DET830).
+- Lever (11): forged, silver, ball end; its root and the pivot lug under a black rubber boot (13) with a dome over the
+  pivot bolt (15); nut (20) below; a cross-head reach adjuster seen through an oval opening in the boot's outboard
+  side (RIGHT photo).
+- Banjo below the barrel's inboard end: bolt (16), two washers (17), the hose fitting.
+
+### References
+- TOP zoom `ref/top_mc.jpg` (1670..1800 x 720..960, 6x, pixel ticks): cap corners and screws, clamp, boot, pivot boss.
+- RIGHT `ref/right_mc.jpg` (2150..2330 x 380..500): cap top edge, boot with the adjuster opening, ball.
+- FRONT `ref/ball_front.jpg`; DET830 (window, LWR, holder bolts); rf34 ruler crop (body, cap, boot, lever).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Cap | 50.3 x 34.5 mm, centre a 215.8 f 24.2, square to the bike (17 deg off the grip) | TOP corners cast at their height (the right bar agrees with the model in TOP: grip end within 2 mm) |
+| Cap top | 44.5 mm over the bar's axis | RIGHT row 406.7, cols 2300..2328, cast on three planes through the cap: 44.0..45.2 (first guess 36: rf34 pair showed it low) |
+| Cap screws | a 196.1 f 30.7 and a 234.5 f 14.9 (41.5 mm apart) | TOP |
+| Clamp | a 182..202 | TOP |
+| Lever pivot | a 164, f 48 | TOP (dome on the boot) |
+| Ball centre | a 51, f 93, u -10 mm | RIGHT (2357, 471) and FRONT (1476, 268), each cast on its own plane; the earlier model had u -21 |
+| Barrel | radius 11.5, axis f 27.5, a 168..246 | EST (rf34: round body under the box; clear of the bar) |
+| Window | 25.6 mm ring, 18 mm lens, mid-height of the rear face | DET830 proportions |
+
+### What was built
+- `master_cylinder()` with `_mc_frame()` (the reservoir's axes, square to the bike) and `_mc_banjo()`; materials
+  `mc_cast`, `mc_cap`, `glass_dark`. The front brake hose now starts at the banjo's fitting (`_hose_start`).
+- Throttle cables moved 18..32 mm behind the bar's axis past the reservoir (TOP: the ferrule 30 mm behind at a 255).
+
+### Checks
+- Pairs: `chk/p12_rf34_st.jpg`, `p12_rear_st.jpg`, `p12_top.jpg` (reservoir 10 mm low: raised), `p13_right_st.jpg`
+  (cap height right; ball 8 mm low: moved).
+- Close-ups: `chk/m14.jpg` (DET830 and rf34 angles).
+- Audit: cables leave the throttle spouts 0.7 mm into them (bars / cables, a seat); nothing else on these parts.
+
+### Still different (why "partly")
+- The cast body is a box on a cylinder: the photos show one casting with fillets between reservoir, barrel and clamp,
+  and the raised NISSIN mark on the reservoir's front face; the lever boot is a block where the photo's is rounded
+  over the body's outboard end.
+- The LWR mark is a raised line, not lettering.

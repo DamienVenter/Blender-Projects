@@ -830,31 +830,8 @@ def bars():
     m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
     m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
     m.add(_wire(R, 0.159, -0.006, -0.014))
-    # ---- right: Nissin master cylinder (FRONT cols 1676..1752: grey, z 1.183..1.243; TOP rows 865, 910: x 0.975..1.02)
-    cast = "alu_cast"
-    m.add(_block(R, 0.170, 0.186, 0.034, 0.046, cast, r=0.011))
-    for u in (-0.016, 0.016):
-        m.add(bolt(R.p(0.178, -0.017, u), -R.f, af=0.008))
-    m.add(_block(R, 0.170, 0.186, 0.020, 0.024, cast, cf=0.022, cu=-0.006))
-    m.add(cyl(R.p(0.164, 0.030, -0.008), R.p(0.232, 0.030, -0.008), 0.0125, cast, 20, 0.002))        # barrel
-    m.add(slab(rounded_rect(0.058, 0.042, 0.008, 4), -0.004, 0.0305, cast,
-               lambda p, q, h: R.p(0.201 + p, 0.036 + q, h)))                                         # reservoir
-    m.add(slab(rounded_rect(0.061, 0.045, 0.009, 4), 0.0305, 0.034, cast,
-               lambda p, q, h: R.p(0.201 + p, 0.036 + q, h), ch=0.001))                               # lid
-    for da, df in ((0.022, -0.013), (-0.022, 0.013)):
-        m.add(bolt(R.p(0.201 + da, 0.036 + df, 0.034), Z, af=0.0055, head_h=0.0018, mat="steel", kind="cap"))
-    m.add(cyl(R.p(0.201, 0.0152, 0.010), R.p(0.201, 0.0138, 0.010), 0.006, "rubber_black", 14))       # sight glass
-    arm = [(0.160, 0.030), (0.186, 0.030), (0.190, 0.050), (0.180, 0.058), (0.164, 0.054)]
-    m.add(slab(arm, -0.012, 0.004, cast, R.p))
-    m.add(bolt(R.p(0.176, 0.046, 0.004), Z, af=0.010))
-    m.add(bolt(R.p(0.176, 0.046, -0.012), -Z, af=0.010, head_h=0.006))
-    m.add(_lever(R, [(0.176, 0.046, -0.004), (0.163, 0.054, -0.006), (0.130, 0.061, -0.009), (0.087, 0.070, -0.014),
-                     (0.062, 0.084, -0.018), (0.0495, 0.095, -0.021)]))
-    # banjo on the inboard end of the barrel (FRONT: hose leaves at y -0.19, z 1.18) and the steel pipe stub
-    m.add(cyl(R.p(0.232, 0.030, -0.008), R.p(0.241, 0.030, -0.008), 0.0085, "steel", 16, 0.001))
-    m.add(bolt(R.p(0.241, 0.030, -0.008), -R.d, af=0.012, head_h=0.006, flange_d=0.015))
-    m.add(cyl(R.p(0.2365, 0.034, -0.009), _hose_start() + 0.0008 * unit(_hose_start() - R.p(0.2365, 0.034, -0.009)),
-              0.0040, "steel", 10))
+    # ---- right: Nissin master cylinder, lever, boot, banjo (component 5)
+    m.add(master_cylinder())
     return m
 
 
@@ -928,6 +905,123 @@ def throttle_boot_end():
     return _Side(-1).p(BOOT[1], HOOD[-1][1], HOOD[-1][2])
 
 
+# ---- front master cylinder (Nissin; fiche K95CF0500: body 3, cap 4 with screws 19, holder 5 with bolts 14, lever 11,
+# pivot bolt 15 and nut 20, lever boot 13, banjo bolt 16 with washers 17, hose 1)
+MC_CAP = (0.2158, 0.0242, 0.0503, 0.0345, 0.0445)  # cap centre (a, f), length, width, top above the bar's axis: TOP
+#   corners cast at their height, a 187..244, f 0..48 (top_mc.jpg; the right bar agrees with the model there, its end
+#   within 2 mm); length 50.3, width 34.5, its long side square to the bike (17 deg off the grip); top: RIGHT photo,
+#   the cap's top edge (row 406.7, cols 2300..2328) cast on three planes through the cap: 44.0..45.2 mm
+MC_SCREWS = ((0.1961, 0.0307), (0.2345, 0.0149))    # the cap's two screws (TOP), 41.5 mm apart on its long axis
+MC_CLAMP = (0.182, 0.202)     # clamp round the bar (TOP: grey block on the bar a 181.5..202)
+MC_PIVOT = (0.164, 0.048)     # lever pivot (TOP: the round boss on the lever boot)
+MC_BALL = (0.051, 0.093, -0.010)   # lever's ball centre (a, f, u): RIGHT photo (2357, 471) cast on its y plane: a 48.7,
+#   f 93.4, u -11; FRONT (1476, 268) on its x plane: a 54.1, f 93.3, u -9.8
+MC_BARREL = (0.0275, -0.004, 0.0115, 0.168, 0.246)   # barrel axis f, u, radius, a from / to: under the reservoir
+#   (rf34: a round body under the box), clear of the bar as it sweeps forward inboard; EST radius (12.7 mm bore)
+
+
+def _mc_frame():
+    s = _Side(-1)
+    ly = unit((s.p(0.2351, 0.0002) - s.p(0.1871, 0.0153)) * [1, 1, 0])     # the cap's long side, inboard
+    lx = unit(np.cross(ly, Z))                                               # forward
+    return s, lx, ly
+
+
+def _mc_banjo():
+    """Banjo on the barrel's inboard end, below: its centre, the bolt's axis, the hose fitting's end."""
+    s = _Side(-1)
+    c = s.p(MC_BARREL[4] - 0.006, MC_BARREL[0] + 0.002, MC_BARREL[1] - MC_BARREL[2] - 0.006)
+    ax = -s.u
+    return c, ax, c + 0.006 * s.f - 0.020 * s.u * 0.0 + 0.016 * unit(s.f - 0.6 * s.u)
+
+
+def master_cylinder():
+    """Nissin front master cylinder on the right bar: cast body with its barrel, the reservoir square to the bike
+    with its cap, two screws and the diaphragm plate's rim, the sight window and its LWR level mark on the rear face,
+    the clamp with its holder and two bolts from behind, the lever pivot lug with bolt and nut under the black lever
+    boot, the forged lever with its ball end, the banjo with bolt, washers and the hose fitting."""
+    s, lx, ly = _mc_frame()
+    m = Mesh()
+    cast, cap = "mc_cast", "mc_cap"
+    zb = s.p(MC_CAP[0])[2]                                                   # the bar's axis at the cylinder
+    ca, cf, L, W, top = MC_CAP
+    c = s.p(ca, cf)
+    c = np.array([c[0], c[1], zb])
+    # reservoir: walls from the barrel up, rounded in plan (r 5), drafted 2 deg, the cap's rim seat
+    plan = rounded_rect(L, W, 0.005, 5)
+    to3 = lambda p, q, h: c + p * ly + q * lx + h * Z
+    m.add(slab(plan * 0.985, -0.002, top - 0.0035, cast, to3, ch=0.0012))
+    # cap (4): plate with rounded edges, its diaphragm plate's rim showing as a thin step, two cross-head screws
+    m.add(slab(plan, top - 0.0035, top - 0.0008, cap, to3, ch=0.0006))
+    m.add(slab(plan * np.array([0.93, 0.90]), top - 0.0009, top, cap, to3, ch=0.0004))
+    for a_, f_ in MC_SCREWS:
+        q = s.p(a_, f_)
+        q = np.array([q[0], q[1], zb + top])
+        m.add(fastener(q, Z, "button", af=0.0060, h=0.0016, recess=0.0022, mat="steel"))
+    # sight window on the rear face (DET830: dark lens in a bright ring) and the LWR level line beside it
+    rear = c - (W / 2 * 0.985 + 0.0001) * lx + 0.021 * Z               # mid-height of the rear face (DET830)
+    m.add(rev(rear, -lx, [(0.0128, 0.0), (0.0128, 0.0006), (0.0118, 0.0010), (0.0094, 0.0010), (0.0090, 0.0004),
+                          (0.0, 0.0004)], "alu_machined", 32, cap1=False))
+    m.add(rev(rear - 0.0003 * lx, -lx, [(0.0091, 0.0), (0.0089, 0.0006), (0.0, 0.0006)], "glass_dark", 32))
+    m.add(box(rear - 0.0128 * ly - 0.0045 * Z - 0.0003 * lx, (0.0008, 0.0060, 0.0008), cast,
+              np.column_stack([lx, ly, Z])))                                  # level line (LWR)
+    # barrel and its end caps, the web to the clamp
+    bf, bu, br, b0, b1 = MC_BARREL
+    m.add(rev(s.p(b0, bf, bu), -s.d, [(br - 0.0015, 0.0), (br, 0.0015), (br, b1 - b0 - 0.002), (br - 0.002, b1 - b0)],
+              cast, 32, cap0=True, cap1=True))
+    # clamp: the body's front half round the bar and the holder (5) behind it, two M6 flange bolts from behind
+    rb = bar_r(s.p(0.19)[1])
+    for a0_, a1_ in (MC_CLAMP,):
+        ring = [(rb + 0.0004, a0_), (rb + 0.0052, a0_), (rb + 0.0060, a0_ + 0.0008), (rb + 0.0060, a1_ - 0.0008),
+                (rb + 0.0052, a1_), (rb + 0.0004, a1_)]
+        m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(-1.35, 1.35), solid=True))          # front half
+        m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(1.79, 4.49), solid=True))            # holder (5)
+        m.add(_block(s, a0_ + 0.0008, a1_ - 0.0008, 0.0060, 0.050, cast, cf=-(rb + 0.0055), cu=0.0, r=0.0025))
+        for u_ in (0.016, -0.016):
+            m.add(fastener(s.p((a0_ + a1_) / 2, -(rb + 0.0085), u_), -s.f, "flange", af=0.010, h=0.0058,
+                           flange_d=0.0135))
+    m.add(_block(s, MC_CLAMP[0] + 0.001, MC_CLAMP[1] - 0.001, bf - rb - 0.004, 0.022, cast,
+                 cf=(rb + bf) / 2, cu=bu * 0.5, r=0.004))
+    # lever pivot lug (two ears) ahead of the barrel's outboard end, the pivot bolt (15) and nut (20)
+    pa, pf = MC_PIVOT
+    lug = [(pa - 0.010, bf - 0.004), (pa + 0.014, bf - 0.004), (pa + 0.012, pf + 0.004), (pa + 0.002, pf + 0.011),
+           (pa - 0.008, pf + 0.008), (pa - 0.011, pf)]
+    for u0, u1 in ((0.0035, 0.0105), (-0.0135, -0.0065)):
+        m.add(slab(lug, u0, u1, cast, lambda a_, f_, h: s.p(a_, f_, h), ch=0.0008))
+    m.add(fastener(s.p(pa, pf, 0.0105), s.u, "flange", af=0.010, h=0.005, flange_d=0.013))
+    m.add(fastener(s.p(pa, pf, -0.0135), -s.u, "flange", af=0.010, h=0.0065, flange_d=0.0135, mat="steel",
+                   thread=0.003, thread_d=0.006))
+    # lever (11): forged blade from the pivot to the ball (FRONT ball at abs(y) 0.389, z 1.18; TOP), a boss round the
+    # pivot between the ears
+    m.add(cyl(s.p(pa, pf, -0.0063), s.p(pa, pf, 0.0033), 0.0092, "lever", 24, 0.0008))
+    m.add(_lever(s, [(pa - 0.002, pf + 0.008, -0.002), (pa - 0.016, pf + 0.014, -0.004), (0.130, 0.067, -0.006),
+                     (0.087, 0.076, -0.008), (0.062, 0.086, -0.009), MC_BALL]))
+    # reach adjuster: a cross-head screw seen through an oval opening in the boot's outboard side (RIGHT photo)
+    oc = s.p(0.1438, 0.047, -0.001)
+    rim = [(0.0062 * math.cos(t) * 0.75, 0.0062 * math.sin(t)) for t in np.linspace(0, 2 * math.pi, 20, endpoint=False)]
+    to_o = lambda p_, q_, h: oc + p_ * s.f + q_ * s.u + h * s.d
+    m.add(slab(rim, -0.0003, 0.0008, "rubber_black", to_o, ch=0.0003))
+    m.add(slab([(x * 0.78, y * 0.78) for x, y in rim], 0.0008, 0.00085, "plastic_black", to_o, ch=0.0))
+    m.add(fastener(oc + 0.0006 * s.d, s.d, "button", af=0.0060, h=0.0015, recess=0.0026, mat="steel"))
+    # lever boot (13): black rubber hood over the lug and the lever's root, a dome over the pivot bolt (TOP: a 145..193,
+    # f 9..73; rf34)
+    hood = [(0.150, 0.026), (0.172, 0.022), (0.186, 0.034), (0.184, 0.058), (0.170, 0.068), (0.152, 0.070),
+            (0.144, 0.058), (0.144, 0.036)]
+    m.add(slab(hood, -0.0165, 0.0150, "rubber_black", lambda a_, f_, h: s.p(a_, f_, h), ch=0.0035))
+    m.add(rev(s.p(pa, pf, 0.0150), s.u, [(0.0090, -0.001), (0.0088, 0.0015), (0.0070, 0.0035), (0.0040, 0.0045),
+                                         (0.0, 0.0047)], "rubber_black", 24))
+    # banjo (17 washers either side, bolt 16) and the hose fitting
+    bc, bax, he = _mc_banjo()
+    m.add(rev(bc - 0.0005 * bax, bax, [(0.0035, 0.0), (0.0075, 0.0), (0.0075, 0.0015), (0.0035, 0.0015)], "alu_machined",
+              24, solid=True))
+    m.add(cyl(bc + 0.0010 * bax, bc + 0.0110 * bax, 0.0080, "steel", 24, 0.0008))
+    m.add(rev(bc + 0.0110 * bax, bax, [(0.0035, 0.0), (0.0075, 0.0), (0.0075, 0.0015), (0.0035, 0.0015)], "alu_machined",
+              24, solid=True))
+    m.add(fastener(bc + 0.0125 * bax, bax, "flange", af=0.012, h=0.0065, flange_d=0.0155))
+    m.add(cyl(bc + 0.006 * bax, he, 0.0042, "steel", 16, 0.0005))
+    return m
+
+
 def _clutch_adjuster():
     s = _Side(1, CTRL_SHIFT[0])
     return s.p(0.188, 0.036, -0.002), unit(-s.d + 0.25 * s.f)
@@ -941,7 +1035,8 @@ def _throttle_start(k):
 
 
 def _hose_start():
-    return _Side(-1, CTRL_SHIFT[1]).p(0.2365, 0.054, -0.019)
+    """Where the hose leaves the banjo's fitting (master_cylinder)."""
+    return _mc_banjo()[2]
 
 
 # ================================================================ front brake
@@ -1126,8 +1221,9 @@ def throttle_paths():
     end = throttle_end()
     sd = _Side(-1)
     b = throttle_boot_end()                          # out of the boot along the top-rear of the bar (TOP, DET830),
-    pts = [b + 0.0050 * (-sd.d), sd.p(BOOT[1] + 0.016, -0.005, 0.0372), sd.p(0.250, -0.010, 0.0355),
-           sd.p(0.282, -0.016, 0.0345), fk(-0.075, -0.098, 0.985),           # level out of the boot (REAR pair) (0.972, -0.075, 1.120),   # down behind the pad's
+    pts = [b + 0.0055 * (-sd.d), sd.p(BOOT[1] + 0.022, -0.006, 0.0372), sd.p(0.240, -0.018, 0.0360),
+           sd.p(0.255, -0.026, 0.0352), sd.p(0.282, -0.032, 0.0345),    # level out of the boot (REAR), behind the
+           fk(-0.075, -0.098, 0.985),                                    # reservoir (TOP: ferrule 30 mm behind at a 255) (0.972, -0.075, 1.120),   # down behind the pad's
            (0.976, -0.040, 1.103), (0.986, -0.010, 1.045), (0.995, 0.000, 0.974),             # right end (TOP, DET835),
            (0.995, 0.003, 0.907),                                     # close behind the top clamp, ahead of the tank
            (0.996, -0.006, 0.840), (0.953, -0.019, 0.805), (0.902, -0.028, 0.784), (0.845, -0.031, 0.783),
@@ -1198,11 +1294,14 @@ FRONT_END = ["fork", "clamps", "bars", "grips", "front_brake", "disc_guard"]
 MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="stock/bar_knurl_n.png",
                            normal_strength=0.8),        # the Fatbar's clamping zones (BAR_KNURL)
              "bolt_black": dict(rgb=(28, 28, 30), metal=0.8, rough=0.35),     # black-finished screws (DET830)
+             "mc_cast": dict(rgb=(168, 168, 170), metal=1.0, rough=0.55),     # Nissin cast body, satin (DET830, rf34)
+             "mc_cap": dict(rgb=(118, 118, 122), metal=0.7, rough=0.45),      # the cap a shade darker (TOP, rf34)
+             "glass_dark": dict(rgb=(30, 24, 16), rough=0.05),                # sight lens, fluid behind it
              "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
              "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
              "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
-CLASS = {"bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
+CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "grips": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
