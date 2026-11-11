@@ -115,3 +115,24 @@ stock_plate`; `test_chain_guide_slot_takes_the_chain` refined (the chain's 21 mm
 the chain wraps).
 Still different: the block's upper part (lr34: a black rounded hump above the front window) is a plain rail; the
 plate's edges are a little rounder than the photo's sheared edges.
+
+## 5. Muffler (part `exhaust`, the can only; the header was not reworked)
+Anatomy: brushed aluminium can of flat facets (an octagon with soft corners), its rear cap a separate pressed
+hood whose front edge runs on a slant (long on top, reaching the rear at the bottom), riveted with blind rivets
+(domed heads, mandrel holes); the cap's rear face flat and leaning forward at the top, rounded into the facets; the
+outlet a rolled 37 mm lip with the spark arrestor's sleeve inside it (lip, black gap, sleeve ring, black bore); the
+front nose riveted to the can; the mount under the side panel.
+References: RIGHT 960..1560 x 860..1280; REAR 2100..2330 x 680..920 (2x crop); rr34 1150..1700 x 700..1100.
+Numbers: section (REAR cast on x 0): top z 0.901 (y -0.1015..-0.1658), outer chamfer to (-0.1916, 0.8665), outer
+side to z 0.799, lower chamfer to (-0.1778, 0.769), bottom 0.765, inner corner (-0.095, 0.778)..(-0.0868, 0.792),
+inner side to 0.880. Cap face leans 14.5 deg (RIGHT: from px (1040, 875) to (1000, 1030)). Outlet: lip 54.8 px =
+37 mm, black ring 30.6, sleeve 25.8, bore 19.6 (REAR); centre px (2204, 783) after the lean (test: within 6 px of
+(2202, 788)). Rivets: RIGHT px (1114, 924), (1079, 988), (1054.6, 1041.6) on the cap's edge, (1430.8, 1181.2) and
+(1408, 1219.8) on the nose; heads 5.5 mm (6 to 7 px). Cap edge: a plane through the three cap rivets, 6 mm ahead.
+Built: `_SEC` re-read as an octagon (was a rounded 15-point blob), `_muf_ring` leans the cap's end, outlet with lip,
+sleeve and dark bore, rivets as domed blind rivets, the cap's edge as a 0.6 mm step all round.
+Checks: m1/m2 pair sheets (right, rear, rr34). Test: `test_muffler_section_is_the_rear_photos_octagon`.
+Still different: the cap's edge in REAR crosses the can 1 to 2 cm higher than the photo's (the edge is not a plane:
+it is lower at the bottom); the dent along the can's top (the old pass's drop under the side panel's inner wall)
+shows where the panel ends; the mount (strap, grommet, collar, bolt) is hidden under the side panel in every photo
+and stays the old EST strap; the header and its clamps were not reworked in this pass.

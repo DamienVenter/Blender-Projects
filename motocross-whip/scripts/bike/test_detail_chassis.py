@@ -206,3 +206,18 @@ def test_chain_guide_is_the_stock_plate(V):
     assert G[:, 0].min() < 0.056 and 0.180 < G[:, 0].max() < 0.205, (G[:, 0].min(), G[:, 0].max())
     assert dc.GUIDE_Y[0] > parts.CHAIN_Y + 0.0105 + 0.005 and dc.GUIDE_Y[1] < 0.129
     assert len(dc.GUIDE_BOLTS) == 3
+
+
+def test_muffler_section_is_the_rear_photos_octagon():
+    """REAR (cast on x 0): the cap's outer side is flat from z 0.799 to 0.866 and its top flat from y -0.1015 to
+    -0.1658; the outlet's lip is 37 mm (54.8 px) and square to the cap's leaning face."""
+    S = dc.MUF_SEC
+    side = S[np.abs(S[:, 1]) < 0.35]
+    assert (side[side[:, 0] > 0][:, 0] > 0.97).all()
+    top = S[(S[:, 1] > 0.97)]
+    assert top[:, 0].min() < -0.55 and top[:, 0].max() > 0.35
+    E = np.asarray(dc.exhaust().V, float)
+    ax = (E - dc.OUTLET) @ dc.OUT_AXIS
+    r = np.linalg.norm(np.cross(E - dc.OUTLET, dc.OUT_AXIS), axis=1)
+    lip = r[(ax > -0.004) & (ax < 0.001) & (r < 0.021)]                  # the part standing proud of the cap
+    assert abs(lip.max() - 0.0185) < 0.0006, lip.max()

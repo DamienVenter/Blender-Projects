@@ -1106,11 +1106,15 @@ MUF_TOP = ([-0.008, -0.0065, -0.004, 0.0, 0.008, 0.018, 0.029, 0.120, 0.150, 0.1
            [0.886, 0.8905, 0.893, 0.8945, 0.8935, 0.890, 0.8865, 0.857, 0.837, 0.828, 0.808, 0.792, 0.736, 0.706, 0.668])
 MUF_X = [-0.008, -0.0065, -0.004, 0.0, 0.004, 0.008, 0.013, 0.018, 0.0235, 0.029] + list(np.arange(0.036, 0.345, 0.007)) + [0.350]
 MUF_CONE = (0.235, 0.350)
-# end cap seen from behind (REAR rows 710..890 at x 0: z 0.896 y -0.099..-0.157; 0.869: -0.087..-0.181;
-# 0.828: -0.086..-0.195; 0.801: -0.082..-0.190; 0.774: -0.082..-0.180), as (a outward, b up) in half-widths
-_SEC = np.array([(-1.0, 0.0), (-0.98, -0.55), (-0.90, -0.85), (-0.65, -1.0), (0.30, -1.0), (0.66, -0.88), (0.90, -0.55),
-                 (1.0, -0.12), (0.93, 0.30), (0.74, 0.60), (0.48, 0.86), (0.25, 1.0), (-0.62, 1.0), (-0.86, 0.80), (-0.96, 0.45)])[::-1]
-MUF_SEC = smooth_poly(resample(_SEC, 0.17), 1)
+# end cap seen from behind, an octagon of flat facets (REAR, 2x crop 2100..2330 x 680..920, cast on x 0): top z 0.901
+# from y -0.1015 to -0.1658; outer chamfer to (-0.1916, 0.8665); outer side down to z 0.799; lower chamfer to
+# (-0.1778, 0.769); bottom z 0.765 to y -0.115; inner corner (-0.095, 0.778), (-0.0868, 0.792); inner side to z 0.880.
+# As (a outward, b up) in half-widths about (y -0.139, z 0.833); corners rounded about 5 mm (smoothed)
+_SEC = np.array([(-1.0, 0.0), (-1.0, -0.60), (-0.84, -0.81), (-0.46, -1.0), (0.70, -1.0), (1.0, -0.50), (1.0, 0.49),
+                 (0.505, 1.0), (-0.718, 1.0), (-1.0, 0.69)])[::-1]
+MUF_SEC = smooth_poly(resample(_SEC, 0.05), 6)
+CAP_LEAN = math.tan(math.radians(14.5))    # RIGHT: the cap's rear face from px (1040, 875) at the top to (1000, 1030)
+OUT_AXIS = np.array([-math.cos(math.radians(14.5)), 0.0, math.sin(math.radians(14.5))])   # square to that face
 OUTLET = np.array([-0.012, -0.138, 0.845])                    # REAR: dark disc centred on px (2205, 787)
 MUF_AXIS = np.array([-0.927, 0.0, 0.375])                     # rearward along the can (22 deg: between its two edges)
 
@@ -1134,7 +1138,8 @@ def _muf_ring(x):
     ang = np.arctan2(MUF_SEC[:, 1], MUF_SEC[:, 0])
     S = (1 - k) * MUF_SEC + k * np.stack([np.cos(ang), np.sin(ang)], axis=1)
     z = (zl + zt) / 2 + S[:, 1] * (zt - zl) / 2 - _muf_drop(x) * np.clip((0.3 - S[:, 0]) / 1.3, 0, 1) * np.clip(S[:, 1], 0, None)
-    return np.stack([np.full(len(S), x), yc - S[:, 0] * hw, z], axis=1)
+    sh = CAP_LEAN * min(max((0.030 - x) / 0.038, 0.0), 1.0)                     # the cap's end leans forward at the top
+    return np.stack([x + sh * (z - 0.840), yc - S[:, 0] * hw, z], axis=1)
 
 
 def _muf_side(x, z):
@@ -1177,17 +1182,44 @@ def exhaust():
     c0 = R0.mean(axis=0)
     m.add(grid(Mesh(), [c0 + (R0 - c0) * q for q in (0.25, 0.5, 0.75)] + [_muf_ring(x) for x in MUF_X], "muffler", cap0=True,
                cap1=True))
-    # outlet: tube parallel to the can, dark inside
-    a = OUTLET - MUF_AXIS * 0.016
-    m.add(hollow(a, MUF_AXIS, 0.0225, 0.0175, 0.016, "muffler", 28))
-    m.add(turned(a + MUF_AXIS * 0.0125, MUF_AXIS, [(0, 0.0178)], "muffler_cap", 20, False, True))
-    # rivets of the end cap's seam and of the nose (RIGHT px), on the outer flank
+    # outlet (REAR, 2x crop: lip 54.8 px = 37 mm, a black ring 30.6, the spark arrestor's sleeve 25.8, dark 19.6):
+    # rolled lip 4 mm proud of the cap's face, the sleeve's end face 2.5 mm, the gap between them and the bore dark
+    a = OUTLET - OUT_AXIS * 0.016
+    m.add(turned(a, OUT_AXIS, [(0.0, 0.0168), (0.0, 0.0185), (0.0145, 0.0185), (0.0155, 0.0183), (0.0160, 0.0176),
+                               (0.0158, 0.0168), (0.0, 0.0168)], "muffler", 40, False, False))
+    m.add(turned(a + OUT_AXIS * 0.0125, OUT_AXIS, [(0.0, 0.0001), (0.0, 0.0167)], "bore", 40, True, False))
+    m.add(turned(a + OUT_AXIS * 0.0125, OUT_AXIS, [(0.0, 0.0098), (0.0, 0.0129), (0.0012, 0.0129), (0.0015, 0.0126),
+                                                   (0.0015, 0.0101), (0.0012, 0.0098), (0.0, 0.0098)], "steel", 40, False,
+                 False))
+    # blind rivets (RIGHT px): three on the cap's front edge, two on the nose; domed 5.5 mm heads, mandrel holes
+    riv = []
     for u, v in ((1114, 924), (1079, 988), (1054.6, 1041.6), (1430.8, 1181.2), (1408, 1219.8)):
         y = -0.19
         for _ in range(3):
             p = _px("right", u, v, "y", y)
             y = _muf_side(p[0], p[2])
-        m.add(bolt((p[0], y + 0.0004, p[2]), -Y3, af=0.007, head_h=0.002, mat="steel", kind="cap"))
+        riv.append((p[0], y, p[2]))
+        m.add(turned((p[0], y + 0.0003, p[2]), -Y3, [(0.0, 0.0001), (0.0, 0.00275), (0.0004, 0.0027), (0.0009, 0.0022),
+                                                    (0.0012, 0.0014), (0.00125, 0.0008), (0.0004, 0.0008), (0.0004, 0.0001)],
+                     "steel", 16, True, True))
+    # the cap's front edge: a 0.6 mm step round the can on a plane through the rivets' line, 6 mm ahead of it
+    R3 = np.array(riv[:3])
+    b, a0 = np.polyfit(R3[:, 2], R3[:, 0], 1)
+    seam = []
+    for j in range(len(MUF_SEC)):
+        x = float(a0 + b * 0.84) + 0.006
+        for _ in range(4):
+            pnt = _muf_ring(x)[j]
+            x = float(a0 + b * pnt[2]) + 0.006
+        seam.append(pnt)
+    seam = np.array(seam)
+    cen = seam.mean(axis=0)
+    out = seam - cen
+    out[:, 0] = 0.0
+    out /= np.linalg.norm(out, axis=1, keepdims=True)
+    lip = [seam + out * 0.0002 + np.array([dx, 0, 0]) + out * dn for dx, dn in
+           ((-0.0035, 0.0), (-0.0035, 0.0005), (-0.0004, 0.0006), (0.0, 0.0003), (0.0002, -0.0003))]
+    m.add(grid(Mesh(), lip, "muffler", closed_u=True))
     # mounts: two straps from the can's inner flank up to the underside of the right subframe rail, inboard of the
     # side panel's lip (y -0.090), each with a bolt (hidden, EST)
     low = _sub_rails(-1)[0][::-1]
