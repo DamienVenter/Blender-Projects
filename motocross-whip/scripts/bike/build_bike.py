@@ -39,12 +39,15 @@ if os.path.exists(_C34):
 
 
 def srgb(c):
-    c = c / 255.0 if c > 1 else c
+    """One sRGB channel in 0..1 -> linear."""
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
 def lin(rgb):
-    return tuple(srgb(v) for v in rgb) + (1.0,)
+    """An sRGB colour, 0..255 if any channel is over 1, else 0..1 -> linear RGBA. Decided for the whole colour, not per
+    channel: per channel, (5, 32, 1) read its 1 as full blue (2026-11-11)."""
+    k = 255.0 if max(rgb) > 1 else 1.0
+    return tuple(srgb(v / k) for v in rgb) + (1.0,)
 
 
 # ---------------------------------------------------------------- materials
