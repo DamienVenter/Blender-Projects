@@ -29,7 +29,10 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22),           # DR13: bright plated nipples
              "hub_cast": dict(rgb=(106, 108, 113), metal=1.0, rough=0.45),         # rear hub (see _hub_ribs)
              # LEFT pair p_spr1: the bare aluminium sprocket reads 150..157 in the photo, the old 170 rendered white
-             "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48)}
+             "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48),
+             # chain (LEFT pair p_spr1, 475832): plain grey steel plates and pins, not the dark grey of before
+             "chain": dict(rgb=(128, 129, 133), metal=1.0, rough=0.42),
+             "chain_pin": dict(rgb=(150, 151, 155), metal=1.0, rough=0.35)}
 CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
@@ -1201,30 +1204,55 @@ def chain_path():
 CHAIN_LEVELS = (-0.0087, -0.00725, -0.00525, -0.005175, -0.003175, -0.0031, 0.0031, 0.003175, 0.005175, 0.00525,
                 0.00725, 0.0087)                                # SPEC #520: pin ends, outer and inner plates, roller
 PIN_R = 0.0026                                                  # SPEC #520 pin 5.2 mm
+# Plates (LEFT pair p_spr1 zoomed, 475832): grey steel, figure-of-eight: round ends about the pins and a smooth waist;
+# the pins' riveted ends show as rings with a dark centre (the peening dimple). #520 plate height 15 mm, waist 12 mm
+# (ANSI / D.I.D tables: 15.0 and about 0.8 of it); inner and outer plates alike (the photo shows no step).
+PLATE_HR, PLATE_WAIST = 0.0075, 0.80
+PIN_SEG = 10
+
+
+def _plate_outline(length, hr):
+    """Figure-of-eight outline of a link plate, centred, along x: two end arcs and smooth waists."""
+    out = []
+    for sx, a0 in ((1, -90.0), (-1, 90.0)):
+        for t in np.radians(np.linspace(a0, a0 + 180.0, 9)):
+            out.append((sx * length / 2 + hr * math.cos(t), hr * math.sin(t)))
+        top = 1 if sx > 0 else -1                               # the waist after this arc (top after the front end)
+        for f in (0.25, 0.5, 0.75):
+            w = hr * (1 - (1 - PLATE_WAIST) * math.sin(math.pi * f))
+            out.append((sx * length / 2 * (1 - 2 * f), top * w))
+    return np.array(out)
 
 
 def _chain(m, pins, y):
-    """The chain as one connected mesh: every pin is a spool (riveted pin with its roller), and every plate's faces
-    are meshed round the pins' own vertices, so the links hang together as on the real chain."""
+    """The chain as one connected mesh: every pin is a spool (riveted pin with its roller, a dimpled head at each
+    end), and every plate's faces are meshed round the pins' own vertices, so the links hang together as on the
+    real chain."""
     from scipy.spatial import Delaunay
     n = len(pins)
-    a = np.linspace(0, 2 * math.pi, 8, endpoint=False)
+    a = np.linspace(0, 2 * math.pi, PIN_SEG, endpoint=False)
     cs, sn = np.cos(a), np.sin(a)
     ring = {}
+    nl = len(CHAIN_LEVELS)
     for k, (x, z) in enumerate(pins):
         for li, dy in enumerate(CHAIN_LEVELS):
             r = ROLLER_R if li in (5, 6) else PIN_R
-            ring[k, li] = m.verts(np.stack([x + r * cs, np.full(8, y + dy), z + r * sn], axis=1))
-        for li in range(len(CHAIN_LEVELS) - 1):
+            ring[k, li] = m.verts(np.stack([x + r * cs, np.full(PIN_SEG, y + dy), z + r * sn], axis=1))
+        for li in range(nl - 1):
             lo, hi = ring[k, li], ring[k, li + 1]
-            for j in range(8):
-                j2 = (j + 1) % 8
-                m.face((lo + j, hi + j, hi + j2, lo + j2), "steel")
-        c0, c1 = m.verts([(x, y + CHAIN_LEVELS[0], z)]), m.verts([(x, y + CHAIN_LEVELS[-1], z)])
-        for j in range(8):
-            j2 = (j + 1) % 8
-            m.face((ring[k, 0] + j, ring[k, 0] + j2, c0), "steel")
-            m.face((ring[k, 11] + j2, ring[k, 11] + j, c1), "steel")
+            for j in range(PIN_SEG):
+                j2 = (j + 1) % PIN_SEG
+                m.face((lo + j, hi + j, hi + j2, lo + j2), "chain_pin")
+        for end, sg in ((0, -1), (nl - 1, 1)):                  # riveted head: a rim, then a dimple
+            yy = y + CHAIN_LEVELS[end]
+            rim = m.verts(np.stack([x + 0.65 * PIN_R * cs, np.full(PIN_SEG, yy + sg * 0.00025), z + 0.65 * PIN_R * sn], 1))
+            c0 = m.verts([(x, yy - sg * 0.0003, z)])
+            for j in range(PIN_SEG):
+                j2 = (j + 1) % PIN_SEG
+                f = (ring[k, end] + j, ring[k, end] + j2, rim + j2, rim + j)
+                m.face(f if sg < 0 else f[::-1], "chain_pin")
+                t = (rim + j, rim + j2, c0)
+                m.face(t if sg < 0 else t[::-1], "chain_pin")
     for k in range(n):
         k2 = (k + 1) % n
         p, q = pins[k], pins[k2]
@@ -1232,16 +1260,14 @@ def _chain(m, pins, y):
         length = float(np.linalg.norm(d))
         ex = d / length
         ez = np.array([-ex[1], ex[0]])
-        hr = 0.0073 if k % 2 == 0 else 0.0065                   # inner plates are the taller ones
-        loc = [(length / 2 + hr * math.cos(t), hr * math.sin(t)) for t in np.radians((-90, -45, 0, 45, 90))]
-        loc.append((0.0, 0.80 * hr))
-        loc += [(-length / 2 + hr * math.cos(t), hr * math.sin(t)) for t in np.radians((90, 135, 180, 225, 270))]
-        loc.append((0.0, -0.80 * hr))
-        loc = np.array(loc)
+        loc = _plate_outline(length, PLATE_HR)
+        no = len(loc)
         out = (p + q) / 2 + loc[:, :1] * ex + loc[:, 1:] * ez
         pts = np.vstack([out, p + PIN_R * np.stack([cs, sn], axis=1), q + PIN_R * np.stack([cs, sn], axis=1)])
         tri = Delaunay(pts).simplices
-        keep = inside(out, pts[tri].mean(axis=1)) & ~np.all((tri >= 12) & (tri < 20), axis=1) & ~np.all(tri >= 20, axis=1)
+        r1 = (tri >= no) & (tri < no + PIN_SEG)
+        r2 = tri >= no + PIN_SEG
+        keep = inside(out, pts[tri].mean(axis=1)) & ~np.all(r1, axis=1) & ~np.all(r2, axis=1)
         tri = tri[keep]
         u, v, w = pts[tri[:, 0]], pts[tri[:, 1]], pts[tri[:, 2]]
         flip = (v[:, 0] - u[:, 0]) * (w[:, 1] - u[:, 1]) - (v[:, 1] - u[:, 1]) * (w[:, 0] - u[:, 0]) < 0
@@ -1249,13 +1275,14 @@ def _chain(m, pins, y):
         for la, lb in (((3, 4), (7, 8)) if k % 2 == 0 else ((1, 2), (9, 10))):
             idx = []
             for lev in (la, lb):
-                o = m.verts([(x, y + CHAIN_LEVELS[lev], z) for x, z in out])
-                idx.append(lambda i, o=o, lev=lev: o + i if i < 12 else (ring[k, lev] + i - 12 if i < 20 else ring[k2, lev] + i - 20))
+                o = m.verts([(xx, y + CHAIN_LEVELS[lev], zz) for xx, zz in out])
+                idx.append(lambda i, o=o, lev=lev: o + i if i < no else (ring[k, lev] + i - no if i < no + PIN_SEG
+                                                                         else ring[k2, lev] + i - no - PIN_SEG))
             for t in tri:
                 m.face([idx[0](i) for i in t], "chain")
                 m.face([idx[1](i) for i in t[::-1]], "chain")
-            for i in range(12):
-                i2 = (i + 1) % 12
+            for i in range(no):
+                i2 = (i + 1) % no
                 m.face((idx[0](i), idx[1](i), idx[1](i2), idx[0](i2)), "chain")
 
 

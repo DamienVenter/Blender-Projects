@@ -297,3 +297,32 @@ the `rim` material overridden to a plain satin black (no other module uses it).
 - The photo's sprocket sits 6.4 mm from the model's axle (above): the model keeps the shared axle (`parts.RA`);
   reported.
 - Stamped marks (tooth count, part number) are not visible in any photo: not modelled.
+- The photo's window edges catch the light along a small chamfer; the model's window edges are square.
+
+## 9. Chain, D.I.D 520
+
+### Anatomy
+- 112 links (path from the LEFT photo, unchanged): outer and inner plates, figure-of-eight with round ends and a
+  waist; pins riveted, their heads a rim with a dark peening dimple; rollers between the inner plates. Plain grey
+  steel, no O-rings showing between the plates (the photo shows the plates touching).
+
+### References and numbers
+- LEFT pair zoom (`SCRATCH/chainz.jpg`: photo, old model, 475832): grey plates, figure-of-eight outlines, pin heads
+  as rings with dark centres; the old model had dark plates and white pin dots (the opposite).
+- #520: pitch 15.875 mm, roller 10.16 mm, pin 5.2 mm (unchanged, SPEC); plate height 15 mm, waist 0.8 of it
+  (ANSI #50 / 520 plate proportions; EST for the waist), inner and outer plates alike.
+
+### What was built
+`_plate_outline` (9 points on each end arc, 3 on each waist), `_chain` rewritten for any outline size, 10-sided pins
+with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
+
+### Checks
+- `SCRATCH/chainz2.jpg`: LEFT photo against the model, same camera, the top run over the sprocket.
+
+### Still different
+- The connecting link (clip or riveted) cannot be found in any photo: not modelled.
+- D.I.D's printed plate marks are too small to read in any photo: not modelled.
+
+## 10. Rear disc, 11. rear caliper, 12. front hub, disc and spokes: not started
+(The front spokes and nipples got the component 5 work: count 36 confirmed, new nipples, eyelets and threads; the
+front valve and rim lock moved to their measured places.)
