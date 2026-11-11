@@ -46,9 +46,15 @@ MATERIALS = {"shock_spring": dict(rgb=(28, 28, 30), metal=0.7, rough=0.4),   # E
              "alu_forged": dict(rgb=(196, 196, 200), metal=1.0, rough=0.3),   # Dirt Rider 09: bright forged rods
              "peg_black": dict(rgb=(24, 24, 26), metal=0.7, rough=0.32),      # detail 475839: black pegs
              "peg_edge": dict(rgb=(150, 150, 154), metal=1.0, rough=0.35),     # their worn tooth tips
-             "muffler": dict(rgb=(190, 190, 195), metal=1.0, rough=0.26, aniso=0.5, normal="stock/brushed_n.png",
-                             normal_strength=1.0),                     # brushed along the can (RIGHT, rr34, REAR)
-             "bore": dict(rgb=(10, 10, 11), metal=0.3, rough=0.7)}            # the hollow axle's inside: black in every photo
+             "muffler": dict(rgb=(190, 190, 195), metal=1.0, rough=0.36, aniso=0.5, normal="stock/brushed_n.png",
+                             normal_strength=1.0),                     # brushed along the can (RIGHT, rr34, REAR); rough
+             #     0.36 (round 3, was 0.26): REAR shows the cap evenly lit, the sharper reflections drew a dark band
+             "bore": dict(rgb=(10, 10, 11), metal=0.3, rough=0.7),     # the hollow axle's inside: black in every photo
+             "frame_cast": dict(rgb=(200, 200, 204), metal=1.0, rough=0.42, normal="stock/cast_n.png",
+                                normal_strength=0.3),                  # the frame's castings: matte, grained (RIGHT, LEFT)
+             "steel_dark": dict(rgb=(118, 118, 122), metal=1.0, rough=0.45),  # LEFT: the pivot bolt's head in its recess
+             "frame_spar": dict(rgb=(205, 205, 208), metal=1.0, rough=0.32, aniso=0.6, normal="stock/brushed_n.png",
+                                normal_strength=0.8)}                  # the extruded spars: brushed along their length
 CLASS = {"shock_spring": "black", "peg_black": "black"}
 Y3 = np.array([0.0, 1.0, 0.0])
 
@@ -130,9 +136,10 @@ def slab(outline, mid, t, mat, r=0.003, step=0.007, holes=(), to=None, mirror=Tr
     return m
 
 
-def _plate2d(outer, holes, mat, to3d, step, rings, hole_rings=None, hole_step=None, grid_step=None):
+def _plate2d(outer, holes, mat, to3d, step, rings, hole_rings=None, hole_step=None, grid_step=None, extra=None):
     """geom.plate2d with its rows of vertices following the holes too (a window's rounded rim needs them as much as
-    the outline does: on the bare grid it came out frilled)."""
+    the outline does: on the bare grid it came out frilled). EXTRA: rows of points (2D) laid along features of the
+    faces (a boss's fillet, a rib's crest), kept where they are inside and 0.45 GRID_STEP clear of the others."""
     from scipy.spatial import Delaunay
     hst = step if hole_step is None else hole_step
     loops = [resample(outer, step * 0.7)] + [resample(h, hst * 0.7) for h in holes]
@@ -172,6 +179,20 @@ def _plate2d(outer, holes, mat, to3d, step, rings, hole_rings=None, hole_step=No
     for h in loops[1:]:
         ok &= ~inside(h, G)
     G = G[ok]
+    if extra is not None and len(extra):
+        E = np.asarray(extra, float)
+        ok = inside(loops[0], E) & (tree.query(E)[0] > max(rings) + 0.3 * step)
+        for h in loops[1:]:
+            ok &= ~inside(h, E)
+        E = E[ok]
+        if len(R):
+            E = E[cKDTree(R).query(E)[0] > 0.45 * step]
+        keep = []
+        for i in range(len(E)):
+            if not keep or np.min(np.hypot(*(E[keep] - E[i]).T)) > 0.3 * step:
+                keep.append(i)
+        E = E[keep]
+        R = np.vstack([R, E]) if len(R) else E
     if len(G):
         G = G[tree.query(G)[0] > max(rings) + 0.5 * gs]
         if len(R):
@@ -184,8 +205,12 @@ def _plate2d(outer, holes, mat, to3d, step, rings, hole_rings=None, hole_step=No
         keep &= ~inside(h, c)
     tri = tri[keep]
     m = Mesh()
-    top = m.verts([to3d(u, v, 0.5) for u, v in P])
-    bot = m.verts([to3d(u, v, -0.5) for u, v in P])
+    if hasattr(to3d, "batch"):
+        T3, B3 = to3d.batch(P)
+        top, bot = m.verts(T3), m.verts(B3)
+    else:
+        top = m.verts([to3d(u, v, 0.5) for u, v in P])
+        bot = m.verts([to3d(u, v, -0.5) for u, v in P])
     for a, b, cc in tri:
         m.face((top + a, top + b, top + cc), mat)
         m.face((bot + a, bot + cc, bot + b), mat)
@@ -436,6 +461,467 @@ def _bracket_outline():
                      (0.552, 0.362), (0.545, 0.385)])
 
 
+# ---------------------------------------------------------------- frame rear: the cast pivot section (round 3)
+# Read on 3x crops of the studio photos with 10 px ticks (scratch r_low3, l_low, l_weld, r_weld, r_fz1, piv2). The
+# rear of each side is one casting: the extruded spar's end is a rounded tongue welded into it (a U-shaped TIG bead),
+# below it the leg runs down round the pivot boss into a lower section that meets the cradle rail at a second weld.
+# Lower section, past the old outline's end (LEFT: front branch from the pivot down to the cradle weld, its bottom
+# edge, the rear under the footpeg; RIGHT the same, partly behind the pedal). The left front branch's edge from a 5x
+# crop (l_shift): its lit rim 2 to 3 px inside the silhouette, under the shift lever's clamp at about (2185, 1505)
+LOW_PX = {"left": [(2232, 1440), (2222, 1450), (2221, 1477), (2216, 1500), (2209, 1516), (2199, 1530), (2183, 1540),
+                   (2160, 1545), (2140, 1550), (2124, 1555), (2117, 1597), (2137, 1600), (2193, 1600), (2210, 1596),
+                   (2227, 1590), (2260, 1584), (2292, 1578), (2306, 1560), (2306, 1520), (2300, 1500), (2290, 1450)],
+          "right": [(1768, 1440), (1785, 1470), (1790, 1505), (1792, 1527), (1817, 1543), (1850, 1550), (1874, 1553),
+                    (1884, 1588), (1867, 1590), (1833, 1592), (1800, 1590), (1767, 1586), (1743, 1582), (1710, 1575),
+                    (1694, 1566), (1690, 1530), (1696, 1500), (1700, 1450)]}
+# RIGHT: the master cylinder's two tabs behind the leg (bosses round the bolts at (1645, 1338) and (1652, 1402), 24 px
+# across) and the square pocket between them (floor at u 1665)
+TAB_PX = [(1668, 1300), (1655, 1318), (1643, 1325), (1635, 1333), (1634, 1343), (1641, 1351), (1655, 1354),
+          (1665, 1357), (1666, 1381), (1652, 1388), (1643, 1391), (1639, 1401), (1642, 1411), (1653, 1415),
+          (1668, 1418), (1680, 1420), (1680, 1300)]
+TAB_BOLTS_PX = [(1645, 1338), (1652, 1402)]
+# the U bead's centre line round the spar's end (top run, the end, the lower run), LEFT and RIGHT; the top run goes on
+# along the spar's top edge under the upper mount's ear (l_weld 3x: to (2020, 963); r_weld: from (1993, 960))
+TONGUE_PX = {"left": [(2020, 963), (2045, 982), (2070, 1000), (2103, 1022), (2133, 1040), (2167, 1062), (2193, 1083),
+                      (2215, 1105), (2228, 1128),
+                      (2231, 1148), (2222, 1166), (2203, 1174), (2182, 1168), (2160, 1153), (2127, 1133), (2100, 1114),
+                      (2067, 1091), (2043, 1077)],
+             "right": [(1993, 960), (1973, 970), (1951, 984),
+                       (1930, 999), (1897, 1017), (1867, 1037), (1840, 1057), (1813, 1077), (1790, 1097), (1773, 1120),
+                       (1772, 1140), (1780, 1157), (1800, 1167), (1827, 1163), (1853, 1153), (1883, 1137), (1913, 1120),
+                       (1945, 1102)]}
+Y_MID = Y_PLATE - T_SPAR / 2            # the plate's mid plane: the outline is cast on it, as _frame_outline
+
+
+def _cast_px(view, pts, y):
+    return np.array([_px(view, u, v, "y", y)[[0, 2]] for u, v in pts])
+
+
+def _side_outline(s):
+    """Side outline of one side's frame plate (x, z): the spar and leg of _frame_outline (OUT2, left photo: it fits
+    the right photo's leg within 4 px), the footpeg bracket, the lower section from each side's own photo and, on the
+    right, the master cylinder's tabs."""
+    view = "left" if s > 0 else "right"
+    polys = [_frame_outline(), _bracket_outline(), _cast_px(view, LOW_PX[view], s * Y_MID)]
+    if s < 0:
+        polys.append(_cast_px("right", TAB_PX, -Y_MID))
+    return _clean(_union_outline(polys), 0.0015, 0.0012)
+
+
+def _tongue(s):
+    """The U bead's centre line (x, z) round the extruded spar's end, on the spar's outer face."""
+    view = "left" if s > 0 else "right"
+    P = _cast_px(view, TONGUE_PX[view], s * 0.134)
+    return spline(np.column_stack([P[:, 0], np.zeros(len(P)), P[:, 1]]), 80)[:, [0, 2]]
+
+
+# the pivot's two ends (piv2 crop, intensity rows and columns through the centres):
+# RIGHT a nut in a round counterbore: the bore's dark ring from u 1731 to 1773 (42 px, 31.8 mm); the nut's flats
+#   at u 1738 and 1766 (28 px, 21.2 mm), its corners up and down at v 1419 and 1451 (24.2 mm: 21 mm across flats);
+#   the bolt's end a bright ring 21 px (16 mm) round a black bore 9 px (7 mm)
+# LEFT the head in a hexagonal recess: the gap's dark outline with corners fore and aft at u 2226 and 2267.5 (31.4
+#   mm) and flats at v 1415 and 1451.5 (27.7 mm); inside it the head's darker face and a black bore 14 px (10.6 mm)
+PIV_CB = (0.0159, 0.006)                # counterbore radius, depth (EST: deep enough to take the nut's flange)
+PIV_NUT = (0.021, 0.008)                # across flats, thickness
+PIV_END = (0.008, 0.0035, 0.0015)       # bolt end radius, its bore radius, standing proud of the nut
+PIV_HEX = (0.0277, 0.0035)              # recess across flats, depth
+PIV_HEAD = (0.0250, 0.0053)             # head across flats (1.4 mm gap all round: the outline 2 px wide), bore radius
+BOSS_R, BOSS_H = 0.026, 0.0020          # the boss round the pivot (the old pass's 26 mm; RIGHT: the lit rim round the
+#                                         counterbore and the fold where it meets the leg's front edge)
+TAB_BOSS = (0.009, 0.0020)              # RIGHT: the tabs' bosses 24 px across, standing 2 mm (EST) off the tab
+TAB_T = 0.0045                          # EST: the tabs' thickness (a lug, not the leg's 26 mm box); the master cylinder
+#                                         (brake_pedal) is flattened in front where it passes inboard of them
+# LEFT px: the triangular pocket under the pivot between the front branch and the rib that runs down to the footpeg
+# (l_pocket: lit rib from (2238, 1457) to (2278, 1505), the pocket's shaded floor inside (2246, 1476) (2253, 1508)
+# (2272, 1508)); the right one is behind the pedal and is taken as the mirror image
+POCKET_PX = [(2247, 1474), (2252, 1509), (2273, 1509)]
+RIB_PX = [(2238, 1457), (2259, 1481), (2279, 1506)]
+CAST_STEP = 0.0025
+
+
+def _smoothstep(t):
+    t = np.clip(t, 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def _seg_dist(P, a, b):
+    """Distance from points P (N, 2) to the segment AB."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    ab = b - a
+    t = np.clip(((P - a) @ ab) / max(ab @ ab, 1e-18), 0, 1)
+    return np.linalg.norm(P - (a + t[:, None] * ab), axis=1)
+
+
+def _poly_sdist(poly, step=0.0001):
+    """Signed distance to a closed polygon (negative inside), to the polygon resampled every STEP."""
+    tree = cKDTree(resample(np.asarray(poly, float), step))
+
+    def g(P):
+        P = np.atleast_2d(P)
+        d = tree.query(P)[0]
+        return np.where(inside(poly, P), -d, d)
+    return g
+
+
+class _Cast:
+    """The rear of one side's frame plate as a height field over its side outline: the outer face at _spar_y(x)
+    with its edges rounded (7 mm where they face forward, the C round the engine; 4 mm elsewhere: RIGHT and LEFT,
+    the front edge's light falls off over 8 to 10 px, the rear edge's highlight is 3 to 4 px), the inner face 26 mm
+    behind it, and on the outer face the pivot boss, the footpeg bracket's pad, the master cylinder tabs' bosses and
+    chevron ribs (right), the pocket and rib under the pivot."""
+
+    def __init__(self, s):
+        self.s = s
+        view = "left" if s > 0 else "right"
+        self.view = view
+        self.o = _side_outline(s)
+        o = self.o
+        tg = np.roll(o, -1, axis=0) - np.roll(o, 1, axis=0)
+        nrm = np.stack([tg[:, 1], -tg[:, 0]], axis=1)
+        nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
+        if inside(o, (o + 0.001 * nrm)[::7]).mean() > 0.5:
+            nrm = -nrm                                               # outward
+        fine = resample(o, 0.0004)
+        self.edge = cKDTree(fine)
+        self.edge_r = 0.004 + 0.003 * np.clip(nrm[cKDTree(o).query(fine)[1], 0], 0, 1)
+        self.leg_sd = None
+        if s < 0:                                                    # the tabs' edges: 1.2 mm (r_mc: crisp lugs)
+            self.leg_sd = _poly_sdist(_frame_outline(), 0.0003)
+            self.tab_sd = _poly_sdist(_cast_px("right", TAB_PX, -Y_MID), 0.0003)   # only the tabs: not the lower
+            fs = (self.leg_sd(fine) > 0.0015) & (self.tab_sd(fine) < 0.002)       # section (audit: it was thin)
+            self.edge_r = np.where(fs, 0.0012, self.edge_r)
+        self.piv = np.array([PIVOT[0], PIVOT[2]])
+        if s > 0:
+            a = np.radians(np.arange(0, 360, 60))                     # corners fore and aft
+            rc = PIV_HEX[0] / 2 / math.cos(math.pi / 6)
+            self.hole = resample(np.stack([self.piv[0] + rc * np.cos(a), self.piv[1] + rc * np.sin(a)], 1), 0.0008)
+        else:
+            self.hole = circle(PIV_CB[0], 72, *self.piv)
+        self.hole_d = cKDTree(resample(self.hole, 0.0001))
+        self.tabs = [_cast_px("right", [b], -Y_PLATE)[0] for b in TAB_BOLTS_PX] if s < 0 else []
+        pk = _cast_px("left", POCKET_PX, Y_PLATE)
+        rib = _cast_px("left", RIB_PX, Y_PLATE)
+        self.pocket = _clean(pk, 0.0008, 0.0012)
+        self.pocket_sd = _poly_sdist(self.pocket)
+        self.rib = rib
+        br = _bracket_outline()
+        self.pad = br
+        self.pad_sd = _poly_sdist(br)
+        # the pedal's pivot on the right sits on the pad too (RIGHT px (1709, 1493): its boss's inner face at 0.1414)
+        self.pedal = _px("right", 1709.2, 1493.2, "y", -0.150)[[0, 2]] if s < 0 else None
+        self.chev = []
+        for b in self.tabs:                                          # RIGHT: a ">" of two ribs from each boss into the
+            for ang in (28, -28):                                    # leg (r_low3: 15 mm long, 30 deg either side)
+                a = math.radians(ang)
+                self.chev.append((b + 0.010 * np.array([math.cos(a), math.sin(a)]),
+                                  b + 0.022 * np.array([math.cos(a), math.sin(a)])))
+
+    def r_edge(self, P):
+        """Distance to the outline and the edge radius there, the radius blended over the outline points within a
+        few mm (taken from the nearest point alone it jumped where two edges of different radius are equally near,
+        and the rounding stepped: torn white shards in the close-ups)."""
+        d, i = self.edge.query(P, k=48)
+        w = np.exp(-((d - d[:, :1]) / 0.002) ** 2)
+        r = (w * self.edge_r[i]).sum(axis=1) / w.sum(axis=1)
+        return d[:, 0], r
+
+    def feat(self, P):
+        """Height of the outer face's features above the plane, at points P (N, 2)."""
+        P = np.atleast_2d(np.asarray(P, float))
+        h = np.zeros(len(P))
+        rb = np.linalg.norm(P - self.piv, axis=1)
+        # (only broad features here: narrow ridges on the 2.5 mm triangulation came out as torn shards in the
+        # close-ups; the ribs are swept beads, _cast_ribs)
+        h += BOSS_H * _smoothstep((BOSS_R + 0.003 - rb) / 0.006)
+        pad = -self.pad_sd(P)
+        lift = _smoothstep((pad + 0.004) / 0.008)
+        if self.pedal is not None:
+            lift = np.maximum(lift, _smoothstep((0.018 - np.linalg.norm(P - self.pedal, axis=1)) / 0.008))
+        h += 0.004 * lift
+        for b in self.tabs:
+            h += TAB_BOSS[1] * _smoothstep((TAB_BOSS[0] + 0.002 - np.linalg.norm(P - b, axis=1)) / 0.004)
+        sd = self.pocket_sd(P)
+        h -= 0.002 * _smoothstep((0.001 - sd) / 0.005)
+        return h
+
+    def extra(self):
+        """Rows of vertices along the features (the grid alone frilled them)."""
+        rows = []
+        for r in (BOSS_R - 0.002, BOSS_R + 0.0005, BOSS_R + 0.0025, BOSS_R + 0.0045):
+            rows.append(resample(circle(r, 8, *self.piv), 0.0012))
+        h = self.hole
+        c = h.mean(axis=0)
+        for r in (0.0024, 0.0040):                                  # round the counterbore or recess
+            rows.append(resample(c + (h - c) * (1 + r / np.linalg.norm(h - c, axis=1).mean()), 0.0012))
+        for b in self.tabs:
+            for r in (TAB_BOSS[0] - 0.002, TAB_BOSS[0], TAB_BOSS[0] + 0.002):
+                rows.append(resample(circle(r, 8, *b), 0.0012))
+        c = self.pocket.mean(axis=0)
+        for k in (-0.004, -0.0015, 0.001):
+            q = self.pocket - c
+            rr = np.linalg.norm(q, axis=1, keepdims=True)
+            rows.append(resample(c + q * (1 + k / rr.mean()), 0.0012))
+        return np.vstack(rows)
+
+    def surf(self, P, outer, rim=True):
+        """|y| of the outer (OUTER) or inner face at points P (N, 2)."""
+        P = np.atleast_2d(np.asarray(P, float))
+        d, r = self.r_edge(P)
+        k = np.where(d < r, r - np.sqrt(np.maximum(r * r - (r - np.minimum(d, r)) ** 2, 0)), 0.0)
+        base = np.array([_spar_y(x) for x in P[:, 0]])
+        if outer:
+            kh = 0.0
+            if rim:
+                dh = self.hole_d.query(P)[0]
+                rh = 0.0010
+                kh = np.where(dh < rh, rh - np.sqrt(np.maximum(rh * rh - (rh - np.minimum(dh, rh)) ** 2, 0)), 0.0)
+            return base - k - kh + self.feat(P)
+        ri = np.minimum(r, 0.003)
+        ki = np.where(d < ri, ri - np.sqrt(np.maximum(ri ** 2 - (ri - np.minimum(d, ri)) ** 2, 0)), 0.0)
+        # the lower section's front reaches in round the cradle rail's end (the rail runs 1 to 3 cm inboard)
+        wrap = 0.022 * _smoothstep((P[:, 0] - 0.600) / 0.040) * _smoothstep((0.420 - P[:, 1]) / 0.020)
+        yi = base - T_SPAR + ki - wrap
+        if self.leg_sd is not None:
+            # the master cylinder's tabs are lugs 5 mm thick behind the leg (the cylinder's own lugs sit inboard of them)
+            tf = _smoothstep((self.leg_sd(P) - 0.0005) / 0.003) * _smoothstep((0.002 - self.tab_sd(P)) / 0.002)
+            yi = (1 - tf) * yi + tf * (base - TAB_T + ki)
+        return yi
+
+    def y_out(self, P):
+        return self.surf(P, True, rim=False)
+
+    def build(self, mat_spar, mat_cast):
+        s = self.s
+        rings = (0.0006, 0.0018, 0.0032, 0.0048, 0.0066)
+        hrings = (0.0003, 0.0008, 0.0014)
+        pts_cache = {}
+        surf = self.surf
+
+        def to3d(u, v, w):
+            key = (round(u, 7), round(v, 7))
+            if key not in pts_cache:
+                pts_cache[key] = (float(surf(np.array([[u, v]]), True)[0]), float(surf(np.array([[u, v]]), False)[0]))
+            yo, yi = pts_cache[key]
+            return (u, s * (yo if w > 0 else yi), v)
+
+        def batch(P):
+            yo, yi = surf(P, True), surf(P, False)
+            return (np.column_stack([P[:, 0], s * yo, P[:, 1]]), np.column_stack([P[:, 0], s * yi, P[:, 1]]))
+        to3d.batch = batch
+        area = lambda q: float(np.sum(q[:, 0] * np.roll(q[:, 1], -1) - np.roll(q[:, 0], -1) * q[:, 1]))
+        hole = self.hole if (area(self.hole) > 0) == (area(self.o) > 0) else self.hole[::-1]
+        m = _plate2d(self.o, [hole], mat_cast, to3d, CAST_STEP, rings, hrings, 0.0008, CAST_STEP, self.extra())
+        # normals out: the first triangle is on the outer face, the first quad on the outline's rim
+        V = np.asarray(m.V)
+        tri = next(f for f in m.F if len(f) == 3)
+        quad = next(f for f in m.F if len(f) == 4)
+        nt = np.cross(V[tri[1]] - V[tri[0]], V[tri[2]] - V[tri[0]])
+        nq = np.cross(V[quad[1]] - V[quad[0]], V[quad[2]] - V[quad[0]])
+        cq = V[list(quad)].mean(axis=0)[[0, 2]]
+        out2 = cq - self.o.mean(axis=0)
+        j = int(cKDTree(self.o).query(cq)[1])
+        tg = self.o[(j + 1) % len(self.o)] - self.o[j - 1]
+        o2 = np.array([tg[1], -tg[0]])
+        if not inside(self.o, (cq + 0.0005 * o2 / np.linalg.norm(o2))[None, :])[0]:
+            out2 = o2
+        else:
+            out2 = -o2
+        ft = nt[1] * s < 0
+        fq = nq[0] * out2[0] + nq[2] * out2[1] < 0
+        m.F = [q[::-1] if (ft if len(q) == 3 else fq) else q for q in m.F]
+        # the extruded spar's end (inside the U bead's line, closed far forward along the spar) keeps the spar's
+        # brushed finish; the rest is the casting
+        t = _tongue(s)
+        dirn = np.array([1.0, 0.632]) / math.hypot(1.0, 0.632)
+        tongue = np.vstack([t[0] + 0.3 * dirn, t, t[-1] + 0.3 * dirn])
+        V = np.asarray(m.V)
+        C = np.array([V[list(f)][:, [0, 2]].mean(axis=0) for f in m.F])
+        # and every face under the bead (6.5 mm of its line): where the bead runs along the plate's top edge the
+        # boundary otherwise ran along the rounded edge and the two finishes alternated face by face (a saw tooth)
+        sp = inside(tongue, C) | (cKDTree(resample(np.vstack([t, t[::-1]]), 0.0005)).query(C)[0] < 0.0065)
+        m.M = [mat_spar if q else mat_cast for q in sp]
+        _uv_box(m, 0.08)
+        # the spar's brushing runs along it (LEFT, RIGHT: streaks parallel to its edges): UVs along and across it
+        for i in np.nonzero(sp)[0]:
+            Q = V[list(m.F[i])]
+            m.uv[i] = [(float((q[0] * dirn[0] + q[2] * dirn[1]) / BRUSH_TILE),
+                        float((-q[0] * dirn[1] + q[2] * dirn[0] + 0.3 * q[1]) / BRUSH_TILE)) for q in Q]
+        return m
+
+
+def _bead(P, N, w, h, pitch=0.0020, sink=0.6, taper=0.004, mat="alu_weld", smooth=False):
+    """TIG bead along an open path P (N, 3) lying on a face with outward normals N: _weld's rippled half-buried
+    ellipse, its width and height tapering to nothing over TAPER at both ends. SMOOTH: no ripples (a cast rib)."""
+    P, N = np.asarray(P, float), np.asarray(N, float)
+    seg = np.linalg.norm(np.diff(P, axis=0), axis=1)
+    arc = np.concatenate([[0], np.cumsum(seg)])
+    n = max(int(arc[-1] / (pitch / 3)), 4)
+    if smooth:
+        pitch = 1e9
+    a = np.linspace(0, arc[-1], n)
+    Q = np.stack([np.interp(a, arc, P[:, k]) for k in range(3)], axis=1)
+    Nq = np.stack([np.interp(a, arc, N[:, k]) for k in range(3)], axis=1)
+    Nq /= np.linalg.norm(Nq, axis=1, keepdims=True)
+    T = np.gradient(Q, axis=0)
+    T /= np.linalg.norm(T, axis=1, keepdims=True)
+    L = np.cross(Nq, T)
+    L /= np.linalg.norm(L, axis=1, keepdims=True)
+    phi = np.linspace(0, 2 * math.pi, 12, endpoint=False)
+    rings = []
+    for i in range(n):
+        tp = _smoothstep(min(a[i], arc[-1] - a[i]) / taper) ** 0.5
+        e = np.cos(phi)
+        q = a[i] / pitch + 0.55 * e ** 2
+        ripple = q % 1.0
+        jit = (np.sin(np.floor(q) * 12.9898) * 43758.5453) % 1.0
+        hh = h * tp * (0.84 + 0.16 * np.sqrt(ripple)) * (0.94 + 0.12 * jit)
+        u = np.sin(phi)
+        off = np.where(u > 0, u * hh, u * h * sink)
+        rings.append(Q[i] + np.outer(off, Nq[i]) + np.outer(e * w / 2 * max(tp, 0.15) * (0.97 + 0.03 * ripple), L[i]))
+    m = grid(Mesh(), rings, mat, closed_u=True, cap0=True, cap1=True)
+    # outward: the first ring's top point must lie along +N from the path
+    V = np.asarray(m.V)
+    f = m.F[len(m.F) // 2]
+    nn = np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]])
+    c = V[list(f)].mean(axis=0)
+    j = int(np.argmin(np.linalg.norm(Q - c, axis=1)))
+    if np.dot(nn, c - Q[j]) < 0:
+        m.F = [q[::-1] for q in m.F]
+    return m
+
+
+def _face_normal(s, x):
+    """Outward normal of the plate's outer face at x (the face follows _spar_y in plan)."""
+    dfx = (_spar_y(x + 0.001) - _spar_y(x - 0.001)) / 0.002
+    n = np.array([-dfx, float(s), 0.0])
+    return n / np.linalg.norm(n)
+
+
+def _frame_welds(m, cast):
+    """U bead round the extruded spar's end (LEFT and RIGHT: 8 to 10 mm wide, ripples every 2 mm) and the bead where
+    the lower section meets the cradle rail (LEFT px (2136,1556)..(2117,1598), RIGHT (1874,1553)..(1884,1589))."""
+    s = cast.s
+    t = _tongue(s)
+    y = cast.y_out(t)
+    P = np.column_stack([t[:, 0], s * y, t[:, 1]])
+    N = np.array([_face_normal(s, x) for x in t[:, 0]])
+    m.add(_bead(P, N, 0.0100, 0.0024))
+    px = [(2136, 1556), (2121, 1580), (2117, 1598)] if s > 0 else [(1874, 1553), (1880, 1572), (1884, 1589)]
+    q = _cast_px(cast.view, px, s * Y_PLATE)
+    q = spline(np.column_stack([q[:, 0], np.zeros(len(q)), q[:, 1]]), 20)[:, [0, 2]]
+    y = cast.y_out(q)
+    keep = y > np.array([_spar_y(x) for x in q[:, 0]]) - 0.0035          # on the face, not over the rounded edges
+    q, y = q[keep], y[keep]
+    m.add(_bead(np.column_stack([q[:, 0], s * y, q[:, 1]]), [_face_normal(s, x) for x in q[:, 0]], 0.0080, 0.0018))
+
+
+def _pivot_ends(m, cast):
+    """RIGHT: the nut in its round counterbore, the bolt's hollow end; LEFT: the head in its hexagonal recess."""
+    s = cast.s
+    out = s * Y3
+    yf = float(cast.y_out(np.array([[PIVOT[0], PIVOT[2] + BOSS_R - 0.004]]))[0])     # the boss's face
+    face = PIVOT + s * (yf - 0.0010) * Y3                                            # the rim's rounding ends here
+    if s < 0:
+        R, dep = PIV_CB
+        fl = face - out * (dep - 0.0010)
+        # the bore's wall and floor (seen from outside: normals toward the axis and outward)
+        m.add(turned(face + out * 0.0002, -out, [(0, R), (dep - 0.0008, R), (dep - 0.0008, 0.0001)], "frame_cast", 72,
+                     False, True))
+        af, hn = PIV_NUT
+        m.add(hexnut(fl, out, af, hn, PIV_END[0] - 0.0002, "steel", phase=math.pi / 6))
+        r_end, r_b, pr = PIV_END
+        top = fl + out * (hn + pr)
+        m.add(turned(fl + out * 0.002, out, [(0, r_end), (hn + pr - 0.0007, r_end), (hn + pr, r_end - 0.0007),
+                                             (hn + pr, r_b + 0.0004), (hn + pr - 0.0004, r_b)], "steel", 36, False, False))
+        m.add(turned(top - out * 0.0004, -out, [(0, r_b), (0.012, r_b), (0.012, 0.0001)], "bore", 24, False, True))
+    else:
+        af, dep = PIV_HEX
+        fl = face - out * (dep + 0.0025)
+        # the recess's six walls down to a dark gap round the head
+        m.add(lathe2(face + out * 0.0002, -out, [(0, 1.0, af), (dep + 0.0025, 1.0, af), (dep + 0.0025, 0.0001)], "frame_cast",
+                     48, 0.0, False, True))
+        haf, r_b = PIV_HEAD
+        hh = dep + 0.0025 - 0.0010                                    # head's face 1 mm under the boss's face
+        # flat-topped (piv2: the face inside the gap is even to the gap), edges broken 0.4 mm; darker than the frame
+        # (grey 95..110 against the casting's 180..230)
+        prof = [(0.0, 0.0001), (0.0, 1.0, haf), (hh - 0.0004, 1.0, haf), (hh, 1.0, haf - 0.0008), (hh, r_b + 0.0006),
+                (hh - 0.0005, r_b)]
+        m.add(lathe2(fl, out, prof, "steel_dark", 48, 0.0, cap0=True, cap1=False))
+        m.add(turned(fl + out * (hh - 0.0005), -out, [(0, r_b), (0.012, r_b), (0.012, 0.0001)], "bore", 24, False, True))
+
+
+def _cast_ribs(m, cast):
+    """The casting's narrow ribs as smooth beads on its face: RIGHT, a '>' of two from each tab's boss into the leg
+    (r_low3, r_mc: 15 mm long, about 3 mm wide); both sides, the rib down the pocket's upper edge under the pivot
+    (l_pocket: lit, about 6 mm wide, from the boss's fillet to the footpeg pad)."""
+    s = cast.s
+    paths = [np.linspace(a, b, 12) for a, b in cast.chev]
+    rb = np.linalg.norm(cast.rib - cast.piv, axis=1)
+    rib = cast.rib.copy()
+    rib[0] = cast.piv + (rib[0] - cast.piv) * (BOSS_R + 0.004) / rb[0]      # it starts at the boss's fillet
+    paths.append(spline(np.column_stack([rib[:, 0], np.zeros(len(rib)), rib[:, 1]]), 20)[:, [0, 2]])
+    for q, (w, h) in zip(paths, [(0.0028, 0.0010)] * len(cast.chev) + [(0.0060, 0.0015)]):
+        y = cast.y_out(q)
+        g = _bead(np.column_stack([q[:, 0], s * y, q[:, 1]]), [_face_normal(s, x) for x in q[:, 0]], w, h, pitch=0.0008,
+                  sink=0.8, taper=0.003, mat="frame_cast", smooth=True)
+        _uv_box(g, 0.08)
+        m.add(g)
+
+
+def _tab_bolts(m, cast):
+    """RIGHT: the master cylinder's two M6 flange bolts on the tabs' bosses (r_mc: bright heads, flange 16 px = 12 mm,
+    hexagon 8 mm), their ends in the cylinder's lugs behind."""
+    for b in cast.tabs:
+        y = float(cast.y_out(b[None, :])[0])
+        m.add(hexbolt((b[0], -(y - 0.0003), b[1]), -Y3, 0.008, 0.0055, flange_d=0.012, flange_h=0.0012, mat="zinc", seg=36))
+
+
+def _uv_box(m, scale):
+    """UVs for the plate's isotropic grain: one side projection (x, z) over both faces and every slope, so the tangent
+    frame is the same on neighbouring faces (a box projection switched axes on the pocket's and the pad's slopes and
+    the normal map turned them into bright shards); the rim walls (normal square to y) take (x + z, y)."""
+    V = np.asarray(m.V, float)
+    for i, f in enumerate(m.F):
+        Q = V[list(f)]
+        n = np.cross(Q[1] - Q[0], Q[2] - Q[0])
+        if abs(n[1]) > 0.25 * np.linalg.norm(n):
+            m.uv[i] = [(float(q[0] / scale), float(q[2] / scale)) for q in Q]
+        else:
+            m.uv[i] = [(float((q[0] + q[2]) / scale), float(q[1] / scale)) for q in Q]
+
+
+def _debug_outlines(s):
+    view = "left" if s > 0 else "right"
+    out = [(_frame_outline(), (0, 200, 255)), (_side_outline(s), (255, 230, 0)),
+           (_cast_px(view, LOW_PX[view], s * Y_MID), (255, 0, 255))]
+    t = _tongue(s)
+    out.append((np.vstack([t, t[::-1]]), (0, 255, 0)))
+    if s < 0:
+        out.append((_cast_px("right", TAB_PX, -Y_MID), (255, 0, 255)))
+    return out
+
+
+def _union_outline(polys, res=0.0005, sigma=0.0010):
+    """Outline of the union of polygons (x, z): rasterised every 0.5 mm, softened by SIGMA (so the joints between the
+    traced pieces become cast fillets, not corners) and traced back at the half level."""
+    from contourpy import contour_generator
+    from scipy.ndimage import gaussian_filter
+    A = np.vstack(polys)
+    lo, hi = A.min(axis=0) - 0.01, A.max(axis=0) + 0.01
+    xs, zs = np.arange(lo[0], hi[0], res), np.arange(lo[1], hi[1], res)
+    X, Z = np.meshgrid(xs, zs)
+    Q = np.stack([X.ravel(), Z.ravel()], axis=1)
+    mask = np.zeros(len(Q), bool)
+    for p in polys:
+        mask |= inside(p, Q)
+    field = gaussian_filter(mask.reshape(X.shape).astype(float), sigma / res)
+    lines = contour_generator(x=xs, y=zs, z=field).lines(0.5)
+    o = max(lines, key=len)
+    if np.allclose(o[0], o[-1]):
+        o = o[:-1]
+    return o
+
+
 def _sub_rails(s):
     """Subframe rails of side S: hidden under the seat and side panels in every photo (EST), kept under the seat's
     base and inside the side panels of the model; the mounts are measured: LEFT px (2313,1259) on the plate's rear
@@ -456,19 +942,15 @@ def frame():
     m.add(turned(HEAD_LO, UP, [(0.0035, STEM_BORE), (0.0035, 0.027), (0.0, 0.027), (0.0, 0.0335), (0.016, 0.0335), (0.020, 0.0305),
                                (L - 0.020, 0.0305), (L - 0.016, 0.0335), (L, 0.0335), (L, 0.027), (L - 0.003, 0.027),
                                (L - 0.003, STEM_BORE), (0.0035, STEM_BORE)], "alu_frame", 28, False, False))
-    o = _frame_outline()
-    br = _bracket_outline()
-    # weld bead across the spar where the extrusion meets the cast pivot plate (EST: 5 mm wide, at x 0.69)
-    q = np.array([0.690, 0.757]) + np.outer(np.arange(-0.075, 0.0751, 0.0015), [-0.534, 0.845])
-    ins = inside(o, q)
-    i0 = len(q) // 2
-    lo = i0 - int(np.argmin(ins[i0::-1]))
-    hi = i0 + int(np.argmin(ins[i0:]))
-    weld = q[lo + 3:hi - 2]
     for s in (1, -1):
-        # spar and pivot plate: the photo outline, 26 mm deep with rounded edges, on the spar's path in plan
-        m.add(slab(o, lambda x, z, s=s: s * (_spar_y(x) - T_SPAR / 2), T_SPAR, "alu_frame", r=0.005, step=0.009, to=_xz, fine=True))
-        m.add(tube([(x, s * (_spar_y(x) + 0.0001), z) for x, z in weld], [(0.0012, 0.0030)] * len(weld), 10, "alu_frame"))
+        # spar and the cast rear section: one plate over each side's own outline (round 3: _Cast), the U bead round
+        # the spar's end, the cradle weld, the pivot's two ends
+        cast = _Cast(s)
+        m.add(cast.build("frame_spar", "frame_cast"))
+        _frame_welds(m, cast)
+        _pivot_ends(m, cast)
+        _tab_bolts(m, cast)
+        _cast_ribs(m, cast)
         # the spar under the shroud, up to the head (EST): 80 mm deep box, the visible part's top edge continued
         xs = np.array([0.74, 0.78, 0.82, 0.86, 0.90, 0.92, 0.94, 0.98, 1.03, 1.058])
         low = np.interp(xs, [0.86, 0.92, 1.058], [0.0, 0.004, 0.004])        # top 8 mm lower under the shroud deck (z 0.961)
@@ -477,13 +959,9 @@ def frame():
         # gusset between the spar's underside, the head and the down tube (EST)
         m.add(slab(np.array([(1.058, 0.940), (0.992, 0.906), (1.030, 0.850)]), s * 0.0245, 0.005, "alu_frame", r=0.002,
                    step=0.012, to=_xz))
-        # pivot: boss on the plate (the plate's own front edge there is the extraction's cut line), pad, bolt
-        m.add(slab(circle(0.026, 30, PIVOT[0], PIVOT[2]), s * (Y_PLATE - T_SPAR / 2 + 0.0004), T_SPAR + 0.0008, "alu_frame",
-                   r=0.005, step=0.009, to=_xz, fine=True))
-        m.add(turned(PIVOT + s * (Y_PLATE - 0.0005) * Y3, s * Y3, [(0, 0.025), (0.003, 0.0235), (0.004, 0.019)], "alu_frame", 28))
-        m.add(turned(PIVOT + s * 0.052 * Y3, s * Y3, [(0, 0.0085), (0.086, 0.0085)], "steel", 14))
-        # footpeg bracket with the black socket bolt (LEFT px (2228,1562), RIGHT px (1770,1561)) and the hinge boss
-        m.add(slab(br, s * 0.130, 0.022, "alu_cast", r=0.003, step=0.007, to=_xz, fine=True))
+        m.add(turned(PIVOT + s * 0.052 * Y3, s * Y3, [(0, 0.0085), (0.080, 0.0085)], "steel", 14))
+        # footpeg bracket (now the casting's raised pad) with the black socket bolt (LEFT px (2228,1562), RIGHT px
+        # (1770,1561)) and the hinge boss
         m.add(bolt((0.5765, s * 0.1407, 0.380), (0, s, 0), af=0.016, head_h=0.007, mat="anod_black", kind="cap"))
         m.add(hollow((PEG[0] - 0.006, s * PEG_PIN[0], PEG_PIN[1]), (1, 0, 0), 0.0058, 0.0038, 0.018, "alu_cast", 14))
         # cradle rail from the down tube's foot under the engine to the bracket (OUT2 'cradle' cast at the rail's own y: lower edge z 0.343;
@@ -503,10 +981,6 @@ def frame():
                    step=0.006, to=_xz))
         m.add(bolt((0.624, s * (Y_PLATE + 0.0002), 0.833), (0, s, 0), af=0.012, head_h=0.007))
         m.add(bolt((0.524, s * (Y_PLATE - 0.0003), 0.607), (0, s, 0), af=0.012, head_h=0.007))
-    # pivot bolt: recessed head on the left, flanged nut on the right (LEFT px (2245,1433), RIGHT px (1751,1431))
-    m.add(bolt(PIVOT + (Y_PLATE + 0.0033) * Y3, Y3, af=0.024, head_h=0.007, flange_d=0.036, mat="steel"))
-    m.add(bolt(PIVOT - (Y_PLATE + 0.0033) * Y3, -Y3, af=0.022, head_h=0.010, flange_d=0.032, mat="steel"))
-    m.add(turned(PIVOT - (Y_PLATE + 0.0033) * Y3, -Y3, [(0, 0.0075), (0.013, 0.0075)], "steel", 12))
     # down tube: its front and rear edges in the left photo (rows 1280..1440: x 0.954..0.923 down to 0.925..0.904)
     dt = spline([(1.056, 0, 0.945), (1.040, 0, 0.870), (1.015, 0, 0.775), (0.990, 0, 0.690), (0.962, 0, 0.625), (0.938, 0, 0.576),
                  (0.9145, 0, 0.452)], 18)
@@ -829,7 +1303,85 @@ def swingarm():
            for a in np.radians(np.arange(-90, 61, 15))]
     sb = np.array([(x, CHAIN_Y, z) for x, z in lowr + arc])
     m.add(bar(sb, 0.022, np.concatenate([np.full(len(lowr), 0.006), np.full(len(arc), 0.003)]), "plastic_black"))
+    _hose_clip(m)                                                    # round 3: the brake hose's guide on the right arm
     return m
+
+
+_HOSE_CACHE = []
+
+
+def _wheels_hose():
+    """Ring centres and radii of detail_wheels.py's brake hose (part rear_brake: the 'cable' tube, 12 points a ring),
+    read off its built mesh so that the joint and the clip follow that module's run."""
+    if not _HOSE_CACHE:
+        import detail_wheels
+        m = detail_wheels.PARTS["rear_brake"]()
+        V = np.asarray(m.V, float)
+        idx = sorted({i for f, mt in zip(m.F, m.M) if mt == "cable" for i in f})
+        C = V[idx]
+        R = C[:len(C) // 12 * 12].reshape(-1, 12, 3)
+        cen = R.mean(axis=1)
+        _HOSE_CACHE.append((cen, np.linalg.norm(R - cen[:, None, :], axis=2).mean(axis=1)))
+    return _HOSE_CACHE[0]
+
+
+# the hose's guide clip on the right arm's top (RIGHT 7x crop 1370..1450 x 1428..1480, r_clip; rr34 1595..1630 x
+# 1370..1400): a black band 16 px (12 mm) along the hose over its top (u 1392..1408), on a ribbed base 41 px (31 mm)
+# long and 12 px (9 mm) tall (u 1384..1425), three ribs along it. Cast with detail_wheels' own photo-to-model map
+# (_cal_px): base x 0.281..0.312, band 0.287..0.299. In the photo the hose rides on the base 9 mm over the arm; the
+# wheels module lays it 1.2 mm over the arm's top, so the base is two cheeks either side of the hose, the band
+# arching over it between them
+CLIP_X = (0.281, 0.312, 0.287, 0.299)
+
+
+def _hose_clip(m):
+    cen, rad = _wheels_hose()
+    xc = (CLIP_X[0] + CLIP_X[1]) / 2
+    k = int(np.argmin(np.abs(cen[:, 0] - xc)))
+    t = cen[min(k + 1, len(cen) - 1)] - cen[max(k - 1, 0)]
+    t /= np.linalg.norm(t)
+    c = cen[k] + t * ((xc - cen[k][0]) / t[0])
+    up = np.cross(t, Y3)                                             # square to the hose, in the arm's plane
+    up = -up if up[2] < 0 else up
+    up /= np.linalg.norm(up)
+    hr = float(rad[k])
+    base = c - up * (hr + 0.0012)                                    # the arm's top under the hose
+    L = CLIP_X[1] - CLIP_X[0]
+    Rm = np.column_stack([t, Y3, up])
+    top = hr + 0.0012 + 0.0020                                       # cheeks: from the arm's top to 2 mm over the hose's
+    #                                                                  axis (the band arches over them)
+    for sg in (1, -1):
+        yc = c[1] + sg * (hr + 0.0005 + 0.002)
+        q = base + up * (top / 2 - 0.0003)
+        m.add(box((q[0], yc, q[2]), (L, 0.004, top), "plastic_black", Rm))
+        for h in (0.0020, 0.0040, 0.0060):                           # three ribs along the outer faces
+            p = base + up * h
+            m.add(box((p[0], yc + sg * 0.0022, p[2]), (L - 0.002, 0.0008, 0.0010), "plastic_black", Rm))
+    # the band: an arch 1.4 mm thick round the hose's top, 12 mm along it, its feet on the cheeks
+    bl = CLIP_X[3] - CLIP_X[2]
+    bc = c + t * (((CLIP_X[2] + CLIP_X[3]) / 2 - c[0]) / t[0])
+    ang = np.radians(np.linspace(-10, 190, 21))
+    r0, r1 = hr + 0.0003, hr + 0.0017
+    rings = []
+    for s_ in (-bl / 2, -bl / 2 + 0.0006, bl / 2 - 0.0006, bl / 2):
+        e = 0.0003 if abs(s_) == bl / 2 else 0.0
+        outer = [bc + t * s_ + (Y3 * math.cos(a) + up * math.sin(a)) * (r1 - e) for a in ang]
+        inner = [bc + t * s_ + (Y3 * math.cos(a) + up * math.sin(a)) * (r0 + e) for a in ang[::-1]]
+        rings.append(np.array(outer + inner))
+    g = grid(Mesh(), rings, "plastic_black", cap0=False, cap1=False)
+    V = np.asarray(g.V)
+    f = g.F[(len(ang) // 2)]                                        # a face on the outer arc's top: normal up
+    if np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]]) @ up < 0:
+        g.F = [q[::-1] for q in g.F]
+    n = len(ang)
+    for j, sg in ((0, -1), (len(rings) - 1, 1)):                    # the band's two ends: quads across the arch
+        o = j * 2 * n
+        for i in range(n - 1):
+            q = (o + i, o + i + 1, o + 2 * n - 2 - i, o + 2 * n - 1 - i)
+            if np.cross(V[q[1]] - V[q[0]], V[q[2]] - V[q[0]]) @ t * sg < 0:
+                q = q[::-1]
+            g.face(q, "plastic_black")
+    m.add(g)
 
 
 def _arc_rr(f0, f1, h, rf, rc=0.002, k=8, n0=N0):
@@ -1183,18 +1735,18 @@ MUF_TAPER = 0.18                            # the can's height falls 18 mm per 1
 #                                             over the nose (audit: 20.8 mm into it at x 0.26..0.32 without; hidden part)
 MUF_FACE = -0.008                           # the cap's rear face (at z 0.840, before its lean)
 MUF_ROLL = 0.018                            # the cap's pressed edge: an 18 mm roll into its rear face (rr34, REAR)
-MUF_NOSE = (0.296, 0.350, 0.026)            # the nose cone: from its seam to the inlet, the inlet's radius (RIGHT)
+MUF_NOSE = (0.345, 0.371, 0.0215)          # round 3: the can's lines run to the seam's top (x 0.345); the nose ends at
+#                                             the inlet's weld ring (RIGHT u 1490) round the 41 mm pipe (r 20.5 + 1)
 MUF_X = list(np.arange(0.012, 0.300, 0.006)) + [0.300]
-MUF_CONE = (0.296, 0.350)
 # end cap seen from behind, an octagon of flat facets (REAR, 2x crop 2100..2330 x 680..920, cast on x 0): top z 0.901
 # from y -0.1015 to -0.1658; outer chamfer to (-0.1916, 0.8665); outer side down to z 0.799; lower chamfer to
 # (-0.1778, 0.769); bottom z 0.765 to y -0.115; inner corner (-0.095, 0.778), (-0.0868, 0.792); inner side to z 0.880.
-# As (a outward, b up) in half-widths about (y -0.139, z 0.833); corners rounded about 5 mm (smoothed)
+# As (a outward, b up) in half-widths about (y -0.139, z 0.833); corners rounded about 5 mm (smoothed; round 3 tried
+# 3 samples instead of 6 for crisper corners: the outer top corner then stood 12 mm above LEFT's row 878, so 6 stays)
 _SEC = np.array([(-1.0, 0.0), (-1.0, -0.60), (-0.84, -0.81), (-0.46, -1.0), (0.70, -1.0), (1.0, -0.50), (1.0, 0.49),
                  (0.505, 1.0), (-0.718, 1.0), (-1.0, 0.69)])[::-1]
 MUF_SEC = smooth_poly(resample(_SEC, 0.05), 6)
-CAP_LEAN = math.tan(math.radians(14.5))    # RIGHT: the cap's rear face from px (1040, 875) at the top to (1000, 1030)
-OUT_AXIS = np.array([-math.cos(math.radians(14.5)), 0.0, math.sin(math.radians(14.5))])   # square to that face
+OUT_AXIS = np.array([-1.0, 0.0, 0.0])        # square to the cap's upright face (round 3, _cap_x)
 OUTLET = np.array([-0.012, -0.138, 0.845])                    # REAR: dark disc centred on px (2205, 787)
 MUF_AXIS = np.array([-0.927, 0.0, 0.375])                     # rearward along the can (22 deg: between its two edges)
 BRUSH_TILE = 0.08                                             # metres per repeat of the brushed map
@@ -1213,29 +1765,58 @@ def _muf(x):
     return zl, zt, yc, hw
 
 
-def _muf_ring(x, grow=0.0, inset=0.0):
+def _muf_ring(x, grow=0.0, inset=0.0, morph=0.0):
     """Section of the can at station x: the octagon on its two edge lines, grown by GROW (m, outward, the cap and the
-    nose stand proud of the can) or rolled in by INSET (the cap's pressed edge); in the nose it turns into a circle;
-    near the rear the station leans with the cap's face."""
+    nose stand proud of the can) or rolled in by INSET (the cap's pressed edge). MORPH (0..1): the nose's turn from
+    the octagon into the round inlet on the header (round 3: the nose is built per vertex from its slanted seam, the
+    cap's face is shaped by _cap_x, so the station itself is square to the can)."""
     zl, zt, yc, hw = _muf(min(max(x, MUF_FACE), MUF_NOSE[0]))
     hh = (zt - zl) / 2
+    zm = (zl + zt) / 2
     S = MUF_SEC.copy()
-    if x > MUF_NOSE[0]:
-        k = min((x - MUF_NOSE[0]) / (MUF_NOSE[1] - MUF_NOSE[0]), 1.0)
-        k = 3 * k ** 2 - 2 * k ** 3
+    if morph > 0:
+        k = 3 * morph ** 2 - 2 * morph ** 3
         ang = np.arctan2(S[:, 1], S[:, 0])
         S = (1 - k) * S + k * np.stack([np.cos(ang), np.sin(ang)], axis=1)
-        r_end = MUF_NOSE[2]
-        hw = (1 - k) * hw + k * r_end
-        hh = (1 - k) * hh + k * r_end
-        yc = (1 - k) * yc + k * -0.096
-    zm = (zl + zt) / 2
-    if x > MUF_NOSE[0]:
-        zm = (1 - k) * zm + k * 0.648                                # onto the inlet pipe (HEADER's last point)
+        hw = (1 - k) * hw + k * MUF_NOSE[2]
+        hh = (1 - k) * hh + k * MUF_NOSE[2]
+        yc = (1 - k) * yc + k * MUF_INLET[0]
+        zm = (1 - k) * zm + k * MUF_INLET[1]
     hw2, hh2 = hw + grow - inset, hh + grow - inset
     z = zm + S[:, 1] * hh2
-    sh = CAP_LEAN * min(max((0.035 - x) / (0.035 - MUF_FACE), 0.0), 1.0)    # the cap's face leans forward at the top
-    return np.stack([np.full(len(S), x) + sh * (z - 0.840), yc - S[:, 0] * hw2, z], axis=1)
+    return np.stack([np.full(len(S), x), yc - S[:, 0] * hw2, z], axis=1)
+
+
+# the cap's side profile (RIGHT, the rear-most pixel of each row, cast on y -0.14; scratch r_cap): the face is
+# upright at x -0.0072 from z 0.866 to 0.838 (u 983..984), then a knee of about 50 mm radius (x -0.0047 at z 0.820,
+# -0.0027 at 0.811, 0.0023 at 0.802) into one straight facet at 45 deg (0.0111, 0.793), (0.0199, 0.784), (0.0309,
+# 0.775), (0.0353, 0.770) down to the can's underside (0.0465, 0.765). The round-2 cap leaned 14.5 deg on one line
+# (from the cap's seam to its face), 13 mm too far back at the top and with a crease where the roll met the bottom
+CAP_X = -0.0072
+CAP_KNEE = (0.0428, 0.8318, 0.050)          # the knee's circle: centre x, z and radius, tangent to the face and facet
+_KT = (CAP_KNEE[0] - CAP_KNEE[2] * math.sqrt(0.5), CAP_KNEE[1] - CAP_KNEE[2] * math.sqrt(0.5))   # (0.0074, 0.7964)
+
+
+def _cap_x(z):
+    """x of the cap's rear surface at height z (before the roll round its edge)."""
+    if z >= CAP_KNEE[1]:
+        return CAP_X
+    if z >= _KT[1]:
+        return CAP_KNEE[0] - math.sqrt(max(CAP_KNEE[2] ** 2 - (z - CAP_KNEE[1]) ** 2, 0.0))
+    return _KT[0] + (_KT[1] - z)
+
+
+# the nose (RIGHT, 3x crop 1340..1580 x 1100..1280, r_nose; cast on the can's outer flank, y -0.17): the can's front
+# edge (its two rivets just behind it) runs slanted from (0.3176, 0.6373) at the bottom to (0.3411, 0.6875) where the
+# side panel covers it; the pressed nose cone, a darker satin steel, from it to the inlet's weld ring at u 1490 (x
+# 0.372); its lower edge almost level (z 0.637 to 0.641), turning up into the pipe at the end. The round-2 seam was
+# square to the can at x 0.296, 2 to 4.5 cm behind the photo's
+NOSE_SEAM = (0.3176, 0.6373, 0.468)         # x, z at the bottom and dx/dz up the seam (25 deg)
+MUF_INLET = (-0.0917, 0.6441)               # the header's axis (y, z) at the nose's end (HEADER, between its last two points)
+
+
+def _nose_x(z):
+    return NOSE_SEAM[0] + NOSE_SEAM[2] * (z - NOSE_SEAM[1])
 
 
 def _uv_grid(mesh, rings, base=0):
@@ -1262,47 +1843,74 @@ def _can(m):
     seam_x = lambda z: a0 + b * z + 0.006
     # can: from under the cap to under the nose
     zc = np.array([_muf_ring(0.03)[j, 2] for j in range(n)])
-    x0 = max(min(seam_x(float(z)) for z in zc) - 0.006, MUF_FACE + MUF_ROLL + 0.004)
-    xs = [x0] + [x for x in MUF_X if x > x0 + 0.003]
-    xs = xs[:-1] + [MUF_NOSE[0] + 0.004]
+    x0 = max(min(seam_x(float(z)) for z in zc) - 0.006, _KT[0] + 0.004)
+    zf = _muf_ring(MUF_NOSE[0])[:, 2]
+    xn = np.array([_nose_x(z) for z in zf])                       # the can's front edge, slanted (RIGHT, r_nose)
+    xs = [x0] + [x for x in MUF_X if x0 + 0.003 < x < xn.min() - 0.004]
     rings = [_muf_ring(x) for x in xs]
-    b0 = len(m.F)
+    rings.append(np.array([_muf_ring(xn[j])[j] for j in range(n)]))
     g = grid(Mesh(), rings, "muffler", cap0=True, cap1=True)
     _uv_grid(g, rings)
     m.add(g)
-    # cap: rear face (flat, leaning), the 12 mm roll, the cap's side out to its seam (per vertex), the 0.6 mm step
+    # cap (round 3): its rear surface follows _cap_x (upright face, 50 mm knee, 45 deg lower facet); the roll round
+    # its edge is 18 mm where the cap is long enough and shrinks to 2 mm at the bottom, where the photo's seam meets
+    # the lower facet; then the cap's side out to its seam (per vertex) and the 0.6 mm step down to the can
+    full = _muf_ring(MUF_FACE, grow=0.0006)
+    roll = np.clip([seam_x(float(p[2])) - _cap_x(float(p[2])) - 0.004 for p in full], 0.002, MUF_ROLL)
+
+    def ring_at(inset_of, x_of):
+        """Per vertex: the section taken at the vertex's own station (the can's top and bottom lines slope, so the
+        cap's sides follow them), its x from the profile; two passes settle x and z together."""
+        out = []
+        for j in range(n):
+            x = MUF_FACE
+            for _ in range(3):
+                p = _muf_ring(x, grow=0.0006, inset=float(inset_of[j]))[j]
+                x = x_of(j, float(p[2]))
+            out.append((x, p[1], p[2]))
+        return np.array(out)
+    B = ring_at(roll, lambda j, z: _cap_x(z))
+    c0 = B.mean(axis=0)
     rings = []
-    for q in (0.25, 0.5, 0.75):
-        R0 = _muf_ring(MUF_FACE, grow=0.0006, inset=MUF_ROLL)
-        c0 = R0.mean(axis=0)
-        rings.append(c0 + (R0 - c0) * q)
+    for q in np.linspace(0.08, 1.0, 13)[:-1]:                     # the face: fine enough to carry the knee's curve
+        R_ = c0 + (B - c0) * q
+        R_[:, 0] = [_cap_x(float(z)) for z in R_[:, 2]]
+        rings.append(R_)
     for a in np.radians(np.linspace(0, 90, 7)):
-        x = MUF_FACE + MUF_ROLL * (1 - math.cos(a))
-        rings.append(_muf_ring(x, grow=0.0006, inset=MUF_ROLL * (1 - math.sin(a))))
+        rings.append(ring_at(roll * (1 - math.sin(a)), lambda j, z, a=a: _cap_x(z) + roll[j] * (1 - math.cos(a))))
+    xr = rings[-1][:, 0].copy()
     tail = []
     for t in np.linspace(0, 1, 8)[1:]:
         ring = []
         for j in range(n):
-            xr = MUF_FACE + MUF_ROLL
             xj = seam_x(float(_muf_ring(0.03)[j, 2]))
-            ring.append(_muf_ring(xr + t * (xj - xr), grow=0.0006)[j])
+            xx = xr[j] + t * max(xj - xr[j], 0.0005)
+            ring.append(_muf_ring(xx, grow=0.0006)[j])
         tail.append(np.array(ring))
     last = tail[-1]
     step = np.array([_muf_ring(p[0])[j] for j, p in enumerate(last)])
     cap_rings = rings + tail + [last + (step - last) * 0.6, step]
     g = grid(Mesh(), cap_rings, "muffler", cap0=True, cap1=False)
     _uv_grid(g, cap_rings, 0)
-    nf = len(rings) - 1                                           # the face and its roll: brushed across (REAR: level
-    for f in range(nf * n):                                       # lines on the cap's face), a plane map in y and z
+    nf = 12                                                       # the face: brushed across (REAR: level lines on the
+    for f in range(nf * n):                                       # cap's face), a plane map in y and z; the roll keeps
+        #                                                           the can's map (the plane map streaked it sideways)
         g.uv[f] = [(-g.V[i][1] / BRUSH_TILE, g.V[i][2] / BRUSH_TILE) for i in g.F[f]]
     for f in range((len(cap_rings) - 1) * n, len(g.F)):           # the centre fan
         g.uv[f] = [(-g.V[i][1] / BRUSH_TILE, g.V[i][2] / BRUSH_TILE) for i in g.F[f]]
     m.add(_outward(g))
-    # nose: its rear edge 0.6 mm proud, square to the can (its rivets at RIGHT px (1430.8, 1181.2), (1408, 1219.8))
-    nx = MUF_NOSE[0]
-    nose = [np.array([_muf_ring(nx - 0.002)[j] for j in range(n)]), _muf_ring(nx - 0.002, grow=0.0006)]
-    nose += [_muf_ring(x, grow=0.0006 * (1 - (x - nx) / (MUF_NOSE[1] - nx))) for x in np.linspace(nx, MUF_NOSE[1], 9)]
-    g = grid(Mesh(), nose, "muffler", cap0=False, cap1=True)
+    # nose (round 3): a separate pressed cone of satin steel from the can's slanted front edge (0.6 mm under it, the
+    # can's edge laps over it) to the inlet's ring round the header, its section turning from the octagon into the
+    # pipe's circle with a smoothstep over its front two thirds (r_nose: the lower edge runs level first, then the
+    # inlet end meets the pipe tangentially: the photo's rounded front corner)
+    nose = []
+    for t in np.linspace(0, 1, 13):
+        ring = []
+        for j in range(n):
+            xx = xn[j] - 0.004 + t * (MUF_NOSE[1] - xn[j] + 0.004)
+            ring.append(_muf_ring(xx, grow=-0.0006, morph=float(np.clip((t - 0.35) / 0.65, 0, 1)))[j])
+        nose.append(np.array(ring))
+    g = grid(Mesh(), nose, "header_steel", cap0=False, cap1=True)
     _uv_grid(g, nose, 0)
     m.add(_outward(g))
 
@@ -1323,10 +1931,33 @@ def brushed_map(path, size=1024, seed=7):
     h = gaussian_filter(h, (0.6, 12.0), mode="wrap")
     dv = np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)
     du = np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)
-    k = 0.06
+    k = 0.16                # round 3: was 0.06, a 2 deg spread of the normals across the lines: the brushing did not
+    #                         read in a close-up at 30 cm; now about 6 deg (the photos' streaks are clear at 2x)
     nrm = np.stack([-du * k * 0.3, dv * k, np.ones_like(h)], axis=-1)    # image rows run down: +v is up the image
     nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
     Image.fromarray(np.clip((nrm * 0.5 + 0.5) * 255, 0, 255).astype(np.uint8)).save(path)
+
+
+def cast_map(path, size=1024, seed=11):
+    """Tangent-space normal map of the frame's cast surface: the fine grain of a shot-blasted sand casting (equalised
+    crops of RIGHT and LEFT: an even speckle about 0.3 mm across, no direction) over a faint orange peel 1 to 2 mm
+    across; 0.08 m per repeat (a pixel is 0.08 mm), as the brushed map. OpenGL convention."""
+    from PIL import Image
+    from scipy.ndimage import gaussian_filter
+    rng = np.random.default_rng(seed)
+    g = gaussian_filter(rng.standard_normal((size, size)), 1.8, mode="wrap")
+    g /= g.std()
+    peel = gaussian_filter(rng.standard_normal((size, size)), 10.0, mode="wrap")
+    peel /= peel.std()
+    h = g + 0.6 * peel
+    dv = np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)
+    du = np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)
+    k = 0.10
+    nrm = np.stack([-du * k, dv * k, np.ones_like(h)], axis=-1)
+    nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
+    Image.fromarray(np.clip((nrm * 0.5 + 0.5) * 255, 0, 255).astype(np.uint8)).save(path)
+
+
 def _on_can(u, v):
     """Where the right camera's ray through pixel (u, v) meets the can (or, if it passes over the model's can, the
     can's surface nearest to it), and the can's outward normal there."""
@@ -1388,6 +2019,26 @@ def exhaust():
     bb, aa = np.polyfit(R3[:, 2], R3[:, 0], 1)
     _CAP_PLANE = (float(aa), float(bb))
     _can(m)
+    # round 3: the three rivets seen from behind (REAR 3x crop, rear_cap: the lower corners of the cap's face at
+    # (2142, 870) and (2268, 870), one at the bottom (2205, 898)), on the cap where the rear camera's ray meets it
+    V = np.asarray(m.V, float)
+    Nv = np.zeros_like(V)
+    for f in m.F:
+        nf = np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]])
+        for i in f:
+            Nv[i] += nf
+    Nv /= np.maximum(np.linalg.norm(Nv, axis=1, keepdims=True), 1e-12)
+    capv = (V[:, 0] < 0.07) & (V[:, 2] > 0.74) & (np.abs(V[:, 1] + 0.139) < 0.07)
+    cam = cams.CAMS["rear"]
+    for u, v in ((2142, 870), (2268, 870), (2205, 898)):
+        d = cam.ray(np.array([u], float), np.array([v], float))[0]
+        d /= np.linalg.norm(d)
+        w = V - cam.C
+        dist = np.linalg.norm(w - np.outer(w @ d, d), axis=1)
+        dist[~capv | (Nv @ d > -0.2)] = 1.0
+        near = np.nonzero(dist < max(float(dist.min()) * 1.5, 0.0015))[0]
+        i = int(near[np.argmin((w @ d)[near])])                     # the first surface along the ray: the cap's
+        riv.append((V[i] - Nv[i] * 0.0006, Nv[i]))
     for k, (p, nrm) in enumerate(riv):
         p = p + nrm * 0.0006                                       # on the cap or the nose, which stand 0.6 mm proud
         m.add(turned(p - nrm * 0.0003, nrm, [(0.0, 0.0001), (0.0, 0.00275), (0.0004, 0.0027), (0.0009, 0.0022),
@@ -1591,53 +2242,73 @@ def rear_brake():
         bel += [(0.004 + 0.006 * k, 0.0098), (0.007 + 0.006 * k, 0.0080)]
     bel += [(0.022, 0.0098), (0.025, 0.0110)]
     m.add(turned(a0, d, bel, "rubber_black", 20))
-    body = [(0.024, 0.0124), (0.026, 0.0128), (0.070, 0.0128), (0.072, 0.0124)]
-    m.add(turned(a0, d, body, "alu_cast", 28))
-    rc = a0 + d * 0.093
-    res = rounded_rect(0.040, 0.028, 0.006, 4)                    # reservoir: 40 x 28 mm in plan, 42 tall
-    ring = lambda h, k: np.array([rc + d * h + np.array([p[0] * k, p[1] * k, 0.0]) for p in res])
-    m.add(grid(Mesh(), [ring(-0.021, 0.92), ring(-0.019, 1.0), ring(0.019, 1.0), ring(0.021, 0.95)], "alu_cast", cap0=True,
-               cap1=True))
-    cap = [ring(0.021, 0.95), ring(0.0212, 0.97), ring(0.0262, 0.97), ring(0.0272, 0.90)]
-    m.add(grid(Mesh(), cap, "plastic_black", cap0=False, cap1=True))
-    for sx in (-1, 1):                                            # the cap's two screws
-        m.add(lathe2(rc + d * 0.0270 + np.array([sx * 0.013, 0.0, 0.0]), d, [(0, 0.0001), (0, 0.0028), (0.0016, 0.0025),
-                                                                               (0.0018, 0.001), (0.0012, 0.0001)], "steel", 16,
-                     cap0=True, cap1=True))
-    # mounting: two bosses on the body's front to a tab on the frame plate's rear edge (RIGHT px (1655,1318),
-    # (1652,1382)), flange bolts M6 heads outward
-    for (u, v) in ((1655, 1318), (1652, 1382)):
-        b = _px("right", u, v, "y", -0.1395)
-        boss = np.array([(a0[0] + (b[2] - a0[2]) / d[2] * d[0] - 0.004, b[2] + 0.007),
-                         (b[0] + 0.007, b[2] + 0.007), (b[0] + 0.007, b[2] - 0.007),
-                         (a0[0] + (b[2] - a0[2]) / d[2] * d[0] - 0.004, b[2] - 0.007)])
-        m.add(slab(boss, -(Y_PLATE + 0.0072), 0.0100, "alu_cast", r=0.0015, step=0.004, to=_xz))
-        m.add(hexbolt((b[0], -(Y_PLATE + 0.0123), b[2]), -Y3, 0.008, 0.0055, flange_d=0.0125, flange_h=0.0012, mat="zinc",
-                      seg=36))
-    tab = np.array([(0.4835, 0.5105), (0.5030, 0.5105), (0.5030, 0.5775), (0.4835, 0.5775)])   # on the plate's outer face
-    m.add(slab(tab, -(Y_PLATE + 0.0011), 0.0020, "alu_frame", r=0.0006, step=0.004, to=_xz))
-    # banjo on the body's rear (RIGHT px (1595, 1345)) and the hose's first bend down toward the swingarm
+    # round 3 (r_mc, 4x crop of RIGHT 1585..1690 x 1270..1470): two columns cast as one, the bore in front (20.5 mm:
+    # u 1620..1647 at v 1420) up to the banjo's black fitting on top (v 1295..1320), the reservoir behind it (19 mm:
+    # u 1597..1622, its axis 18 mm behind) up to a round cap (u 1598..1618, v 1286..1300) with one screw. The bore's
+    # front is flat where it passes inboard of the frame's two tabs (their bolts go into its lugs): a D section 5.5 mm
+    # ahead of the axis (the photo's front edge, 10.5 mm ahead, shows only below the lower tab)
+    fwd = np.array([1.0, 0.0, 0.0]) - d[0] * d
+    fwd /= np.linalg.norm(fwd)
+    side = np.cross(d, fwd)
+    R_BODY, FLAT, RES_R, RES_OFF = 0.01025, 0.0055, 0.0095, 0.018
+
+    def d_ring(c, r, flat=None, n=36):
+        th = np.linspace(0, 2 * math.pi, n, endpoint=False)
+        rr = np.full(n, r)
+        if flat is not None:
+            cs = np.cos(th)
+            rr = np.where(cs > 1e-6, np.minimum(rr, flat / np.maximum(cs, 1e-6)), rr)
+        return np.array([c + fwd * q * math.cos(t) + side * q * math.sin(t) for q, t in zip(rr, th)])
+    m.add(_outward(grid(Mesh(), [d_ring(a0 + d * 0.024, R_BODY - 0.0006, FLAT - 0.0006), d_ring(a0 + d * 0.026, R_BODY, FLAT),
+                                 d_ring(a0 + d * 0.114, R_BODY, FLAT), d_ring(a0 + d * 0.116, R_BODY - 0.0006, FLAT - 0.0006)],
+                            "alu_cast", cap0=True, cap1=True)))
+    rc0 = a0 - fwd * RES_OFF
+    m.add(turned(rc0, d, [(0.030, 0.0001), (0.030, RES_R - 0.0008), (0.032, RES_R), (0.118, RES_R), (0.120, RES_R - 0.0008),
+                          (0.120, 0.0001)], "alu_cast", 28, False, False))
+    for w0, w1 in ((0.034, 0.110),):                                # the web between the columns
+        web = np.array([a0 + d * w0, a0 + d * w1, rc0 + d * w1, rc0 + d * w0])
+        m.add(slab(web[:, [0, 2]], float(a0[1]), 0.012, "alu_cast", r=0.002, step=0.004, to=_xz))
+    cap_c = rc0 + d * 0.120
+    m.add(turned(cap_c, d, [(0.0, 0.0001), (0.0, 0.0078), (0.0035, 0.0078), (0.0045, 0.0068), (0.0045, 0.0001)],
+                 "plastic_black", 28, False, False))
+    m.add(lathe2(cap_c + d * 0.0045, d, [(0, 0.0001), (0, 0.0030), (0.0018, 0.0028), (0.0021, 0.0012), (0.0015, 0.0001)],
+                 "steel", 18, cap0=True, cap1=True))
+    top = a0 + d * 0.116                                            # the banjo's black fitting and its bolt on top
+    m.add(turned(top, d, [(0.0, 0.0001), (0.0, 0.0075), (0.012, 0.0075), (0.012, 0.0001)], "plastic_black", 24, False, False))
+    m.add(hexbolt(top + d * 0.012, d, 0.010, 0.006, flange_d=0.013, flange_h=0.0012, mat="steel", seg=36))
+    # the lugs that the frame's tab bolts go into: behind the tabs (frame part: TAB_T, inner face at
+    # |y| Y_PLATE - TAB_T), 0.5 mm clear of them
+    for (u, v) in TAB_BOLTS_PX:
+        b = _px("right", u, v, "y", -Y_PLATE)
+        tb = a0 + d * ((b[2] - a0[2]) / d[2])                       # the bore's axis at the bolt's height
+        lug = np.array([(tb[0], b[2] + 0.0065), (b[0] + 0.006, b[2] + 0.0065), (b[0] + 0.006, b[2] - 0.0065),
+                        (tb[0], b[2] - 0.0065)])
+        y_o = Y_PLATE - TAB_T - 0.0005
+        m.add(slab(lug, -(y_o - 0.0035), 0.0070, "alu_cast", r=0.0012, step=0.003, to=_xz))
+    # banjo on the reservoir column's rear (RIGHT px (1595, 1345)) and the hose's first bend down toward the swingarm
     bj = _px("right", 1595, 1345, "y", MC_Y)
-    bj[0] = a0[0] + (bj[2] - a0[2]) / d[2] * d[0] - 0.0128 - 0.004
+    bj[0] = rc0[0] + (bj[2] - rc0[2]) / d[2] * d[0] - RES_R + 0.0003
     m.add(turned(bj, (-1, 0, 0), [(0, 0.0001), (0, 0.0075), (0.008, 0.0075), (0.008, 0.0001)], "steel", 20))     # banjo
     m.add(hexbolt(bj + np.array([0.0, -0.0075, 0.0]), -Y3, 0.012, 0.006, mat="steel", seg=36))
-    # the hose meets detail_wheels.py's run end to end at its end (HOSE_END there: 0.452, -0.100, 0.505), heading
-    # (0.826, 0.032, 0.562) (measured on their mesh), inside a crimped joint sleeve; from it up, round the cylinder's
-    # inner side and back into the banjo
-    E = np.array([0.452, -0.100, 0.505])
-    dE = np.array([0.826, 0.032, 0.562])
-    dE /= np.linalg.norm(dE)
-    hose = spline([E + dE * 0.0011, E + dE * 0.012, (0.468, -0.108, 0.530), (0.456, -0.113, 0.549), (0.436, -0.124, 0.549),
-                   bj + (-0.010, 0.0, 0.0), bj + (-0.004, 0.0, 0.0)], 40)
+    # the hose meets detail_wheels.py's run end to end at its end (HOSE_END there), leaving it along that run's own
+    # last direction (both read off their built mesh, _wheels_hose), inside a crimped joint sleeve centred on the
+    # joint; from it straight up, round the cylinder's inner side and back into the banjo (round 3: no stub forward
+    # past the joint, coordinator's note)
+    cen, _ = _wheels_hose()
+    E = cen[-1]
+    dE = (cen[-1] - cen[-2]) / np.linalg.norm(cen[-1] - cen[-2])
+    hose = spline([E, E + dE * 0.005, (E[0] + 0.011, E[1] - 0.006, E[2] + 0.022), (0.457, -0.113, 0.546),
+                   (0.440, -0.121, 0.553), bj + (-0.010, 0.0, 0.0), bj + (-0.004, 0.0, 0.0)], 40)
     m.add(tube(hose, 0.0042, 10, "cable"))
-    m.add(turned(E - dE * 0.010, dE, [(0.0, 0.0047), (0.0, 0.0060), (0.004, 0.0062), (0.0055, 0.0057), (0.0075, 0.0057),
-                                      (0.009, 0.0062), (0.011, 0.0062), (0.0125, 0.0057), (0.0145, 0.0057), (0.016, 0.0062),
-                                      (0.020, 0.0060), (0.020, 0.0047), (0.0, 0.0047)], "zinc", 24, False, False))
+    m.add(turned(E - dE * 0.008, dE, [(0.0, 0.0047), (0.0, 0.0060), (0.003, 0.0062), (0.0045, 0.0057), (0.0065, 0.0057),
+                                      (0.008, 0.0062), (0.0095, 0.0057), (0.0115, 0.0057), (0.013, 0.0062),
+                                      (0.016, 0.0060), (0.016, 0.0047), (0.0, 0.0047)], "zinc", 24, False, False))
     # return spring from the lever's tab down to the bracket's rear edge (RIGHT px (1654,1522) to (1697,1547))
-    sa, sb = _px("right", 1654, 1522, "y", -0.131), _px("right", 1697.5, 1546.6, "y", -0.131)
+    # (round 3: outside the frame's lower section, which now reaches under it; hooked on the footpeg pad's face)
+    sa, sb = _px("right", 1654, 1522, "y", -0.1425), _px("right", 1697.5, 1546.6, "y", -0.1425)
     m.add(coil(sa, sb, 0.0045, 0.0008, 13, "steel", seg=6, dead=0, per=12))
-    m.add(tube([sa, (lever_mid[0] - 0.004, -0.131, lever_mid[2] - 0.006)], 0.0008, 6, "steel"))
-    m.add(tube([sb, (0.5425, -0.131, 0.3895)], 0.0008, 6, "steel"))
+    m.add(tube([sa, (lever_mid[0] - 0.004, -0.1440, lever_mid[2] - 0.006)], 0.0008, 6, "steel"))
+    m.add(tube([sb, (0.5425, -0.1420, 0.3895)], 0.0008, 6, "steel"))
     return m
 
 
@@ -1646,4 +2317,6 @@ PARTS = {"frame": frame, "subframe": subframe, "swingarm": swingarm, "rear_axle"
          "shock": shock, "exhaust": exhaust, "footpegs": footpegs, "brake_pedal": rear_brake}   # (named "rear_brake" it was
 #   replaced by detail_wheels.py's caliper, loaded later: the pedal and master cylinder were missing from the bike)
 SMOOTH = {"footpegs": 30, "frame": 42}
-BEVEL = {"swingarm": 0.0004}          # its edges are modelled (rounded rims, chamfers); build_bike's 3 mm bevel ate them
+BEVEL = {"swingarm": 0.0004,          # its edges are modelled (rounded rims, chamfers); build_bike's 3 mm bevel ate them
+         "frame": 0.0001}             # so are the frame's (round 3: the casting's edges and features are modelled; a
+#                                       0.5 mm bevel at build_bike's 40 deg limit tore the 1 mm triangles of its fillets)
