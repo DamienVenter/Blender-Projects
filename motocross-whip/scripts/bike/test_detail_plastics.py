@@ -219,3 +219,16 @@ def test_round3_panel_tail():
         ys = np.array([pl.panel_point(1, float(u), float(v))[1] for u in range(2850, 2936, 3)
                        if pl.inside(Pn.px, np.array([[u, v]], float))[0]])
         assert len(ys) > 20 and np.abs(np.diff(ys, 2)).max() < 0.0015, v
+
+
+def test_round3_tunnel_wall():
+    """The wall under the tail (round 3): its upper part is the dome, DOME_D deep at the ledge's centre; the rib
+    blocks stand proud behind it but stay inside the fender's root (its flanks at 75.5 mm, 3 mm shell)."""
+    V = np.asarray(dp.tail_under().V)
+    X0 = dp._wall_x()
+    uc, vc, a, b = dp.WALL_DOME
+    zc = cams.CAMS["rear"].on_plane(np.array([uc]), np.array([vc - 8.0]), "x", X0)[0][2]
+    k = (np.abs(V[:, 1]) < 0.02) & (np.abs(V[:, 2] - zc) < 0.004)
+    assert abs(V[k, 0].max() - (X0 + 0.002 + dp.DOME_D)) < 0.0015, V[k, 0].max()
+    k = (V[:, 0] < X0 - 0.0025) & (V[:, 2] > 0.86) & (V[:, 2] < 0.93)              # the rib blocks' faces
+    assert k.any() and np.abs(V[k, 1]).max() < 0.0715

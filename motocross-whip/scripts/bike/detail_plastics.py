@@ -139,6 +139,17 @@ def guard_hardware():
 
 # ---------------------------------------------------------------- under the tail
 GROOVE = 0.004
+# The tunnel under the fender's root, seen from behind (REAR px, round 3): the dome in the wall's upper part (centre
+# column, the ledge's row, half-width, height: its rim from (1890, 650) up to (2000, 600)), its depth 12 mm (EST: from
+# the shading only; ahead of it nothing until x 0.226: the seat's base is above, the subframe's cross member below row
+# 672), the channels under the ledge and the rib blocks under them (proud, EST: lit top edge 4 px, dark face 20 px).
+WALL_DOME = (2000.0, 652.0, 110.0, 52.0)
+DOME_D = 0.012
+WALL_CHANNELS = [(1890.0, 1925.0, 657.0, 688.0), (2075.0, 2110.0, 657.0, 688.0)]
+WALL_RIBS = [(1902.0, 1922.0, 689.0, 712.0), (2078.0, 2098.0, 689.0, 712.0)]
+RIB_H = 0.003
+# (the blocks' outer 12 px and 2 mm of their height are inside the fender's root: its flanks, pinned between the
+# side panels' top edges, stand at 75.5 mm there, with their 3 mm shell; at 5 mm and full width they cut 7 mm in)
 
 
 def _plugin_part(name):
@@ -199,24 +210,45 @@ def tail_under():
         Q = REAR.on_plane(np.ravel(uu).astype(float), np.ravel(vv).astype(float), "x", X0)
         return (np.abs(Q[:, 1]) < np.interp(Q[:, 2], zb, lim)).reshape(np.shape(uu))
     px = plastics._cut(px, keep)
-    grooves = [(1887.0, 1918.0, 612.0, 686.0), (2076.0, 2110.0, 612.0, 686.0)]
-
+    # round 3 (REAR at 3.5x, contrast stretched, `rear_tunnel.jpg`): the wall's upper part is the tunnel's roof, a
+    # dome recessed into it (its rim an arch from (1890, 650) up to (2000, 600) and down to (2110, 650), dark in its
+    # outer corners), standing on a ledge (a light line, rows 652..656); under the ledge two upright channels in
+    # shadow (u 1890..1925 and 2075..2110, rows 657..688; round 2 put them at rows 612..686, across the dome), and
+    # under each a rib block (a lit top edge at rows 688..692, a dark face to 712: u 1890..1922 and 2078..2110)
     def depth(u, v):
-        for u0, u1, v0, v1 in grooves:
+        uc, vc, a, b = WALL_DOME
+        r2 = ((u - uc) / a) ** 2 + ((v - vc) / b) ** 2
+        if v < vc and r2 < 1.0:
+            return DOME_D * plastics.smoothstep((1.0 - r2) / 0.35) * plastics.smoothstep((vc - v) / 2.5)
+        for u0, u1, v0, v1 in WALL_CHANNELS:
             d = min(u - u0, u1 - u, v - v0, v1 - v)
             if d > 0:
                 return GROOVE * plastics.smoothstep(d / 4.0)
+        for u0, u1, v0, v1 in WALL_RIBS:
+            d = min(u - u0, u1 - u, v - v0, v1 - v)
+            if d > 0:
+                return -RIB_H * plastics.smoothstep(d / 2.0)
         return 0.0
 
     def to3d(u, v, w):
         Q = REAR.on_plane(np.array([u]), np.array([v]), "x", X0)[0]
         return (Q[0] + depth(u, v) - w, Q[1], Q[2])
     lines = []
-    for u0, u1, v0, v1 in grooves:
+    for u0, u1, v0, v1 in WALL_CHANNELS:
         for q in (0.0, 4.5):
             lines.append(np.array([(u0 + q, v0 + q), (u1 - q, v0 + q), (u1 - q, v1 - q), (u0 + q, v1 - q),
                                    (u0 + q, v0 + q)]))
-    m = plastics.plate_lines(px, [], 0.004, "plastic_red", to3d, 10.0, lines=lines, line_step=4.0)
+    for u0, u1, v0, v1 in WALL_RIBS:
+        for q in (0.0, 2.0):
+            lines.append(np.array([(u0 + q, v0 + q), (u1 - q, v0 + q), (u1 - q, v1 - q), (u0 + q, v1 - q),
+                                   (u0 + q, v0 + q)]))
+    uc, vc, a, b = WALL_DOME
+    for s_ in (1.0, 0.8, 0.5):                             # the dome's rim and two rows on its slope
+        t = np.linspace(math.pi, 2.0 * math.pi, 40)
+        lines.append(np.column_stack([uc + s_ * a * np.cos(t), vc + s_ * b * np.sin(t)]))
+    lines.append(np.array([(uc - a + 3.0, vc), (uc + a - 3.0, vc)]))         # the ledge
+    lines.append(np.array([(uc - a + 3.0, vc + 3.0), (uc + a - 3.0, vc + 3.0)]))
+    m = plastics.plate_lines(px, [], 0.004, "plastic_red", to3d, 8.0, lines=lines, line_step=3.5)
     for u, v in ((1895.0, 766.0), (2113.0, 775.0)):
         c = REAR.on_plane(np.array([u]), np.array([v]), "x", X0 - 0.002)[0]
         ax = np.array([-1.0, 0.0, 0.0])
