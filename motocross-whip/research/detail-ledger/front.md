@@ -413,3 +413,51 @@ built .blend), `patch.py`.
 - The start switch's housing fills more of the space towards the bar in TOP than the model's narrow mount (the
   throttle boot and cables are over it there, so its shape is not readable); its bottom lip and notch (DET830) are
   not modelled. Clamp screws of the left holder: none visible in any photo, none modelled.
+
+## R2-2. Front master cylinder, the rest of round 1's component 5 (fiche K95CF0500)
+
+### Anatomy (added to round 1's list)
+- Rear face of the reservoir: flat, satin cast, running down behind the bar; the sight window is a bright machined
+  ring with a chamfer, a chrome inner ring and the dark lens; inboard of it the raised LWR with its level line under
+  it, and a small round ejector-pin mark above that (DET830).
+- Front face: raised NISSIN, bold italic (rf34). Outboard side: a small square pocket just under the cap (rf34).
+- Holder (5): two round lobes round its flange bolts joined by a waist (DET830). Banjo bolt black (DET830).
+- Lever boot: a rounded rubber pillow over the pivot lug and the lever's root (rf34). Lever: forged, flat sides with
+  rounded edges (rf34, DR05 for the clutch side).
+
+### References
+- DET830 560..1560 x 950..1900 (`ref/d830_mc.jpg`); REAR 2193..2369 x 184..302 at 9x (`ref/mc_rear.jpg`); rf34
+  1964..2180 x 298..428 at 8x (`ref/mc_rf34.jpg`); RIGHT (`ref/mc_right.jpg`).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Window | centre 5.7 mm inboard of the cap's centre, 19.5 mm over the bar's axis; ring 18.4 mm, chrome ring 13.8, lens 12.4 | REAR cast on the rear face's plane (x 0.9837): 18.0 over the axis, ring 19.2, lens about 13, its bottom at 8.4, on the bar's top; raised 1.5 mm and 0.8 mm smaller so the ring clears the bar (the bar's top under the face is 8.9..10.3 mm up there) |
+| Rear wall | down to 0.5 mm over the bar's top, ly -18..+22.5 | the bar crosses under the reservoir 16 deg off it (`_mc_bar_axis`) |
+| LWR | centre ly +18.3, 15 mm up; letters 6.3 x 2 mm, line under them | DET830 proportions to the window (0.645 of the way to the inboard edge, 4.3 mm under its centre) |
+| Pin mark | ly +19.0, 22.7 mm up, 2 mm | DET830 |
+| NISSIN | 32 x 5.5 mm, centre ly -4.0, 21.5 mm up, raised 0.35 | rf34 cast on the front face's plane (ly -19.9..+12.0, 18.8..24.3) |
+| Pocket | 4.8 x 3.6 mm, 5.7 mm ahead of the cap's centre, 36.7 up, 1 mm deep | rf34 cast on the outboard face |
+| Holder lobes | radius 9.5 round the bolts, waist 12 mm | DET830 (lobes 105 px round bolts 350 px apart = 32 mm) |
+| Lever section | rounded square scaled to the old ellipse's (thick, tall) | EST from rf34 (flat sides) |
+
+### What was built
+- `master_cylinder()`: the rear wall `skirt` (its lower edge from `_mc_bar_axis`), the window rebuilt (machined ring,
+  chrome ring, lens), `_decal()` patches with relief maps `mc_lwr` and `mc_nissin` (`mc_maps()`, textures
+  `stock/mc_nissin_n.png`, `mc_lwr_n.png`, FreeSans Bold / Bold Oblique), the pin mark, the pocket, `_dogbone()`
+  holder, the boot as `pillow()` (rounded both ends, r 6), banjo bolt `bolt_black`. `_lever()` takes `LEVER_SEC`
+  (both levers).
+- Test `test_master_cylinder_window_and_lettering` (window on REAR within 3 px, ring off the bar, lettering not
+  mirrored).
+
+### Checks
+- Close-ups `chk/m6_a.jpg` (first: both reliefs came out mirrored; the facing reader's right is the bike's left on the
+  front face), `chk/m8.jpg` (DET830 and rf34 angles, fixed). Pairs `chk/p7_mc_rear.jpg`, `p7_mc_rf34.jpg`
+  (`p7s_mc.jpg`): window, holder lobes, NISSIN and the pocket land on the photo's within 1..3 px.
+- Audit: round 1's window ring touched the bar (it hung 5 mm under the reservoir's wall): gone.
+
+### Still different
+- The casting is still a box on a barrel with a block web: rf34 shows the reservoir flowing into the barrel through
+  a large concave fillet and a rounded body under it; not rebuilt (it needs a lofted casting, not more pieces).
+- In REAR the throttle cables cross in front of the reservoir's top; in the model they pass over it (component 4).
+- The boot's front opening round the lever is a plain end; the photo's wraps the lever's root.

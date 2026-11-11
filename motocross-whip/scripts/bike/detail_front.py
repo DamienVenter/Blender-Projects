@@ -162,6 +162,23 @@ def slab(outline, h0, h1, mat, to3d, ch=0.0015):
     return _outward(grid(Mesh(), rings, mat, cap0=True, cap1=True))
 
 
+def pillow(outline, h0, h1, r, mat, to3d, n=4):
+    """Outline (star-shaped about its centroid) extruded from h0 to h1 with both ends rounded over radius R (a
+    moulded rubber boot or a soft casting): rings inset along a quarter circle at each end."""
+    o = np.asarray(outline, float)
+    c = o.mean(axis=0)
+    rad = np.linalg.norm(o - c, axis=1).mean()
+    lev = []
+    for k in range(n + 1):                                   # bottom end: from the inset centre outwards
+        t = (math.pi / 2) * k / n
+        lev.append((r * (1 - math.sin(t)), h0 + r * (1 - math.cos(t))))
+    for k in range(n, -1, -1):
+        t = (math.pi / 2) * k / n
+        lev.append((r * (1 - math.sin(t)), h1 - r * (1 - math.cos(t))))
+    rings = [np.array([to3d(*(c + (p - c) * (1.0 - d / rad)), h) for p in o]) for d, h in lev]
+    return _outward(grid(Mesh(), rings, mat, cap0=True, cap1=True))
+
+
 def spline(pts, n):
     q = np.asarray(pts, float)
     s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(q, axis=0), axis=1))])
@@ -721,7 +738,7 @@ def _lever(s, pts):
     k = np.linspace(0, 1, len(q))
     rad = np.stack([np.interp(k, [0, 0.25, 1], [0.0060, 0.0042, 0.0036]),
                     np.interp(k, [0, 0.25, 1], [0.0080, 0.0068, 0.0052])], axis=1)
-    m = tube(q, rad, 12, "lever")
+    m = tube(q, rad, 12, "lever", section=LEVER_SEC)
     m.add(ball(q[-1], 0.0085, "lever"))
     return m
 
@@ -915,6 +932,96 @@ MC_BARREL = (0.0275, -0.004, 0.0115, 0.168, 0.246)   # barrel axis f, u, radius,
 #   (rf34: a round body under the box), clear of the bar as it sweeps forward inboard; EST radius (12.7 mm bore)
 
 
+MC_WIN = (0.0057, 0.0195, 0.0092)   # sight window centre (along the cap's long side, inboard; over the bar's axis) and
+#   ring radius: REAR cast on the rear face's plane (5.7, 18.0, 9.6), raised 1.5 mm and 0.4 smaller to clear the bar
+MC_LWR = (0.0183, 0.0150)     # LWR mark's centre: DET830, 0.645 of the way from the window's centre to the face's inboard
+#   edge, 4.3 mm under the window's centre (its rows foreshortened 0.8); 6.3 x 2 mm letters, the line under them
+MC_NISSIN = (-0.0040, 0.0215)       # NISSIN's centre on the front face: rf34 cast on the front face's plane
+LEVER_SEC = rounded_rect(2.0, 2.0, 0.75, 3)   # forged lever: flat sides, rounded edges (rf34, DR05), scaled per point
+
+
+def _decal(c, right, up, nrm, w, h, mat):
+    """A flat patch W x H centred at C, facing NRM, its UVs over the patch (raised lettering as a relief map)."""
+    m = Mesh()
+    xs, ys = np.linspace(-0.5, 0.5, 3), np.linspace(-0.5, 0.5, 3)
+    idx = {}
+    for i, x in enumerate(xs):
+        for j, y in enumerate(ys):
+            idx[i, j] = m.verts([c + x * w * right + y * h * up])
+    for i in range(2):
+        for j in range(2):
+            fi = len(m.F)
+            m.face((idx[i, j], idx[i + 1, j], idx[i + 1, j + 1], idx[i, j + 1]), mat)
+            m.uv[fi] = [(xs[i] + 0.5, ys[j] + 0.5), (xs[i + 1] + 0.5, ys[j] + 0.5), (xs[i + 1] + 0.5, ys[j + 1] + 0.5),
+                        (xs[i] + 0.5, ys[j + 1] + 0.5)]
+    if np.cross(right, up) @ nrm < 0:
+        m.F = [tuple(reversed(f)) for f in m.F]
+        m.uv = {k: list(reversed(v)) for k, v in m.uv.items()}
+    return m
+
+
+def _dogbone(r, half, waist, n=72):
+    """Star-shaped outline (p, q) of two round lobes of radius R at q = +-HALF joined by a waist WAIST wide."""
+    out = []
+    for t in np.linspace(0, 2 * math.pi, n, endpoint=False):
+        d = np.array([math.cos(t), math.sin(t)])
+        best = 0.0
+        for cq in (half, -half):                       # ray from the centre against each lobe
+            b = d[1] * cq
+            disc = b * b - (cq * cq - r * r)
+            if disc >= 0:
+                best = max(best, b + math.sqrt(disc))
+        tx = waist / 2 / abs(d[0]) if abs(d[0]) > 1e-9 else 1e9
+        ty = half / abs(d[1]) if abs(d[1]) > 1e-9 else 1e9
+        best = max(best, min(tx, ty))
+        out.append(best * d)
+    return np.array(out)
+
+
+def _mc_bar_axis(c, lx, ly, yl):
+    """The bar's axis under the reservoir at YL along the cap's long side: its (q, z) in the cap's frame."""
+    s = _Side(-1)
+    A = np.linspace(0.15, 0.28, 261)
+    P = np.array([s.p(a) for a in A])
+    q = (P - c) @ ly
+    i = int(np.argmin(np.abs(q - yl)))
+    return float((P[i] - c) @ lx), float(P[i][2])
+
+
+def mc_maps(folder, n=512):
+    """Relief maps (OpenGL normal maps) of the raised NISSIN on the reservoir's front (bold italic, 32 x 5.5 mm in a
+    36 x 6.8 mm patch, rf34) and the raised LWR with its level line (DET830, in a 9 x 4.5 mm patch); 0.35 mm high."""
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    import os
+    for name, text, wmm, hmm, font, th, line in (
+            ("mc_nissin", "NISSIN", 36.0, 6.8, "/usr/share/fonts/truetype/freefont/FreeSansBoldOblique.ttf", 5.5, False),
+            ("mc_lwr", "LWR", 9.0, 4.5, "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf", 2.0, True)):
+        W_, H_ = n, int(round(n * hmm / wmm))
+        k = 4
+        im = Image.new("L", (W_ * k, H_ * k), 0)
+        d = ImageDraw.Draw(im)
+        px_mm = W_ * k / wmm
+        f = ImageFont.truetype(font, int(th * px_mm * 1.36))
+        x0, y0, x1, y1 = d.textbbox((0, 0), text, font=f)
+        tw = (32.0 if name == "mc_nissin" else 6.3) * px_mm
+        sx = tw / (x1 - x0)
+        tmp = Image.new("L", (x1 - x0 + 8, y1 - y0 + 8), 0)
+        ImageDraw.Draw(tmp).text((4 - x0, 4 - y0), text, font=f, fill=255)
+        tmp = tmp.resize((int(tmp.width * sx), int(th * px_mm)), Image.LANCZOS)
+        oy = (H_ * k - tmp.height) // 2 - (int(0.9 * px_mm) if line else 0)
+        im.paste(tmp, ((W_ * k - tmp.width) // 2, oy))
+        if line:
+            d.rectangle([(W_ * k - tw * 1.15) / 2, oy + tmp.height + 0.5 * px_mm, (W_ * k + tw * 1.15) / 2,
+                         oy + tmp.height + 1.2 * px_mm], fill=255)
+        mask = np.asarray(im.resize((W_, H_), Image.LANCZOS).filter(ImageFilter.GaussianBlur(1.6)), float) / 255.0
+        h = 0.35 * mask
+        gy, gx = np.gradient(h, wmm / W_)
+        nx, ny, nz = -gx, gy, np.ones_like(h)
+        ln = np.sqrt(nx * nx + ny * ny + nz * nz)
+        Image.fromarray(((np.stack([nx, ny, nz], axis=2) / ln[..., None] * 0.5 + 0.5) * 255).round().astype(np.uint8)
+                        ).save(os.path.join(folder, name + "_n.png"))
+
+
 def _mc_frame():
     s = _Side(-1)
     ly = unit((s.p(0.2351, 0.0002) - s.p(0.1871, 0.0153)) * [1, 1, 0])     # the cap's long side, inboard
@@ -956,13 +1063,39 @@ def master_cylinder():
         q = s.p(a_, f_)
         q = np.array([q[0], q[1], zb + top])
         m.add(fastener(q, Z, "button", af=0.0060, h=0.0016, recess=0.0022, mat="steel"))
-    # sight window on the rear face (DET830: dark lens in a bright ring) and the LWR level line beside it
-    rear = c - (W / 2 * 0.985 + 0.0001) * lx + 0.021 * Z               # mid-height of the rear face (DET830)
-    m.add(rev(rear, -lx, [(0.0128, 0.0), (0.0128, 0.0006), (0.0118, 0.0010), (0.0094, 0.0010), (0.0090, 0.0004),
-                          (0.0, 0.0004)], "alu_machined", 32, cap1=False))
-    m.add(rev(rear - 0.0003 * lx, -lx, [(0.0091, 0.0), (0.0089, 0.0006), (0.0, 0.0006)], "glass_dark", 32))
-    m.add(box(rear - 0.0128 * ly - 0.0045 * Z - 0.0003 * lx, (0.0008, 0.0060, 0.0008), cast,
-              np.column_stack([lx, ly, Z])))                                  # level line (LWR)
+    # the rear wall reaches down to just over the bar round the window (DET830: the face runs down behind the bar;
+    # the bar crosses under the reservoir's rear 16 deg off it, so the wall's lower edge follows the bar's top 0.5 mm up)
+    qr = -(W / 2 * 0.985)
+    pts = []
+    for yl in np.linspace(-0.018, 0.0225, 15):
+        lo = 0.004
+        for qq in (qr, qr + 0.004):
+            ax = _mc_bar_axis(c, lx, ly, yl)                                   # bar axis (q, z) under that ly
+            d = qq - ax[0]
+            if abs(d) < BAR_R[1]:
+                lo = max(lo, ax[1] - zb + math.sqrt(BAR_R[1] ** 2 - d * d) + 0.0005)
+        pts.append((yl, lo))
+    skirt = [(yl, 0.0150) for yl, _ in pts[::-1]] + pts
+    m.add(slab(skirt, qr, qr + 0.004, cast, lambda p_, h_, q_: c + p_ * ly + q_ * lx + h_ * Z, ch=0.0006))
+    # sight window (DET830: a bright machined ring, a chrome inner ring, the dark lens): REAR cast on the rear face's
+    # plane: centre 18.0 mm over the bar's axis and 5.7 mm inboard of the cap's centre, ring 19.2 mm, lens about 13;
+    # built 19.5 mm up so the ring clears the bar's top (1.2 px in REAR)
+    rear = c + (qr - 0.0001) * lx + MC_WIN[0] * ly + MC_WIN[1] * Z
+    m.add(rev(rear, -lx, [(MC_WIN[2], -0.0003), (MC_WIN[2], 0.0005), (MC_WIN[2] - 0.0007, 0.0011),
+                          (0.0071, 0.0011), (0.0069, 0.0005)], "alu_machined", 40))
+    m.add(rev(rear, -lx, [(0.0069, 0.0005), (0.0066, 0.0008), (0.0062, 0.0008), (0.0061, 0.0002)], "chrome", 40))
+    m.add(rev(rear, -lx, [(0.0062, 0.0002), (0.0, 0.0002)], "glass_dark", 40, cap1=False))
+    # raised LWR with its level line, and the ejector-pin mark above it (DET830), as a relief map on the face
+    m.add(_decal(c + (qr - 0.00012) * lx + MC_LWR[0] * ly + MC_LWR[1] * Z, -ly, Z, -lx, 0.0090, 0.0045, "mc_lwr"))
+    m.add(cyl(c + qr * lx + 0.0190 * ly + 0.0227 * Z, c + (qr - 0.0003) * lx + 0.0190 * ly + 0.0227 * Z, 0.0010, cast,
+              12))
+    # raised NISSIN on the front face (rf34: bold italic, ly -19.9..+12.0, 18.8..24.3 mm over the axis)
+    m.add(_decal(c + (W / 2 * 0.985 + 0.00012) * lx + MC_NISSIN[0] * ly + MC_NISSIN[1] * Z, ly, Z, lx, 0.0360, 0.0068,
+                 "mc_nissin"))                         # (facing the front, the reader's right is the bike's left)
+    # a small square pocket on the outboard side just under the cap (rf34 cast on that face: 4.8 x 3.6 mm, centre
+    # 5.7 mm ahead of the cap's centre, 36.7 mm over the bar's axis), 1 mm deep
+    pk = c - (L / 2 * 0.985 - 0.0004) * ly + 0.0057 * lx + 0.0367 * Z
+    m.add(box(pk, (0.0048, 0.0010, 0.0036), "plastic_black", np.column_stack([lx, ly, Z])))
     # barrel and its end caps, the web to the clamp
     bf, bu, br, b0, b1 = MC_BARREL
     m.add(rev(s.p(b0, bf, bu), -s.d, [(br - 0.0015, 0.0), (br, 0.0015), (br, b1 - b0 - 0.002), (br - 0.002, b1 - b0)],
@@ -974,7 +1107,8 @@ def master_cylinder():
                 (rb + 0.0052, a1_), (rb + 0.0004, a1_)]
         m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(-1.35, 1.35), solid=True))          # front half
         m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(1.79, 4.49), solid=True))            # holder (5)
-        m.add(_block(s, a0_ + 0.0008, a1_ - 0.0008, 0.0060, 0.050, cast, cf=-(rb + 0.0055), cu=0.0, r=0.0025))
+        m.add(slab(_dogbone(0.0095, 0.016, 0.0120), 0.0, 0.0060, cast,                   # holder: round lobes at the
+                   lambda p_, q_, h_: s.p((a0_ + a1_) / 2 + p_, -(rb + 0.0025 + h_), q_), ch=0.0008))   # bolts (DET830)
         for u_ in (0.016, -0.016):
             m.add(fastener(s.p((a0_ + a1_) / 2, -(rb + 0.0085), u_), -s.f, "flange", af=0.010, h=0.0058,
                            flange_d=0.0135))
@@ -1005,7 +1139,7 @@ def master_cylinder():
     # f 9..73; rf34)
     hood = [(0.150, 0.026), (0.172, 0.022), (0.186, 0.034), (0.184, 0.058), (0.170, 0.068), (0.152, 0.070),
             (0.144, 0.058), (0.144, 0.036)]
-    m.add(slab(hood, -0.0165, 0.0150, "rubber_black", lambda a_, f_, h: s.p(a_, f_, h), ch=0.0035))
+    m.add(pillow(hood, -0.0165, 0.0150, 0.0060, "rubber_black", lambda a_, f_, h: s.p(a_, f_, h)))   # rounded (rf34)
     m.add(rev(s.p(pa, pf, 0.0150), s.u, [(0.0090, -0.001), (0.0088, 0.0015), (0.0070, 0.0035), (0.0040, 0.0045),
                                          (0.0, 0.0047)], "rubber_black", 24))
     # banjo (17 washers either side, bolt 16) and the hose fitting
@@ -1015,7 +1149,7 @@ def master_cylinder():
     m.add(cyl(bc + 0.0010 * bax, bc + 0.0110 * bax, 0.0080, "steel", 24, 0.0008))
     m.add(rev(bc + 0.0110 * bax, bax, [(0.0035, 0.0), (0.0075, 0.0), (0.0075, 0.0015), (0.0035, 0.0015)], "alu_machined",
               24, solid=True))
-    m.add(fastener(bc + 0.0125 * bax, bax, "flange", af=0.012, h=0.0065, flange_d=0.0155))
+    m.add(fastener(bc + 0.0125 * bax, bax, "flange", af=0.012, h=0.0065, flange_d=0.0155, mat="bolt_black"))  # DET830
     m.add(cyl(bc + 0.006 * bax, he, 0.0042, "steel", 16, 0.0005))
     return m
 
@@ -1691,6 +1825,8 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "bolt_black": dict(rgb=(28, 28, 30), metal=0.8, rough=0.35),     # black-finished screws (DET830)
              "mc_cast": dict(rgb=(168, 168, 170), metal=1.0, rough=0.55),     # Nissin cast body, satin (DET830, rf34)
              "mc_cap": dict(rgb=(118, 118, 122), metal=0.7, rough=0.45),      # the cap a shade darker (TOP, rf34)
+             "mc_nissin": dict(rgb=(168, 168, 170), metal=1.0, rough=0.55, normal="stock/mc_nissin_n.png"),
+             "mc_lwr": dict(rgb=(168, 168, 170), metal=1.0, rough=0.55, normal="stock/mc_lwr_n.png"),
              "glass_dark": dict(rgb=(30, 24, 16), rough=0.05),                # sight lens, fluid behind it
              "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
@@ -1720,3 +1856,4 @@ if __name__ == "__main__":
     stock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock")
     knurl_map(os.path.join(stock, "bar_knurl_n.png"))
     switch_maps(stock)
+    mc_maps(stock)

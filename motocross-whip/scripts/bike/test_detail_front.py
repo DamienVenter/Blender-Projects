@@ -270,3 +270,30 @@ def test_switch_buttons_carry_their_symbols(built):
         m = built["hand_controls"]
         faces = [i for i, mm in enumerate(m.M) if mm == name]
         assert faces and all(i in m.uv for i in faces)                                   # every face has UVs
+
+
+def test_master_cylinder_window_and_lettering():
+    """Round 2, component 2: the sight window sits on REAR's window (within 3 px; built 1.5 mm higher so its ring
+    clears the bar), its ring stays off the bar, and NISSIN / LWR read left to right from where a person looks."""
+    s, lx, ly = df._mc_frame()
+    ca, cf, L, W, top = df.MC_CAP
+    zb = s.p(ca)[2]
+    c = s.p(ca, cf)
+    c = np.array([c[0], c[1], zb])
+    win = c - (W / 2 * 0.985) * lx + df.MC_WIN[0] * ly + df.MC_WIN[1] * Z_
+    assert np.linalg.norm(cams.CAMS["rear"].project([win])[0] - (2256.5, 227.0)) < 3.0
+    for t in np.linspace(0, 2 * math.pi, 72, endpoint=False):                          # ring clear of the bar
+        p = win + df.MC_WIN[2] * (math.cos(t) * ly + math.sin(t) * Z_)
+        a = np.linspace(0.15, 0.28, 400)
+        axis = np.array([s.p(x) for x in a])
+        assert np.linalg.norm(axis - p, axis=1).min() > df.BAR_R[1] + 0.0003
+    m = df.master_cylinder()
+    for mat, want in (("mc_nissin", ly), ("mc_lwr", -ly)):          # +u of the relief runs to the reader's right
+        i = next(k for k, mm in enumerate(m.M) if mm == mat)
+        f, uv = m.F[i], np.array(m.uv[i])
+        P = np.asarray(m.V, float)[list(f)]
+        du = np.linalg.lstsq(np.c_[uv - uv[0], np.ones(len(uv))][:, :2][1:], (P - P[0])[1:], rcond=None)[0][0]
+        assert du @ want > 0.8 * np.linalg.norm(du), mat
+
+
+Z_ = np.array([0.0, 0.0, 1.0])
