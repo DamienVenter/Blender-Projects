@@ -293,6 +293,36 @@ def panel_bolts():
     return m
 
 
+# ---------------------------------------------------------------- inner mudguard's top, seen through the tail wall's arch
+MUDGUARD_ARCH_PX = [(2084, 806), (2071, 792), (2063, 778), (2058, 764), (2049, 750), (2034, 736), (2018, 729),
+                    (2000, 726), (1982, 729), (1964, 736), (1949, 750), (1938, 764), (1927, 778), (1917, 792),
+                    (1905, 800)]
+
+
+def mudguard_top():
+    """The inner mudguard's domed top, which fills the tail wall's arch (REAR, `grid_rear_fender.jpg`, 3x: through
+    the arch, rows 726..808, the photo shows the black mudguard's dome right behind the wall, its top edge following
+    the arch with a thin dark rim line; the model showed the subframe's rear cross member there). A black plate 1 mm
+    ahead of the wall's front face and 1.5 mm behind the cross member (detail_chassis), cut to the arch (the wall's
+    own arch points, tail_under), down to row 808 (the wall's foot; under it the mudguard of plastics.inner_mudguard
+    carries on), with a rim 2.4 mm round along its top edge. Plate 1.5 mm thick (EST)."""
+    X0 = _wall_x()
+    xf = X0 + 0.002 + 0.001                                # the wall's front face (4 mm about X0) plus 1 mm
+    arch = np.array(MUDGUARD_ARCH_PX, float)
+    px = np.vstack([arch, [(1905.0, 808.0), (2084.0, 808.0)]])
+    px = smooth_poly(plastics.resample(px, 3.0), 1)
+
+    def to3d(u, v, w):
+        Q = REAR.on_plane(np.array([u]), np.array([v]), "x", xf + 0.00075)[0]
+        return (Q[0] + w, Q[1], Q[2])
+    m = plastics.plate_lines(px, [], 0.0015, "plastic_black", to3d, 6.0)
+    a = smooth_poly(plastics.resample(arch, 3.0), 1)
+    a = a[np.argsort(a[:, 0])]
+    rim = REAR.on_plane(a[:, 0], a[:, 1] + 1.5, "x", xf - 0.0002)
+    m.add(tube(rim + np.array([0.0012, 0.0, 0.0]), 0.0012, 8, "plastic_black"))
+    return m
+
+
 # ---------------------------------------------------------------- number plate: mounts and hose guide
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
@@ -466,7 +496,7 @@ CLASS = {"intake_mesh": "black"}                             # dark, as the louv
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
-         "plate_details": plate_details}
+         "plate_details": plate_details, "mudguard_top": mudguard_top}
 REPLACES = ("fork_guards", "fender_mounts")
 FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
 SMOOTH = {"fork_guards": 60, "tail_under": 50}

@@ -123,7 +123,7 @@ to cell). The cover's faces carry box-projected UVs (`plastics._box_uv`, SEAT_UV
 - The photo's cover shows faint wrinkle lines (top photo); not modelled.
 - The livery mode's `seat.png` image is replaced by this material (the stock bike is the target).
 
-## 3. Rear fender (partly done)
+## 3. Rear fender (partly done; round 2)
 
 ### Anatomy
 - Plan: a straight taper from the root (where it meets the side panels' tails in dark seams) to a shoulder, then an
@@ -174,24 +174,38 @@ mm outside the fender's flank), `_seat_under` / `seat_under_z`.
 - `s_16_left.jpg`, `s_16_top.jpg`, `s_16_rear.jpg`, `s_16_lr34.jpg`; scores (red overlap): rear 0.627 before, 0.639
   after; top 0.861 / 0.858; front unchanged. Audit: no new clash (fender on the seat 0.1 mm, a seat).
 
+### Round 2 (coordinator's review of `s_16_lr34.jpg`)
+- The see-through test: the panel's tail stopped 5 to 10 px short of the photo's red. Per column the red run (fit34
+  rule, r > 120, r - g > 70, r - b > 50, 3 px gaps bridged) ends 916 / 910 / 904 / 899 / 897 at u 2830 / 2840 /
+  2850 / 2860 / 2870. Under it the left photo draws the muffler (the bike's far side) half-transparent: the plastic
+  shows through it pink (rows 896..912 at u 2848..2890: 58 % red by the same rule, mean (195, 116, 119)) down to a
+  straight band ending at row 896 as far as the can's end (u 2950), and the can's top edge and a bolt head at
+  (2853, 915) are drawn over the plastic. PANEL_TAIL_PX now runs the tail on behind the can to rows 912 .. 896. The
+  test's can (3.4 cm2) and, after the rear-chassis round's narrower can, its 3.2 cm2 hole are gone; left subframe
+  1.9 cm2 (under 2) shows through the seam under the seat's hem.
+- Seat's tail on the fender: the gap was the fender's top stepping down outside the seat's outline. A cup raised
+  round the seat's tail to the hem cut through the hem between vertices (teeth): dropped. The fender's top under the
+  seat now stays 2 mm under the seat's underside; the seam is tight and clean (`cu_r16/render_cu_tail.png`).
+- The tails: they lap onto the fender's rolled lip (`fender_outer_y`, the fender's own section at each height, 3 mm
+  clear: at 0.5 mm the panel's 7 mm faces spanning the lip's roll cut it, audit 3 to 11 mm), with one crease 12 px
+  under their top edge, and taper in plan as the top photo's red outside the fender's seam: 0.148 / 0.139 / 0.134 /
+  0.120 / 0.113 / 0.107 at x 0.087 / 0.074 / 0.060 / 0.047 / 0.040 / 0.033, the point at x 0.027 (TOP).
+- The fender's section is shallower toward the root (LEFT: the crease line 23 px under the top line at u 3100,
+  15 px at u 2890; the facet's drop down to 60 %, the lip from 10 to 3 mm), and it narrows between the panels from
+  x 0.084.
+
 ### Still different
+- lr34 (`s_r16_lr34.jpg`): the panel's lower rear edge ends higher than the photo's, and under the fender's front
+  the wall under the tail, the subframe and the far panel's tail show where the photo has the near panel; the tail's
+  top edge still wrinkles where it meets the panel's main body (x 0.085..0.125: three blends cross there), and the
+  far (right) tail's top edge stands a few mm over the fender's lip near the seat's tip.
 - The deck's crease bands read fainter than the photo's (bright band and dark facet); crown and facet are EST.
-- The panels' tails stand out as a flap with a hard rear edge in lr34 and the left pair; in the photo they wrap
-  smoothly onto the fender's flank (their surface still follows the plan envelope out to 0.13..0.15).
 - Underside: the photo's tunnel roof and its two ribs are not modelled; the wall under the tail keeps its flat top
   and two channels (rear pair).
 - The upper mounting bolts and collars (fiche items 3, 4) are not modelled (hidden in every photo).
 - The model's tip is 8 mm longer than the side photos' and 8 mm shorter than the top photo's (the mean).
-- An exhaust piece of detail_chassis (62 vertices at world (0.084, -0.147, 0.882)) is now 4.7 mm from anything: it
-  touched the old fender's root flare, which was not the fender (it was the panels' tails' envelope).
-- test_bike's intruder test now finds the muffler (left view, 3.4 cm2 at u 2844..2910, v 886..908) inside the traced
-  outline OUT 'rear_fender'. The photo has no red there: per column the last deep-red row (r - g over 150) is 907 /
-  897 / 886 / 883 / 873 at u 2845 / 2860 / 2875 / 2890 / 2905, and under it the muffler, tinted pink by the red
-  (e.g. (186, 120, 124) at (2875, 900)). The trace took the tinted muffler as red (the first pass noted the same
-  tint at the fender's root). The old fender's flank covered it; the panel's tail now stops on the photo's edge.
-  Fix proposed: the trace (outlines.py, shared output) should take the deep red only there.
 
-## 4. Side panels (partly done)
+## 4. Side panels (partly done; round 2)
 
 ### Anatomy (detail 475833, LEFT, lr34)
 - Red upper panel: glossy, a crease/ridge across its tail, the bead under the seat's hem, the air intake (a
@@ -216,15 +230,40 @@ mm outside the fender's flank), `_seat_under` / `seat_under_z`.
 - Checks: `cu18/render_cu_tristar.png`, `cu18/render_cu_sidecover.png` (475833's angle), `tristar_sign.jpg` (the
   map against its inverse).
 
-### Not done (still different)
-- The intake: the model has a dark triangular hole with a turned edge; the photo's is a rounded trapezoid with a
-  lighter recessed lip and a dark green mesh (the filter) behind it.
-- The red panel's surface is lumpy and its lower edge ragged in the close-ups (`cu10/render_cu_sidecover.png`).
-- The bolt's recessed round pocket in the black part (the bolt is there: detail_plastics.panel_bolts).
-- The raised airbox side cover ahead of the black part, and the crisp red/black joint.
-- The tails' surface: a flap out to the plan envelope where the photo's wraps onto the fender's flank.
+### Round 2
+- Lumpy face: the section was a function of the distance to the traced outline (every wiggle of the trace a dent)
+  and of the outline's height per 6 px column smoothed over 18 px only. Now it is a function of the column and of
+  the height under the panel's top edge (the seam, then the tail's upper edge), the panel's height per column
+  smoothed over 40 px, the plan envelope over 40 mm; the trace's lower and rear edges smoothed over 12 px more (the
+  seam stays). `cu_r5/render_cu_panel.png`: the face is smooth, the lower edge clean.
+- Intake: the backing is now the filter's screen, a dark green diamond mesh (INTAKE_MESH: strands on two diagonals
+  2 mm apart, 475833 at 4x, u 2350..2650, v 600..800, about 11 px at 0.186 mm/px; green lit (18, 63, 5), in the
+  shadow (8, 35, 2)), `textures/stock/intake_mesh_n.png`, material `intake_mesh` (class black, as the louvre panel
+  it replaces). `cu_r17/render_cu_intake.png`.
+- Bolt pocket: a 30 mm round recess, 8 mm deep (EST), in the black part (475833: the dark recess 160 px across), the
+  8 mm flange bolt and a washer on its floor (the collar standing proud is gone). The bolt's shank passes through
+  the pocket's floor (nesting; the audit lists it, 1.8 mm).
 
-## 5. Mud flap and inner mudguard (not started)
+### Still different
+- The intake's opening: the photo's is a crisper trapezoid (long straight top edge, sharp front corner); the
+  model's comes from the photo's dark pixels and bulges at its lower front. Faint wrinkles beside its rear end.
+- The raised airbox side cover ahead of the black part, and the crisp red/black joint.
+
+## 5. Mud flap and inner mudguard (partly done)
+
+### Anatomy (REAR, `s_r17_rear.jpg` photo half)
+- The inner mudguard: a black arch-topped panel whose dome fills the red wall's arch, edged along its top by a thin
+  rim; two black tabs with holes on each side (its mounts); at its foot a lip with two small fasteners where the mud
+  flap hangs on; the flap below it curves forward over the tyre.
+
+### Done
+- `detail_plastics.mudguard_top`: through the wall's arch (rows 726..808) the model showed the subframe's rear cross
+  member; now a black plate cut to the arch (the wall's own arch points) 1 mm ahead of the wall's front face and
+  1.5 mm behind the cross member, with a 2.4 mm rim along its top edge (`s_r18_rear.jpg`). Audit clean.
+
+### Not done (still different)
+- The side tabs with their holes, the foot lip and its two fasteners, the flap's shape and ribs; the plate renders
+  with faint vertical streaks at 24 samples (its rear face lies 1.8 mm from the cross member).
 
 ## 6. Shroud small items (not started)
 - Also: the red strip beside the seat's nose in the top photo (u 1960..2160, between the hem and the shroud) is not

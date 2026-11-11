@@ -169,3 +169,22 @@ def test_side_cover_ribs():
     h, sx, sy = dp._tristar_height()
     assert abs(h.shape[1] * sx - 2 * dp.SIDE_COVER["pitch"]) < 1e-6 and abs(sx / sy - 1.0) < 0.002
     assert 0.08 < (h > 0.05).mean() < 0.25                     # ribs cover a measured share of the surface
+
+
+def test_round2_plastics():
+    """The panel's tail reaches the photo's red edge (fit34 rule) at u 2830..2870; the intake carries the green mesh
+    with UVs; the panel bolt sits at its pocket's floor; the mudguard's top fills the wall's arch ahead of the wall."""
+    Pn = pl._panel(1)
+    for u, v in ((2830, 916), (2850, 904), (2870, 897)):
+        k = np.abs(Pn.px[:, 0] - u) < 3.0
+        assert Pn.px[k, 1].max() >= v - 2.0, (u, Pn.px[k, 1].max(), v)
+    m = pl.side_panels()
+    mesh = [i for i, q in enumerate(m.M) if q == "intake_mesh"]
+    assert mesh and all(i in m.uv for i in mesh)
+    assert "intake_mesh" in dp.MATERIALS and dp.CLASS["intake_mesh"] == "black"
+    b = np.asarray(dp.panel_bolts().V)
+    u, v = dp._px(1, *pl.PANEL_BOLT_PX)
+    face = pl.panel_point(1, u, v, inset=0.006)
+    assert b[b[:, 1] > 0][:, 1].min() < face[1] - pl.POCKET_D + 0.001      # the bolt starts at the floor
+    t = np.asarray(dp.mudguard_top().V)
+    assert t[:, 0].min() > dp._wall_x() + 0.002 and t[:, 0].max() < 0.204   # ahead of the wall, behind the member
