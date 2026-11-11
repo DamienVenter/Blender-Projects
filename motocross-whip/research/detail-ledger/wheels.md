@@ -279,6 +279,20 @@ with subtle ribs and a lighter machined ring")
 - Spoke-flange hole chamfers, the barrel's own casting shape (hidden by spokes and discs in every photo), the
   seals' lips.
 
+### Round 3 (partly)
+- Reference: the RIGHT photo rectified onto the hub's disc-side end (y -0.077, about the photo's hub centre, +-65 mm
+  with circles at r 40/50/56/60 and rays every 30 deg: `SCRATCH3/hub_rect_g.png`); RIGHT pair `p_hub6.jpg`.
+- Seen: a bright turned lip round the end at r 57..61 (as on the sprocket side), and teardrop bumps with round heads
+  at r 46..50 and tails in to r 37, their heads at about 75, 105, 135, 165, 195 deg about the photo's hub (the axle
+  block hides the rest), lit as bumps with dark pockets between.
+- Built: the disc side's ribs now start at 15 deg (15 + 30 k, twelve as on the sprocket side), fuller heads 10 mm
+  across, 2 mm high (`_hub_ribs(..., a0, big=True)`); the end's outer chamfer ring is `hub_machined` (the lip).
+- Still different (`p_hub6.jpg`): the photo's bumps stand prouder (3 to 5 mm, deep pockets between, a bowl-shaped
+  end) and may be fewer than twelve (eight seen in 250 deg, the rest behind the axle block); two small round
+  bosses at r about 30 mm on the end face (photo bottom) are not identified or modelled. The barrel between the
+  flanges, the flange hole chamfers and the seals' lips are hidden in every photo (spokes, discs, axle block): not
+  changed.
+
 ## 8. Rear sprocket 50T
 
 ### Anatomy

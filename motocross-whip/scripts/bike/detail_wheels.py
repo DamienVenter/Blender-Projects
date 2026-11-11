@@ -1427,10 +1427,11 @@ def front_wheel():
 # Rear hub (LEFT photo, sprocket plane unwrapped and rectified: spr_plan / spr_overlay): a dark grey casting, RGB
 # 96 / 99 / 102 in the photo where the bare aluminium sprocket reads 150 / 153 / 157 (r 40..56 mm, 180..300 deg);
 # its sprocket-side end, seen through the sprocket's bore, carries twelve tear-shaped radial ribs (r 36..54 mm).
-def _hub_ribs(m, y_face, n=12, side=1):
-    """Radial ribs on the hub's sprocket-side end face (plane y = Y_FACE, facing +y), between r 36 and 54 mm."""
+def _hub_ribs(m, y_face, n=12, side=1, a0=None, big=False):
+    """Radial ribs on a hub end face (plane y = Y_FACE, facing SIDE * y), between r 36 and 54 mm, the first at A0
+    (default: half way between two sprocket bolts). BIG: the disc side's fuller teardrops (below)."""
     for k in range(n):
-        a = SPROCKET_BOLT0 + (k + 0.5) * 2 * math.pi / n
+        a = (SPROCKET_BOLT0 + math.pi / n if a0 is None else a0) + k * 2 * math.pi / n
 
         def xf(s, t, z, a=a):
             s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
@@ -1440,7 +1441,13 @@ def _hub_ribs(m, y_face, n=12, side=1):
         # tear-shaped, 8 mm across at the outer end, low and soft: the photo's ribs are subtle bumps of the casting
         # (coordinator's whole-wheel pair: 2.6 mm ribs with crisp edges read as bright marks on a dark disc)
         plan = [(-0.0018, 0.0360), (0.0018, 0.0360), (0.0042, 0.0490), (0.0, 0.0545), (-0.0042, 0.0490)]
-        _knob(m, xf, _fillet(plan, 0.0020), lambda s, t: 0.0013, math.radians(40.0), mat="hub_cast", rnd=0.0010)
+        h = 0.0013
+        if big:     # RIGHT photo rectified on the hub's end (hub_rect_g, round 3): rounder heads 10 mm across at r
+            #         46..50, tails in to r 37, catching the light as bumps 2 mm high
+            plan = [(-0.0020, 0.0368), (0.0020, 0.0368), (0.0050, 0.0470), (0.0030, 0.0530), (0.0, 0.0542),
+                    (-0.0030, 0.0530), (-0.0050, 0.0470)]
+            h = 0.0020
+        _knob(m, xf, _fillet(plan, 0.0020), lambda s, t: h, math.radians(40.0), mat="hub_cast", rnd=0.0010)
 
 
 def rear_wheel():
@@ -1464,6 +1471,8 @@ def rear_wheel():
     mats += ["hub_cast"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
     i_ring = [i for i in range(len(prof) - 1) if prof[i][0] >= 0.0559 and prof[i + 1][0] >= 0.0559 and
               prof[i][1] > back - 0.0005][:2]
+    i_ring += [i for i in range(len(prof) - 1) if prof[i] == (0.058, -0.0745)]     # round 3: the disc side's end
+    #                                                 has the same bright turned lip (hub_rect_g: r 57..61, both photos)
     for i in i_ring:                                            # the turned ring round the end face and the spigot
         mats[i] = "hub_machined"                                # (LEFT: a lighter annulus inside the sprocket bore)
     m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
@@ -1472,7 +1481,9 @@ def rear_wheel():
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub_cast",
                  0.008))
     _hub_ribs(m, 0.5 * (y_end - 0.003 + y_end - 0.004))
-    _hub_ribs(m, -0.0765, side=-1)                              # RIGHT pair p_disc1: the disc side has them too
+    # RIGHT pair p_disc1: the disc side has them too; round 3 (hub_rect_g): twelve at 15 + 30 k deg (the photo's at
+    # 75, 105, 135, 165, 195 deg about its own hub), fuller than the sprocket side's
+    _hub_ribs(m, -0.0765, side=-1, a0=math.radians(15.0), big=True)
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
