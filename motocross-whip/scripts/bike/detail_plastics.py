@@ -19,7 +19,7 @@ from PIL import Image
 import cams
 import plastics
 import parts as P
-from geom import Mesh, bolt, grid, inside, lathe, rounded_rect, smooth_poly, tube
+from geom import Mesh, bolt, grid, inside, rounded_rect, smooth_poly, tube
 
 LEFT, FRONT, REAR, TOP = (cams.CAMS[k] for k in ("left", "front", "rear", "top"))
 _UP2 = np.array([P.UP[0], P.UP[2]])
@@ -385,9 +385,7 @@ def rear_flap():
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
     on the lower clamp's front face, 0.3 mm short of it (both EST: hidden behind the plate; the clamps are
-    detail_front's). Hose guide:
-    FRONT rows 600..640, a black loop u 2081..2143 beside the plate's lower edge on the bike's left, which the brake
-    hose runs through (loop 22 mm across; its tab to the plate EST)."""
+    detail_front's). The hose guide under the plate's lower edge is detail_front's (round 4)."""
     Pl = plastics._plate()
     m = Mesh()
     uc, vc = plastics.PLATE_POCKET[:2]
@@ -405,14 +403,9 @@ def plate_details():
     for u in (1970.0, 2030.0):                             # on the flat centre panel (its edge is 47 px out here:
         p = Pl.hit(u, 598.0, 0.0035)                       # further out the folded wing cut the peg's end)
         m.add(stub(p, low(p[1]), 10))
-    c = Pl.hit(2120.0, 626.0, 0.007)
-    e = Pl.hit(2074.0, 600.0, 0.007)
-    ring = lathe([(0.011 + 0.003 * math.cos(q), 0.003 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
-                 20, "plastic_black", closed=True)
-    ring.transform(np.column_stack([np.cross(Pl.up, [0.0, 1.0, 0.0]), Pl.up, [0.0, 1.0, 0.0]]), c)
-    m.add(ring)
-    d = (c - e) / np.linalg.norm(c - e)
-    m.add(tube([e, c - d * 0.011], 0.003, 8, "plastic_black"))
+    # (round 4: the hose guide under the plate's lower edge, FRONT rows 600..640, u 2081..2143, is now detail_front's
+    # guide under the lower clamp with its grommet round the hose; this module's loop, 12 mm off the hose's axis, cut
+    # it and the hose, audit 20.6 mm: gone)
     return m
 
 

@@ -564,3 +564,27 @@ mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.
   rows 1011..1020 and 1227..1236; the deck's pointed front end with its gusset; the shroud bolts' hex flange heads
   (the model's read as round caps). The right side cover's own layout (open window, pocket, bolt at RIGHT (1585, 1076),
   not the left's mirror (1573, 1136)) and the right red panel's bolt at RIGHT (1320, 921).
+
+## R4.4 Front fender and number plate small items (partly: the plate's wings; the rest not started)
+
+### Done (the coordinator's two items, after the cockpit round 3 merge)
+- The plate's wings covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view. LEFT (and
+  RIGHT, mirrored), the plate's red run per row: 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 /
+  740; the model's was 58 / 64 / 64 / 62 / 56 / 42 (its rear edge 14 to 17 px behind). Across a row the depth is the
+  wings' fold over cos 27 deg: `PLATE_WING_D` 29 mm (was 45; 32 mm left the rear edge 5 px behind on average). Now
+  the rear edge is within -7..+14 px row by row in both profiles (the FRONT outline's wing edge varies), the front edge
+  within 3 px from row 585 down, and the pinch bolts and the cap show (`n0_left.jpg` before, `n1_left.jpg` after).
+- Duplicates of the cockpit's parts removed: the fork guard's brake hose clamp (guard_hardware), and the plate's hose
+  guide loop (plate_details): detail_front now has its own guide under the lower clamp with a grommet round the hose
+  at the same place; this module's loop sat 12 mm off the hose's axis and cut it (audit 20.6 mm; centred on the hose,
+  it still cut detail_front's guide).
+
+### Still different / not started
+- The plate's top: LEFT shows a red sliver running up from the wing's top corner to row 441 beside the bar (FRONT: the
+  red above the plate's top edge beside the bar pad, measure.py 'front_plate_rt', not built since round 1); TOP, lf34
+  and rf34 not checked.
+- Not started: the plate's and the fender's bolts, the fender's underside ribs.
+
+## Round 4 totals
+Vertices (both modules' parts): 73,868 (budget 160k). Audit: no clash of these parts but rear_fender on the seat 0.9 mm
+(a seat). Scores and tests: see the report (b20).

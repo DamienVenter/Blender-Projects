@@ -2126,13 +2126,20 @@ PLATE_ROWS = [320, 335, 350, 365, 380, 395, 410, 425, 440, 455, 470, 485, 500, 5
 PLATE_HALF = [110, 103, 96, 89, 83, 76, 72, 67, 64, 61, 59, 57, 55, 53, 51, 49, 47]
 PLATE_POCKET = (2000.0, 346.0, 13.0, 8.0)   # FRONT: dark oval u 1987..2013, v 338..354: the recessed mounting bolt
 PLATE_SLOT = (1963.0, 2038.0, 572.0, 586.0)  # FRONT: dark slot under the centre panel
+# How far the wings fold back at their outer edges, along the plate's normal (round 4). LEFT, the plate's red run per
+# row (r > 140, r - g > 70, r - b > 60): 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 / 740
+# (its rear edge u 1595 / 1588 / 1564 / 1532 / 1502 / 1481), 36 mm across a row at 0.78 mm/px, which is the fold over
+# cos 27 deg: 32 mm; built with 32 mm the model's rear edge stood 5 px behind on average in LEFT and RIGHT (-7..+14 px,
+# the FRONT outline's wing edge varies row to row): 29 mm. Rounds 1 to 3 had 45 mm (read at row z 1.00 as 50 mm deep): the wings' rear edge stood 14 to 17 px
+# behind the photo's and covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view.
+PLATE_WING_D = 0.029
 
 
 @functools.lru_cache(maxsize=None)
 def _plate():
     """The plate's surface: a centre panel parallel to the fork through the plate's front edge in the left photo
-    (OUT 'number_plate', centre plane), wings folded back from the measured crease lines to 45 mm at +-0.141 m (left
-    photo row z 1.00: the plate is 50 mm deep in side view), a pocket for the mounting bolt and a slot (depths EST)."""
+    (OUT 'number_plate', centre plane), wings folded back from the measured crease lines to PLATE_WING_D at +-0.141 m,
+    a pocket for the mounting bolt and a slot (depths EST)."""
     from types import SimpleNamespace
     side = np.asarray(_true_outline("left", OUT["number_plate"], 0.0))
     front = []
@@ -2153,7 +2160,7 @@ def _plate():
     def depth(y, u, v):
         wc = float(np.interp(v, PLATE_ROWS, PLATE_HALF)) * mpp
         s = sat((abs(y) - wc) / (0.141 - wc))
-        t = 0.045 * (0.75 * s + 0.25 * s * s)
+        t = PLATE_WING_D * (0.75 * s + 0.25 * s * s)
         uc, vc, a, b = PLATE_POCKET
         e = math.hypot((u - uc) / a, (v - vc) / b)
         if e < 1.0:
