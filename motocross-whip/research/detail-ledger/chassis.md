@@ -458,3 +458,17 @@ cross brace and a bracket (8, bolt 14) near the front of the right upper rail.
   reworked now); and the right plate needs the frame's outline extended 31 mm. Both need the coordinator: the frame's
   outline (this module) and the panel's inner skin (plastics) together. The rails, welds and the seat and airbox mounts
   are hidden in every photo (EST as before).
+
+## 4. Shock, the rest (part `shock`)
+Anatomy added: the spring's closed AND ground ends (flat bearing faces tapering over about half a turn), seated on
+the preload ring's face and the lower seat; the rebound scale stamped in the clevis's right ear just under the
+bottom cup (Dirt Rider 09, crop 560..1000 x 280..560: "S", a curved double-headed arrow, an index line).
+Numbers: S 7 mm tall (25 px against the ear's 110 px = 33 mm), arrow 8.4 mm wide, line 6.5 mm; grooves 0.7 mm. The
+spring's wire centres on the seats' faces (s 0.137 and 0.371 from the top eye), ground flat there (it stood 6 mm
+past each seat's plane before, its round wire on the ring's corner).
+Checks: cu3 close-ups (cu_dr9 and cu_dr9b at about Dirt Rider 09's angle, cu_smark2 on the ear beside the photo's crop:
+cu3_s). The first marks were metallic "groove" 0.3 mm proud and read light: now black (`bore`) 0.1 mm proud.
+Test: `test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stamped`.
+Still different: in Dirt Rider 09 the ear's face is a straight-sided block about 25 mm wide (the model's ears are a
+rounded hull 33 mm wide); the bike there sits at another point of its travel, so the connecting rods pass 25 mm lower
+across the clevis than in the studio pose (where they hide the marks); the spring's colour stays EST (dark).

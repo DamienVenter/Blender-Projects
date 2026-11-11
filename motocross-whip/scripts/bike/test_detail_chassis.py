@@ -305,3 +305,21 @@ def test_frame_leg_turns_away_and_the_pivot_boss_has_its_rim():
         at = lambda r: c.surf((piv + r * np.array([-0.7071, 0.7071]))[None], True)[0]   # noqa: E731
         assert at(dc.BOSS_R - dc.BOSS_RIM[0]) - at(0.020) > 0.0006     # the rim stands over the boss's face
         assert at(0.020) - at(dc.BOSS_R + 0.006) > 0.0012              # the boss stands over the leg
+
+
+def test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stamped():
+    """Round 4: closed and ground ends (flat on the preload ring's face and the lower seat's), the rebound scale (S,
+    double arrow, index line: Dirt Rider 09) stamped on the right ear just under the cup."""
+    m = dc.shock()
+    V, M = np.asarray(m.V), np.array(m.M)
+    U, A = dc.SHOCK_U, dc.SHOCK_A
+    d = (A - U) / np.linalg.norm(A - U)
+    idx = sorted({i for f, mt in zip(m.F, M) if mt == "shock_spring" for i in f})
+    t = (V[idx] - U) @ d
+    assert abs(t.min() - 0.1372) < 1e-4 and abs(t.max() - 0.3708) < 1e-4
+    assert (np.abs(t - 0.1372) < 1e-4).sum() > 20 and (np.abs(t - 0.3708) < 1e-4).sum() > 20     # flat ground faces
+    mk = sorted({i for f, mt in zip(m.F, M) if mt == "bore" for i in f})
+    P = V[mk]
+    P = P[np.abs(P[:, 1] + 0.0208) < 0.0006]
+    tp = (P - U) @ d
+    assert len(P) > 200 and 0.450 < tp.min() and tp.max() < 0.462      # under the cup (0.445), above the bolt

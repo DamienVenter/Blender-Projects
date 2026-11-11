@@ -1682,7 +1682,14 @@ def shock():
             rings.append(U + d * s + cs * rad[:, None])
         rings.append(rings[0])
         m.add(_outward(grid(Mesh(), rings, "alu_machined")))
-    m.add(coil(U + d * 0.143, U + d * 0.366, 0.0355, 0.006, 8.25, "shock_spring", seg=12, dead=1.0))
+    # spring (fiche 5): closed AND ground ends (round 4): the end turns' wire centres on the seats' faces (the preload
+    # ring's at 0.137, the lower seat's at 0.371) and ground flat there, the cut tapering over half a turn
+    sp = coil(U + d * 0.1373, U + d * 0.3707, 0.0355, 0.006, 8.25, "shock_spring", seg=12, dead=1.0)
+    V = np.asarray(sp.V)
+    t = (V - U) @ d
+    V = V + np.outer(np.clip(t, 0.1372, 0.3708) - t, d)
+    sp.V = list(map(tuple, V))
+    m.add(sp)
     m.add(turned(U, d, [(0.268, 0.009), (0.398, 0.009)], "chrome", 16))
     m.add(turned(U, d, [(0.336, 0.009), (0.340, 0.021), (0.366, 0.024), (0.372, 0.022)], "rubber_black", 20))         # bump stop
     # lower seat (25) with its stopper ring (24), the bottom cup (4): Dirt Rider 09, a stepped bright cup with grooves
@@ -1700,11 +1707,23 @@ def shock():
     q = U + d * 0.428 - nr * 0.0185
     m.add(turned(q, -nr, [(0, 0.0001), (0, 0.0055), (0.0025, 0.0055), (0.0032, 0.0048), (0.0032, 0.0001)], "steel", 20, True, True))
     m.add(box(q - nr * 0.0033, (0.0095, 0.0010, 0.0012), "bore", R=np.column_stack([np.cross(Y3, nr), Y3, -nr])))
-    face = U + d * (L - 0.030) + np.array([0.0, -0.0211, 0.0])
-    for p0, p1 in (((-0.006, 0.0), (0.006, 0.0)),):              # the arrow's shaft, square to the axis
-        a0 = face + nr * p0[0] + d * p0[1]
-        a1 = face + nr * p1[0] + d * p1[1]
-        m.add(tube([a0, a1], 0.0003, 6, "groove"))
+    # round 4: Dirt Rider 09 (cu3_s: its crop 560..1000 x 280..560) shows the rebound scale stamped in the right ear's
+    # flat face just under the cup: "S" at the rear, 7 mm tall (25 px against the ear's 110 px, 33 mm), a curved
+    # double-headed arrow ahead of it a little higher, and an index line at the front; upright toward the cup;
+    # grooves 0.7 mm wide, black, 0.1 mm proud of the face. (In the studio pose the connecting rods pass over them.)
+    face = U + d * 0.4565 + np.array([0.0, -0.02080, 0.0])
+    to_face = lambda px, py: face - nr * px - d * py                # noqa: E731  (px forward, py up the shock)
+    hs, ws = 0.0070, 0.0046
+    s_up = [(-0.0060 + ws / 2 * math.cos(q), hs / 4 + hs / 4 * math.sin(q)) for q in np.radians(np.linspace(25, 270, 14))]
+    s_lo = [(-0.0060 + ws / 2 * math.cos(q), -hs / 4 + hs / 4 * math.sin(q)) for q in np.radians(np.linspace(90, -155, 14))]
+    arc = [(0.0020 + 0.0042 * math.cos(q), 0.0004 + 0.0020 * math.sin(q)) for q in np.radians(np.linspace(20, 160, 14))]
+    strokes = [s_up + s_lo[1:], arc, [(0.0085, 0.0030), (0.0085, -0.0035)]]
+    for e0, e1 in ((arc[0], arc[1]), (arc[-1], arc[-2])):          # the arrow's heads
+        u = np.subtract(e0, e1) / np.linalg.norm(np.subtract(e0, e1))
+        w = np.array([-u[1], u[0]])
+        strokes.append([tuple(np.add(e0, -0.0015 * u + 0.0011 * w)), e0, tuple(np.add(e0, -0.0015 * u - 0.0011 * w))])
+    for stroke in strokes:
+        m.add(tube([to_face(px, py) for px, py in stroke], 0.00035, 6, "bore"))
     # reservoir: across the bike to the right of the head, its end cap and the two-stage compression adjuster
     rc = np.array([RES_CAP[0], 0.0, RES_CAP[1]])
     m.add(turned(rc + 0.004 * Y3, -Y3, [(0.0, 0.0001), (0.0, 0.015), (0.004, 0.020), (0.070, 0.020), (0.0705, 0.0185),
