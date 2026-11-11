@@ -733,7 +733,8 @@ def _wire(s, a0, f, u):
     y0 = abs(s.p(a0)[1])
     sel = path[(abs(path[:, 1]) > 0.070) & (abs(path[:, 1]) < y0 - 0.02)]
     rr = bar_r(sel[:, 1])
-    pts = np.vstack([sel - (rr + 0.003)[:, None] * Z, [s.p(a0 + 0.012, f * 0.5, u), s.p(a0 - 0.002, f, u)]])
+    pts = np.vstack([sel - (rr + 0.0092)[:, None] * Z,                  # under the bar, outside the clamp rings
+                     [s.p(a0 + 0.012, f * 0.5, u), s.p(a0 - 0.002, f, u)]])
     return sweep(pts, 0.0025, "cable", 8)
 
 
@@ -802,21 +803,33 @@ def bars():
                     + (bar_r(path[j, 1]) + 0.0004) * d / np.linalg.norm(d, axis=1, keepdims=True))
     m.add(_outward(grid(Mesh(), [bore[0]] + rings + [bore[1]], "barpad",
                         mats=["barpad", "pad_cap", "pad_cap", "barpad", "pad_cap", "pad_cap", "barpad"])))
-    # ---- hand controls (the grips are their own part, grips())
+    # ---- grips (component 1): part of the bars, so the bars span the SPEC 827 mm (test_bike.py)
+    m.add(grip(_Side(1)))
+    m.add(grip(_Side(-1), right=True))
+    # ---- switch blocks, not yet rebuilt (component 7): solid blocks round the bar, so they stay in the bar's part
     L, R = _Side(1, CTRL_SHIFT[0]), _Side(-1, CTRL_SHIFT[1])
     # ---- left: switch cluster (DET 475829: blue, red and green buttons facing the rider) and its lead
     m.add(_block(L, 0.109, 0.131, 0.034, 0.040, "plastic_black", cf=-0.002, cu=0.003, r=0.008))
     for a, u, mat in ((0.114, 0.012, "btn_blue"), (0.126, 0.012, "btn_red"), (0.120, -0.004, "btn_green")):
         m.add(cyl(L.p(a, -0.0185, u), L.p(a, -0.0212, u), 0.0042, mat, 12, 0.0006))
     m.add(_wire(L, 0.131, -0.004, -0.014))
+    # ---- right: start button and its lead
+    m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
+    m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
+    m.add(_wire(R, 0.159, -0.006, -0.0215))               # from the block's underside, under the MC clamp
+    return m
+
+
+def hand_controls():
+    """Switches, clutch perch and lever, throttle housing, start button, master cylinder and lever, and their leads:
+    a part of their own, so the bars' part keeps the bar's SPEC height (the throttle hood and the reservoir stand
+    higher in Honda's photos)."""
+    m = Mesh()
+    L, R = _Side(1, CTRL_SHIFT[0]), _Side(-1, CTRL_SHIFT[1])
     # ---- left: clutch perch, lever, boot, cable adjuster (component 6)
     m.add(clutch_perch())
     # ---- right: throttle housing, cable hood and boot (component 4)
     m.add(throttle_housing())
-    # ---- right: start button and its lead
-    m.add(_block(R, 0.143, 0.159, 0.028, 0.032, "plastic_black", cf=-0.004, cu=-0.004, r=0.006))
-    m.add(cyl(R.p(0.151, -0.018, -0.002), R.p(0.151, -0.0206, -0.002), 0.005, "anod_black", 12, 0.0006))
-    m.add(_wire(R, 0.159, -0.006, -0.014))
     # ---- right: Nissin master cylinder, lever, boot, banjo (component 5)
     m.add(master_cylinder())
     return m
@@ -937,7 +950,10 @@ def master_cylinder():
     # reservoir: walls from the barrel up, rounded in plan (r 5), drafted 2 deg, the cap's rim seat
     plan = rounded_rect(L, W, 0.005, 5)
     to3 = lambda p, q, h: c + p * ly + q * lx + h * Z
-    m.add(slab(plan * 0.985, -0.002, top - 0.0035, cast, to3, ch=0.0012))
+    m.add(slab(plan * 0.985, 0.0135, top - 0.0035, cast, to3, ch=0.0012))      # over the bar (DET830: window above it)
+    neck = np.array([(p_, q_) for p_, q_ in plan * 0.985 if q_ > -0.003] + [(-L / 2 * 0.985, -0.003), (L / 2 * 0.985, -0.003)])
+    neck = neck[np.argsort(np.arctan2(neck[:, 1] - neck[:, 1].mean(), neck[:, 0]))]
+    m.add(slab(neck, -0.002, 0.0145, cast, to3, ch=0.0008))                    # neck to the barrel, ahead of the bar
     # cap (4): plate with rounded edges, its diaphragm plate's rim showing as a thin step, two cross-head screws
     m.add(slab(plan, top - 0.0035, top - 0.0008, cap, to3, ch=0.0006))
     m.add(slab(plan * np.array([0.93, 0.90]), top - 0.0009, top, cap, to3, ch=0.0004))
@@ -1339,18 +1355,10 @@ def cables():
     return m
 
 
-def grips():
-    """Both grips (the right one on the throttle tube)."""
-    m = Mesh()
-    m.add(grip(_Side(1)))
-    m.add(grip(_Side(-1), right=True))
-    return m
-
-
-PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "grips": grips, "front_brake": front_brake,
+PARTS = {"fork": fork, "clamps": clamps, "bars": bars, "hand_controls": hand_controls, "front_brake": front_brake,
          "disc_guard": disc_guard, "cables": cables}
 REPLACES = ["fork", "clamps", "bars", "cables", "disc_guard"]
-FRONT_END = ["fork", "clamps", "bars", "grips", "front_brake", "disc_guard"]
+FRONT_END = ["fork", "clamps", "bars", "hand_controls", "front_brake", "disc_guard"]
 MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="stock/bar_knurl_n.png",
                            normal_strength=0.8),        # the Fatbar's clamping zones (BAR_KNURL)
              "bolt_black": dict(rgb=(28, 28, 30), metal=0.8, rough=0.35),     # black-finished screws (DET830)
@@ -1363,7 +1371,7 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "grip_bead": dict(rgb=(26, 26, 28), rough=0.22)}       # the rings' beads shine as thin lines (DR05, DR06)
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black"}
-SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "grips": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
+SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "hand_controls": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
                      tilt=float(PAD_TILT))}

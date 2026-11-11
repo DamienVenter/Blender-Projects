@@ -319,3 +319,17 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
 ### Still different
 - DR05's lever has a dog-leg bend just outboard of the boot; the model's blade is one smooth curve.
 - The holder's rear face has a cast rectangular recess between its bolts (DR06), not modelled.
+
+## Parts after this pass (and the whole-bike SPEC checks)
+- `bars`: Fatbar, holders, pad, both grips, and the switch blocks and their leads still waiting for component 7 (solid
+  blocks round the bar). `hand_controls` (new, turns with the steering): clutch perch, throttle housing, master
+  cylinder. `test_bike.py` reads `bars` for the SPEC width (827: passes, the grips' rims are in it) and height (1262
+  +-6 mm "to the top of the bars"): the bars now top out at the grips' flange rims, 1.2558 (6.2 mm under), while the
+  measured hand controls stand 9 to 12 mm over it (throttle hood 1.274 from REAR, reservoir cap 1.271 from RIGHT, both
+  cast on their own planes; Honda's photo bike stands higher than the spec sheet in other places too). No measured
+  dimension was moved to pass it: the check needs the coordinator's call (see the report).
+- Splitting the parts showed overlaps that one part had hidden: the reservoir reached through the bar at its inboard
+  end (now a neck ahead of the bar under a box over it) and the switch leads ran through the new clamp rings (now
+  under them). Audit after the split: two seats only (throttle cables 0.7 mm into their spouts, holder bush 0.0 mm).
+- Module vertices: 66,479 (fork 3,920, clamps 5,000, bars 33,652, hand_controls 10,137, front_brake 4,206,
+  disc_guard 3,102, cables 6,462); budget 220,000.

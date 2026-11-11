@@ -26,12 +26,11 @@ def verts(mesh, mat=None):
 
 
 def test_overall_width_is_the_handlebar_827_mm(built):
-    v = np.vstack([verts(built["bars"]), verts(built["grips"])])
-    assert abs(np.ptp(v[:, 1]) - 0.827) < 0.002                                          # SPEC overall width
+    assert abs(np.ptp(verts(built["bars"])[:, 1]) - 0.827) < 0.002                       # SPEC overall width
 
 
 def test_bar_ends_sit_on_the_shared_bar_end(built):
-    grip = verts(built["grips"])
+    grip = np.vstack([verts(built["bars"], "grip_rubber"), verts(built["bars"], "grip_bead")])
     assert df.TIP[0] == cams.BAR_END[0] and df.TIP[2] == cams.BAR_END[2]                  # no FRONT_TIP override
     for side in (1, -1):
         d = np.linalg.norm(grip - df.TIP * [1, side, 1], axis=1)
@@ -41,7 +40,7 @@ def test_bar_ends_sit_on_the_shared_bar_end(built):
 
 def _grip_frame(built, side, mat=None):
     sd = df._Side(side)
-    g = verts(built["grips"], mat)
+    g = verts(built["bars"], mat) if mat else np.vstack([verts(built["bars"], k) for k in ("grip_rubber", "grip_bead")])
     g = g[g[:, 1] * side > 0] - sd.T
     a = -(g @ sd.d)
     r = np.linalg.norm(g + np.outer(a, sd.d), axis=1)
@@ -78,8 +77,11 @@ def test_grip_diameters_flange_and_rings(built):
 
 
 def test_overall_height_is_1262_mm_at_the_bars(built):
-    bar = np.vstack([verts(built["bars"], "bar_black"), verts(built["grips"])])
-    assert abs(ground(bar)[:, 2].max() - 1.262) < 0.008                                  # SPEC overall height
+    # SPEC 1262: the bars (bar, holders, pad, grips) top out at the grips' flange rims 6 mm under it; the hand
+    # controls stand 9..12 mm over it, as measured in Honda's photos (hood REAR, reservoir cap RIGHT)
+    bars = ground(verts(built["bars"]))[:, 2].max()
+    ctrl = ground(verts(built["hand_controls"]))[:, 2].max()
+    assert 1.262 - 0.0075 < bars < 1.262 and 1.262 + 0.008 < ctrl < 1.262 + 0.014
 
 
 def test_throttle_hood_top_is_the_rear_photo_s():
@@ -121,6 +123,7 @@ def test_axle_is_on_the_front_axle_and_clamps_hold_both_tubes(built):
 
 def test_steering_parts_and_budget(built):
     assert set(df.REPLACES) == {"fork", "clamps", "bars", "cables", "disc_guard"}
+    assert abs(np.ptp(verts(built["bars"])[:, 1]) - 0.827) < 0.008                       # test_bike.py's width check
     assert "cables" not in df.FRONT_END and set(df.FRONT_END) <= set(df.PARTS)
     assert sum(len(m.V) for m in built.values()) < 220000                                 # brief's budget
     for m in built.values():
