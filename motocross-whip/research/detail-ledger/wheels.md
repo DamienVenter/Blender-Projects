@@ -369,6 +369,59 @@ with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
 - These need the caliper moved and the bracket rebuilt, then an audit against the swingarm (detail_chassis), which
   did not fit in this pass.
 
+### Round 3 (rebuilt; check images in `SCRATCH3/` = `.../scratchpad/agents/micro/wheels3/`)
+Anatomy (fiche K95CF1700 for the counts): bracket 7 (axle eye, slim cast arm, bore for the slide pin, the bracket's
+own pin), pad retainer 4 (inside, not seen), caliper body 6 (outboard half round the piston housing, bridge over the
+disc's edge, inboard finger), two pads 1 (steel backing with an ear on the pad pin, sintered lining), pad pin 8 under
+its hex plug, bleed screw 11 with rubber cap 12, slide pin 5 with its boot 16, the bracket's pin under the ribbed boot
+15, banjo with two sealing washers and its bolt, the hose with a black clamp ring and a crimped black sleeve, guard 10
+on two black socket bolts 17. Finish: body dark cast aluminium, the piston housing's end lighter (turned), bronze pad
+ears, black guard, sleeve and boots.
+
+References: RIGHT 7x crop 1044..1192 x 1462..1560 contrast-stretched (`gz_r2.png`), 6x crops `gz_r1.jpg`,
+`gz_hose2.jpg`, 2.4x `gz_hose.jpg`; rr34 7x crop 1290..1440 x 1410..1540 (`gz_rr1.jpg`); REAR 7x crop 2070..2200 x
+1350..1470 (`gz_rear1.jpg`); outdoor right side 476001 crop 1200..1560 x 1640..1960 (`o476_cal.jpg`); fiche
+K95CF1700 (`fiche_cal.png`).
+
+Numbers (RIGHT pixel, cast on its plane y, then carried from the photo's hub to the model's by a turn about the
+swingarm pivot: the RIGHT disc bolt circle puts the photo's hub 8.4 mm above parts.RA; y from the REAR photo at
+1.435 px a mm about the disc):
+| Item | Place (x, z about RA, mm) | Source |
+|---|---|---|
+| Piston housing end | 75, 82 (47.5 deg, r 111), r 20.5 | RIGHT (1115, 1519): lower arc through (1097, 1540), (1115, 1545.5), (1133, 1537) |
+| Slide pin 5 head | 111, 79 (r 137, outside the disc) | RIGHT (1160.8, 1524.2), 23 mm round |
+| Bracket pin and boot 15 | 55, 59, y -0.096..-0.122 | RIGHT (1086.7, 1550); REAR cylinder u 2141..2180, ribbed end 2169..2179 |
+| Pad pin and plug | 67, 108; pin y -0.052..-0.100, plug to -0.109 | RIGHT hex (1105, 1484); REAR bar v 1360..1369 u 2081..2161 |
+| Pads | backing at y -0.058..-0.062 and -0.078..-0.082 | REAR u 2083..2089 and 2114..2120 (bronze ears on top) |
+| Bleed screw and cap | 84, 108 to 91, 118 | RIGHT (1128, 1483) to (1136, 1472) |
+| Banjo | 106, 99 | RIGHT (1155, 1497), under the guard's lower bar |
+| Guard bolts | 124, 117 and 38, 75 | RIGHT (1176.7, 1475.8) and (1063.3, 1530.8) |
+| Guard | outline and two windows: 26 + 5 + 9 RIGHT pixels, y -0.118..-0.131, front end folded in 6 mm | RIGHT pair p_cal1; rr34; REAR black box to u 2195 |
+| Hose | 9 mm, level from the banjo, sleeve 11 mm x 27 mm, onto the arm's top | RIGHT gz_hose2 u 1185..1210; gz_hose |
+| Bracket | eye y -0.0935..-0.0858 (between collar and arm), arm rib inboard to y -0.079 | REAR arm u 2115..2137; outline EST round the pins |
+
+Built: `_slab` (any outline extruded with every edge rounded, holes allowed, caps without flat slivers via
+`_off_hull`), `_turned` (closed capped lathe), `_ribbed` (boots), `caliper_points()` (the pixels above through
+`_cal_px`), `rear_brake()` and `_caliper_guard()` rewritten. The hose is held 1 mm over the swingarm's top
+(`ARM_TOP`, ray cast on the built swingarm) and tapers to the pedal part's 4.2 mm at `HOSE_END`. 23.8k vertices.
+
+Checks: RIGHT `p_cal1.jpg` (first build: guard far too broad), `p_cal2.jpg`, `p_cal4.jpg`; rr34 `p_calrr1.jpg`,
+`p_calrr3.jpg`, `p_calrr4.jpg`; REAR `p_calb1.jpg`, `p_calb3.jpg`, `p_calb4.jpg`; all three in `p_cal4_all.jpg`.
+Audit `aud4.log`: no clash with the swingarm, wheel or disc; brake_pedal x rear_brake 3.9 mm at the hose joint (below).
+
+Still different, and why:
+- The whole assembly sits about 8 mm lower than in the photos: the hub parts are built about parts.RA (decided).
+- The body's cast form (where it is not seen past the guard) and the bracket's outline are EST round measured
+  points; the guard's windows are read from a dark-on-dark region (2 px uncertain).
+- REAR: the photo's guard box ends 12 px further out (8 mm); the REAR camera reads distances from the centre plane
+  about 6 % large (section 1), which is most of it.
+- The hose joint: the pedal part's hose (detail_chassis) comes down to `HOSE_END` and runs on 20 mm forward past it
+  to (0.468, -0.088, 0.513); this hose turns back along the arm there, so the two overlap 3.9 mm at the joint (a
+  joint, not a clash through a solid). Fix in detail_chassis: end its hose at `HOSE_END`, its last control point
+  behind and below it (about (0.440, -0.100, 0.497)).
+- The hose guide clip on the swingarm's top (RIGHT u 1385..1425, v 1445..1475) is not modelled (on the chassis
+  agent's swingarm).
+
 ## 12. Front hub, front disc 260 mm and front spokes: not started
 (The front spokes and nipples got the component 5 work: count 36 confirmed, new nipples, eyelets and threads; the
 front valve and rim lock moved to their measured places. The front hub keeps its old light finish and the front
