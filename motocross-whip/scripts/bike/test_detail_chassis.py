@@ -263,3 +263,27 @@ def test_master_cylinder_clears_the_frame_tabs(V):
     yo, yi = c.surf(P[:, [0, 2]], True), c.surf(P[:, [0, 2]], False)
     depth = np.minimum(yo - np.abs(P[:, 1]), np.abs(P[:, 1]) - yi)
     assert depth.max() < 0.0005, depth.max()
+
+
+def test_master_cylinder_is_one_casting_where_the_photos_have_it():
+    """Round 4: one closed casting (not two tubes), its outline on RIGHT's and its width on REAR's readings."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    m = dc._surface_nets(dc._mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "mc_cast")
+    V, F = np.asarray(m.V), np.asarray(m.F)
+    e = np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 3]], F[:, [3, 0]]])
+    n, _ = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(len(V), len(V))), directed=False)
+    assert n == 1
+    _, cnt = np.unique(np.sort(e, axis=1), axis=0, return_counts=True)
+    assert (cnt == 2).all()                                   # watertight: every edge in two faces
+    lo, hi = V.min(0), V.max(0)
+    assert abs(lo[0] - 0.4335) < 0.0015 and abs(hi[2] - 0.5790) < 0.0015 and abs(lo[2] - 0.4796) < 0.0015
+    assert -0.1350 < lo[1] < -0.1335 and -0.1075 < hi[1] < -0.1060            # REAR: cols 2143..2181
+    R, B = cams.CAMS["right"], cams.CAMS["rear"]
+    up = np.array([dc.MC_AXIS[1][0], dc.MC_YC, dc.MC_AXIS[1][1]])
+    assert np.abs(R.project(up[None])[0] - (1627, 1319)).max() < 2          # the neck's top under the banjo
+    assert abs(B.project(np.array([[dc.MC_AXIS[0][0], dc.MC_YC, 0.47]]))[0][0] - 2162.5) < 2   # the boot's centre
+    # its lugs seat on the frame tabs from inside: 0.5 mm off their inner face, nothing outboard of it beside the tabs
+    # (ahead of the tabs' rear edge x 0.479 (TAB_PX u 1639), above the lower tab's foot at z 0.4925; the skirt under it is wider, REAR)
+    near = V[(V[:, 0] > 0.479) & (V[:, 2] > 0.4925)]
+    assert near[:, 1].min() > -(dc.Y_PLATE - dc.TAB_T) + 0.0004

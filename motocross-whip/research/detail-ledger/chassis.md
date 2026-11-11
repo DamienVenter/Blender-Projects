@@ -365,3 +365,51 @@ TOP together. The inner face's weld beads and stamped text (HONDA, certification
   `_cal_px` to x 0.281..0.312 (band 0.287..0.299). In the photos the hose rides on the clip's base about 9 mm over
   the arm; the wheels module lays it 1.2 mm over the arm, so the base is two cheeks either side of the hose with the
   band arching over (0.3 mm clear of the hose). Part `swingarm`. Check: cu4/render_cu_clip.png.
+
+
+# Round 4 (2026-11-11, fourth chassis agent; scratch images under `agents/micro/chassis4/`)
+
+## 1. Rear master cylinder body (part `brake_pedal`): one casting
+Anatomy at 30 cm (fiche K95CF1500: body 2, cap 4, plate 6, diaphragm 7, screws 14, boot 3, push rod 8, nut 15, clevis
+10, banjo bolt 12 and washers 13, mounting bolts 11): one grey sand-cast body of two upright columns joined by a web,
+a deep narrow valley between them; the reservoir column (rear, oval 20 x 24.5 mm) with a wider head under the cap; a
+dark smoky cap with two cross-recessed pan screws at diagonal corners over a thin plate; on the column's rear a round
+pad with the sight window (a lit rim, the grey lens 1 to 1.5 mm in, a light retaining ring of three arcs), the cast
+word LOWER beside it on the outer face; the bore column (front, 21 mm) with NISSIN cast along it (6 mm letters reading
+down, tops forward), two lugs on its outer side under the frame's tabs (the bolts come from outside); above the valley
+the neck (14 mm) carrying the banjo: washer, black eye, washer, 12 mm hex bolt; from the eye a bright 4.7 mm pipe rises
+into the hose's black sleeve, the hose hooking over forward and down inboard; under the reservoir the web with a round
+cast emblem (an N in a ring) and two dots on its rear face; the lower column, its bell skirt, a plain black boot (no
+convolutions in any photo), the push rod, its lock nut on the clevis, the clevis as rectangular outlines from the side
+AND from behind (a box of narrow bars: upper box, waist, lower box round the pin), the pin with its split pin outboard.
+References: RIGHT 4x..8x crops mc1 (1580..1700 x 1270..1530), mc2, mc3 (1575..1665 x 1280..1440), mc5 (the hose's
+hook), mc7 (rod and clevis), sa1 (the swingarm's front); rr34 mc4, mc9; REAR mc6 (2130..2210 x 1085..1265), mc8 (the
+clevis from behind); rf34 (mc_views); fiche K95CF1500.
+Numbers (all in MC_* with their pixels): x, z from RIGHT cast on the casting's mid plane y -0.1211; y from REAR cast on
+each feature's own x (the rear photo reads 13 px, 10 mm, lower than RIGHT here, as at the footpegs: its rows unused).
+Head 0.4335..0.4610 x -0.1341..-0.1067, z 0.567..0.579; cap to 0.5852; reservoir 20 x 24.5 mm, foot z 0.519; bore
+column r 10.5 at x 0.4728; neck r 6.85 on the bore's 7 deg axis (boot centre u 1641 to neck u 1627); skirt 28 x 25.6
+mm; window pad face x 0.4370, centre (y -0.1238, z 0.537), ring 17.3 mm; screws at (0.4374, -0.1250) and (0.4541,
+-0.1124); boot 18.7 mm to z 0.465; clevis 14.4 mm, pin RIGHT (1648, 1505).
+Where it is: the round-3 axis (y -0.1345, EST) put the body's centre on the tabs' face. REAR puts the boot at y -0.1211
+(cols 2150..2175), the push rod at col 2160, the clevis's legs at -0.112 and -0.130, the casting -0.108..-0.134: a
+body bolted inboard of the tabs (inner face 0.1325), its lugs 0.6 mm off them. Test: `test_master_cylinder_is_one_
+casting_where_the_photos_have_it` (one watertight surface, RIGHT and REAR readings, nothing outboard of the tabs).
+Built: `_mc_sdf` (smooth union of prisms and cylinders, fillets 1.2 to 3 mm, the lens recess cut) meshed by
+`_surface_nets` (new: naive surface nets, Newton steps onto the surface; 1.2 mm grid, 11.8k vertices); `_uv_cast` (UVs
+per face by its normal's axis, each direction in its own region of the map); `mc_map` -> textures/stock/mc_n.png
+(sand-cast grain and the raised marks: NISSIN, LOWER, the emblem, the dots); `_pill` (cap and plate), `_pan_screw`
+(cross recess cut through the head); materials mc_cast, mc_lid, mc_lens, mc_ring.
+Shared change (this module's swingarm): REAR and rr34 put the clevis, rod and skirt where the swingarm's pivot casting
+was (outer face 0.122 at x 0.48). rr34 mc9 shows the arm's box ending at its front weld and nothing of the arm outboard
+ahead of it; RIGHT sa1 shows a darker face turning in right after the weld (u 1615..1635). `_arm_yo` now steps in to
+0.107 between s 0.468 and 0.482 (x 0.452..0.465); side views unchanged.
+Checks (three cycles): m1 pairs right, rear, rr34; cu1 close-ups (cu_mca beside rr34 mc4, cu_mcr from the right); m3
+right; m4 right and rear (m4_both). Fixed on the way: a boxy single body (rr34: two round columns) -> bore column as a
+cylinder and the web set back; grain relief 0.035 mm read as crinkle paint -> 0.016; LOWER ran off the column; the
+pipe stood 1 cm too tall and its ferrule bright where the photo is black; the clevis a plain plate -> bar box; screws
+3.2 mm tall; non-manifold cells under the upper lug (wider fillet).
+Still different: the grain and lettering are a normal map (they do not change the silhouette, correct at 30 cm); the
+studio render's step-in face of the swingarm is lit where the photo's is mid grey; the REAR model sits 13 px high (the
+rear camera's known offset, not the part); detail_wheels' hose passes outboard of the web in RIGHT (v 1400..1414,
+ending at u 1626) where their run ends inboard (y -0.100): theirs, reported.
