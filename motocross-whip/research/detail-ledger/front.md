@@ -661,3 +661,62 @@ pair.py run on one labelled pixel grid, with a 50/50 overlay and the render shif
   rests on room between the bore and the front (RIGHT reads 5 mm further back within its offset doubt).
 - The fork guards' bolts are the plastics' (`guard_hardware`); that part also holds a hose clamp block on the guard's
   outer face where this module's guide is (one real clamp modelled twice): a shared issue.
+
+## R3-2. Fork tops (fiche K95CF1100 cap parts 16 / 30, K95CF0700 top bridge, K95CF0900 stem nut)
+
+### Anatomy
+- The outer tube's top 5 mm above the top clamp, gold with fine turning lines.
+- Showa cap: a bright turned hex with a chamfered top edge, its corners turned round inside the tube's diameter; a
+  recessed black anodised top with a raised lip; on it a raised black block with chamfered edges running from the
+  centre to the rim, a large slotted adjuster at its outer end and a small slotted screw near the centre; a short white
+  index line on the black rim.
+- Top clamp: grey satin casting; on each boss's front-outboard side a lug split along the tube's plane with two hex
+  flange pinch bolts from outboard (LEFT, DET835). The steering stem nut: a large bright hex flange nut on a washer.
+
+### References
+- DET835 crops 1300..2500 x 900..1650 (`ref/d835_tops.jpg`), 1420..1700 x 960..1190 at 3x (`d835_cap.jpg`),
+  2250..2520 x 1290..1430 (`d835_capR.jpg`, the right cap under the pad). LEFT gridded 1560..1720 x 500..630
+  (`ref/g_left_top.jpg`). TOP (`g_top_caps.jpg`: the pad hides both caps but a rim). FRONT: the plate hides the clamp.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Pinch bolts | f 30.2, t 0.8935 / 0.9102, heads' faces about 23 mm outboard of the tube's plane | LEFT (1580, 575), (1590, 555) cast on y 0.122 (round 1 saw the same two heads) |
+| Turned band | t 0.928..0.933, five grooves 0.15 mm deep every 0.8 mm | LEFT axis (round 1), DET835 lines |
+| Cap hex | 47 mm across flats, corners turned to r 25.2, t 0.933..0.941, top chamfer 1.6 mm | DET835 (flats as wide as the tube); LEFT top front edge t 0.925 + lean -> 0.941 |
+| Black top | 1.5 mm under the hex's top, lip r 20.5 | DET835 |
+| Block | 30 x 21 mm, 4.5 mm tall, from 6 mm ahead of the centre rearwards | DET835 proportions; LEFT top t 0.947 on y 0.099; held under the pad's underside t 0.945 |
+| Screws | slotted, 9 and 6 mm | DET835 |
+| Stem nut | 30 mm hex flange, washer 42 mm | DET835 (0.6 of the cap's width) |
+
+### What was built
+- `fork_cap(side)` (in `fork`): hex rim as rings with per-band materials (bright hex, black top), the block as a
+  rounded casting (`_rplate`), the two slotted screws, the index mark (material `mark_white`); the outer tube's
+  profile carries the turned band.
+- `_pinch_front()` replaces the top clamp's rear lugs (round 1, EST): the lug 26.2..37.2 mm ahead of the tube's axis
+  (clear of the 51 mm tube), the slit, two M6 flange bolts; the top clamp's bosses and bridge now `alu_cast`. The
+  stem nut is a `fastener()` with its washer and the stem's end.
+- Test `test_fork_caps_and_top_clamp_pinch_bolts` (bolt heads on LEFT within 3 px, caps under the pad, index marks).
+
+### Checks
+- Close-ups `chk/cu4_a.jpg` (DET835 angles: the pad hides the cap from above), `cu5_a.jpg` (cap and clamp alone
+  beside `d835_cap.jpg`). Pairs `chk/p8_left.jpg`, `p8_lf34.jpg`.
+- Audit (`a_c8`): the first lug reached 2 mm into the tube (moved forward) and its bolt heads 4.9 mm into the number
+  plate's wing (seat moved 3 mm in; the plate's wing runs 45 deg across the bolts); none left over 0.8 mm.
+
+### Still different
+- The model's number plate wing (plastics) covers the pinch bolts in LEFT where the photo's plate edge stands 25 px
+  further forward and shows them: a shared issue for the plate.
+- The adjuster block's direction is EST (rearwards, LEFT shows it at the cap's rear; DET835 suggests rear-outboard)
+  and it is 4.5 mm tall to stay under the pad, where DET835's looks taller (its pad end sits beside the cap).
+- The top clamp itself is still round 1's thin bridge with ring bosses; DET835 and LEFT show a thicker casting with a
+  squared rear end (a clamp build, not on this list).
+
+## Round 3 status
+- Component 3 (cables and hose routing, rest), 4 (front disc), 5 (front hub), 6 (front spoke lacing), 7 (master
+  cylinder fillets): not started.
+- Module vertices: 106,962 (fork 18,219, clamps 6,961, bars 40,830, hand_controls 19,008, front_brake 12,040,
+  disc_guard 3,442, cables 6,462); budget 220,000.
+- Lessons: the foot's underside is world-horizontal, not square to the tube (a socket read on the wrong plane came out
+  12 mm long); features at |y| 0.1 to 0.13 near the front axle need the side cameras' parallax offset (above); a
+  close-up camera for the fork caps must look past the bar pad's end (the pad covers their inboard halves).

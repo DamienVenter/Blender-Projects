@@ -360,6 +360,22 @@ def test_caliper_and_bracket_bolts_on_the_left_photo():
     assert [round(2 * b, 4) for _, _, b in df.CAL_LOBES] == [0.030, 0.027]               # SPEC pistons
 
 
+def test_fork_caps_and_top_clamp_pinch_bolts(built):
+    """Round 3, component 2: the pinch bolts' heads on LEFT's two heads within 3 px; the caps' hex and adjuster
+    block stay under the bar pad's measured underside; the stem nut is a 30 mm hex on the top clamp."""
+    f, dy, ts = df.TC_BOLTS
+    for t, ph in zip(ts, ((1580, 575), (1590, 555))):
+        head = df.fk(f, parts.FORK_HALF + dy - 0.001 + 0.0058, t)                       # the head's outer face
+        assert np.linalg.norm(cams.CAMS["left"].project([head])[0] - ph) < 3.0
+    fv = verts(built["fork"])
+    rel = fv - df.TUBE0
+    tt = rel @ df.UP
+    caps = fv[(tt > df.T_TUBE_TOP) & (np.abs(np.abs(fv[:, 1]) - parts.FORK_HALF) < 0.03)]
+    assert ((caps - df.TUBE0) @ df.UP).max() < df.PAD_T[0]                                 # under the pad
+    assert abs(df.CAP_HEX[0] - 0.047) < 1e-9 and df.CAP_HEX[1] < 0.0255                    # inside the 51 mm tube
+    assert len(verts(built["fork"], "mark_white")) == 16                                   # an index mark per cap
+
+
 def test_caliper_pads_straddle_the_disc_and_the_body_clears_it(built):
     import detail_wheels as dw
     y0, y1 = dw.DISC_F["y"] - dw.DISC_F["t"] / 2, dw.DISC_F["y"] + dw.DISC_F["t"] / 2

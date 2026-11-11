@@ -545,6 +545,48 @@ def axle():
     return m
 
 
+# ================================================================ fork caps (round 3)
+CAP_HEX = (0.0470, 0.0252)    # cap's hex: across flats and the corner radius it is turned to (DET835: the flats as wide
+#   as the tube, the corners rounded inside its 51 mm), EST
+CAP_T = (T_TUBE_TOP, 0.9410, 0.9395)    # hex from the tube's top to its chamfered top; the black top 1.5 mm down
+#   (LEFT: the cap's top front edge t 0.925 + its 15 mm to the rear edge at 0.940 lean = the top at 0.941, cast on y 0.099)
+CAP_BLOCK = (0.030, 0.021, 0.0045, -0.006)   # adjuster block on the black top: length, width, height, start behind
+#   the centre (DET835 proportions to the cap; LEFT: its top t 0.947 cast on y 0.099, at the cap's rear; held 0.5 mm
+#   under the bar pad's measured underside, t 0.945)
+
+
+def fork_cap(side):
+    """Showa fork cap (DET835): a bright turned hex with a chamfered top edge round a recessed black anodised top, on
+    it a raised black block running rearwards from the centre with a large slotted adjuster at its end and a small
+    slotted screw near the centre (compression adjuster and air bleed, fiche K95CF1100 16 / 30), a white index
+    mark on the black rim."""
+    m = Mesh()
+    o = fk(0, side * FORK_HALF, 0)
+    a = np.linspace(0, 2 * math.pi, 72, endpoint=False)
+    hexr = np.minimum(CAP_HEX[0] / 2 / np.cos((a % (math.pi / 3)) - math.pi / 6), CAP_HEX[1])
+    ring = lambda r, t: o + np.outer(r * np.cos(a), FWD) + np.outer(r * np.sin(a), Y) + t * UP
+    t0, t1, tb = CAP_T
+    rings = [ring(np.full(72, 0.0245), t0 - 0.0005), ring(hexr - 0.0004, t0), ring(hexr, t0 + 0.0004),
+             ring(hexr, t1 - 0.0016), ring(hexr * 0.97, t1 - 0.0004), ring(hexr * 0.955, t1),
+             ring(np.full(72, 0.0205), t1), ring(np.full(72, 0.0200), t1 - 0.0004), ring(np.full(72, 0.0196), tb)]
+    mats = ["alu_machined"] * 6 + ["anod_black"] * 2
+    m.add(grid(Mesh(), rings, "alu_machined", cap1=True, mats=mats))
+    m.M[-72:] = ["anod_black"] * 72                                    # the black top
+    back = -FWD
+    to = lambda u, v, w: o + u * back + v * Y + w * UP
+    L, W, H, u0 = CAP_BLOCK
+    blk = rounded_rect(L, W, 0.006, 4) + np.array([u0 + L / 2, 0.0])
+    m.add(_rplate(blk, [], tb - 0.0003, tb + H, 0.0012, "anod_black", to, step=0.0012))
+    for u, r in ((u0 + L - 0.0065, 0.0045), (0.002, 0.0030)):        # slotted adjuster, slotted bleed screw
+        p = to(u, 0.0, tb + H)
+        m.add(cyl(p - 0.0004 * UP, p + 0.0006 * UP, r, "alu_machined", 20, 0.0003))
+        m.add(box(p + 0.0004 * UP, (0.0011, r * 1.7, 0.0005), "anod_black",
+                  np.column_stack([FWD, Y, UP]) if u > 0.01 else np.column_stack([Y, back, UP])))
+    m.add(box(to(-0.0165, side * 0.0075, tb + 0.00005), (0.0045, 0.0007, 0.0002), "mark_white",
+              np.column_stack([FWD, Y, UP])))
+    return m
+
+
 def fork():
     """Showa 49 mm coil-spring fork: gold outer tubes, chrome inner tubes, dust seals, caps with adjuster and bleed
     screw, cast axle lugs with pinch bolts (and the caliper ears on the left), axle with its nut."""
@@ -559,19 +601,16 @@ def fork():
         prof = [(0.0262, T_SEAL), (0.0290, 0.357), (0.0290, 0.3625), (0.0279, 0.364), (0.0279, 0.367),
                 (0.0290, 0.3685), (0.0290, 0.3745), (0.0279, 0.376), (0.0279, 0.379), (0.0290, 0.3805),
                 (0.0290, 0.385), (0.0252, 0.393), (0.0250, 0.397), (0.0250, 0.600), (0.0265, 0.650), (0.0265, 0.725),
-                (0.0255, 0.760), (0.0255, T_TUBE_TOP - 0.0015), (0.0243, T_TUBE_TOP)]
+                (0.0255, 0.760), (0.0255, T_UP[1] + 0.0004)] + \
+            [q for k in range(5) for q in ((0.0255, T_UP[1] + 0.0008 + 0.0008 * k),
+                                           (0.02535, T_UP[1] + 0.0011 + 0.0008 * k))] + \
+            [(0.0255, T_TUBE_TOP - 0.0006), (0.0249, T_TUBE_TOP)]
         m.add(rev(o, UP, prof, "fork_gold", 40, cap1=True))
         # dust seal (LEFT axis: black 0.348..0.354) and inner tube (LEFT axis: bright metal 0.292..0.346)
         m.add(rev(o, UP, [(R_INNER + 0.0003, 0.3425), (0.0262, 0.345), (0.0270, 0.351), (0.0262, T_SEAL + 0.001)],
                   "rubber_black", 32))
         m.add(rev(o, UP, [(R_INNER, 0.066), (R_INNER, 0.400)], "chrome", 32))
-        # fork cap (DET 475835: black cap in the tube's mouth), compression adjuster and bleed screw (EST sizes)
-        m.add(rev(o, UP, [(0.0222, T_TUBE_TOP - 0.001), (0.0222, 0.9365), (0.0205, 0.938)], "anod_black", 28,
-                  cap1=True))
-        m.add(bolt(fk(0, y, 0.938), UP, af=0.014, head_h=0.004, flange_d=0.019, mat="alu_machined"))
-        m.add(cyl(fk(0, y, 0.942), fk(0, y, 0.9432), 0.0038, "steel", 12))
-        m.add(box(fk(0, y, 0.9434), (0.0066, 0.0011, 0.0006), "rubber_black", RF))            # screwdriver slot
-        m.add(bolt(fk(0.013, y, 0.938), UP, af=0.0052, head_h=0.0022, mat="steel", kind="cap"))    # air bleed
+        m.add(fork_cap(side))
         # (the socket's top is a collar for the fork guard's foot: the guard starts at t 0.053, LEFT axis red from
         # 0.056; its inboard wall is 28.0 mm from the tube axis inside, audit; the collar is 27.7)
         m.add(axle_holder(side))
@@ -614,6 +653,27 @@ def _pinch(m, t0, t1, mat):
         m.add(box(fk(-0.0375, side * FORK_HALF, tc), (0.0196, 0.0016, h + 0.0006), "rubber_black", RF))
         for t in (t0 + 0.012, t1 - 0.012):
             m.add(bolt(fk(-0.0375, side * (FORK_HALF + 0.015), t), side * Y, af=0.010, flange_d=0.014))
+
+
+TC_BOLTS = (0.0302, 0.0175, (0.8935, 0.9102))    # top clamp pinch bolts: f, seat out of the tube's plane, t (LEFT
+#   (1590, 555) and (1580, 575) cast on y 0.122: f 30.2, t 0.910 / 0.8935; round 1 saw the same two heads ahead of the
+#   clamp). Seat EST: the number plate's wing (plastics) runs 45 deg across here (|y| 127 at f 34, 120 at f 38), so
+#   the heads' fronts touch it
+
+
+def _pinch_front(m, t0, t1, mat):
+    """The top clamp's pinch lug on each boss's front: split along the tube's plane, two M6 flange bolts from the
+    outboard side (LEFT, DET835)."""
+    f, dy, ts = TC_BOLTS
+    for side in (-1, 1):
+        y0 = side * FORK_HALF
+        lug = rounded_rect(0.011, 0.031, 0.0035, 3)                    # f 26.2..37.2: clear of the tube (25.5)
+        m.add(_rplate(lug, [], t0 + 0.0015, t1 - 0.0015, 0.0016, mat,
+                      lambda u, v, w, s=side: fk(0.0317 + u, s * (FORK_HALF + dy - 0.0165) + v, w), step=0.0012))
+        m.add(box(fk(0.0319, y0, (t0 + t1) / 2), (0.0104, 0.0010, t1 - t0 - 0.0026), "rubber_black", RF))
+        for t in ts:
+            m.add(fastener(fk(f, side * (FORK_HALF + dy - 0.001), t), side * Y, "flange", af=0.010, h=0.0058,
+                           flange_d=0.0135, mat="bolt"))
 
 
 def _boss(side, tt, r, r_in, mat):
@@ -665,14 +725,17 @@ def clamps():
         m.add(cyl(e - 0.003 * Z, [xb, yb, zb], 0.0075, cast, 16, 0.001))
     # ---- top clamp: LEFT / RIGHT axis silver t 0.884..0.928
     for side in (-1, 1):
-        m.add(_boss(side, T_UP, R_BOSS_UP, 0.0259, mach))
+        m.add(_boss(side, T_UP, R_BOSS_UP, 0.0259, cast))
     top = _bridge([(0.017, 0.0), (0.017, 0.045), (0.016, 0.066)],
                   [(-0.036, 0.066), (-0.054, 0.048), (-0.062, 0.020), (-0.063, 0.0)], (0.0259 + R_BOSS_UP) / 2)
-    m.add(slab(top, FACE_UP, T_UP[1] - 0.0005, mach, fk, ch=0.002))
-    _pinch(m, T_UP[0], T_UP[1], mach)
+    m.add(slab(top, FACE_UP, T_UP[1] - 0.0005, cast, fk, ch=0.002))
+    _pinch_front(m, T_UP[0], T_UP[1], cast)
     # ---- stem: the only part between the two faces within the head tube's radius; nut and washer (EST 30 mm)
     m.add(cyl(fk(F_STEER, 0, T_LO[0] - 0.0055), fk(F_STEER, 0, T_UP[1] + 0.011), STEM_R, "steel", 24, 0.001))
-    m.add(bolt(fk(F_STEER, 0, T_UP[1]), UP, af=0.030, head_h=0.008, flange_d=0.040, mat="steel"))
+    # steering stem nut (fiche K95CF0900): a bright hex flange nut on a washer, the stem's threaded end inside it
+    # (DET835: about 0.6 of the fork cap's width across its corners -> 30 mm hex, EST height)
+    m.add(fastener(fk(F_STEER, 0, T_UP[1] - 0.0003), UP, "flange", af=0.030, h=0.0105, flange_d=0.039,
+                   washer=(0.042, 0.0018), mat="bolt", thread=0.0012, thread_d=0.026))
     for side in (-1, 1):                     # under the bridge: rubber bush (5), washer (15), nut (13) on the stud
         ax = fk(F_BAR, side * HOLDER_Y, 0.0)
         m.add(rev(ax, -UP, [(0.0065, -FACE_UP - 0.0005), (0.0140, -FACE_UP - 0.0005), (0.0143, -FACE_UP + 0.0012),
@@ -1982,8 +2045,13 @@ def _cal_outline():
     c = [((-0.002, w), r) for w, r, _ in CAL_LOBES]
     c += [((CAL_TOP[0], CAL_TOP[1]), 0.0090), ((0.017, 0.034), 0.010), ((0.019, -0.030), 0.010), ((0.022, 0.002), 0.010),
           ((CAL_FOOT[0], CAL_FOOT[1]), 0.0085), ((CAL_SLOT[0], CAL_SLOT[1]), 0.0085)]
-    L = _resample(_hull_circles(c, 28), 0.0012)
-    for dx, dz in CAL_BOLTS:            # notches round the bracket's bolts (LEFT: the body's edge passes beside them)
+    return _cal_notch(_hull_circles(c, 28))
+
+
+def _cal_notch(L):
+    """Notches round the bracket's bolts (LEFT: the body's edge passes beside them)."""
+    L = _resample(L, 0.0012)
+    for dx, dz in CAL_BOLTS:
         p = FA + np.array([dx, 0.0, dz]) - CAL_C
         b = np.array([p @ E_Q, p @ E_W])
         d = np.linalg.norm(L - b, axis=1)
@@ -2004,8 +2072,8 @@ def caliper():
     # outer half: the lobes and their waist stand to the face (edges rounded 6 mm: the domed bores of DET831, the
     # face flat with the D-spots and NISSIN in it); the rest of the casting is 8 mm lower, its edges rounded 4 mm
     m.add(_rplate(_cal_outline(), [], CAL_Y[0], CAL_Y[1] - CAL_STEP, 0.0040, c, to, step=0.0016, n=3))
-    lobes = _hull_circles([((-0.002, w), r) for w, r, _ in CAL_LOBES] + [((CAL_SLOT[0] + 0.004, CAL_SLOT[1]), 0.0080)],
-                          28)
+    lobes = _cal_notch(_hull_circles([((-0.002, w), r) for w, r, _ in CAL_LOBES] +
+                                     [((CAL_SLOT[0] + 0.004, CAL_SLOT[1]), 0.0080)], 28))
     m.add(_rplate(lobes, [], CAL_Y[0] + 0.004, CAL_Y[1], 0.0060, c, to, step=0.0016, n=4))
     for w, r, rb in CAL_LOBES:                         # machined D-shaped flat on each lobe's outer half, 0.25 mm proud
         s = 1 if w > 0 else -1
@@ -2334,7 +2402,8 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "cal_nissin": dict(rgb=(128, 128, 132), metal=1.0, rough=0.58, normal="stock/cal_nissin_n.png"),
              "cal_spot": dict(rgb=(200, 200, 204), metal=1.0, rough=0.25),     # machined D-flats (DET831)
              "pad_friction": dict(rgb=(52, 46, 40), rough=0.8),
-             "pad_shim": dict(rgb=(120, 92, 58), metal=0.6, rough=0.45)}       # bronze shims (RIGHT, rf34)
+             "pad_shim": dict(rgb=(120, 92, 58), metal=0.6, rough=0.45),       # bronze shims (RIGHT, rf34)
+             "mark_white": dict(rgb=(225, 225, 225), rough=0.5)}               # fork cap index mark (DET835)
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
          "led_lens": "black", "sw_body": "black", "tie_band": "black"}
