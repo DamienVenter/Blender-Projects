@@ -185,6 +185,79 @@ def loop_from_half(half):
     return full
 
 
+# ================================================================ fasteners
+def _frame(axis):
+    a = unit(axis)
+    h = Z if abs(a[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = unit(np.cross(h, a))
+    return a, u, np.cross(a, u)
+
+
+def fastener(c, axis, kind="flange", af=0.010, h=None, flange_d=None, washer=None, mat="bolt", thread=0.0,
+             thread_d=None, recess=None):
+    """A real fastener head at C standing along AXIS (out of the surface it sits on).
+    kind "flange": hex flange bolt or nut (JIS: 8 mm across flats on M5, 10 on M6, 12 on M8, 14 on M10), flange with
+    its edge rounded, hex with 30 deg chamfered corners on top; "hex": plain hex with the same chamfer; "socket":
+    cylindrical socket cap with a hex recess (RECESS across flats, 0.6 x the head height deep); "button": low domed
+    socket head. washer: (outer d, thickness) under the head. thread: length of exposed thread beyond the head along
+    AXIS (a stud through a nut), thread_d its diameter (60 deg V, 1.25 mm pitch on M8)."""
+    a, u, v = _frame(axis)
+    c = np.asarray(c, float)
+    m = Mesh()
+    z0 = 0.0
+    if washer:
+        wd, wt = washer
+        ri = (thread_d or af * 0.7) / 2 + 0.0003
+        m.add(rev(c, a, [(ri, 0.0), (wd / 2 - 0.0003, 0.0), (wd / 2, 0.0003), (wd / 2, wt - 0.0002),
+                         (wd / 2 - 0.0002, wt), (ri, wt)], "steel", 24, solid=True))
+        z0 = wt
+    ang = np.linspace(0, 2 * math.pi, 24, endpoint=False)
+    circ = np.stack([np.cos(ang), np.sin(ang)], axis=1)
+    hexa = circ / np.maximum.reduce([np.abs(np.cos(ang - k * math.pi / 3)) for k in range(3)])[:, None]   # unit-apothem hex
+
+    def ring(shape, r, z):
+        return np.array([c + a * (z0 + z) + r * (q[0] * u + q[1] * v) for q in shape])
+    if kind in ("flange", "hex"):
+        h = h if h is not None else af * 0.62
+        rings = []
+        if kind == "flange":
+            rf = (flange_d if flange_d else af * 1.4) / 2
+            tf = min(0.0018, h * 0.28)
+            rings += [ring(circ, rf - 0.0003, 0.0), ring(circ, rf, 0.0003), ring(circ, rf, tf * 0.6),
+                      ring(circ, rf - 0.0004, tf), ring(circ, af / 2 * 1.05, tf)]
+            zh = tf
+        else:
+            zh = 0.0
+            rings += [ring(circ, af / 2 * 0.98, 0.0)]
+        ch = af * 0.06                                                    # 30 deg corner chamfer, top and bottom
+        rings += [ring(hexa, af / 2, zh + 0.0002),
+                  ring(hexa, af / 2, h - ch), ring(np.where(np.linalg.norm(hexa, axis=1)[:, None] > 1.04,
+                                                            hexa / np.linalg.norm(hexa, axis=1)[:, None] * 1.04,
+                                                            hexa), af / 2, h - ch * 0.35),
+                  ring(circ, af / 2 * 0.94, h)]
+        m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+    else:                                                                 # socket / button
+        d = af                                                            # head diameter
+        h = h if h is not None else (d * 0.62 if kind == "socket" else d * 0.3)
+        rs = (recess if recess else d * 0.45) / 2
+        top = [ring(circ, d / 2, 0.0), ring(circ, d / 2, h * 0.88), ring(circ, d / 2 * 0.93, h)] if kind == "socket" \
+            else [ring(circ, d / 2, 0.0), ring(circ, d / 2, h * 0.25), ring(circ, d / 2 * 0.82, h * 0.8),
+                  ring(circ, d / 2 * 0.62, h)]
+        rings = top + [ring(hexa, rs * 1.08, h), ring(hexa, rs, h - 0.0003), ring(hexa, rs, h - h * 0.6)]
+        m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+    if thread > 0:
+        td = thread_d or af * 0.66
+        pitch = 0.00125 if td > 0.007 else 0.001
+        prof = [(td / 2 - 0.0006, h + z0 - 0.001)]
+        z = h + z0
+        while z < h + z0 + thread - pitch:
+            prof += [(td / 2, z + pitch * 0.25), (td / 2 - 0.0006, z + pitch * 0.75)]
+            z += pitch
+        prof += [(td / 2 - 0.0008, h + z0 + thread)]
+        m.add(rev(c, a, prof, "steel", 16, cap1=True))
+    return m
+
+
 # ================================================================ fork
 def fork():
     """Showa 49 mm coil-spring fork: gold outer tubes, chrome inner tubes, dust seals, caps with adjuster and bleed
@@ -335,15 +408,59 @@ def clamps():
     # ---- stem: the only part between the two faces within the head tube's radius; nut and washer (EST 30 mm)
     m.add(cyl(fk(F_STEER, 0, T_LO[0] - 0.0055), fk(F_STEER, 0, T_UP[1] + 0.011), STEM_R, "steel", 24, 0.001))
     m.add(bolt(fk(F_STEER, 0, T_UP[1]), UP, af=0.030, head_h=0.008, flange_d=0.040, mat="steel"))
-    for side in (-1, 1):                                           # nuts of the bar holders' studs
-        m.add(bolt(fk(F_BAR, side * HOLDER_Y, FACE_UP), -UP, af=0.012, head_h=0.007, mat="steel"))
+    for side in (-1, 1):                     # under the bridge: rubber bush (5), washer (15), nut (13) on the stud
+        ax = fk(F_BAR, side * HOLDER_Y, 0.0)
+        m.add(rev(ax, -UP, [(0.0065, -FACE_UP - 0.0005), (0.0140, -FACE_UP - 0.0005), (0.0143, -FACE_UP + 0.0012),
+                            (0.0138, -FACE_UP + 0.0025), (0.0065, -FACE_UP + 0.0025)], "rubber_black", 32, solid=True))
+        m.add(fastener(fk(F_BAR, side * HOLDER_Y, FACE_UP - 0.0025), -UP, "flange", af=0.012, h=0.008,
+                       flange_d=0.017, washer=(0.024, 0.0016), mat="steel", thread=0.004, thread_d=0.008))
     return m
 
 
 # ================================================================ handlebar and hand controls
-HOLDER_Y = 0.046                                      # EST: bar holders 92 mm apart
 CTRL_SHIFT = (0.017, 0.019)   # left and right controls moved inboard to clear the grips' flanges (TOP: switch housing
 #   from a 122, throttle housing from a 122 on the right); each control is measured again in its own component
+
+
+HOLDER_Y = 0.050              # lower holders' axes: DET835 (from behind and above) puts each base midway between the fork
+#   tube's axis and the stem (pixel ratio 0.49 of 0.099); the pad hides the rest in every photo
+HOLDER_BASE = (0.0148, 0.0185)    # base radius and height above the bush, DET835: about 0.58 of the fork cap's 50 mm
+#   width (140 px against 240), its height about half its width; a turned ring 7 mm above its foot (bright line)
+HOLDER_BOLT_F = 0.0205        # the cap's two bolts ahead of and behind the bar (fiche: two bolts 10 per cap), EST
+#   spacing (M8 holders on a 28.6 mm bar need about 41 mm between bolt centres)
+
+
+def _holder(yh):
+    """One bar holder: rubber bush and washer on the top bridge, the lower holder (a machined round base turning into
+    a saddle under the bar), the upper holder cap over the bar with its two M8 flange bolts (12 mm heads, JIS)."""
+    m = Mesh()
+    t0 = T_UP[1]
+    ax = fk(F_BAR, yh, 0.0)
+    m.add(rev(ax, UP, [(0.0065, t0 - 0.0005), (0.0140, t0 - 0.0005), (0.0143, t0 + 0.0012), (0.0138, t0 + 0.0025),
+                       (0.0065, t0 + 0.0025)], "rubber_black", 32, solid=True))                       # bush (5)
+    m.add(rev(ax, UP, [(0.0062, t0 + 0.0025), (0.0150, t0 + 0.0025), (0.0150, t0 + 0.0040), (0.0062, t0 + 0.0040)],
+              "steel", 32, solid=True))                                                                # washer (14)
+    rb, hb = HOLDER_BASE
+    tb = t0 + 0.0040
+    prof = [(rb - 0.0008, tb), (rb, tb + 0.0008), (rb, tb + 0.0065), (rb - 0.0005, tb + 0.0070),
+            (rb - 0.0005, tb + 0.0078), (rb, tb + 0.0083), (rb, tb + hb - 0.002), (rb - 0.0004, tb + hb)]
+    m.add(rev(ax, UP, prof, "alu_machined", 40, cap0=True, cap1=True))                                # base (4)
+    # saddle: from the round base to a block 26 mm along the bar and 44 mm fore-aft, flat at the bar's centre
+    sad = rounded_rect(0.044, 0.026, 0.008, 4)
+    circ = circle(rb - 0.0004, len(sad))
+    levels = [(tb + hb - 0.0004, 0.0), (tb + hb + 0.003, 0.65), (T_BAR - 0.006, 1.0), (T_BAR - 0.0003, 1.0)]
+    rings = [np.array([fk(F_BAR + (1 - k) * q0[0] + k * q1[0], yh + (1 - k) * q0[1] + k * q1[1], t)
+                       for q0, q1 in zip(circ, sad)]) for t, k in levels]
+    m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
+    # upper holder cap (3): same plan, 18 mm over the bar, rounded top edges, bolt bosses
+    levels = [(T_BAR + 0.0003, 1.0, 1.0), (T_BAR + 0.0150, 1.0, 1.0), (T_BAR + 0.0180, 0.93, 0.85),
+              (T_BAR + 0.0190, 0.80, 0.62)]
+    rings = [np.array([fk(F_BAR + q[0] * kf, yh + q[1] * ky, t) for q in sad]) for t, kf, ky in levels]
+    m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
+    for dfb in (-HOLDER_BOLT_F, HOLDER_BOLT_F):
+        p = fk(F_BAR + dfb, yh, T_BAR + 0.0150)
+        m.add(fastener(p, UP, "flange", af=0.012, h=0.0062, flange_d=0.0165))
+    return m
 
 
 class _Side:
@@ -666,19 +783,10 @@ def bars():
     path[-1] -= 0.003 * unit(path[-1] - path[-2])                           # bar ends 3 mm inside the grips' ends
     path[0] -= 0.003 * unit(path[0] - path[1])
     m.add(_bar(path))
-    # ---- holders: rubber cushion on the top clamp, post, cradle, cap with two bolts (EST sizes)
-    cradle = rounded_rect(0.060, 0.026, 0.009, 4)
+    # ---- holders (fiche K95CF0700: upper holder 3 with two bolts 10, lower holder 4 on rubber bushes 5 above and
+    # below the top bridge, washers 14 / 15, nut 13), on the rear of the bar's two clamp positions
     for side in (-1, 1):
-        yh = side * HOLDER_Y
-        m.add(cyl(fk(F_BAR, yh, T_UP[1]), fk(F_BAR, yh, T_UP[1] + 0.006), 0.017, "rubber_black", 24, 0.001))
-        lev = [(T_UP[1] + 0.006, 0.52), (T_UP[1] + 0.012, 0.52), (T_BAR - 0.016, 1.0), (T_BAR - 0.0003, 1.0)]
-        rings = [np.array([fk(F_BAR + p[0] * k, yh + p[1], t) for p in cradle]) for t, k in lev]
-        m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
-        lev = [(T_BAR + 0.0003, 1.0, 1.0), (T_BAR + 0.0185, 1.0, 1.0), (T_BAR + 0.0215, 0.94, 0.86)]
-        rings = [np.array([fk(F_BAR + p[0] * k, yh + p[1] * ky, t) for p in cradle]) for t, k, ky in lev]
-        m.add(_outward(grid(Mesh(), rings, "alu_cast", cap0=True, cap1=True)))
-        for df in (-0.0205, 0.0205):
-            m.add(bolt(fk(F_BAR + df, yh, T_BAR + 0.0215), UP, af=0.010, flange_d=0.013))
+        m.add(_holder(side * HOLDER_Y))
     # ---- bar pad (PAD_F, PAD_T, PAD_Y): red body, dark grey end caps, the bar leaving through a bore in each cap.
     # It sits over the holders and hides them and their bolts (DET 475835)
     sec = pad_section()

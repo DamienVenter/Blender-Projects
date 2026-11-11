@@ -143,3 +143,45 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
 - The bar's lower edge cannot be read in FRONT (levers, adjuster and boot in front of it) and its upper half merges
   with the white background in both end photos: the diameters rest on SPEC, not on the photos.
 - Knurl and plugs are hidden in every photo (EST extents).
+
+## 3. Bar holders (upper 53131-K95-AG0, lower 53132-K95-AG0)
+
+### Anatomy
+- Per side (fiche K95CF0700): rubber bush (5) in the top bridge, washer (14), the lower holder (4): a machined round
+  base with a turned ring, turning into a saddle under the bar; the upper holder cap (3) over the bar with two
+  vertical M8 flange bolts (10) ahead of and behind the bar; under the bridge a second bush (5), washer (15) and the
+  flange nut (13) on the holder's stud with a few threads showing.
+- Finish: base machined bright, saddle and cap cast satin, bolts zinc, bush black rubber.
+
+### References
+- Fiche `K95CF0700_handle-pipe-top-bridge.png` (parts and counts).
+- DET835 crop 1250..2550 x 700..1500 (`ref/d835_clamp.jpg`): the bases (bright machined cylinders with a ring and the
+  bush at the foot) between the top clamp and the pad, a nut under the clamp's front.
+- No studio photo shows any of it (the pad covers the holders in TOP, the clamp and plate hide the bases elsewhere).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Holder axes | y +-0.050 | DET835: each base midway between the fork tube's axis and the stem (pixel ratio 0.49) |
+| Base | 29.6 mm, 18.5 mm tall, ring 7 mm up | DET835: 0.58 of the fork cap's width (140 px / 240 px of about 50 mm) |
+| Saddle and cap | 44 mm fore-aft, 26 mm along the bar, cap 18 mm over the bar | EST (fits inside the pad, test) |
+| Bolts | M8 flange, 12 mm hex, 41 mm apart | JIS head size for M8; EST spacing |
+| Stud nut | M8 flange nut, 12 mm, washer 24 mm, 4 mm of thread showing | fiche (13, 15); EST sizes |
+
+### What was built
+- `_holder(yh)`: bush, washer, base (revolved, with its ring), saddle lofted from the base's circle to the rounded
+  block, cap with rounded top edges, two `fastener()` flange bolts. `clamps()`: bush, washer, nut and thread under
+  the bridge.
+- `fastener()`: shared helper for this module (JIS hex flange with chamfered corners, plain hex, socket cap with a hex
+  recess, button head, washer, exposed V thread).
+
+### Checks
+- Close-ups at DET835's angle: `chk/h7.jpg`, `h7b.jpg`, `h7c.jpg` (camera search; cables and plate in front),
+  `h7d.jpg` (bars, clamps and fork only). The bases sit under the pad's middle and are hidden from 22 deg above.
+- Audit: bush seated 0.5 mm in its counterbore on the top clamp (bars / clamps, depth 0.0 mm); nothing else.
+- `test_bar_pad_hides_the_holders_and_their_bolts` passes with the larger holders.
+
+### Still different
+- DET835 shows about 15 mm of each base below the pad, the model hides it: the photo's pad stands higher over a
+  bulkier top clamp whose top face lies well under the fork caps (the model's clamp is a thin plate with box pinch
+  lugs). The clamp's shape is part of component 9 (fork tops); the holder heights follow the model's clamp.
