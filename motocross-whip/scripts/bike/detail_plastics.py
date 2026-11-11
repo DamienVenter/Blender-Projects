@@ -280,12 +280,46 @@ def seat_bolts():
 
 
 def panel_bolts():
-    """One a side panel, in its black lower half. LEFT / RIGHT: centred on (2426, 1136) and (1572, 1136)."""
+    """One a side panel, in its black lower half, at the floor of a round pocket (plastics.POCKET_R, POCKET_D).
+    LEFT / RIGHT: centred on (2426, 1136) and (1572, 1136). Detail 475833: an 8 mm flange bolt and its washer at the
+    bottom of the dark recess, no collar standing proud."""
     m = Mesh()
     for side in (1, -1):
-        u, v = _px(side, 2426.0, 1136.0)
-        fn = lambda a, b, s=side: plastics.panel_point(s, a, b, inset=0.006)
-        m.add(_fastener(fn(u, v), _normal(fn, u, v, side), "plastic_black"))
+        u, v = _px(side, *plastics.PANEL_BOLT_PX)
+        c = plastics.panel_point(side, u, v, inset=0.006 + plastics.POCKET_D)
+        a = np.array([0.0, float(side), 0.0])
+        m.add(tube([c + a * 0.0002, c + a * 0.0015], 0.0085, 20, "steel"))          # washer on the floor
+        m.add(bolt(c + a * 0.0015, a, af=0.008, head_h=0.005, flange_d=0.013))
+    return m
+
+
+# ---------------------------------------------------------------- inner mudguard's top, seen through the tail wall's arch
+MUDGUARD_ARCH_PX = [(2084, 806), (2071, 792), (2063, 778), (2058, 764), (2049, 750), (2034, 736), (2018, 729),
+                    (2000, 726), (1982, 729), (1964, 736), (1949, 750), (1938, 764), (1927, 778), (1917, 792),
+                    (1905, 800)]
+
+
+def mudguard_top():
+    """The inner mudguard's domed top, which fills the tail wall's arch (REAR, `grid_rear_fender.jpg`, 3x: through
+    the arch, rows 726..808, the photo shows the black mudguard's dome right behind the wall, its top edge following
+    the arch with a thin dark rim line; the model showed the subframe's rear cross member there). A black plate 1 mm
+    ahead of the wall's front face and 1.5 mm behind the cross member (detail_chassis), cut to the arch (the wall's
+    own arch points, tail_under), down to row 808 (the wall's foot; under it the mudguard of plastics.inner_mudguard
+    carries on), with a rim 2.4 mm round along its top edge. Plate 1.5 mm thick (EST)."""
+    X0 = _wall_x()
+    xf = X0 + 0.002 + 0.001                                # the wall's front face (4 mm about X0) plus 1 mm
+    arch = np.array(MUDGUARD_ARCH_PX, float)
+    px = np.vstack([arch, [(1905.0, 808.0), (2084.0, 808.0)]])
+    px = smooth_poly(plastics.resample(px, 3.0), 1)
+
+    def to3d(u, v, w):
+        Q = REAR.on_plane(np.array([u]), np.array([v]), "x", xf + 0.00075)[0]
+        return (Q[0] + w, Q[1], Q[2])
+    m = plastics.plate_lines(px, [], 0.0015, "plastic_black", to3d, 6.0)
+    a = smooth_poly(plastics.resample(arch, 3.0), 1)
+    a = a[np.argsort(a[:, 0])]
+    rim = REAR.on_plane(a[:, 0], a[:, 1] + 1.5, "x", xf - 0.0002)
+    m.add(tube(rim + np.array([0.0012, 0.0, 0.0]), 0.0012, 8, "plastic_black"))
     return m
 
 
@@ -422,6 +456,27 @@ def make_textures():
     st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
     h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
     _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
+    h, mm = _intake_height()
+    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_mesh_n.png"))
+
+
+INTAKE_MESH = dict(pitch=2.0, strand=0.45, height=0.25, size=512)
+# The air intake's screen (detail 475833 at 4x, u 2350..2650, v 600..800; 0.186 mm/px from the panel bolt's hex):
+# strands on two diagonals about 11 px (2 mm) apart, small bright specks where they cross. Strand width and height
+# EST. One 16 mm tile (8 cells each way) per texture.
+
+
+def _intake_height():
+    g = INTAKE_MESH
+    n = g["size"]
+    t = (np.arange(n) + 0.5) / n * 16.0
+    X, Y = np.meshgrid(t, t)
+    h = np.zeros((n, n))
+    step = g["pitch"] / math.sqrt(2.0)                       # strands at +-45 deg, 2 mm apart along x and y
+    for sgn in (1.0, -1.0):
+        d = np.abs(((X + sgn * Y) / math.sqrt(2.0)) % step - step / 2)
+        h = np.maximum(h, g["height"] * np.clip(1.0 - (d / (g["strand"] / 2)) ** 2, 0.0, 1.0) ** 0.5)
+    return h, 16.0 / n
 
 
 MATERIALS = {
@@ -434,11 +489,14 @@ MATERIALS = {
     # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
     # (plastics.side_panels, x and z over the tile)
     "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
+    # the intake's screen: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow), satin
+    "intake_mesh": dict(rgb=(10, 58, 2), rough=0.5, normal="stock/intake_mesh_n.png", normal_strength=1.0),
 }
+CLASS = {"intake_mesh": "black"}                             # dark, as the louvre panel it replaces
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
-         "plate_details": plate_details}
+         "plate_details": plate_details, "mudguard_top": mudguard_top}
 REPLACES = ("fork_guards", "fender_mounts")
 FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
 SMOOTH = {"fork_guards": 60, "tail_under": 50}
