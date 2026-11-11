@@ -782,7 +782,8 @@ def swingarm():
         # extruded arm between its two welds, then the pivot casting onto the boss
         ss = np.unique(np.concatenate([np.linspace(S_WR - 0.002, S_WF + 0.002, 34), [0.06, 0.07]]))
         m.add(grid(Mesh(), [_arm_section(q, s) for q in ss], mat, cap0=True, cap1=True))
-        sf = np.concatenate([np.linspace(S_WF, ARM_L - 0.030, 12), np.linspace(ARM_L - 0.026, ARM_L - 0.006, 6)])
+        sf = np.concatenate([np.linspace(S_WF, ARM_L - 0.030, 12), np.linspace(ARM_L - 0.026, ARM_L - 0.0112, 6)])   # stops
+        #                                                                  short of the pivot bolt (r 8.5): the boss carries it
         m.add(grid(Mesh(), [_arm_section(q, s) for q in sf], "alu_cast", cap0=True, cap1=True))
         m.add(_weld(S_WR + 0.0005, s))
         m.add(_weld(S_WF - 0.0005, s))
@@ -1219,23 +1220,28 @@ def _muf_side(x, z):
 
 
 def _on_can(u, v):
-    """Where the right camera's ray through pixel (u, v) first meets the can, and the can's outward normal there."""
+    """Where the right camera's ray through pixel (u, v) meets the can (or, if it passes over the model's can, the
+    can's surface nearest to it), and the can's outward normal there."""
+    best = None
     for y in np.arange(-0.215, -0.08, 0.0002):
         q = _px("right", u, v, "y", y)
         R = _muf_ring(q[0])
-        if inside(R[:, 1:], np.array([[q[1], q[2]]]))[0]:
-            P2_ = R[:, 1:]
-            E = np.roll(P2_, -1, axis=0) - P2_
-            t = np.clip(((q[1:] - P2_) * E).sum(1) / np.maximum((E * E).sum(1), 1e-12), 0, 1)
-            near = P2_ + E * t[:, None]
-            i = int(np.argmin(np.linalg.norm(near - q[1:], axis=1)))
+        P2_ = R[:, 1:]
+        E = np.roll(P2_, -1, axis=0) - P2_
+        t = np.clip(((q[1:] - P2_) * E).sum(1) / np.maximum((E * E).sum(1), 1e-12), 0, 1)
+        near = P2_ + E * t[:, None]
+        dist = np.linalg.norm(near - q[1:], axis=1)
+        i = int(np.argmin(dist))
+        hit = inside(P2_, np.array([[q[1], q[2]]]))[0]
+        if best is None or (dist[i] < best[0] and y < -0.15) or hit:     # the outer flank: the side the photo sees
             nn = np.array([0.0, E[i, 1], -E[i, 0]])
             nn /= np.linalg.norm(nn)
-            if nn[1:] @ (q[1:] - P2_.mean(axis=0)) < 0:
+            if nn[1:] @ (near[i] - P2_.mean(axis=0)) < 0:
                 nn = -nn
-            return np.array([q[0], near[i, 0], near[i, 1]]), nn
-    q = _px("right", u, v, "y", -0.19)
-    return q, -Y3
+            best = (dist[i], np.array([q[0], near[i, 0], near[i, 1]]), nn)
+        if hit:
+            break
+    return best[1], best[2]
 
 
 def _clamp(c, d, r):

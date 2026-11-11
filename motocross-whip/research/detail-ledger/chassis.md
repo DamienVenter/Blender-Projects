@@ -199,4 +199,14 @@ clevis ears and was taken out); the grease nipples (none seen) and the seals at 
 (the lower spar and its large opening, RIGHT 1560..1980 x 1260..1600) differs from the model's plate there.
 
 ## Audit and tests at the end of this pass
-See the final report: clash list for the chassis parts, floating pieces, the test count.
+Whole-bike audit (audit.py, 25 mm) on the merged build of this worktree, chassis parts only:
+- brake_pedal x rear_brake 2.8 mm: the hose's splice by the cylinder (this part's banjo bend meets detail_wheels'
+  hose end): one hose drawn by two modules, to be given to one owner.
+- frame x swingarm 1.9 mm: the pivot casting reached into the pivot bolt (r 8.5): ended short of it afterwards
+  (s = ARM_L - 11.2 mm); not re-audited.
+- frame x linkage 0.8, frame x shock 0.4, footpegs x frame 1.0 mm (footpegs' is from before this pass).
+- The cap rivet found floating (the photo's rivet lies over the model's lower can top) is placed on the can's
+  outer flank nearest the camera's ray since.
+Before the fixes the audit had: link nut into the frame's lower cross member 8.0 mm, cylinder's tab into the frame
+plate 3.4 mm, guide tabs into the arm 3.2 mm, rods against the shock's clevis nut 2.0 mm: all fixed.
+Module: 140,510 vertices (budget 200,000).
