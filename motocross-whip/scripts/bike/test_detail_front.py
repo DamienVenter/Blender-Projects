@@ -232,3 +232,97 @@ def test_bar_end_runs_along_the_grip_axis():
         off = q - np.outer(q @ sd.d, sd.d)
         assert np.linalg.norm(off, axis=1).max() < 0.0006                                # on the axis, upsweep included
     assert abs(math.degrees(df.UPSWEEP) - 1.85) < 0.01
+
+
+def test_left_switch_buttons_sit_on_the_rear_and_top_photos():
+    """Round 2, component 1: the three buttons' tops land on the photo's button centres (REAR within 2.5 px, TOP
+    within 3 px; the picks that triangulated them) and keep the measured sizes and the face's 12.5 deg lean."""
+    s = df._Side(1)
+    P, nf, up, right = df._face_frame(s, df.SW_TILT, df.SW_FACE_F)
+    picks = {"m": ((1657.0, 225.3), (1812, 1436)), "tc": ((1657.3, 246.5), (1816.5, 1435)),
+             "stop": ((1681.5, 238.2), (1808, 1414))}
+    for key, (pr, pt) in picks.items():
+        c, rb, rw = df.SW_BTN[key]
+        top = P(*c) + 0.0012 * nf
+        assert np.linalg.norm(cams.CAMS["rear"].project([top])[0] - pr) < 2.5, key
+        assert np.linalg.norm(cams.CAMS["top"].project([top])[0] - pt) < 3.0, key
+        assert rw - rb > 0.003                                                          # a dished well round it
+    assert abs(df.SW_BTN["stop"][1] / df.SW_BTN["m"][1] - 1.31) < 0.03                # DR06 red / blue
+    assert abs(2 * df.SW_BTN["m"][1] - 0.0095) < 0.0005                               # REAR 9.1..9.6 mm
+    assert abs(math.degrees(df.SW_TILT) - 12.5) < 0.2
+
+
+def test_start_switch_frame_sits_on_the_rear_and_top_photos():
+    c = df._Side(-1).p(*df.SS_C)
+    assert np.linalg.norm(cams.CAMS["rear"].project([c])[0] - (2302.5, 256.5)) < 4.0
+    assert np.linalg.norm(cams.CAMS["top"].project([c])[0] - (1805, 845)) < 5.0
+    assert df.SS_MOUNT[1] < df.MC_CLAMP[0]                                             # clear of the MC clamp
+
+
+def test_switch_buttons_carry_their_symbols(built):
+    import os
+    from PIL import Image
+    stock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock")
+    for name in ("sw_m", "sw_stop", "sw_tc", "sw_start"):
+        n = np.asarray(Image.open(os.path.join(stock, name + "_n.png")), float)
+        assert n.shape[:2] == (512, 512) and (np.abs(n[..., 0] - 128) > 40).mean() > 0.005   # engraved, not flat
+        assert df.MATERIALS[name]["normal"] == "stock/%s_n.png" % name
+        m = built["hand_controls"]
+        faces = [i for i, mm in enumerate(m.M) if mm == name]
+        assert faces and all(i in m.uv for i in faces)                                   # every face has UVs
+
+
+def test_master_cylinder_window_and_lettering():
+    """Round 2, component 2: the sight window sits on REAR's window (within 3 px; built 1.5 mm higher so its ring
+    clears the bar), its ring stays off the bar, and NISSIN / LWR read left to right from where a person looks."""
+    s, lx, ly = df._mc_frame()
+    ca, cf, L, W, top = df.MC_CAP
+    zb = s.p(ca)[2]
+    c = s.p(ca, cf)
+    c = np.array([c[0], c[1], zb])
+    win = c - (W / 2 * 0.985) * lx + df.MC_WIN[0] * ly + df.MC_WIN[1] * Z_
+    assert np.linalg.norm(cams.CAMS["rear"].project([win])[0] - (2256.5, 227.0)) < 3.0
+    for t in np.linspace(0, 2 * math.pi, 72, endpoint=False):                          # ring clear of the bar
+        p = win + df.MC_WIN[2] * (math.cos(t) * ly + math.sin(t) * Z_)
+        a = np.linspace(0.15, 0.28, 400)
+        axis = np.array([s.p(x) for x in a])
+        assert np.linalg.norm(axis - p, axis=1).min() > df.BAR_R[1] + 0.0003
+    m = df.master_cylinder()
+    for mat, want in (("mc_nissin", ly), ("mc_lwr", -ly)):          # +u of the relief runs to the reader's right
+        i = next(k for k, mm in enumerate(m.M) if mm == mat)
+        f, uv = m.F[i], np.array(m.uv[i])
+        P = np.asarray(m.V, float)[list(f)]
+        du = np.linalg.lstsq(np.c_[uv - uv[0], np.ones(len(uv))][:, :2][1:], (P - P[0])[1:], rcond=None)[0][0]
+        assert du @ want > 0.8 * np.linalg.norm(du), mat
+
+
+Z_ = np.array([0.0, 0.0, 1.0])
+
+
+def test_clutch_lever_dog_leg():
+    """Round 2, component 3: the blade jogs back towards the grip out of the boot (TOP: 19 mm off the boot-to-ball
+    line a third of the way along) and runs on to the ball; the ball on FRONT's cast (a 55, f 92, u -20)."""
+    line = np.array(df.clutch_lever_line())[:, :2]
+    B, E = line[0], line[-1]
+    t = (E - B) / np.linalg.norm(E - B)
+    off = (line - B) @ np.array([t[1], -t[0]])
+    i = int(np.argmin(off))
+    assert -0.0215 < off[i] < -0.0185 and 0.25 < np.linalg.norm(line[i] - B) / np.linalg.norm(E - B) < 0.42
+    assert abs(df.CP_BALL[0] - 0.055) < 0.002 and abs(df.CP_BALL[1] - 0.092) < 0.002
+
+
+def test_band_ties_hold_the_bar_and_the_lead():
+    """Round 2, component 4: each band's strap stays outside the bar and goes round the lead under it."""
+    for side in (1, -1):
+        m = df._bar_band(side)
+        v = np.asarray(m.V, float)
+        c, ax, rr = df._band_frame(side)
+        q = v - c
+        path = df.spline(df.bar_path() * [1, side, 1], 1200)              # the bar's axis every 0.4 mm
+        near = np.abs(q @ ax) < 0.006                                      # the strap (not the tail)
+        for p in v[near]:                                                  # outside the bar's own surface there
+            dd = np.linalg.norm(path - p, axis=1)
+            j = int(np.argmin(dd))
+            assert dd[j] > float(df.bar_r(path[j, 1])) + 0.0002
+        assert np.abs(q @ ax).max() < 0.040                                # a band, not a sleeve
+        assert (q @ df.Z).min() < -(rr + 0.0092 + 0.0029)                  # it reaches round the lead
