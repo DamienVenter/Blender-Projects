@@ -279,6 +279,20 @@ with subtle ribs and a lighter machined ring")
 - Spoke-flange hole chamfers, the barrel's own casting shape (hidden by spokes and discs in every photo), the
   seals' lips.
 
+### Round 3 (partly)
+- Reference: the RIGHT photo rectified onto the hub's disc-side end (y -0.077, about the photo's hub centre, +-65 mm
+  with circles at r 40/50/56/60 and rays every 30 deg: `SCRATCH3/hub_rect_g.png`); RIGHT pair `p_hub6.jpg`.
+- Seen: a bright turned lip round the end at r 57..61 (as on the sprocket side), and teardrop bumps with round heads
+  at r 46..50 and tails in to r 37, their heads at about 75, 105, 135, 165, 195 deg about the photo's hub (the axle
+  block hides the rest), lit as bumps with dark pockets between.
+- Built: the disc side's ribs now start at 15 deg (15 + 30 k, twelve as on the sprocket side), fuller heads 10 mm
+  across, 2 mm high (`_hub_ribs(..., a0, big=True)`); the end's outer chamfer ring is `hub_machined` (the lip).
+- Still different (`p_hub6.jpg`): the photo's bumps stand prouder (3 to 5 mm, deep pockets between, a bowl-shaped
+  end) and may be fewer than twelve (eight seen in 250 deg, the rest behind the axle block); two small round
+  bosses at r about 30 mm on the end face (photo bottom) are not identified or modelled. The barrel between the
+  flanges, the flange hole chamfers and the seals' lips are hidden in every photo (spokes, discs, axle block): not
+  changed.
+
 ## 8. Rear sprocket 50T
 
 ### Anatomy
@@ -354,6 +368,26 @@ with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
 ### Still different
 - The hole pattern is the old one (rows of 28), not hole-for-hole the photo's.
 
+### Round 3: the drilled holes hole for hole
+- Anatomy: 7 mm drilled holes with a chamfer each face, in curved runs rising outward across the band; an arc slot
+  in each of the four arms beside its bolt; the arms run on past their bolts to carry the slots.
+- Reference and method: RIGHT photo rectified onto the disc's outer face (y -0.072, 0.2 mm a px) about the disc's own
+  centre (`SCRATCH3/rect_disc.py` -> `disc_rect.png`), unwrapped (`disc_polar_grid.png`); holes found as dark or
+  bright blobs (`det_holes.py`, 37 found) and the rest read by eye where spokes cross them
+  (`disc_polar_det_a.png`, `disc_polar_det_b.png`). Visible arc 80..340 deg (the swingarm and caliper hide the rest).
+- Finding: the holes repeat every 90 deg (with the four bolts, not the eight petals): the three visible quarters
+  agree hole for hole within about 1 deg and 1.5 mm. 17 holes a quarter (68), `DISC_R_HOLES` = the mean of the three
+  quarters. Diameter 7.0 mm radially (7.7 along the arc with the shading of the chamfers); the old 6 mm rows of 28
+  are gone.
+- Arms (`rear_disc_r_in`): the boss within 9 deg of the bolt down to r 63 as before; past the bolt the arm keeps its
+  inner edge at r 74 for 24 deg, then rises to the band (the unwrap shows disc grey down to r 70..74 under the slot).
+  Slot `DISC_R_SLOT`: r 82, 4.5 mm wide, 2..19 deg past the bolt, round ends (unwrap r 80..85, 269..287 deg).
+- Check: `disc_overlay3.png` / `disc_overlay3_z.png`: the model's holes, slots and outline drawn on the rectified
+  photo: every visible hole ringed; the slot moved 2 mm in and 2 deg back after the first overlay. RIGHT pair
+  `p_disc5.jpg`.
+- Still different: the arms' outline between the slot and the band is EST (the hub behind is the same grey as the
+  disc there); the quarter behind the swingarm and caliper is the pattern repeated, not seen.
+
 ## 11. Rear caliper (partly)
 
 ### Done
@@ -369,7 +403,72 @@ with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
 - These need the caliper moved and the bracket rebuilt, then an audit against the swingarm (detail_chassis), which
   did not fit in this pass.
 
+### Round 3 (rebuilt; check images in `SCRATCH3/` = `.../scratchpad/agents/micro/wheels3/`)
+Anatomy (fiche K95CF1700 for the counts): bracket 7 (axle eye, slim cast arm, bore for the slide pin, the bracket's
+own pin), pad retainer 4 (inside, not seen), caliper body 6 (outboard half round the piston housing, bridge over the
+disc's edge, inboard finger), two pads 1 (steel backing with an ear on the pad pin, sintered lining), pad pin 8 under
+its hex plug, bleed screw 11 with rubber cap 12, slide pin 5 with its boot 16, the bracket's pin under the ribbed boot
+15, banjo with two sealing washers and its bolt, the hose with a black clamp ring and a crimped black sleeve, guard 10
+on two black socket bolts 17. Finish: body dark cast aluminium, the piston housing's end lighter (turned), bronze pad
+ears, black guard, sleeve and boots.
+
+References: RIGHT 7x crop 1044..1192 x 1462..1560 contrast-stretched (`gz_r2.png`), 6x crops `gz_r1.jpg`,
+`gz_hose2.jpg`, 2.4x `gz_hose.jpg`; rr34 7x crop 1290..1440 x 1410..1540 (`gz_rr1.jpg`); REAR 7x crop 2070..2200 x
+1350..1470 (`gz_rear1.jpg`); outdoor right side 476001 crop 1200..1560 x 1640..1960 (`o476_cal.jpg`); fiche
+K95CF1700 (`fiche_cal.png`).
+
+Numbers (RIGHT pixel, cast on its plane y, then carried from the photo's hub to the model's by a turn about the
+swingarm pivot: the RIGHT disc bolt circle puts the photo's hub 8.4 mm above parts.RA; y from the REAR photo at
+1.435 px a mm about the disc):
+| Item | Place (x, z about RA, mm) | Source |
+|---|---|---|
+| Piston housing end | 75, 82 (47.5 deg, r 111), r 20.5 | RIGHT (1115, 1519): lower arc through (1097, 1540), (1115, 1545.5), (1133, 1537) |
+| Slide pin 5 head | 111, 79 (r 137, outside the disc) | RIGHT (1160.8, 1524.2), 23 mm round |
+| Bracket pin and boot 15 | 55, 59, y -0.096..-0.122 | RIGHT (1086.7, 1550); REAR cylinder u 2141..2180, ribbed end 2169..2179 |
+| Pad pin and plug | 67, 108; pin y -0.052..-0.100, plug to -0.109 | RIGHT hex (1105, 1484); REAR bar v 1360..1369 u 2081..2161 |
+| Pads | backing at y -0.058..-0.062 and -0.078..-0.082 | REAR u 2083..2089 and 2114..2120 (bronze ears on top) |
+| Bleed screw and cap | 84, 108 to 91, 118 | RIGHT (1128, 1483) to (1136, 1472) |
+| Banjo | 106, 99 | RIGHT (1155, 1497), under the guard's lower bar |
+| Guard bolts | 124, 117 and 38, 75 | RIGHT (1176.7, 1475.8) and (1063.3, 1530.8) |
+| Guard | outline and two windows: 26 + 5 + 9 RIGHT pixels, y -0.118..-0.131, front end folded in 6 mm | RIGHT pair p_cal1; rr34; REAR black box to u 2195 |
+| Hose | 9 mm, level from the banjo, sleeve 11 mm x 27 mm, onto the arm's top | RIGHT gz_hose2 u 1185..1210; gz_hose |
+| Bracket | eye y -0.0935..-0.0858 (between collar and arm), arm rib inboard to y -0.079 | REAR arm u 2115..2137; outline EST round the pins |
+
+Built: `_slab` (any outline extruded with every edge rounded, holes allowed, caps without flat slivers via
+`_off_hull`), `_turned` (closed capped lathe), `_ribbed` (boots), `caliper_points()` (the pixels above through
+`_cal_px`), `rear_brake()` and `_caliper_guard()` rewritten. The hose is held 1 mm over the swingarm's top
+(`ARM_TOP`, ray cast on the built swingarm) and tapers to the pedal part's 4.2 mm at `HOSE_END`. 23.8k vertices.
+
+Checks: RIGHT `p_cal1.jpg` (first build: guard far too broad), `p_cal2.jpg`, `p_cal4.jpg`; rr34 `p_calrr1.jpg`,
+`p_calrr3.jpg`, `p_calrr4.jpg`; REAR `p_calb1.jpg`, `p_calb3.jpg`, `p_calb4.jpg`; all three in `p_cal4_all.jpg`.
+Audit `aud4.log`: no clash with the swingarm, wheel or disc; brake_pedal x rear_brake 3.9 mm at the hose joint, gone
+in the final audit (`aud6.log`: no clash and nothing floating for front_wheel, rear_wheel, drive, rear_brake) once
+the hose came into the joint as in round 2 and tapered to the pedal part's 4.2 mm.
+
+Still different, and why:
+- The whole assembly sits about 8 mm lower than in the photos: the hub parts are built about parts.RA (decided).
+- The body's cast form (where it is not seen past the guard) and the bracket's outline are EST round measured
+  points; the guard's windows are read from a dark-on-dark region (2 px uncertain).
+- REAR: the photo's guard box ends 12 px further out (8 mm); the REAR camera reads distances from the centre plane
+  about 6 % large (section 1), which is most of it.
+- The hose joint: the pedal part's hose (detail_chassis) comes down to `HOSE_END` and runs on 20 mm forward past it
+  to (0.468, -0.088, 0.513), a stub that points nowhere; this hose meets it at `HOSE_END` without a clash, but the
+  stub would be cleaner ended at `HOSE_END` (detail_chassis).
+- The hose guide clip on the swingarm's top (RIGHT u 1385..1425, v 1445..1475) is not modelled (on the chassis
+  agent's swingarm).
+
 ## 12. Front hub, front disc 260 mm and front spokes: not started
 (The front spokes and nipples got the component 5 work: count 36 confirmed, new nipples, eyelets and threads; the
 front valve and rim lock moved to their measured places. The front hub keeps its old light finish and the front
 disc its old outline.)
+
+### Round 3: not started
+Components 4 (front hub), 5 (front disc 260 mm) and 6 (front spoke lacing) of the round 3 brief were not reached:
+the rear caliper, the rear disc's holes and the rear hub's disc-side end took the round. The front hub keeps its
+EST lathe and light finish, the front disc its 18-scallop outline and old holes, the spokes their three-cross lacing
+(count 36 confirmed in round 1).
+
+## Round 3 totals
+- Module vertices (b6.npz): front_wheel 137,391, rear_wheel 177,320, drive 27,707, rear_brake 23,750: 366,168 of
+  the 450k budget.
+- Audit (`SCRATCH3/aud6.log`): no clash, nothing floating for the four parts.

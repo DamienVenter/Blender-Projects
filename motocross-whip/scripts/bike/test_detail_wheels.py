@@ -271,3 +271,42 @@ def test_chain_line_and_clearances(built):
     near_disc = Vb[(rb < 0.121) & (rb > 0.03)]
     y0, y1 = dw.DISC_R["y"] - dw.DISC_R["t"] / 2, dw.DISC_R["y"] + dw.DISC_R["t"] / 2
     assert not np.any((near_disc[:, 1] > y0 - 0.0001) & (near_disc[:, 1] < y1 + 0.0001))
+
+
+def test_rear_disc_holes():
+    # round 3: 17 holes a quarter from the RIGHT photo's unwrap, repeated every 90 deg (68), 7 mm, each clear of the
+    # wave outline and the inner edge; four arc slots in the arms
+    assert len(dw.DISC_R_HOLES) == 17 and abs(dw.DISC_R_HOLE_D - 0.007) < 1e-9
+    for k in range(4):
+        for ad, rh in dw.DISC_R_HOLES:
+            a = math.radians(ad + 90 * k)
+            assert float(dw.rear_disc_r(a)) - rh / 1000 - dw.DISC_R_HOLE_D / 2 > 0.0012
+            assert rh / 1000 - dw.DISC_R_HOLE_D / 2 - float(dw.rear_disc_r_in(a)) > 0.0012
+    rs, hw, a0, a1 = dw.DISC_R_SLOT
+    a = dw.DISC_R_FLAT + np.radians(np.linspace(a0 - 1, a1 + 1, 30))
+    assert np.all(rs - hw - dw.rear_disc_r_in(a) > 0.002)
+
+
+def test_rear_caliper(built):
+    # RIGHT photo (round 3): the piston sits at about 47 deg from the axle (not 65), r 108 mm; the slide pin's head
+    # ahead of it outside the disc, the bracket's pin behind and below; the guard's top bolt high at the front
+    c = dw.caliper_points()
+    a = math.degrees(math.atan2(c["piston"][1], c["piston"][0]))
+    assert 44.0 < a < 50.0 and 0.103 < math.hypot(*c["piston"]) < 0.113
+    assert math.hypot(*c["pin_a"]) > 0.130 > 0.090 > math.hypot(*c["pin_b"])
+    assert c["g_top"][1] > c["pad_pin"][1] > c["piston"][1]
+    # the bracket stays between the hub's right collar and the swingarm's inner face
+    m = built["rear_brake"]
+    V = np.asarray(m.V)
+    yb = V[sorted({i for f, mt in zip(m.F, m.M) if mt == "bracket_r" for i in f}), 1]
+    assert yb.min() > -0.0940 and yb.max() < -0.0785
+    # pads: the lining 0.5 mm off both faces of the disc
+    yp = V[sorted({i for f, mt in zip(m.F, m.M) if mt == "brake_pad" for i in f}), 1]
+    y0, y1 = dw.DISC_R["y"] - dw.DISC_R["t"] / 2, dw.DISC_R["y"] + dw.DISC_R["t"] / 2
+    assert np.all((yp > y1 + 0.0004) | (yp < y0 - 0.0004))
+    # the hose ends on the pedal part's bend (detail_chassis) and lies on the swingarm's top, never into it
+    H = V[sorted({i for f, mt in zip(m.F, m.M) if mt == "cable" for i in f})]
+    assert np.min(np.linalg.norm(H - np.array(dw.HOSE_END), axis=1)) < 0.0045
+    on = (H[:, 0] > 0.17) & (H[:, 0] < 0.42)
+    top = parts.RA[2] + np.interp(H[on, 0] - parts.RA[0], *dw.ARM_TOP)
+    assert np.all(H[on, 2] > top + 0.0005)
