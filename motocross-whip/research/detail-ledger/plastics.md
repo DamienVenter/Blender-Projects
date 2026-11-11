@@ -571,9 +571,10 @@ mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.
 - The plate's wings covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view. LEFT (and
   RIGHT, mirrored), the plate's red run per row: 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 /
   740; the model's was 58 / 64 / 64 / 62 / 56 / 42 (its rear edge 14 to 17 px behind). Across a row the depth is the
-  wings' fold over cos 27 deg: `PLATE_WING_D` 29 mm (was 45; 32 mm left the rear edge 5 px behind on average). Now
-  the rear edge is within -7..+14 px row by row in both profiles (the FRONT outline's wing edge varies), the front edge
-  within 3 px from row 585 down, and the pinch bolts and the cap show (`n0_left.jpg` before, `n1_left.jpg` after).
+  wings' fold over cos 27 deg: 32 mm (was 45). TOP disagrees: at 29 mm the wings' outer front corners stood 3 to 5 px
+  (half scale) ahead of its red and the top red overlap fell to 0.8549 (floor 0.855). `PLATE_WING_D` 36 mm: TOP 0.8558;
+  LEFT rear edge 1584 / 1566 / 1564 / 1542 at rows 550 / 585 / 620 / 655 against the photo's 1585 / 1566 / 1548 / 1530;
+  the pinch bolts and the cap show beside it as in the photo (`n0_left.jpg` before, `n1_left.jpg` at 29 mm).
 - Duplicates of the cockpit's parts removed: the fork guard's brake hose clamp (guard_hardware), and the plate's hose
   guide loop (plate_details): detail_front now has its own guide under the lower clamp with a grommet round the hose
   at the same place; this module's loop sat 12 mm off the hose's axis and cut it (audit 20.6 mm; centred on the hose,
@@ -587,4 +588,6 @@ mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.
 
 ## Round 4 totals
 Vertices (both modules' parts): 73,868 (budget 160k). Audit: no clash of these parts but rear_fender on the seat 0.9 mm
-(a seat). Scores and tests: see the report (b20).
+(a seat). Scores (b21, main merged): left 0.8807 / 0.8965, right 0.8693 / 0.899, front 0.8841 / 0.7932, rear 0.9041 /
+0.6415, top 0.8823 / 0.8558 (silhouette / red). Tests: all pass (the full run at 29 mm failed only the top red floor,
+0.8549; at 36 mm the overlap and plastics tests pass).

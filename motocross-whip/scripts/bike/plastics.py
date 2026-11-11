@@ -2129,10 +2129,12 @@ PLATE_SLOT = (1963.0, 2038.0, 572.0, 586.0)  # FRONT: dark slot under the centre
 # How far the wings fold back at their outer edges, along the plate's normal (round 4). LEFT, the plate's red run per
 # row (r > 140, r - g > 70, r - b > 60): 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 / 740
 # (its rear edge u 1595 / 1588 / 1564 / 1532 / 1502 / 1481), 36 mm across a row at 0.78 mm/px, which is the fold over
-# cos 27 deg: 32 mm; built with 32 mm the model's rear edge stood 5 px behind on average in LEFT and RIGHT (-7..+14 px,
-# the FRONT outline's wing edge varies row to row): 29 mm. Rounds 1 to 3 had 45 mm (read at row z 1.00 as 50 mm deep): the wings' rear edge stood 14 to 17 px
+# cos 27 deg: 32 mm. TOP wants them deeper: at 29 mm the wings' outer front corners stood 3 to 5 px (half scale) ahead
+# of its red and its red overlap fell to 0.8549 (floor 0.855; 45 mm: 0.8562). Built at 36 mm: TOP 0.8558, LEFT rear edge
+# 1584 / 1566 / 1564 / 1542 at rows 550 / 585 / 620 / 655 against the photo's 1585 / 1566 / 1548 / 1530 (the pinch
+# bolts, rows 554..575 at u 1579..1589, show beside it as in the photo). Rounds 1 to 3 had 45 mm (read at row z 1.00 as 50 mm deep): the wings' rear edge stood 14 to 17 px
 # behind the photo's and covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view.
-PLATE_WING_D = 0.029
+PLATE_WING_D = 0.036
 
 
 @functools.lru_cache(maxsize=None)
