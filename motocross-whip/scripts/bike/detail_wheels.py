@@ -19,6 +19,21 @@ from parts import CHAIN_Y, CS, FA, P520, R_FRONT, R_REAR, RA, chain_top, sprocke
 REPLACES = ["front_wheel", "rear_wheel", "drive"]
 FRONT_END = {"front_wheel"}
 SMOOTH = {"front_wheel": 32, "rear_wheel": 32, "drive": 32, "rear_brake": 35}
+MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos: lit knob faces show a dull sheen
+             "tyre_spew": dict(rgb=(15, 15, 16), rough=0.72),
+             # black anodised aluminium: the anodic film is a dielectric, so its gloss is plain (not metallic) and
+             # the printed strip and the bare rim look alike except for the print
+             "rim": dict(rgb=(12, 12, 13), metal=0.0, rough=0.40),
+             "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.40),
+             "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.40),
+             "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22),           # DR13: bright plated nipples
+             "hub_cast": dict(rgb=(106, 108, 113), metal=1.0, rough=0.45),         # rear hub (see _hub_ribs)
+             # LEFT pair p_spr1: the bare aluminium sprocket reads 150..157 in the photo, the old 170 rendered white
+             "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48),
+             # chain (LEFT pair p_spr1, 475832): plain grey steel plates and pins, not the dark grey of before
+             "chain": dict(rgb=(128, 129, 133), metal=1.0, rough=0.42),
+             "chain_pin": dict(rgb=(150, 151, 155), metal=1.0, rough=0.35)}
+CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
 # ---------------------------------------------------------------- measured and specified dimensions
@@ -49,30 +64,19 @@ FRONT_SECTION = [(0.0, 0.0), (0.0121, -0.0019), (0.0228, -0.0073), (0.0307, -0.0
                  (0.0361, -0.0310), (0.0356, -0.0420), (0.0336, -0.0520)]
 REAR_SECTION = [(0.0, 0.0), (0.0127, -0.0010), (0.0245, -0.0055), (0.0322, -0.014), (0.0358, -0.026), (0.0367, -0.037),
                 (0.0345, -0.048)]
-# tread rows: (phase in pitches, t0, t1 = arc length from the crown centre along the carcass, block length along the
-# tread, height at t0, height at t1, skew = how far the outer end leads the inner end; both sides unless t0 < 0).
-# FRONT photo: centre pairs with a V between them, intermediates half a pitch on, shoulder knobs between the rows
-# (zig-zag silhouette, two shoulder knobs per pitch in the LEFT photo). Block sizes EST from those photos.
-FRONT_ROWS = [(0.00, 0.0012, 0.0150, 0.015, 0.012, 0.012, 0.006),
-              (0.50, 0.0185, 0.0300, 0.017, 0.0118, 0.0110, -0.008),
-              (0.25, 0.0340, 0.0470, 0.018, 0.0105, 0.0090, 0.004),
-              (0.75, 0.0355, 0.0500, 0.015, 0.0100, 0.0088, -0.004)]
-# REAR photo rows 1500..1560: one row of four blocks across the tread per pitch (shoulder 17 mm, two centre blocks
-# 22 mm each, shoulder). LEFT / RIGHT rear arc: one bump per pitch (harmonic 46, none at 92), 24 mm long 10 mm below
-# the tips, the groove floor in view between rows 15 mm down: nothing stands on the crown between the rows. Small
-# shoulder knobs half a pitch on (EST). The 3-pitch variation of Honda's profile is not resolved: every pitch alike.
-REAR_ROWS = [(0.00, 0.0015, 0.0235, 0.0205, 0.0165, 0.0160, 0.003),
-             (0.00, 0.0270, 0.0480, 0.0205, 0.0155, 0.0105, 0.002),
-             (0.50, 0.0330, 0.0480, 0.0150, 0.0140, 0.0110, -0.002)]
 # where the first row stands, in pitches (LEFT and RIGHT edge scans agree: front tips at 3.35 deg, rear 4.4 / 5.35)
 FRONT_PHASE, REAR_PHASE = 3.35 / (360 / 41), 4.9 / (360 / 46)
 # spokes: LEFT and RIGHT ring scans at four radii, fitted through the cameras (three-cross, 60 deg): front hub holes
 # on r 41 mm, first hole at 18.5 deg (residual 0.9 deg rms in both photos); rear first hole at 10.5..11 deg (fit
 # poor, 2.7 deg rms: the rear's hole circle stays EST)
 FRONT_HUB_R, FRONT_SPOKE0 = 0.041, math.radians(18.5)
-REAR_HUB_R, REAR_SPOKE0 = 0.046, math.radians(10.75)
+REAR_HUB_R, REAR_SPOKE0 = 0.046, math.radians(9.0)
+# 2026-11-11: the rims' inner ring unwrapped in both side photos (unwrap.py, r_in - 9..20 mm, plane y 0): the
+# front's nipples fit a 36 comb (phase 8.3 deg, rms 1.5 deg), the rear's do NOT (36: vector strength 0.16 and 0.04)
+# but a 32 comb does (0.58 and 0.43; 17 nipples over 179 deg in the clear arc of the LEFT photo, 19 over 200 in the
+# RIGHT): the rear wheel has 32 spokes, its rim holes at 9.0 deg + k 11.25 (both photos)
 
-SPOKES = 36                         # SPEC front 36 (RevZilla listing); rear 36 EST, as every 19 in MX rim of this size
+SPOKES = {"front": 36, "rear": 32}  # front SPEC 36 (RevZilla listing) and counted; rear counted (above)
 SPOKE_R = 0.0019                    # EST 3.8 mm spokes
 DISC_F = dict(r=0.130, y=0.062, t=0.003)    # SPEC 260 mm; y EST (FRONT cols 2078..2108: guard and disc, y 53..74 mm)
 DISC_R = dict(r=0.120, y=-0.070, t=0.004)   # SPEC 240 mm; REAR cols 2102..2107, rows 1450..1700: y -68..-72 mm
@@ -227,98 +231,648 @@ class Section:
         r = np.interp(a, self.t, self.P[:, 1]) + h * np.interp(a, self.t, self.N[:, 1])
         return (y if t >= 0 else -y), r
 
+    def lift(self, t, h, lean):
+        """(y, r) arrays: the carcass at arc lengths t (>= 0) lifted h along a direction between the radial one
+        (lean 0: walls in the wheel's radial plane) and the surface normal (lean 1). Knobs are moulded leaning out
+        less than the carcass turns: the shoulder knobs nearly along the normal, the inner ones nearer radial."""
+        t = np.asarray(t, float)
+        ny, nr = np.interp(t, self.t, self.N[:, 0]), np.interp(t, self.t, self.N[:, 1])
+        dy, dr = lean * ny, lean * nr + (1 - lean)
+        k = np.hypot(dy, dr)
+        return (np.interp(t, self.t, self.P[:, 0]) + h * dy / k, np.interp(t, self.t, self.P[:, 1]) + h * dr / k)
 
-def tyre(spec, ctrl, rows, phase0=0.0, per=8):
-    """Knobby tyre as one mesh. The carcass is a grid: PER columns per knob pitch round the wheel, and section
-    samples that include every block's edges. Each tread block is raised from the grid cells under it, its walls
-    starting on the carcass's own vertices (nothing sunk in, nothing loose), its top standing on the carcass normal:
-    L long, inset 1.4 mm, the outer end leading by SKEW."""
-    sec = Section(spec, ctrl)
-    n = spec["pitches"]
+
+# ---------------------------------------------------------------- tread blocks (shaped knobs on a whole carcass)
+# A knob is built in its own plan coordinates: s along the tread in the direction of travel (+ = the leading edge,
+# the one that meets the ground first), t across = arc length of the carcass section from the crown centre line
+# (always >= 0 in the plan; the -y side is mirrored), z = height above the carcass. Walls have a moulding draft,
+# the plan's corners are rounded, the top edge has a quarter-round, the foot a small flare (the fillet at the
+# root) sunk 0.8 mm into the carcass, which is a whole grid under every knob (nothing hangs, nothing has holes).
+def _fillet(poly, r, n=3):
+    """Round the corners of a closed polygon with radius about R (one, or one per corner; quadratic arcs, N points
+    each)."""
+    P = np.asarray(poly, float)
+    rr = np.broadcast_to(np.asarray(r, float), (len(P),))
+    out = []
+    for i in range(len(P)):
+        r = rr[i]
+        a, b, c = P[i - 1], P[i], P[(i + 1) % len(P)]
+        u, v = a - b, c - b
+        lu, lv = np.linalg.norm(u), np.linalg.norm(v)
+        u, v = u / lu, v / lv
+        ang = math.acos(float(np.clip(u @ v, -1, 1)))
+        d = min(r / max(math.tan(ang / 2), 1e-3), 0.45 * lu, 0.45 * lv)
+        p0, p1 = b + u * d, b + v * d
+        for w in np.linspace(0, 1, n):
+            out.append((1 - w) ** 2 * p0 + 2 * (1 - w) * w * b + w ** 2 * p1)
+    return np.array(out)
+
+
+def _rect(s0, s1, t0, t1, r, n=3):
+    """Counter-clockwise rectangle in plan with rounded corners, R one radius or four (s0t0, s1t0, s1t1, s0t1)."""
+    return _fillet([(s0, t0), (s1, t0), (s1, t1), (s0, t1)], r, n)
+
+
+def _mitre(poly, d):
+    """Offset a closed counter-clockwise polygon by D (scalar or per vertex; > 0 outward), mitred corners."""
+    P = np.asarray(poly, float)
+    e = np.roll(P, -1, 0) - P
+    e /= np.linalg.norm(e, axis=1, keepdims=True)
+    n = np.stack([e[:, 1], -e[:, 0]], axis=1)                    # outward normal of the edge i -> i + 1
+    m = n + np.roll(n, 1, 0)
+    m /= np.linalg.norm(m, axis=1, keepdims=True)
+    k = 1.0 / np.clip((m * n).sum(axis=1), 0.45, None)
+    return P + np.asarray(d, float).reshape(-1, 1) * m * k[:, None]
+
+
+def _cap(loop, step):
+    """Triangles over a simple closed loop (its points first) with an interior grid, for knob tops."""
+    from scipy.spatial import Delaunay, cKDTree
+    loop = np.asarray(loop, float)
+    lo, hi = loop.min(axis=0), loop.max(axis=0)
+    gx, gz = np.meshgrid(np.arange(lo[0] + step / 2, hi[0], step), np.arange(lo[1] + step / 2, hi[1], step))
+    G = np.stack([gx.ravel(), gz.ravel()], axis=1)
+    G = G[inside(loop, G)] if len(G) else G
+    if len(G):
+        G = G[cKDTree(loop).query(G)[0] > 0.55 * step]
+    P = np.vstack([loop, G])
+    tri = Delaunay(P).simplices
+    tri = tri[inside(loop, P[tri].mean(axis=1))]
+    a, b, c = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
+    tri = tri[abs(area) > 1e-12]
+    area = area[abs(area) > 1e-12]
+    tri[area < 0] = tri[area < 0][:, ::-1]
+    return P, tri
+
+
+class Knob:
+    """Maps a knob's plan (s, t, z) to the wheel frame: centred at wheel angle A, on side SIDE (+1: +y), leaning
+    LEAN (Section.lift). The wheel turns forward: seen from +y the top moves to +x, so the leading edge is at the
+    smaller angle."""
+
+    def __init__(self, sec, a, side, lean):
+        self.sec, self.a, self.side, self.lean = sec, a, side, lean
+
+    def __call__(self, s, t, z):
+        s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+        y, r = self.sec.lift(t, z, self.lean)
+        rc = np.interp(t, self.sec.t, self.sec.P[:, 1])
+        ang = self.a - s / rc
+        return np.stack([r * np.cos(ang), self.side * y, r * np.sin(ang)], axis=-1)
+
+
+ROUND = 0.0009          # EST top edge quarter-round of a moulded knob (0.5 to 1 mm, MICRO.md)
+FLARE = 0.0010          # EST root fillet seen as a flare at the foot
+
+
+def _knob(m, xf, plan, h_of, draft, mat="tyre", base=None, top=True, wall_mat=None, top_mat=None, step=0.0032,
+          rnd=ROUND, base_draft=None):
+    """One knob: PLAN (s, t) counter-clockwise at the root; H_OF(s, t) its height; DRAFT one angle or one per plan
+    vertex. BASE: start the walls at this height (no root flare: a knob stacked on another one, whose walls it
+    continues with BASE_DRAFT); TOP False: a flat top without the round (a floor seen only in a slit). WALL_MAT(i):
+    material of the wall from plan vertex i to i + 1 (below the round). RND: radius of the top edge's round.
+    Returns the top's boundary in 3D and in plan (for spews)."""
+    plan = _ccw(plan)
+    h = np.array([h_of(s, t) for s, t in plan])
+    td = np.broadcast_to(np.tan(np.asarray(draft, float)), (len(plan),))
+    zb = 0.0 if base is None else base
+    tb = td if base_draft is None else np.full(len(plan), math.tan(base_draft))
+    if base is None:
+        z3 = np.minimum(0.0015, 0.5 * (h - rnd))
+        lv = [(np.full(len(h), -0.0008), FLARE), (np.zeros(len(h)), 0.5 * FLARE), (z3, None)]
+    else:
+        lv = [(np.full(len(h), base), None)]
+    if top:
+        lv += [(h - rnd, None), (h - 0.293 * rnd, -0.293 * rnd), (h, -rnd)]
+    else:
+        lv += [(h, None)]
+    rings = []
+    for z, extra in lv:
+        zz = np.maximum(z, 0.0)
+        off = -(tb * np.minimum(zz, zb) + td * np.maximum(zz - zb, 0.0)) + (0.0 if extra is None else extra)
+        Q = _mitre(plan, off)
+        rings.append((Q, z))
+    o = len(m.V)
+    for Q, z in rings:
+        m.verts(xf(Q[:, 0], Q[:, 1], z))
+    n = len(plan)
+    faces = []
+    for k in range(len(rings) - 1):
+        for i in range(n):
+            j = (i + 1) % n
+            mat_i = wall_mat(i) if (wall_mat and k < len(rings) - (3 if top else 1)) else mat
+            faces.append(((o + k * n + i, o + k * n + j, o + (k + 1) * n + j, o + (k + 1) * n + i), mat_i))
+    Qt, zt = rings[-1]
+    P2, tri = _cap(Qt, step)
+    extra_pts = P2[n:]
+    ot = o + (len(rings) - 1) * n
+    oe = m.verts(xf(extra_pts[:, 0], extra_pts[:, 1], [h_of(s, t) for s, t in extra_pts])) if len(extra_pts) else 0
+    for tr in tri:
+        tm = top_mat(*P2[tr].mean(axis=0)) if callable(top_mat) else (top_mat or mat)
+        faces.append((tuple(ot + i if i < n else oe + i - n for i in tr), tm))
+    # winding: the top faces the way the knob stands (from the carcass out)
+    tr0 = faces[-1][0]
+    A, B, C = (np.asarray(m.V[i]) for i in tr0)
+    s0, t0 = P2[tri[-1]].mean(axis=0)
+    up = xf(s0, t0, float(h_of(s0, t0)) + 0.001) - xf(s0, t0, float(h_of(s0, t0)))
+    flip = np.cross(B - A, C - A) @ up < 0
+    for f, mt in faces:
+        m.face(f[::-1] if flip else f, mt)
+    return xf(Qt[:, 0], Qt[:, 1], zt), Qt
+
+
+def carcass(sec, n, phase0, per, t_end):
+    """The carcass as one grid, bead (+y) to bead (-y): PER columns per pitch, section rows every 3 mm over the
+    tread (to T_END), then the sidewall down to the bead. Returns mesh, columns, first angle, rows."""
     na = per * n
-    edges = sorted({round(t, 5) for row in rows for t in row[1:3]})
-    end = max(edges) + 0.004
-    ts = {0.0} | set(edges)
-    for t in list(np.linspace(0.0, end, int(end / 0.0045) + 1)) + list(np.linspace(end, sec.length, 8)[1:]):
-        if all(abs(t - e) > 0.0018 for e in edges):
-            ts.add(round(float(t), 5))
+    ts = set(np.round(np.linspace(0.0, t_end, int(t_end / 0.003) + 1), 5))
+    ts |= set(np.round(np.linspace(t_end, sec.length, 9)[1:], 5))
     ts = sorted(ts)
-    T = ts[::-1] + [-t for t in ts[1:]]                          # +y bead, crown, -y bead
-    col = {t: j for j, t in enumerate(T)}
+    T = ts[::-1] + [-t for t in ts[1:]]
     a0 = 2 * math.pi * phase0 / n
     ang = a0 + 2 * math.pi * np.arange(na) / na
-    C = np.empty((len(T), na, 3))
-    for j, t in enumerate(T):
-        y, r = sec.at(t)
-        C[j] = np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1)
     m = Mesh()
-    m.verts(C.reshape(-1, 3))
-    raised = set()
-    blocks = []
-    for k in range(n):
-        for phase, t0, t1, length, h0, h1, skew in rows:
-            r_mid = sec.at(0.5 * (t0 + t1))[1]
-            ni = max(2, int(round((length + 0.0044) / (2 * math.pi * r_mid / na))))
-            i0 = int(round((k + phase) * per - ni / 2))
-            ac = a0 + 2 * math.pi * (i0 + ni / 2) / na
-            for side in (1, -1):
-                j0, j1 = (col[t1], col[t0]) if side > 0 else (col[-t0], col[-t1])
-                top = np.empty((j1 - j0 + 1, ni + 1, 3))
-                for jj in range(j1 - j0 + 1):
-                    v = (abs(T[j0 + jj]) - t0) / (t1 - t0)
-                    y, r = sec.at(side * (t0 + 0.0014 + v * (t1 - t0 - 0.0028)), h0 + v * (h1 - h0))
-                    aa = ac + skew * (v - 0.5) / r + (np.arange(ni + 1) / ni - 0.5) * length / r
-                    top[jj] = np.stack([r * np.cos(aa), np.full(ni + 1, y), r * np.sin(aa)], axis=1)
-                raised |= {((i0 + ii) % na, j) for ii in range(ni) for j in range(j0, j1)}
-                blocks.append((i0, ni, j0, j1, top))
+    for t in T:
+        y, r = sec.at(t)
+        m.verts(np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1))
     for j in range(len(T) - 1):
+        mat = "tyre"
         for i in range(na):
-            if (i, j) not in raised:
-                i2 = (i + 1) % na
-                m.face((j * na + i, j * na + i2, (j + 1) * na + i2, (j + 1) * na + i), "rubber")
-    for i0, ni, j0, j1, top in blocks:
-        nj = j1 - j0
-        o = m.verts(top.reshape(-1, 3))
-        base = lambda ii, jj: (j0 + jj) * na + (i0 + ii) % na
-        tp = lambda ii, jj: o + jj * (ni + 1) + ii
-        pos = lambda idx: top.reshape(-1, 3)[idx - o] if idx >= o else C.reshape(-1, 3)[idx]
-        centre = 0.5 * (top.mean(axis=(0, 1)) + C[j0:j1 + 1, [(i0 + ii) % na for ii in range(ni + 1)]].mean(axis=(0, 1)))
-        faces = [(tp(ii, jj), tp(ii + 1, jj), tp(ii + 1, jj + 1), tp(ii, jj + 1)) for ii in range(ni) for jj in range(nj)]
-        for ii in range(ni):
-            for jj in (0, nj):
-                faces.append((base(ii, jj), base(ii + 1, jj), tp(ii + 1, jj), tp(ii, jj)))
-        for jj in range(nj):
-            for ii in (0, ni):
-                faces.append((base(ii, jj), base(ii, jj + 1), tp(ii, jj + 1), tp(ii, jj)))
-        for f in faces:
-            P = np.array([pos(i) for i in f])
-            if np.cross(P[1] - P[0], P[2] - P[0]) @ (P.mean(axis=0) - centre) < 0:
-                f = f[::-1]
-            m.face(f, "rubber")
+            i2 = (i + 1) % na
+            m.face((j * na + i, j * na + i2, (j + 1) * na + i2, (j + 1) * na + i), mat)
     return m, na, a0, len(T)
+
+
+def _spew(m, p, d, length, rng):
+    """A mould vent hair: rubber whisker 0.45 mm thick, LENGTH long, from P along D, slightly bent."""
+    d = d / np.linalg.norm(d)
+    side = np.cross(d, rng.normal(size=3))
+    side /= np.linalg.norm(side)
+    path = [p - d * 0.0004, p + d * length * 0.5 + side * length * 0.06, p + d * length]
+    m.add(tube(path, [0.00024, 0.00022, 0.00016], 3, "tyre_spew"))
+
+
+def _spews_at(m, P3, up, idx, rng, p=0.8, lo=0.0025, hi=0.0050):
+    """Spews at the top boundary points IDX of a knob (P3: its top boundary in 3D), leaning out and up."""
+    c = P3.mean(axis=0)
+    for i in idx:
+        if rng.random() > p:
+            continue
+        out = P3[i] - c
+        out -= (out @ up) * up
+        d = 0.75 * out / np.linalg.norm(out) + 0.65 * up + 0.3 * rng.normal(size=3)
+        _spew(m, P3[i] - 0.0002 * up, d, rng.uniform(lo, hi), rng)
+
+
+# Rear: Pirelli Scorpion MX32 Mid Soft 100/90-19 (SPEC), as Honda's studio photos show it. One row per pitch, 46
+# pitches (LEFT / RIGHT polar scans of the outline: tall plateaus every 7.8 deg, 4.2 deg wide at r 334; between them
+# a low plateau at r 321.5 half a pitch on). Per row (REAR rows 1580..1680 cols 1925..2075, LEFT cols 3250..3400
+# rows 1480..1680 zoomed, lr34, DR13 and 475832):
+#   centre knob across the crown, 44 px = 28 mm at the top (REAR), split along the centre line by a V slit that runs
+#     its whole length (REAR: a dark wedge down the leading wall of every centre knob, 5 mm wide at the top, about
+#     1.5 at its floor) but only part way down (475832: the two halves join below it)
+#   an intermediate knob each side in the same row, its outer-leading corner cut off at a slant (REAR: the slanted
+#     edge at the top-outer corner of both; Pirelli's flat view of the tread). Its trailing wall spans y 15..34 mm
+#     (REAR cols 1947..1977); seen side-on (LEFT zoom) its outer face is the lit square inside the outline
+#   half a pitch on: a shoulder knob each side, y 26..45.5 mm (REAR cols 1929..1959); plain tapered block with a vent
+#     hair at each top corner (DR13: no notch or step on the stock tyre's shoulder knobs, unlike Pirelli's renders)
+#   a low pad under each row joining its three in-row knobs: in the REAR photo and in Pirelli's views the floor
+#     shows a faint arc between rows, longest at the centre (EST 1.2 mm high)
+# Heights: the LEFT outline (edge.py: the last dark column per row, photo against model, cols 3200..3420) has flat
+#   plateaus at the centre knobs' tips (r 334.3, y = 0); a knob nearer the camera (y > 0) at the back of the wheel
+#   lands 0.28 px further out per mm of y, 1.28 px per mm of radius. Nothing passes the centre tips, so the
+#   intermediates' tops fall away to R - 9 mm at their outer end (tip envelope ENV), and the low plateau (col 3365:
+#   the shoulders' inner top corner, at y 37) puts that corner at r 317.5.
+# The red centre line of 475832 (an outdoor press bike) is not on the studio bike (REAR, lr34: none): left off.
+# Lengths along the tread: LEFT zoom of one pitch side-on (cols 3300..3400, rows 1500..1620): the in-row knob's lit
+#   outer face is 25 px = 19.5 mm long, the whole row 29 px = 22 mm, the shoulder's face 25 px; the rest EST.
+REAR_TREAD = dict(
+    env=0.0090,                                     # tip envelope: R - env (t / 31.5 mm)^2
+    centre=dict(s=0.0110, t=0.0150, slit_z=0.0090, slit_t=0.0002, draft=4.0, slit_draft=7.5),
+    inter=dict(t0=0.0165, t1=0.0315, s=0.0095, cut=(0.0065, 0.0055), lean=0.3, draft=5.0),
+    shoulder=dict(t0=0.0280, t1=0.0470, s=0.0080, r0=0.3175, h1=0.0120, lean=0.85, draft=5.0),
+    pad=dict(t=0.0300, s0=0.0120, s1=0.0045, h=0.0012, draft=35.0))
+
+
+def _signed(xc):
+    """A Knob map that takes signed t (a knob across the crown centre line)."""
+    def f(s, t, z):
+        s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+        P = xc(s, abs(t), z)
+        P[..., 1] *= np.where(t < 0, -1.0, 1.0)
+        return P
+    return f
+
+
+def rear_tread(m, sec, n, a0, spec, seed=19):
+    """Every knob of the rear tyre on the carcass grid already in M."""
+    q = REAR_TREAD
+    rng = np.random.default_rng(seed)
+    rc = lambda t: float(np.interp(abs(t), sec.t, sec.P[:, 1]))
+    r_env = lambda t: spec["R"] - q["env"] * (t / 0.0315) ** 2
+
+    def h_to(t, r_top, lean):                       # height along the lean direction that reaches radius R_TOP
+        y0, r0 = sec.lift(abs(t), 0.0, lean)
+        y1, r1 = sec.lift(abs(t), 0.01, lean)
+        return float((r_top - r0) / ((r1 - r0) / 0.01))
+
+    for k in range(n):
+        a = a0 + 2 * math.pi * k / n
+        xc = _signed(Knob(sec, a, 1, 0.0))
+        # row pad: lens-shaped, longest at the centre line
+        p = q["pad"]
+        tt = np.linspace(-p["t"], p["t"], 13)
+        sh = p["s0"] + p["s1"] * (1 - (tt / p["t"]) ** 2)
+        pad = np.vstack([np.stack([-sh, tt], 1)[::-1], np.stack([sh, tt], 1)])
+        _knob(m, xc, _fillet(pad, 0.004, 3), lambda s, t: p["h"], math.radians(p["draft"]), mat="tyre", rnd=0.0006)
+        # centre knob: a body up to the slit's floor, and two halves above it that share its walls' line
+        c = q["centre"]
+        hc = lambda s, t: r_env(t) - rc(t)
+        body = _rect(-c["s"], c["s"], -c["t"], c["t"], 0.0015)
+        _knob(m, xc, body, lambda s, t: c["slit_z"], math.radians(c["draft"]), mat="tyre", top=False, step=0.002)
+        for sg in (1, -1):
+            t0, t1 = sorted((sg * c["slit_t"], sg * c["t"]))
+            r_in, r_out = 0.0003, 0.0015                         # slit corners nearly sharp, outer ones rounded
+            half = _rect(-c["s"], c["s"], t0, t1, (r_in, r_in, r_out, r_out) if sg > 0 else (r_out, r_out, r_in, r_in))
+            dr = np.where(abs(half[:, 1]) < c["slit_t"] + 0.0005, math.radians(c["slit_draft"]), math.radians(c["draft"]))
+            # the slit's walls stand on the body's top edge: start them from the body's own outline there
+            P3, Qt = _knob(m, xc, half, hc, dr, mat="tyre", base=c["slit_z"], base_draft=math.radians(c["draft"]))
+            up = xc(0.0, sg * 0.007, hc(0, 0.007) + 0.001) - xc(0.0, sg * 0.007, hc(0, 0.007))
+            far = [i for i in range(len(Qt)) if abs(Qt[i][1]) > c["t"] - 0.004]
+            _spews_at(m, P3, up / np.linalg.norm(up), far[::2], rng, 0.5)
+        # intermediate and shoulder knobs, both sides
+        for side in (1, -1):
+            g = q["inter"]
+            plan = [(-g["s"], g["t0"]), (g["s"], g["t0"]), (g["s"], g["t1"] - g["cut"][0]),
+                    (g["s"] - g["cut"][1], g["t1"]), (-g["s"], g["t1"])]
+            hf = lambda s, t, g=g: h_to(t, r_env(t), g["lean"])
+            xi = Knob(sec, a, side, g["lean"])
+            P3, Qt = _knob(m, xi, _fillet(plan, 0.0015), hf, math.radians(g["draft"]), mat="tyre")
+            tm = 0.5 * (g["t0"] + g["t1"])
+            up = xi(0.0, tm, hf(0, tm) + 0.001) - xi(0.0, tm, hf(0, tm))
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.55)
+            g = q["shoulder"]
+            h0 = h_to(g["t0"], g["r0"], g["lean"])
+            hf = lambda s, t, g=g, h0=h0: h0 + (g["h1"] - h0) * (t - g["t0"]) / (g["t1"] - g["t0"])
+            xs = Knob(sec, a + math.pi / n, side, g["lean"])
+            plan = _rect(-g["s"], g["s"], g["t0"], g["t1"], 0.0012)
+            P3, Qt = _knob(m, xs, plan, hf, math.radians(g["draft"]), mat="tyre")
+            up = xs(0.0, g["t1"] - 0.004, 0.02) - xs(0.0, g["t1"] - 0.004, 0.0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.8)
+            for s0 in (-0.5 * g["s"], 0.5 * g["s"]):                       # vents on the outer face (475832)
+                if rng.random() < 0.6:
+                    z = 0.6 * hf(s0, g["t1"])
+                    pnt = xs(s0, g["t1"] - z * math.tan(math.radians(g["draft"])) - 0.0002, z)
+                    o = xs(s0, g["t1"] + 0.003, z) - xs(s0, g["t1"], z)
+                    _spew(m, pnt, o / np.linalg.norm(o) + 0.3 * rng.normal(size=3), rng.uniform(0.003, 0.005), rng)
+
+
+# ---------------------------------------------------------------- tyre sidewall: raised marks
+# Moulded marks stand 0.8 mm proud of the sidewall (EST, they cast a shadow at 30 cm: geometry, MICRO.md). Text is
+# DejaVu Sans Bold Oblique (bundled with matplotlib, so the build is the same everywhere), the nearest free face to
+# Pirelli's heavy italic. Every mark reads clockwise seen from its own side, tops outward (LEFT and RIGHT photos
+# unwrapped about the rear axle, unwrap.py: the left wall's text reads with the angle growing, the right wall's with
+# it falling).
+MARK_H = 0.0008
+MARK_SINK = 0.0003
+
+
+def _text_polys(text, cap, span=None):
+    """Glyph outlines of TEXT (u along the baseline from 0, v up) with cap height CAP; stretched along u to SPAN."""
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.textpath import TextPath
+    tp = TextPath((0, 0), text, size=1.0, prop=FontProperties(family="DejaVu Sans", weight="bold", style="oblique"))
+    k = cap / 0.729                                              # DejaVu Sans: cap height 0.729 em
+    polys = [np.asarray(p, float)[:-1] * k for p in tp.to_polygons() if len(p) > 3]
+    lo = min(p[:, 0].min() for p in polys)
+    hi = max(p[:, 0].max() for p in polys)
+    sx = 1.0 if span is None else span / (hi - lo)
+    return [np.stack([(p[:, 0] - lo) * sx, p[:, 1]], axis=1) for p in polys], (hi - lo) * sx
+
+
+def _frame_polys(u0, u1, v0, v1, w):
+    """A rectangular border W wide (outer loop and inner hole)."""
+    o = np.array([(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+    i = np.array([(u0 + w, v0 + w), (u0 + w, v1 - w), (u1 - w, v1 - w), (u1 - w, v0 + w)])
+    return [o, i]
+
+
+def _raised(m, polys, xf, mat="tyre", step=0.0003):
+    """Polygons (even-odd fill: outlines and their holes) raised MARK_H from a surface. XF(u, v, z) -> 3D."""
+    from matplotlib.path import Path
+    from scipy.spatial import Delaunay
+    loops = [resample(np.vstack([p, p[:1]]), step)[:-1] if len(p) > 2 else p for p in polys]
+    loops = [lp for lp in loops if len(lp) >= 3]
+    paths = [Path(lp) for lp in loops]
+
+    def filled(pts):
+        return sum(pa.contains_points(pts).astype(int) for pa in paths) % 2 == 1
+
+    P = np.vstack(loops)
+    tri = Delaunay(P).simplices
+    tri = tri[filled(P[tri].mean(axis=1))]
+    a, b, c = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
+    tri = tri[abs(area) > 1e-14]
+    area = area[abs(area) > 1e-14]
+    tri[area < 0] = tri[area < 0][:, ::-1]
+    top = m.verts(xf(P[:, 0], P[:, 1], MARK_H))
+    bot = m.verts(xf(P[:, 0], P[:, 1], -MARK_SINK))
+    o = 0
+    up = xf(P[0, 0], P[0, 1], 0.001) - xf(P[0, 0], P[0, 1], 0.0)
+    A, B, C = (xf(P[i, 0], P[i, 1], MARK_H) for i in tri[0]) if len(tri) else (None, None, None)
+    flip = len(tri) and np.cross(B - A, C - A) @ up < 0
+    for t in tri:
+        m.face(tuple(top + i for i in (t[::-1] if flip else t)), mat)
+    for lp in loops:
+        n = len(lp)
+        e = np.roll(lp, -1, axis=0) - lp
+        mid = lp + 0.5 * e
+        nrm = np.stack([e[:, 1], -e[:, 0]], axis=1)
+        nrm /= np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+        out_right = ~filled(mid + nrm * 1e-5)                     # the fill lies left of the edge
+        for i in range(n):
+            j = (i + 1) % n
+            f = (bot + o + i, bot + o + j, top + o + j, top + o + i)
+            m.face(f if out_right[i] != bool(flip) else f[::-1], mat)
+        o += n
+
+
+def _sidewall_y(sec):
+    """y of the sidewall (outer surface) against radius, below the shoulder."""
+    i0 = int(np.searchsorted(sec.t, 0.058))
+    r, y = sec.P[i0:, 1][::-1], sec.P[i0:, 0][::-1]
+    return lambda rho: np.interp(rho, r, y)
+
+
+def _arc_map(ysw, side, a_c, r_b, u_mid, sense):
+    """(u, v, z) of a mark -> wheel frame: u along the baseline (radius R_B) centred on wheel angle A_C, v outward,
+    z off the sidewall; SENSE +1: u grows with the wheel angle."""
+    def f(u, v, z):
+        u, v, z = np.broadcast_arrays(np.asarray(u, float), np.asarray(v, float), np.asarray(z, float))
+        rho = r_b + v
+        a = a_c + sense * (u - u_mid) / r_b
+        return np.stack([rho * np.cos(a), side * (ysw(rho) + z), rho * np.sin(a)], axis=-1)
+    return f
+
+
+def _emblem(cap):
+    """Pirelli's Scorpion emblem (DR13, at the shoulder: a scorpion seen from above, about 16 mm across), as raised
+    strokes: body, curled tail, two claws, eight legs. Returns polygons in (u, v) about (0, 0); overlapping strokes
+    are separate pieces (each raised on its own)."""
+    s = cap / 16.0
+    pieces = [circle(2.2 * s, 14, 0, 0) * [1.0, 1.5]]                                   # body
+    for x, y, r in [(0, 3.6, 1.5), (0.6, 5.6, 1.3), (1.8, 7.0, 1.1), (3.2, 7.4, 0.9), (4.2, 6.6, 0.8)]:
+        pieces.append(circle(r * s, 10, x * s, y * s))                                # tail segments, curling
+    for sg in (1, -1):
+        for k in range(4):                                                            # legs, fanned out
+            b = math.radians(35 - 25 * k)
+            p0 = np.array([sg * 1.6 * s, (1.2 - 1.0 * k) * s])
+            p1 = p0 + 4.0 * s * np.array([sg * math.cos(b), math.sin(b)])
+            pieces.append(slot((p0 + p1) / 2, math.atan2(*(p1 - p0)[::-1]), float(np.linalg.norm(p1 - p0)), 0.7 * s, 4))
+        c0 = np.array([sg * 1.4 * s, -2.6 * s])                                       # claw: arm and pincer
+        c1 = c0 + np.array([sg * 2.5, -2.5]) * s
+        pieces.append(slot((c0 + c1) / 2, math.atan2(*(c1 - c0)[::-1]), float(np.linalg.norm(c1 - c0)), 0.9 * s, 4))
+        pieces.append(circle(1.2 * s, 10, *(c1 + np.array([sg * 0.6, -0.8]) * s)))
+    return pieces
+
+
+# Rear wall layout (degrees along the reading direction from the emblem). LEFT photo, sidewall unwrapped beside the
+# model's (uwcmp.py, plane y 0.036): SCORPION MX32 84..160 deg, caps 16 mm on a baseline at r 266.5; the size code
+# 272..337.5 deg, caps 11.5 mm at r 259. RIGHT unwrap: SCORPION MX from 95 deg down to 27, a small box at 138..148.
+# The emblem stands just before SCORPION (DR13; RIGHT 97 deg, LEFT 78 by the same offset). The rest follows
+# Pirelli's own layout (web/pirelli-mx32ms-wheel-side): MID SOFT in a box after MX32, the big PIRELLI word, the
+# size code, the small PIRELLI box 45 deg before the emblem: places EST from that picture.
+REAR_WALL = dict(emblem=(78.0, 97.0), items=[
+    ("box", "PIRELLI", -49.0, -40.0, 0.2655, 0.0055),
+    ("emblem", None, 0.0, None, 0.2745, 0.016),
+    ("text", "SCORPION  MX32", 6.0, 82.0, 0.2665, 0.016),
+    ("box", "MID SOFT", 88.0, 102.0, 0.2665, 0.0065),
+    ("logo", "PIRELLI", 115.0, 150.0, 0.2640, 0.015),
+    ("text", "100/90-19  57M  NHS", 194.0, 259.5, 0.2590, 0.0115),
+    ("arrow", None, 265.0, 277.0, 0.2635, 0.008)])
+
+
+def sidewall(m, sec, spec, side, layout):
+    """Raised marks on one sidewall (SIDE +1: left), the rim line and the vent hairs of the wall."""
+    ysw = _sidewall_y(sec)
+    a_e = math.radians(layout["emblem"][0 if side > 0 else 1])
+    sense = 1 if side > 0 else -1
+    for kind, txt, d0, d1, r_b, cap in layout["items"]:
+        if kind == "emblem":
+            xf = _arc_map(ysw, side, a_e + sense * math.radians(d0), r_b, 0.0, sense)
+            for pc in _emblem(cap):
+                _raised(m, [pc], xf, step=0.0005)
+            continue
+        a0, a1 = a_e + sense * math.radians(d0), a_e + sense * math.radians(d1)
+        span = abs(a1 - a0) * r_b
+        a_c = 0.5 * (a0 + a1)
+        if kind == "arrow":
+            L, w = span, cap
+            poly = np.array([(0, 0.35 * w), (0.62 * L, 0.35 * w), (0.62 * L, 0.0), (L, 0.5 * w), (0.62 * L, w),
+                             (0.62 * L, 0.65 * w), (0, 0.65 * w)])
+            if side < 0:                                         # the arrow points the way the wheel turns
+                poly = poly * [-1, 1] + [L, 0]
+            _raised(m, [poly], _arc_map(ysw, side, a_c, r_b, L / 2, sense), step=0.0006)
+            continue
+        polys, w = _text_polys(txt, cap, span if kind == "text" else None)
+        if kind in ("box", "logo"):
+            pad = 0.35 * cap
+            if kind == "logo":                                   # Pirelli's long P: its top runs over the word
+                polys.append(np.array([(0.45 * cap, 0.86 * cap), (w, 0.86 * cap), (w - 0.03 * cap, cap),
+                                       (0.45 * cap, cap)]))
+            polys += _frame_polys(-pad, w + pad, -pad, cap + pad, 0.12 * cap if kind == "box" else 0.07 * cap)
+        _raised(m, polys, _arc_map(ysw, side, a_c, r_b, w / 2, sense), step=float(np.clip(cap / 36, 0.00025, 0.0006)))
+    # rim line: a rib 1.2 mm wide, 0.6 mm proud, 4 mm above the rim flange (EST: every tyre has one, DR13 shows it
+    # as the fine bright line just above the rim)
+    r_l = spec["rb"] + spec["hf"] + 0.004
+    prof = [(r_l - 0.0006, ysw(r_l - 0.0006) - 0.0003), (r_l - 0.0005, ysw(r_l - 0.0005) + 0.0006),
+            (r_l + 0.0005, ysw(r_l + 0.0005) + 0.0006), (r_l + 0.0006, ysw(r_l + 0.0006) - 0.0003)]
+    rib = lathe([(r, side * y) for r, y in prof], 288, "tyre")
+    if side < 0:
+        rib.F = [f[::-1] for f in rib.F]
+    m.add(rib)
+    # vent hairs of the sidewall mould: one a pitch, just under the shoulder knobs (DR13: a row of short dark
+    # whiskers there), leaning out and away from the rim
+    rng = np.random.default_rng(23 if side > 0 else 29)
+    n = spec["pitches"]
+    for k in range(n):
+        a = 2 * math.pi * (k + 0.25) / n + rng.normal() * 0.01
+        rho = 0.2885 if spec is REAR else 0.3160
+        p = np.array([rho * math.cos(a), side * (ysw(rho) - 0.0002), rho * math.sin(a)])
+        d = np.array([0.6 * math.cos(a), side * 0.8, 0.6 * math.sin(a)]) + 0.25 * rng.normal(size=3)
+        _spew(m, p, d, rng.uniform(0.0025, 0.004), rng)
+
+
+# Front: Pirelli Scorpion MX32 Mid Soft 80/100-21 (SPEC). 41 rows (LEFT / RIGHT polar scans about the front axle,
+# scan_front: tall plateaus at r 359 every 8.78 deg, 3.8 deg wide; low plateaus at r 354 half a pitch on; floor
+# 347..348). Per row (FRONT photo rows 1380..1560, cols 1930..2070 zoomed; 1.6 px a mm there):
+#   a centre knob split by a V slit like the rear's: cols 1969..2030 = 38 mm across at the top, the gap 6 px =
+#     3.7 mm; its trailing edge rises 2.5 mm toward the slit (the halves point backward, Pirelli's arrow knobs)
+#   a shoulder knob each side in the same row: cols 1930..1952 = y 30..44 mm, 17.5 mm long
+#   half a pitch on: an intermediate knob each side, an arrowhead pointing out (corners fore, aft and out, a V notch
+#     in its inner side: the dark notch inside each in the FRONT zoom; Pirelli's arrow knobs): 36 px = 22 mm long,
+#     y 17..40 mm (FRONT pair p_ff2: the first try at 18 mm and y 17..36 stood smaller and further in than the photo's)
+# Heights from the outline as for the rear (edge.py on LEFT and RIGHT: tall plateaus 2 to 3 px outside the photo's
+#   in both, low plateaus within 2 px); the rest EST.
+FRONT_TREAD = dict(
+    env=0.0110,                                     # tip envelope: R - env (t / 31.5 mm)^2 (LEFT outline)
+    centre=dict(s=0.0110, t=0.0200, v=0.0025, slit_z=0.0060, slit_t=0.0004, draft=4.0, slit_draft=7.5),
+    shoulder=dict(t0=0.0300, t1=0.0450, s=0.0085, h0=0.0120, h1=0.0105, lean=0.85, draft=5.0),
+    inter=dict(t0=0.0165, t1=0.0400, s=0.0110, cut=0.0050, r0=0.3480, lean=0.5, draft=5.0))
+
+
+def front_tread(m, sec, n, a0, spec, seed=21):
+    """Every knob of the front tyre on the carcass grid already in M."""
+    q = FRONT_TREAD
+    rng = np.random.default_rng(seed)
+    rc = lambda t: float(np.interp(abs(t), sec.t, sec.P[:, 1]))
+    r_env = lambda t: spec["R"] - q["env"] * (t / 0.0315) ** 2
+
+    def h_to(t, r_top, lean):
+        y0, r0 = sec.lift(abs(t), 0.0, lean)
+        y1, r1 = sec.lift(abs(t), 0.01, lean)
+        return float((r_top - r0) / ((r1 - r0) / 0.01))
+
+    for k in range(n):
+        a = a0 + 2 * math.pi * k / n
+        xc = _signed(Knob(sec, a, 1, 0.0))
+        c = q["centre"]
+        hc = lambda s, t: r_env(t) - rc(t)
+        body = _fillet([(-c["s"], -c["t"]), (c["s"], -c["t"]), (c["s"], c["t"]), (-c["s"], c["t"]),
+                        (-c["s"] - c["v"], 0.0)], 0.0015)
+        _knob(m, xc, body, lambda s, t: c["slit_z"], math.radians(c["draft"]), top=False, step=0.002)
+        for sg in (1, -1):
+            ts, to = sg * c["slit_t"], sg * c["t"]
+            # the half's slit edge runs from the V's point to the leading edge; rounded outer corners only
+            half = [(-c["s"] - c["v"] * (1 - c["slit_t"] / c["t"]), ts), (c["s"], ts), (c["s"], to), (-c["s"], to)]
+            half = _ccw(half)                                   # sg < 0: reversed, the slit corners last
+            half = _fillet(half, (0.0003, 0.0003, 0.0015, 0.0015) if sg > 0 else (0.0015, 0.0015, 0.0003, 0.0003))
+            dr = np.where(abs(half[:, 1]) < c["slit_t"] + 0.0005, math.radians(c["slit_draft"]), math.radians(c["draft"]))
+            P3, Qt = _knob(m, xc, half, hc, dr, base=c["slit_z"], base_draft=math.radians(c["draft"]))
+            up = xc(0.0, sg * 0.01, hc(0, 0.01) + 0.001) - xc(0.0, sg * 0.01, hc(0, 0.01))
+            far = [i for i in range(len(Qt)) if abs(Qt[i][1]) > c["t"] - 0.004]
+            _spews_at(m, P3, up / np.linalg.norm(up), far[::2], rng, 0.5)
+        for side in (1, -1):
+            g = q["shoulder"]
+            hf = lambda s, t, g=g: g["h0"] + (g["h1"] - g["h0"]) * (t - g["t0"]) / (g["t1"] - g["t0"])
+            xs = Knob(sec, a, side, g["lean"])
+            P3, Qt = _knob(m, xs, _rect(-g["s"], g["s"], g["t0"], g["t1"], 0.0012), hf, math.radians(g["draft"]))
+            up = xs(0.0, g["t1"] - 0.004, 0.02) - xs(0.0, g["t1"] - 0.004, 0.0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.8)
+            g = q["inter"]
+            tm = 0.5 * (g["t0"] + g["t1"])
+            plan = [(0.0, g["t1"]), (-g["s"], tm), (-0.5 * g["s"], g["t0"]), (0.0, g["t0"] + g["cut"]),
+                    (0.5 * g["s"], g["t0"]), (g["s"], tm)]                   # arrowhead pointing out
+            h0 = h_to(tm, g["r0"], g["lean"])
+            hf = lambda s, t, g=g, h0=h0: h0
+            xi = Knob(sec, a + math.pi / n, side, g["lean"])
+            P3, Qt = _knob(m, xi, _fillet(_ccw(plan), 0.0014), hf, math.radians(g["draft"]))
+            up = xi(0.0, tm, h0 + 0.001) - xi(0.0, tm, h0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.6)
+
+
+def front_tyre():
+    """Front tyre: carcass grid, the shaped knobs and the sidewall marks."""
+    sec = Section(FRONT, FRONT_SECTION)
+    m, na, a0, n_t = carcass(sec, FRONT["pitches"], FRONT_PHASE, 8, 0.050)
+    front_tread(m, sec, FRONT["pitches"], a0, FRONT)
+    for side in (1, -1):
+        sidewall(m, sec, FRONT, side, FRONT_WALL)
+    return m, na, a0, n_t
+
+
+# Front wall layout (as REAR_WALL). LEFT unwrap about the front axle (plane y 0.036): a small box at 24..37 deg,
+# SCORPION MX32 from about 70 deg to 155 (the fork leg hides 113..130), the size code "80/100-21 M/C 51M MST" (SPEC
+# service description: research/crf250r-2026.md, OM) 267..340 deg, caps 12.5 mm at r 293. RIGHT unwrap: the
+# small box 142..152 deg, SCORPION MX32 107 down to 17 deg. 475831 shows "80/100-21" large beside the rim.
+FRONT_WALL = dict(emblem=(64.0, 105.0), items=[
+    ("box", "PIRELLI", -41.0, -30.0, 0.2960, 0.0055),
+    ("emblem", None, 0.0, None, 0.3050, 0.016),
+    ("text", "SCORPION  MX32", 5.0, 92.0, 0.2905, 0.017),
+    ("box", "MID SOFT", 97.0, 110.0, 0.2960, 0.0065),
+    ("logo", "PIRELLI", 122.0, 155.0, 0.2930, 0.015),
+    ("text", "80/100-21  M/C  51M  MST", 203.0, 276.0, 0.2930, 0.0125),
+    ("arrow", None, 282.0, 293.0, 0.2960, 0.008)])
 
 
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
 def rim_profile(spec):
-    """Closed section (r, y) of the rim: well, bead seats, flanges with rolled lips (D.I.D DirtStar, WM contour)."""
+    """Closed section (r, y) of the rim (D.I.D DirtStar): a flat inner face carrying the nipples, a flat side band
+    (where the decals are) 3.5 mm outside the bead seats, a rounded flange lip, the bead seats on the WM contour and
+    the drop-centre well. Points 3 -> 4 are the +y side band, 22 -> 23 the -y one; 9 and 17 the bead seats."""
     rb, hw, hf, ri = spec["rb"], spec["hw"], spec["hf"], spec["r_in"]
-    lip = 0.0045                                                 # EST flange lip thickness
-    half = [(ri, 0.0), (ri, 0.45 * hw), (ri + 0.0035, 0.80 * hw), (rb - 0.004, hw + lip - 0.0012),
-            (rb + hf - 0.0025, hw + lip), (rb + hf - 0.0006, hw + lip - 0.0008), (rb + hf, hw + lip / 2),
-            (rb + hf - 0.0008, hw + 0.0006), (rb + hf - 0.003, hw), (rb, hw), (rb - 0.0006, 0.60 * hw),
-            (ri + 0.0050, 0.40 * hw), (ri + 0.0035, 0.20 * hw)]
-    return half + [(ri + 0.0035, 0.0)] + [(r, -y) for r, y in half[:0:-1]]
+    ys = hw + RIM_FLANGE_T                                       # the side band's plane
+    half = [(ri, 0.0), (ri, ys - 0.0025), (ri + 0.0007, ys - 0.0007), (ri + 0.0025, ys),
+            (rb + hf - 0.0035, ys + 0.0003), (rb + hf - 0.0012, ys + 0.0001), (rb + hf, ys - 0.0018),
+            (rb + hf - 0.0010, ys - 0.0034), (rb + hf - 0.0030, hw + 0.0002), (rb, hw), (rb - 0.0006, 0.60 * hw),
+            (ri + 0.0060, 0.40 * hw), (ri + 0.0045, 0.20 * hw)]
+    return half + [(ri + 0.0045, 0.0)] + [(r, -y) for r, y in half[:0:-1]]
+
+
+RIM_FLANGE_T = 0.0035   # EST flange 3.5 mm thick: the rim 54 mm wide over the bands at the rear (19 x 1.85), 48 front
+# Decals (DR13, studio unwraps of both side photos): white "D.I.D" and "DirtStar" once on each side of each rim,
+# reading clockwise seen from that side, tops toward the tyre, at 258..282 deg (rear) and 260..282 (front) in both
+# side photos; letters 10 mm (DR13: the D.I.D letters 45 px against nipples 27 px across 6 mm flats), D.I.D 29 mm
+# long, DirtStar 73 mm. The dark print "D.I.D JAPAN 76-08 10" and the size (475831: black on black, beside the
+# spoke holes) EST 95 deg further on.
+RIM_DECAL = {"rear": 258.0, "front": 260.0}
+RIM_TEX = dict(L=0.400, H=0.025)                 # texture strip: 400 x 25 mm, 4096 x 256 px (10.24 px a mm)
+RIM_DECAL_LEN = 0.117                            # D.I.D and DirtStar end to end on the strip
+
+
+def rim_texture(which, out):
+    """Paint the rim strip texture (stock/rim_<which>.png): the rim's black, white decals, dark print."""
+    import os
+    import matplotlib
+    from PIL import Image, ImageDraw, ImageFont
+    W, H = 4096, 256
+    k = W / (RIM_TEX["L"] * 1000)                                # px a mm
+    ttf = os.path.join(matplotlib.get_data_path(), "fonts", "ttf")
+    serif = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSerif-Bold.ttf"), int(mm * k / 0.73))
+    obl = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSans-BoldOblique.ttf"), int(mm * k / 0.73))
+    sans = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSans-Bold.ttf"), int(mm * k / 0.73))
+    im = Image.new("RGB", (W, H), (12, 12, 13))
+    d = ImageDraw.Draw(im)
+    base = H / 2 + 6 * k                         # letters 12 mm, centred on the band (LEFT pair: 70 % of the band)
+    x = 4 * k
+    # D.I.D: compact block letters (LEFT pair p_rim1: 2.7 times as long as tall): drawn, then squeezed to 78 %
+    w0 = int(d.textlength("D.I.D", font=serif(12))) + 4
+    tile = Image.new("RGB", (w0, H), (12, 12, 13))
+    ImageDraw.Draw(tile).text((2, base), "D.I.D", font=serif(12), fill=(236, 236, 232), anchor="ls")
+    tile = tile.resize((int(w0 * 0.78), H), Image.LANCZOS)
+    im.paste(tile, (int(x), 0))
+    x += tile.width + 9 * k
+    for ch, mm in (("D", 11), ("I", 8.5), ("R", 8.5), ("T", 8.5), ("S", 11), ("T", 8.5), ("A", 8.5), ("R", 8.5)):
+        f = obl(mm)
+        d.text((x, base), ch, font=f, fill=(12, 12, 13), anchor="ls", stroke_width=max(2, int(0.45 * k)),
+               stroke_fill=(236, 236, 232))
+        if ch == "A":                                            # the star in the A of STAR
+            cx, cy, rr = x + 0.42 * d.textlength("A", font=f), base - 2.6 * k, 1.6 * k
+            pts = [(cx + (rr if i % 2 == 0 else 0.42 * rr) * math.sin(i * math.pi / 5),
+                    cy - (rr if i % 2 == 0 else 0.42 * rr) * math.cos(i * math.pi / 5)) for i in range(10)]
+            d.polygon(pts, fill=(236, 236, 232))
+        x += d.textlength(ch, font=f) + 0.4 * k
+    size = "19X1.85" if which == "rear" else "21X1.60"
+    d.text((200 * k, H / 2 + 2.5 * k), "D.I.D  JAPAN     76 - 08  10 -       %s" % size, font=sans(5),
+           fill=(44, 44, 47), anchor="ls")
+    im.save(out)
+    return out
 
 
 def spoke_lines(spec, r_hub, y_left, y_right, flange_t=0.006, phase=0.0):
-    """36 spokes laced three-cross: 18 per flange, alternately on the outer and the inner face of the flange, each to
-    the rim hole 60 deg on (leading) or back (trailing). Returns (hub point, rim point, flange y, face sign)."""
+    """Spokes laced three-cross: SPOKES[wheel] / 2 per flange, alternately on the outer and the inner face of the
+    flange, each to the rim hole 3 x 720 / n deg on (leading) or back (trailing). Returns (hub point, rim point,
+    flange y, face sign)."""
+    n = SPOKES["rear" if spec is REAR else "front"]
+    per = n // 2
+    cross = 3 * 4 * math.pi / n
     out = []
-    per = SPOKES // 2
     for s, yf in ((1, y_left), (-1, y_right)):
         for i in range(per):
             ah = phase + 2 * math.pi * (i + (0.0 if s > 0 else 0.5)) / per
-            ar = ah + (1 if i % 2 == 0 else -1) * math.pi / 3
+            ar = ah + (1 if i % 2 == 0 else -1) * cross
             e = s * (1 if i % 2 == 0 else -1)                    # which face of the flange the spoke lies on
             p0 = np.array([r_hub * math.cos(ah), yf + e * (flange_t / 2 + SPOKE_R), r_hub * math.sin(ah)])
             p1 = np.array([spec["r_in"] * math.cos(ar), s * 0.004, spec["r_in"] * math.sin(ar)])
@@ -326,23 +880,40 @@ def spoke_lines(spec, r_hub, y_left, y_right, flange_t=0.006, phase=0.0):
     return out
 
 
-def _rim(m, spec, na, a0, n_t):
+def _rim(m, spec, na, a0, n_t, which):
     """Rim on the tyre's own columns (M holds the tyre, its bead rings first and last): the beads are joined to the
-    rim's seats by a hidden strip, so tyre and rim are one mesh. Returns the rim's first vertex."""
+    rim's seats by a hidden strip, so tyre and rim are one mesh. The side bands carry the printed strip (rim_print_*
+    material, its own UVs) where the decals are. Returns the rim's first vertex."""
     prof = rim_profile(spec)
     ang = a0 + 2 * math.pi * np.arange(na) / na
     off = len(m.V)
     for r, y in prof:
         m.verts(np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1))
+    L, Ht = RIM_TEX["L"], RIM_TEX["H"]
+    rm = 0.5 * (prof[3][0] + prof[4][0])                         # the band's middle radius
+    a_dec = math.radians(RIM_DECAL[which])
     for p in range(len(prof)):
         p2 = (p + 1) % len(prof)
+        band = {3: 1, 22: -1}.get(p)
         for i in range(na):
             i2 = (i + 1) % na
-            m.face((off + p * na + i, off + p * na + i2, off + p2 * na + i2, off + p2 * na + i), "rim")
+            f = (off + p * na + i, off + p * na + i2, off + p2 * na + i2, off + p2 * na + i)
+            mat = "rim"
+            if band:
+                # arc length along the reading direction (clockwise seen from the band's side) from the decal start
+                a_s = a_dec if band > 0 else a_dec + RIM_DECAL_LEN / rm       # the right side reads back down
+                aa = [ang[i], ang[i] + 2 * math.pi / na]
+                s = [band * (((aa[q] - a_s + math.pi) % (2 * math.pi)) - math.pi) * rm for q in (0, 1, 1, 0)]
+                if -0.002 < min(s) and max(s) < L - 0.002 and max(s) - min(s) < 0.02:
+                    mat = "rim_print_" + which[0]
+                    rr = [prof[p][0], prof[p][0], prof[p2][0], prof[p2][0]]
+                    # v grows outward: the letters' tops face the tyre (LEFT pair: upside down at the bottom)
+                    m.uv[len(m.F)] = [(sj / L, 0.5 + (rj - rm) / Ht) for sj, rj in zip(s, rr)]
+            m.face(f, mat)
     for ring_t, ring_r in ((0, 9), (n_t - 1, 17)):               # profile points 9 and 17: the two bead seats
         for i in range(na):
             i2 = (i + 1) % na
-            m.face((ring_t * na + i, ring_t * na + i2, off + ring_r * na + i2, off + ring_r * na + i), "rubber")
+            m.face((ring_t * na + i, ring_t * na + i2, off + ring_r * na + i2, off + ring_r * na + i), "tyre")
     return off
 
 
@@ -354,28 +925,68 @@ def _hub(m, prof, mats, phase, seg=72):
     return off
 
 
+# Nipples (DR13: silver, about 13 mm showing below the rim's inner face, a round shank then hex flats with a
+# chamfered end where the spoke goes in; each sits in a small raised eyelet on the rim's inner face; a few mm of
+# rolled thread show on the spoke beyond it). Sizes EST from DR13 against the 6 mm flats.
+NIPPLE = dict(shank_r=0.0028, shank=0.0040, hex_af=0.0060, hex=0.0085, thread=0.0030, eyelet_r=0.0042)
+# (DR13 close-up beside the model's: the round collar is a third of the nipple, the hex flats the rest)
+
+
 def _spokes(m, spec, r_hub, y_left, y_right, phase, flange_t=0.006):
-    """Each spoke is one piece: head, elbow through the flange, spoke, nipple (flats, then the seat 3 mm into the
-    rim's wall)."""
+    """Each spoke: its head on the far face of the flange, a rounded J-bend through the flange, the spoke, a few mm
+    of rolled thread; then the nipple (round shank, hex flats, chamfer) with its eyelet on the rim."""
+    q = NIPPLE
     for p0, p1, yf, e in spoke_lines(spec, r_hub, y_left, y_right, flange_t, phase):
         dn = (p1 - p0) / np.linalg.norm(p1 - p0)
         ey = np.array([0.0, e, 0.0])
-        q = np.array([p0[0], yf - e * flange_t / 2, p0[2]])
-        path = [q - 0.0018 * ey, q - 0.00005 * ey, q, p0, p1 - dn * 0.0151, p1 - dn * 0.0150, p1 - dn * 0.0050,
-                p1 - dn * 0.0049, p1 + dn * 0.003]
-        m.add(tube(path, [0.0034, 0.0034, SPOKE_R, SPOKE_R, SPOKE_R, 0.0031, 0.0031, 0.0040, 0.0040], 6, "spoke"))
+        h = np.array([p0[0], yf - e * flange_t / 2, p0[2]])      # under the head
+        bend = (ey + dn) / np.linalg.norm(ey + dn)
+        tip = p1 - dn * (q["shank"] + q["hex"] + 0.0010)          # where the spoke enters the nipple
+        path = [h - 0.0019 * ey, h - 0.0018 * ey, h - 0.0002 * ey, h, p0 - 0.0012 * ey, p0 + 0.0016 * bend,
+                p0 + 0.0045 * dn, tip - dn * (q["thread"] + 0.0002)]
+        rad = [0.0026, 0.0033, 0.0033, SPOKE_R, SPOKE_R, SPOKE_R, SPOKE_R, SPOKE_R]
+        m.add(tube(path, rad, 8, "spoke"))
+        th = [tip - dn * (q["thread"] + 0.0002 - k * 0.0004) for k in range(9)]   # rolled thread, 0.8 mm pitch
+        m.add(tube(th, [SPOKE_R * (1.04 if k % 2 else 0.97) for k in range(9)], 8, "spoke", cap0=False))
+        hx = q["hex_af"] / 2 / math.cos(math.pi / 6)
+        m.add(tube([tip + dn * 0.0002, tip + dn * 0.0010, tip + dn * (0.0010 + q["hex"]),
+                    tip + dn * (0.0012 + q["hex"])], [0.0024, hx * 0.92, hx, hx * 0.94], 6, "nipple"))
+        m.add(tube([tip + dn * (0.0010 + q["hex"]), p1 + dn * 0.003], q["shank_r"], 12, "nipple"))
+        er = np.array([p1[0], 0.0, p1[2]]) / np.hypot(p1[0], p1[2])  # the rim's radial direction at the hole
+        m.add(lathe_at(p1, -er, [(0.0029, -0.0006), (0.0029, 0.0006), (q["eyelet_r"], 0.0006),
+                                 (q["eyelet_r"] + 0.0006, 0.0), (q["eyelet_r"] + 0.0008, -0.0006)], 12, "rim"))
+
+
+def lathe_at(c, axis, prof, seg, mat):
+    """A small solid of revolution: PROF (radius, height along AXIS) about point C."""
+    a = np.asarray(axis, float) / np.linalg.norm(axis)
+    hlp = np.array([0.0, 1.0, 0.0]) if abs(a[1]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(a, hlp)
+    u /= np.linalg.norm(u)
+    v = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, seg, endpoint=False)
+    rings = [np.array([c + a * z + r * (math.cos(t) * u + math.sin(t) * v) for t in ang]) for r, z in prof]
+    return grid(Mesh(), rings, mat)
 
 
 def _stem(m, spec, ang, lock):
-    """Valve stem with its nut and cap, or a rim lock's stud with washer and nut, through the rim well toward the hub."""
+    """Valve (LEFT / RIGHT unwraps of the rims' inner ring: a black stem with a domed cap) or rim lock (a grey
+    threaded stud; DR13: hex nut on a washer, the thread showing past the nut), through the rim toward the hub."""
     e = np.array([math.cos(ang), 0.0, math.sin(ang)])
-    if lock:
-        d = [0.003, 0.0005, 0.00045, -0.002, -0.00205, -0.009, -0.00905, -0.017]
-        rad = [0.004, 0.004, 0.011, 0.011, 0.0075, 0.0075, 0.004, 0.004]
-    else:
-        d = [0.003, 0.0005, 0.00045, -0.004, -0.00405, -0.024, -0.02405, -0.034]
-        rad = [0.0042, 0.0042, 0.007, 0.007, 0.0042, 0.0042, 0.0048, 0.0048]
-    m.add(tube([e * (spec["r_in"] + x) for x in d], rad, 8, "steel"))
+    r0 = spec["r_in"]
+    P = lambda d: e * (r0 + d)
+    if lock:                                                     # M8 stud, washer 16 mm, 12 mm hex nut, EST
+        m.add(tube([P(0.003), P(-0.0012)], 0.008, 16, "steel"))                         # washer
+        m.add(bolt(P(-0.0012), -e, af=0.012, head_h=0.0065, flange_d=0.0150, mat="steel"))
+        th = [P(-0.0070 - k * 0.000625) for k in range(17)]                             # 10 mm of M8 x 1.25 thread
+        m.add(tube(th, [0.0040 if k % 2 == 0 else 0.0035 for k in range(17)], 10, "steel", cap0=False))
+        m.add(tube([P(-0.0070 - 16 * 0.000625), P(-0.0175)], [0.0035, 0.0028], 10, "steel"))
+    else:                                                        # TR4 valve: knurled nut, stem, black cap, EST
+        m.add(tube([P(0.003), P(-0.0005)], 0.0042, 10, "steel"))
+        m.add(tube([P(-0.0005), P(-0.0045)], 0.0058, 18, "steel"))                      # nut
+        m.add(tube([P(-0.0045), P(-0.0100)], 0.0039, 12, "steel"))                      # threaded stem
+        cap = [P(-0.0100), P(-0.0102), P(-0.0190), P(-0.0205), P(-0.0212)]
+        m.add(tube(cap, [0.0040, 0.0044, 0.0044, 0.0036, 0.0020], 14, "rubber_black"))
 
 
 # ---------------------------------------------------------------- discs
@@ -461,20 +1072,46 @@ def sprocket_outline(n, phase):
 
 
 def rear_sprocket(phase):
-    """50 teeth, aluminium. LEFT photo: six bolts, between them windows with a rounded top (polar scan: 31 deg wide
-    at r 88, 25 at r 96, closed by r 106) and three 7 mm holes at r 73; a slot outside every bolt (r 102..113)."""
+    """50 teeth (SPEC), aluminium, a truss of straight struts: LEFT photo unwrapped about the axle on the sprocket's
+    plane (spr_polar: angle x radius). Six bolts on bosses (SPEC 153 mm circle, LEFT at 85 + k 60 deg); between the
+    bolts a big window like a triangle standing on the bore ring (A: from r 74, 38 deg wide, to a rounded top at
+    r 96, 20 deg wide); above each bolt a smaller one hanging from the tooth ring (B: 25 deg wide at r 108.5, 11 deg
+    at its rounded bottom, r 90.5). Radii corrected for the photo's sprocket centre, which the bolt heads put 6.4 mm
+    from the model's axle (circle fit: x -2.9, z +5.7 mm on the sprocket plane). Teeth chamfered on both faces (ANSI
+    #520 tooth form: the top 3 mm of each tooth tapers to 55 % of its width)."""
     holes = [circle(SPROCKET_BORE_R, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6)
     for k in range(6):
         ab = SPROCKET_BOLT0 + k * math.pi / 3
         am = ab + math.pi / 6
-        win = [(0.080, d) for d in np.linspace(-15.5, 15.5, 9)]
-        win += [(0.088, 15.5), (0.096, 12.5), (0.102, 7.0), (0.1055, 2.0), (0.1055, -2.0), (0.102, -7.0),
-                (0.096, -12.5), (0.088, -15.5)]
-        holes.append(_round([_pol(r, am + math.radians(d)) for r, d in win]))
-        holes.append(resample(slot(_pol(0.106, ab), ab + math.pi / 2, 0.026, 0.009), 0.0035))
-        for d in (-10.5, 0.0, 10.5):
-            holes.append(circle(0.0035, 10, *_pol(0.073, am + math.radians(d))))
-    return _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.006)
+        a_win = [(0.0740, am + math.radians(d)) for d in (-19.0, 19.0)] + \
+                [(0.0960, am + math.radians(d)) for d in (10.0, -10.0)]
+        holes.append(_window(a_win, (0.005, 0.005, 0.007, 0.007)))
+        b_win = [(0.0905, ab + math.radians(d)) for d in (-5.5, 5.5)] + \
+                [(0.1085, ab + math.radians(d)) for d in (12.5, -12.5)]
+        holes.append(_window(b_win, (0.0045, 0.0045, 0.004, 0.004)))
+    m = _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.005)
+    rp = sprocket_r(50)
+    V = np.asarray(m.V)
+    r = np.hypot(V[:, 0], V[:, 2])
+    f = np.clip(1.0 - 0.45 * (r - (rp + TIP_H - 0.003)) / 0.003, 0.55, 1.0)       # tooth chamfers
+    V[:, 1] = CHAIN_Y + (V[:, 1] - CHAIN_Y) * f
+    m.V = list(map(tuple, V))
+    return m
+
+
+def _window(corners, radii, n=4):
+    """A window of a plate: corners (r, angle) in order round it, joined along arcs of constant radius where two
+    corners share a radius and by straight lines otherwise, then rounded with RADII."""
+    P = []
+    for (r0, a0), (r1, a1) in zip(corners, corners[1:] + corners[:1]):
+        if abs(r0 - r1) < 1e-9:
+            for t in np.linspace(0, 1, 8, endpoint=False):
+                P.append(_pol(r0, a0 + (a1 - a0) * t))
+        else:
+            P.append(_pol(r0, a0))
+    P = _fillet(np.array(P), [radii[[i for i, (r, a) in enumerate(corners) if np.allclose(_pol(r, a), p)][0]]
+                                 if any(np.allclose(_pol(r, a), p) for r, a in corners) else 0.0002 for p in P], n)
+    return resample(np.vstack([P, P[:1]]), 0.002)[:-1]
 
 
 BOTTOM_RUN = ((0.604, 0.428), (0.171, 0.270))       # LEFT: the bottom run is straight between these two points
@@ -567,30 +1204,55 @@ def chain_path():
 CHAIN_LEVELS = (-0.0087, -0.00725, -0.00525, -0.005175, -0.003175, -0.0031, 0.0031, 0.003175, 0.005175, 0.00525,
                 0.00725, 0.0087)                                # SPEC #520: pin ends, outer and inner plates, roller
 PIN_R = 0.0026                                                  # SPEC #520 pin 5.2 mm
+# Plates (LEFT pair p_spr1 zoomed, 475832): grey steel, figure-of-eight: round ends about the pins and a smooth waist;
+# the pins' riveted ends show as rings with a dark centre (the peening dimple). #520 plate height 15 mm, waist 12 mm
+# (ANSI / D.I.D tables: 15.0 and about 0.8 of it); inner and outer plates alike (the photo shows no step).
+PLATE_HR, PLATE_WAIST = 0.0075, 0.80
+PIN_SEG = 10
+
+
+def _plate_outline(length, hr):
+    """Figure-of-eight outline of a link plate, centred, along x: two end arcs and smooth waists."""
+    out = []
+    for sx, a0 in ((1, -90.0), (-1, 90.0)):
+        for t in np.radians(np.linspace(a0, a0 + 180.0, 9)):
+            out.append((sx * length / 2 + hr * math.cos(t), hr * math.sin(t)))
+        top = 1 if sx > 0 else -1                               # the waist after this arc (top after the front end)
+        for f in (0.25, 0.5, 0.75):
+            w = hr * (1 - (1 - PLATE_WAIST) * math.sin(math.pi * f))
+            out.append((sx * length / 2 * (1 - 2 * f), top * w))
+    return np.array(out)
 
 
 def _chain(m, pins, y):
-    """The chain as one connected mesh: every pin is a spool (riveted pin with its roller), and every plate's faces
-    are meshed round the pins' own vertices, so the links hang together as on the real chain."""
+    """The chain as one connected mesh: every pin is a spool (riveted pin with its roller, a dimpled head at each
+    end), and every plate's faces are meshed round the pins' own vertices, so the links hang together as on the
+    real chain."""
     from scipy.spatial import Delaunay
     n = len(pins)
-    a = np.linspace(0, 2 * math.pi, 8, endpoint=False)
+    a = np.linspace(0, 2 * math.pi, PIN_SEG, endpoint=False)
     cs, sn = np.cos(a), np.sin(a)
     ring = {}
+    nl = len(CHAIN_LEVELS)
     for k, (x, z) in enumerate(pins):
         for li, dy in enumerate(CHAIN_LEVELS):
             r = ROLLER_R if li in (5, 6) else PIN_R
-            ring[k, li] = m.verts(np.stack([x + r * cs, np.full(8, y + dy), z + r * sn], axis=1))
-        for li in range(len(CHAIN_LEVELS) - 1):
+            ring[k, li] = m.verts(np.stack([x + r * cs, np.full(PIN_SEG, y + dy), z + r * sn], axis=1))
+        for li in range(nl - 1):
             lo, hi = ring[k, li], ring[k, li + 1]
-            for j in range(8):
-                j2 = (j + 1) % 8
-                m.face((lo + j, hi + j, hi + j2, lo + j2), "steel")
-        c0, c1 = m.verts([(x, y + CHAIN_LEVELS[0], z)]), m.verts([(x, y + CHAIN_LEVELS[-1], z)])
-        for j in range(8):
-            j2 = (j + 1) % 8
-            m.face((ring[k, 0] + j, ring[k, 0] + j2, c0), "steel")
-            m.face((ring[k, 11] + j2, ring[k, 11] + j, c1), "steel")
+            for j in range(PIN_SEG):
+                j2 = (j + 1) % PIN_SEG
+                m.face((lo + j, hi + j, hi + j2, lo + j2), "chain_pin")
+        for end, sg in ((0, -1), (nl - 1, 1)):                  # riveted head: a rim, then a dimple
+            yy = y + CHAIN_LEVELS[end]
+            rim = m.verts(np.stack([x + 0.65 * PIN_R * cs, np.full(PIN_SEG, yy + sg * 0.00025), z + 0.65 * PIN_R * sn], 1))
+            c0 = m.verts([(x, yy - sg * 0.0003, z)])
+            for j in range(PIN_SEG):
+                j2 = (j + 1) % PIN_SEG
+                f = (ring[k, end] + j, ring[k, end] + j2, rim + j2, rim + j)
+                m.face(f if sg < 0 else f[::-1], "chain_pin")
+                t = (rim + j, rim + j2, c0)
+                m.face(t if sg < 0 else t[::-1], "chain_pin")
     for k in range(n):
         k2 = (k + 1) % n
         p, q = pins[k], pins[k2]
@@ -598,16 +1260,14 @@ def _chain(m, pins, y):
         length = float(np.linalg.norm(d))
         ex = d / length
         ez = np.array([-ex[1], ex[0]])
-        hr = 0.0073 if k % 2 == 0 else 0.0065                   # inner plates are the taller ones
-        loc = [(length / 2 + hr * math.cos(t), hr * math.sin(t)) for t in np.radians((-90, -45, 0, 45, 90))]
-        loc.append((0.0, 0.80 * hr))
-        loc += [(-length / 2 + hr * math.cos(t), hr * math.sin(t)) for t in np.radians((90, 135, 180, 225, 270))]
-        loc.append((0.0, -0.80 * hr))
-        loc = np.array(loc)
+        loc = _plate_outline(length, PLATE_HR)
+        no = len(loc)
         out = (p + q) / 2 + loc[:, :1] * ex + loc[:, 1:] * ez
         pts = np.vstack([out, p + PIN_R * np.stack([cs, sn], axis=1), q + PIN_R * np.stack([cs, sn], axis=1)])
         tri = Delaunay(pts).simplices
-        keep = inside(out, pts[tri].mean(axis=1)) & ~np.all((tri >= 12) & (tri < 20), axis=1) & ~np.all(tri >= 20, axis=1)
+        r1 = (tri >= no) & (tri < no + PIN_SEG)
+        r2 = tri >= no + PIN_SEG
+        keep = inside(out, pts[tri].mean(axis=1)) & ~np.all(r1, axis=1) & ~np.all(r2, axis=1)
         tri = tri[keep]
         u, v, w = pts[tri[:, 0]], pts[tri[:, 1]], pts[tri[:, 2]]
         flip = (v[:, 0] - u[:, 0]) * (w[:, 1] - u[:, 1]) - (v[:, 1] - u[:, 1]) * (w[:, 0] - u[:, 0]) < 0
@@ -615,13 +1275,14 @@ def _chain(m, pins, y):
         for la, lb in (((3, 4), (7, 8)) if k % 2 == 0 else ((1, 2), (9, 10))):
             idx = []
             for lev in (la, lb):
-                o = m.verts([(x, y + CHAIN_LEVELS[lev], z) for x, z in out])
-                idx.append(lambda i, o=o, lev=lev: o + i if i < 12 else (ring[k, lev] + i - 12 if i < 20 else ring[k2, lev] + i - 20))
+                o = m.verts([(xx, y + CHAIN_LEVELS[lev], zz) for xx, zz in out])
+                idx.append(lambda i, o=o, lev=lev: o + i if i < no else (ring[k, lev] + i - no if i < no + PIN_SEG
+                                                                         else ring[k2, lev] + i - no - PIN_SEG))
             for t in tri:
                 m.face([idx[0](i) for i in t], "chain")
                 m.face([idx[1](i) for i in t[::-1]], "chain")
-            for i in range(12):
-                i2 = (i + 1) % 12
+            for i in range(no):
+                i2 = (i + 1) % no
                 m.face((idx[0](i), idx[1](i), idx[1](i2), idx[0](i2)), "chain")
 
 
@@ -662,11 +1323,21 @@ def _flange(rh, yf):
             (rh, yf - 0.003), (rh - 0.008, yf - 0.003)]
 
 
-def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems):
+def rear_tyre():
+    """Rear tyre: carcass grid with the red centre line, and the shaped knobs."""
+    sec = Section(REAR, REAR_SECTION)
+    m, na, a0, n_t = carcass(sec, REAR["pitches"], REAR_PHASE, 8, 0.054)
+    rear_tread(m, sec, REAR["pitches"], a0, REAR)
+    for side in (1, -1):
+        sidewall(m, sec, REAR, side, REAR_WALL)
+    return m, na, a0, n_t
+
+
+def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems, tyre_fn):
     """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
-    m, na, a0, n_t = tyre(spec, ctrl, rows, tread_phase)
-    _rim(m, spec, na, a0, n_t)
-    _hub(m, prof, mats, spoke0)
+    m, na, a0, n_t = tyre_fn()
+    _rim(m, spec, na, a0, n_t, "rear" if spec is REAR else "front")
+    _hub(m, prof, mats, spoke0, 2 * SPOKES["rear" if spec is REAR else "front"])
     _spokes(m, spec, rh, yl, yr, spoke0)
     for ang, lock in stems:
         _stem(m, spec, math.radians(ang), lock)
@@ -685,13 +1356,31 @@ def front_wheel():
             (0.0155, -0.0705), (0.0104, -0.0705)]                 # collars to +72.5 / -70.5: the fork lugs clamp outside
     mats = ["steel", "steel", "rubber_black", "rubber_black"] + ["hub"] * (len(prof) - 9) + [
         "rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(FRONT, FRONT_SECTION, FRONT_ROWS, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
-               ((245.0, False), (65.0, True)))
+    m = _wheel(FRONT, FRONT_SECTION, None, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
+               ((53.8, False), (252.5, True)), front_tyre)       # valve, rim lock: unwraps (above)
     b0 = DISC_F_DEEP + math.pi / 6
     m.add(_plate(_lobes(6, 0.040, 0.063, 20.0, b0), [circle(0.0255, 48)] + _pilots(DISC_F_BOLT_R, b0, 6), yc + 0.003,
                  0.006, "hub", 0.008))
     m.add(front_disc())
     return _at(m, FA)
+
+
+# Rear hub (LEFT photo, sprocket plane unwrapped and rectified: spr_plan / spr_overlay): a dark grey casting, RGB
+# 96 / 99 / 102 in the photo where the bare aluminium sprocket reads 150 / 153 / 157 (r 40..56 mm, 180..300 deg);
+# its sprocket-side end, seen through the sprocket's bore, carries twelve tear-shaped radial ribs (r 36..54 mm).
+def _hub_ribs(m, y_face, n=12):
+    """Radial ribs on the hub's sprocket-side end face (plane y = Y_FACE, facing +y), between r 36 and 54 mm."""
+    for k in range(n):
+        a = SPROCKET_BOLT0 + (k + 0.5) * 2 * math.pi / n
+
+        def xf(s, t, z, a=a):
+            s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+            ang = a + s / t
+            return np.stack([t * np.cos(ang), y_face + z, t * np.sin(ang)], axis=-1)
+
+        # tear-shaped, 8 mm across at the outer end (LEFT pair p_spr1: the first try at 5 mm read as thin lines)
+        plan = [(-0.0015, 0.0360), (0.0015, 0.0360), (0.0040, 0.0490), (0.0, 0.0545), (-0.0040, 0.0490)]
+        _knob(m, xf, _fillet(plan, 0.0015), lambda s, t: 0.0026, math.radians(25.0), mat="hub_cast", rnd=0.0010)
 
 
 def rear_wheel():
@@ -712,11 +1401,13 @@ def rear_wheel():
              (0.028, -0.079), (0.024, -0.079), (0.024, -0.0798), (0.0175, -0.0798), (0.0175, -0.0855),
              (0.0125, -0.0855)]                                  # right collar, up to the caliper bracket
     mats += ["rubber_black", "rubber_black"]
-    mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(REAR, REAR_SECTION, REAR_ROWS, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
-               ((115.0, False), (295.0, True)))
+    mats += ["hub_cast"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
+    m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
+               ((84.8, False), (308.2, True)), rear_tyre)        # valve, rim lock: unwraps (above)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
-                 [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
+                 [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub_cast",
+                 0.008))
+    _hub_ribs(m, 0.5 * (y_end - 0.003 + y_end - 0.004))
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
@@ -724,7 +1415,7 @@ def rear_wheel():
         m.add(bolt((x, back, z), (0, -1, 0), af=0.012, head_h=0.008, mat="steel"))
     yd = DISC_R["y"] + DISC_R["t"] / 2
     m.add(_plate(_lobes(4, 0.060, 0.080, 14.0, DISC_R_FLAT), [circle(0.0565, 48)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4),
-                 yd + 0.004, 0.008, "hub", 0.008))
+                 yd + 0.004, 0.008, "hub_cast", 0.008))
     m.add(rear_disc())
     return _at(m, RA)
 
@@ -780,6 +1471,12 @@ def _hull(circles, n=20):
     pts = np.vstack([np.stack([x + r * np.cos(a), z + r * np.sin(a)], axis=1) for x, z, r in circles])
     return pts[ConvexHull(pts).vertices]
 
+
+if __name__ == "__main__":                       # python3 detail_wheels.py: repaint the rim strips
+    import os
+    for w in ("rear", "front"):
+        print(rim_texture(w, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock",
+                                          "rim_%s.png" % w)))
 
 PARTS = {name: (lambda fn=fn: _compact(fn())) for name, fn in
          (("front_wheel", front_wheel), ("rear_wheel", rear_wheel), ("drive", drive), ("rear_brake", rear_brake))}
