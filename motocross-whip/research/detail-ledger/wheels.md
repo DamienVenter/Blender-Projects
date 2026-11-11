@@ -354,6 +354,26 @@ with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
 ### Still different
 - The hole pattern is the old one (rows of 28), not hole-for-hole the photo's.
 
+### Round 3: the drilled holes hole for hole
+- Anatomy: 7 mm drilled holes with a chamfer each face, in curved runs rising outward across the band; an arc slot
+  in each of the four arms beside its bolt; the arms run on past their bolts to carry the slots.
+- Reference and method: RIGHT photo rectified onto the disc's outer face (y -0.072, 0.2 mm a px) about the disc's own
+  centre (`SCRATCH3/rect_disc.py` -> `disc_rect.png`), unwrapped (`disc_polar_grid.png`); holes found as dark or
+  bright blobs (`det_holes.py`, 37 found) and the rest read by eye where spokes cross them
+  (`disc_polar_det_a.png`, `disc_polar_det_b.png`). Visible arc 80..340 deg (the swingarm and caliper hide the rest).
+- Finding: the holes repeat every 90 deg (with the four bolts, not the eight petals): the three visible quarters
+  agree hole for hole within about 1 deg and 1.5 mm. 17 holes a quarter (68), `DISC_R_HOLES` = the mean of the three
+  quarters. Diameter 7.0 mm radially (7.7 along the arc with the shading of the chamfers); the old 6 mm rows of 28
+  are gone.
+- Arms (`rear_disc_r_in`): the boss within 9 deg of the bolt down to r 63 as before; past the bolt the arm keeps its
+  inner edge at r 74 for 24 deg, then rises to the band (the unwrap shows disc grey down to r 70..74 under the slot).
+  Slot `DISC_R_SLOT`: r 82, 4.5 mm wide, 2..19 deg past the bolt, round ends (unwrap r 80..85, 269..287 deg).
+- Check: `disc_overlay3.png` / `disc_overlay3_z.png`: the model's holes, slots and outline drawn on the rectified
+  photo: every visible hole ringed; the slot moved 2 mm in and 2 deg back after the first overlay. RIGHT pair
+  `p_disc5.jpg`.
+- Still different: the arms' outline between the slot and the band is EST (the hub behind is the same grey as the
+  disc there); the quarter behind the swingarm and caliper is the pattern repeated, not seen.
+
 ## 11. Rear caliper (partly)
 
 ### Done

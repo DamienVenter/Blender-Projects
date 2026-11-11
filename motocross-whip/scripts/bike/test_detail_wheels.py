@@ -273,6 +273,20 @@ def test_chain_line_and_clearances(built):
     assert not np.any((near_disc[:, 1] > y0 - 0.0001) & (near_disc[:, 1] < y1 + 0.0001))
 
 
+def test_rear_disc_holes():
+    # round 3: 17 holes a quarter from the RIGHT photo's unwrap, repeated every 90 deg (68), 7 mm, each clear of the
+    # wave outline and the inner edge; four arc slots in the arms
+    assert len(dw.DISC_R_HOLES) == 17 and abs(dw.DISC_R_HOLE_D - 0.007) < 1e-9
+    for k in range(4):
+        for ad, rh in dw.DISC_R_HOLES:
+            a = math.radians(ad + 90 * k)
+            assert float(dw.rear_disc_r(a)) - rh / 1000 - dw.DISC_R_HOLE_D / 2 > 0.0012
+            assert rh / 1000 - dw.DISC_R_HOLE_D / 2 - float(dw.rear_disc_r_in(a)) > 0.0012
+    rs, hw, a0, a1 = dw.DISC_R_SLOT
+    a = dw.DISC_R_FLAT + np.radians(np.linspace(a0 - 1, a1 + 1, 30))
+    assert np.all(rs - hw - dw.rear_disc_r_in(a) > 0.002)
+
+
 def test_rear_caliper(built):
     # RIGHT photo (round 3): the piston sits at about 47 deg from the axle (not 65), r 108 mm; the slide pin's head
     # ahead of it outside the disc, the bracket's pin behind and below; the guard's top bolt high at the front

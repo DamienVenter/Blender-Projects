@@ -36,6 +36,9 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              # chain (LEFT pair p_spr1, 475832): plain grey steel plates and pins, not the dark grey of before
              "chain": dict(rgb=(128, 129, 133), metal=1.0, rough=0.42),
              "chain_pin": dict(rgb=(150, 151, 155), metal=1.0, rough=0.35),
+             # both discs (RIGHT pair p_disc5, round 3: the photo's disc reads 160..172, as bright as the swingarm;
+             # the base material rendered it at 120)
+             "disc": dict(rgb=(192, 193, 197), metal=1.0, rough=0.30, aniso=0.4),
              # rear caliper (RIGHT photo: body 56..66, piston housing's end 100..110, swingarm 175, disc 160)
              "caliper_r": dict(rgb=(86, 87, 91), metal=0.8, rough=0.36),
              "caliper_face": dict(rgb=(100, 102, 106), metal=1.0, rough=0.38),
@@ -1057,11 +1060,29 @@ def rear_disc_r(a):
 
 def rear_disc_r_in(a):
     """Inner edge: the braking band's inner edge at r 89.5 between the bolts, and at each of the four bolts an arm
-    down to the bolt's boss (RIGHT unwrap: arms 15 deg wide at r 80, 30 deg where they leave the band; the bosses
-    8 mm round the bolts on r 72)."""
+    down to the bolt's boss (RIGHT unwrap: the boss 8 mm round the bolt on r 72, down to r 63; round 3, the photo
+    unwrapped about the disc's own centre (disc_polar_det_b): each arm runs on 24 deg past its bolt at r 74, carrying
+    the arc slot (DISC_R_SLOT), and 9 deg before it)."""
     d = np.degrees((np.asarray(a, float) - DISC_R_FLAT + math.pi / 4) % (math.pi / 2) - math.pi / 4)
-    w = np.clip((np.abs(d) - 9.0) / 9.0, 0, 1)                  # 0 on the arm, 1 on the band
-    return 0.0630 + (0.0895 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * w))
+    w_b = np.clip((np.abs(d) - 9.0) / 9.0, 0, 1)                # the boss: 0 within 9 deg of the bolt
+    r = 0.0630 + (0.0740 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * np.clip((d - 9.0) / 5.0, 0, 1)))
+    r = np.where(d < 0, 0.0630 + (0.0895 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * w_b)), r)
+    w_t = np.clip((d - 24.0) / 8.0, 0, 1)                       # past the slot, up to the band
+    return np.where(d > 24.0, 0.0740 + (0.0895 - 0.0740) * (0.5 - 0.5 * np.cos(math.pi * w_t)), r)
+
+
+# Drilled holes, round 3: the RIGHT photo rectified onto the disc's outer face (y -0.072, 0.2 mm a px) about the
+# disc's own centre (the photo's hub, 8.4 mm above parts.RA), unwrapped (disc_polar_grid, disc_polar_det_a/b) and the
+# holes found as dark or bright blobs (det_holes.py) and read by eye where a spoke crosses them. They repeat every
+# 90 deg (the three visible quarters agree hole for hole to 1 deg and 1.5 mm): 17 a quarter, 68 in all, in curved
+# runs rising outward. (angle deg, r mm), the mean of the three quarters, for the quarter 180..270 deg.
+DISC_R_HOLES = ((180.5, 96.8), (187.6, 101.2), (194.3, 103.7), (201.5, 108.5), (201.0, 94.5), (208.8, 110.9),
+                (208.0, 97.7), (215.0, 102.7), (221.7, 110.0), (221.9, 96.6), (229.6, 98.5), (237.1, 102.1),
+                (244.0, 107.0), (250.2, 111.0), (254.9, 100.2), (260.9, 108.6), (262.1, 92.7))
+DISC_R_HOLE_D = 0.0070      # the unwrap: 7.0 mm across radially, 7.7 along the arc (with the chamfers' shading)
+DISC_R_SLOT = (0.0820, 0.00225, 2.0, 19.0)      # arc slot in each arm: r, half width, from / to deg past the bolt
+#                                                 (unwrap: r 80..85 mm, 269..287 deg beside the bolt at 266.7;
+#                                                 overlay disc_overlay3_z: moved 2 mm in and 2 deg back)
 
 
 DISC_R_PETAL0 = 63.5    # deg, the first petal's plateau start (above)
@@ -1071,13 +1092,19 @@ def rear_disc():
     a = np.radians(np.arange(0, 360, 1.25))
     ai = np.radians(np.arange(0, 360, 1.0))
     holes = [_pol(rear_disc_r_in(ai), ai)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4)
-    for j in range(28):                                          # RIGHT scan: holes at r 94, 103 and 111 mm
-        for r, da in ((0.1115, 0.0), (0.1030, 4.3), (0.0945, 8.6)):
-            ah = DISC_R_FLAT + j * 2 * math.pi / 28 + math.radians(da)
-            if rear_disc_r(ah) - r > 0.0065 and r - rear_disc_r_in(ah) > 0.0065:
-                holes.append(circle(0.003, 12, *_pol(r, ah)))
-    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007, chamfer=0.0004,
-               chamfered=range(5, len(holes) - 1))               # drilled holes: a small chamfer each face
+    for k in range(4):
+        for ad, rh in DISC_R_HOLES:
+            holes.append(circle(DISC_R_HOLE_D / 2, 16, *_pol(rh / 1000.0, math.radians(ad + 90.0 * k))))
+        rs, hw, a0, a1 = DISC_R_SLOT                             # the arm's arc slot, round ends
+        b = DISC_R_FLAT + k * math.pi / 2
+        ts = np.radians(np.linspace(a0, a1, 14))
+        out_ = [_pol(rs + hw, b + t) for t in ts] + [_pol(rs + hw * np.cos(t), b + np.radians(a1) + hw / rs * np.sin(t))
+                                                     for t in np.linspace(0, math.pi, 9)[1:-1]]
+        out_ += [_pol(rs - hw, b + t) for t in ts[::-1]] + [_pol(rs - hw * np.cos(t), b + np.radians(a0) - hw / rs *
+                                                                 np.sin(t)) for t in np.linspace(0, math.pi, 9)[1:-1]]
+        holes.append(np.array(out_))
+    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.006, chamfer=0.0004,
+               chamfered=range(5, len(holes) - 1))               # drilled holes and slots: a chamfer each face
     for k in range(4):                                           # RIGHT unwrap: round socket heads on the bosses
         x, z = _pol(DISC_R_BOLT_R, DISC_R_FLAT + k * math.pi / 2)
         m.add(bolt((x, DISC_R["y"] - DISC_R["t"] / 2, z), (0, -1, 0), af=0.0125, head_h=0.005, mat="steel",
