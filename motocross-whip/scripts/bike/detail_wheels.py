@@ -26,7 +26,10 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "rim": dict(rgb=(12, 12, 13), metal=0.0, rough=0.40),
              "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.40),
              "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.40),
-             "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22)}           # DR13: bright plated nipples
+             "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22),           # DR13: bright plated nipples
+             "hub_cast": dict(rgb=(106, 108, 113), metal=1.0, rough=0.45),         # rear hub (see _hub_ribs)
+             # LEFT pair p_spr1: the bare aluminium sprocket reads 150..157 in the photo, the old 170 rendered white
+             "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48)}
 CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
@@ -1066,20 +1069,46 @@ def sprocket_outline(n, phase):
 
 
 def rear_sprocket(phase):
-    """50 teeth, aluminium. LEFT photo: six bolts, between them windows with a rounded top (polar scan: 31 deg wide
-    at r 88, 25 at r 96, closed by r 106) and three 7 mm holes at r 73; a slot outside every bolt (r 102..113)."""
+    """50 teeth (SPEC), aluminium, a truss of straight struts: LEFT photo unwrapped about the axle on the sprocket's
+    plane (spr_polar: angle x radius). Six bolts on bosses (SPEC 153 mm circle, LEFT at 85 + k 60 deg); between the
+    bolts a big window like a triangle standing on the bore ring (A: from r 74, 38 deg wide, to a rounded top at
+    r 96, 20 deg wide); above each bolt a smaller one hanging from the tooth ring (B: 25 deg wide at r 108.5, 11 deg
+    at its rounded bottom, r 90.5). Radii corrected for the photo's sprocket centre, which the bolt heads put 6.4 mm
+    from the model's axle (circle fit: x -2.9, z +5.7 mm on the sprocket plane). Teeth chamfered on both faces (ANSI
+    #520 tooth form: the top 3 mm of each tooth tapers to 55 % of its width)."""
     holes = [circle(SPROCKET_BORE_R, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6)
     for k in range(6):
         ab = SPROCKET_BOLT0 + k * math.pi / 3
         am = ab + math.pi / 6
-        win = [(0.080, d) for d in np.linspace(-15.5, 15.5, 9)]
-        win += [(0.088, 15.5), (0.096, 12.5), (0.102, 7.0), (0.1055, 2.0), (0.1055, -2.0), (0.102, -7.0),
-                (0.096, -12.5), (0.088, -15.5)]
-        holes.append(_round([_pol(r, am + math.radians(d)) for r, d in win]))
-        holes.append(resample(slot(_pol(0.106, ab), ab + math.pi / 2, 0.026, 0.009), 0.0035))
-        for d in (-10.5, 0.0, 10.5):
-            holes.append(circle(0.0035, 10, *_pol(0.073, am + math.radians(d))))
-    return _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.006)
+        a_win = [(0.0740, am + math.radians(d)) for d in (-19.0, 19.0)] + \
+                [(0.0960, am + math.radians(d)) for d in (10.0, -10.0)]
+        holes.append(_window(a_win, (0.005, 0.005, 0.007, 0.007)))
+        b_win = [(0.0905, ab + math.radians(d)) for d in (-5.5, 5.5)] + \
+                [(0.1085, ab + math.radians(d)) for d in (12.5, -12.5)]
+        holes.append(_window(b_win, (0.0045, 0.0045, 0.004, 0.004)))
+    m = _plate(sprocket_outline(50, phase), holes, CHAIN_Y, SPROCKET_T, "sprocket", 0.005)
+    rp = sprocket_r(50)
+    V = np.asarray(m.V)
+    r = np.hypot(V[:, 0], V[:, 2])
+    f = np.clip(1.0 - 0.45 * (r - (rp + TIP_H - 0.003)) / 0.003, 0.55, 1.0)       # tooth chamfers
+    V[:, 1] = CHAIN_Y + (V[:, 1] - CHAIN_Y) * f
+    m.V = list(map(tuple, V))
+    return m
+
+
+def _window(corners, radii, n=4):
+    """A window of a plate: corners (r, angle) in order round it, joined along arcs of constant radius where two
+    corners share a radius and by straight lines otherwise, then rounded with RADII."""
+    P = []
+    for (r0, a0), (r1, a1) in zip(corners, corners[1:] + corners[:1]):
+        if abs(r0 - r1) < 1e-9:
+            for t in np.linspace(0, 1, 8, endpoint=False):
+                P.append(_pol(r0, a0 + (a1 - a0) * t))
+        else:
+            P.append(_pol(r0, a0))
+    P = _fillet(np.array(P), [radii[[i for i, (r, a) in enumerate(corners) if np.allclose(_pol(r, a), p)][0]]
+                                 if any(np.allclose(_pol(r, a), p) for r, a in corners) else 0.0002 for p in P], n)
+    return resample(np.vstack([P, P[:1]]), 0.002)[:-1]
 
 
 BOTTOM_RUN = ((0.604, 0.428), (0.171, 0.270))       # LEFT: the bottom run is straight between these two points
@@ -1309,6 +1338,24 @@ def front_wheel():
     return _at(m, FA)
 
 
+# Rear hub (LEFT photo, sprocket plane unwrapped and rectified: spr_plan / spr_overlay): a dark grey casting, RGB
+# 96 / 99 / 102 in the photo where the bare aluminium sprocket reads 150 / 153 / 157 (r 40..56 mm, 180..300 deg);
+# its sprocket-side end, seen through the sprocket's bore, carries twelve tear-shaped radial ribs (r 36..54 mm).
+def _hub_ribs(m, y_face, n=12):
+    """Radial ribs on the hub's sprocket-side end face (plane y = Y_FACE, facing +y), between r 36 and 54 mm."""
+    for k in range(n):
+        a = SPROCKET_BOLT0 + (k + 0.5) * 2 * math.pi / n
+
+        def xf(s, t, z, a=a):
+            s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+            ang = a + s / t
+            return np.stack([t * np.cos(ang), y_face + z, t * np.sin(ang)], axis=-1)
+
+        # tear-shaped, 8 mm across at the outer end (LEFT pair p_spr1: the first try at 5 mm read as thin lines)
+        plan = [(-0.0015, 0.0360), (0.0015, 0.0360), (0.0040, 0.0490), (0.0, 0.0545), (-0.0040, 0.0490)]
+        _knob(m, xf, _fillet(plan, 0.0015), lambda s, t: 0.0026, math.radians(25.0), mat="hub_cast", rnd=0.0010)
+
+
 def rear_wheel():
     """Rear wheel about the rear axle: sprocket on the left on the chain line, disc on the right."""
     ys = CHAIN_Y
@@ -1327,11 +1374,13 @@ def rear_wheel():
              (0.028, -0.079), (0.024, -0.079), (0.024, -0.0798), (0.0175, -0.0798), (0.0175, -0.0855),
              (0.0125, -0.0855)]                                  # right collar, up to the caliper bracket
     mats += ["rubber_black", "rubber_black"]
-    mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
+    mats += ["hub_cast"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
     m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
                ((84.8, False), (308.2, True)), rear_tyre)        # valve, rim lock: unwraps (above)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
-                 [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
+                 [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub_cast",
+                 0.008))
+    _hub_ribs(m, 0.5 * (y_end - 0.003 + y_end - 0.004))
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
@@ -1339,7 +1388,7 @@ def rear_wheel():
         m.add(bolt((x, back, z), (0, -1, 0), af=0.012, head_h=0.008, mat="steel"))
     yd = DISC_R["y"] + DISC_R["t"] / 2
     m.add(_plate(_lobes(4, 0.060, 0.080, 14.0, DISC_R_FLAT), [circle(0.0565, 48)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4),
-                 yd + 0.004, 0.008, "hub", 0.008))
+                 yd + 0.004, 0.008, "hub_cast", 0.008))
     m.add(rear_disc())
     return _at(m, RA)
 

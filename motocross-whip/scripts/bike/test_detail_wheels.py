@@ -144,6 +144,24 @@ def test_rims(built):
         assert abs(r.min() - (spec["r_in"] - 0.0006)) < 0.0003 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
 
 
+def test_rear_sprocket():
+    """50 teeth on the #520 pitch circle, six bolts on the 153 mm circle, twelve windows (six A between the bolts,
+    six B above them) where the LEFT photo shows them, and teeth chamfered to 55 % at the tip."""
+    m = dw.rear_sprocket(0.3)
+    V = np.asarray(m.V)
+    r = np.hypot(V[:, 0], V[:, 2])
+    tip = r > r.max() - 0.0002
+    assert abs(r.max() - (parts.sprocket_r(50) + dw.TIP_H)) < 0.0003
+    assert np.ptp(V[tip, 1]) < 0.6 * dw.SPROCKET_T and np.ptp(V[r < 0.11, 1]) > 0.99 * dw.SPROCKET_T
+    # window material shows at r 80 between the bolts (A) and at r 100 over the bolts (B): no plate vertex there
+    for rr, a0 in ((0.082, dw.SPROCKET_BOLT0 + math.pi / 6), (0.100, dw.SPROCKET_BOLT0)):
+        for k in range(6):
+            a = a0 + k * math.pi / 3
+            d = np.hypot(V[:, 0] - rr * math.cos(a), V[:, 2] - rr * math.sin(a))
+            assert d.min() > 0.004
+    assert abs(dw.SPROCKET_BOLT_R - 0.0765) < 1e-9
+
+
 def test_rim_print(built):
     """The decal strip lies on the side bands only, once a side, where the side photos show it, with UVs inside
     the texture; the textures exist (python3 detail_wheels.py paints them)."""
@@ -233,7 +251,7 @@ def test_sprockets_and_chain():
 def test_wheelbase_and_ground(built):
     assert abs((parts.FA[0] - parts.RA[0]) - 1.483) < 1e-9                  # SPEC wheelbase
     for name, c in (("front_wheel", parts.FA), ("rear_wheel", parts.RA)):
-        r, V = _radii(built[name], c, "hub")
+        r, V = _radii(built[name], c, ("hub", "hub_cast"))
         assert abs(V[:, 0].mean() - c[0]) < 0.002 and abs(V[:, 2].mean() - c[2]) < 0.002
     # on the ground (parts.to_ground: nose-up by GROUND_PITCH, the ground GROUND_DROP under the frame's z = 0)
     for name in ("front_wheel", "rear_wheel"):

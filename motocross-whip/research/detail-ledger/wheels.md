@@ -252,3 +252,48 @@ the `rim` material overridden to a plain satin black (no other module uses it).
 
 ### Still different
 - The valve's own thread and the cap's knurling are not modelled (too fine to see in any photo).
+
+## 7. Rear hub (partly)
+
+### Anatomy
+- Cast barrel with two spoke flanges, the sprocket flange (six lobes under the bolts) and the disc flange (four
+  lobes), seals and collars each side; seen in the LEFT photo through the sprocket's bore: a dark grey casting with
+  twelve tear-shaped radial ribs on its end face.
+
+### References and numbers
+- LEFT photo rectified onto the sprocket plane (`SCRATCH/spr_plan.png`, 0.25 mm a px) and unwrapped
+  (`SCRATCH/spr_polar.png`). Colour: hub end RGB 96 / 99 / 102 against the bare sprocket's 150 / 153 / 157, so the
+  hub is a darker cast finish (`hub_cast`, both hub lathe and its flanges).
+- Ribs: twelve, r 36..54.5 mm, 3 mm wide inside, 8 mm outside, 2.6 mm high (EST from the photo's bumps).
+
+### Checks
+- `SCRATCH/p_spr1.jpg` (LEFT pair, the box of the coordinator's example).
+
+### Not done
+- Spoke-flange hole chamfers, the barrel's own casting shape (hidden by spokes and discs in every photo), the
+  seals' lips. The front hub keeps the old light "hub" finish (no photo shows its colour clearly).
+
+## 8. Rear sprocket 50T
+
+### Anatomy
+- 50 teeth on the #520 pitch circle, chamfered tips; a bore ring with six bolt bosses; a truss of straight struts:
+  six big windows between the bolts (standing on the bore ring, narrowing outward) and six smaller ones above the
+  bolts (hanging from the tooth ring, narrowing inward); six socket-head bolts with nuts behind.
+
+### References and numbers
+- LEFT photo unwrapped about the axle on the sprocket plane (`SCRATCH/spr_polar.png`): window A between bolts from
+  r 74 (38 deg wide) to r 96 (20 deg); window B above each bolt from r 108.5 (25 deg) to r 90.5 (11 deg). The bolt
+  heads fit a circle 6.4 mm off the model's axle (x -2.9, z +5.7 mm on the sprocket plane, r 78): the radii are
+  read from that centre. `SCRATCH/spr_overlay.png`: the model's windows drawn on the rectified photo, every window
+  in place.
+- The old model's slots over the bolts and three 7 mm holes between them are not in the photo: removed.
+- Teeth: the top 3 mm taper to 55 % of the 5.8 mm width (EST, the usual chamfer of an ANSI #520 sprocket).
+- Finish: bare aluminium, RGB 150..157 in the photo (material darkened from 170, which rendered white).
+
+### Checks
+- `SCRATCH/spr_overlay.png`; `SCRATCH/p_spr1.jpg` (LEFT pair).
+
+### Still different, and why
+- The photo's sprocket sits 6.4 mm from the model's axle (above): the model keeps the shared axle (`parts.RA`);
+  reported.
+- Stamped marks (tooth count, part number) are not visible in any photo: not modelled.
