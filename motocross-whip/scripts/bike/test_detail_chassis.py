@@ -287,3 +287,21 @@ def test_master_cylinder_is_one_casting_where_the_photos_have_it():
     # (ahead of the tabs' rear edge x 0.479 (TAB_PX u 1639), above the lower tab's foot at z 0.4925; the skirt under it is wider, REAR)
     near = V[(V[:, 0] > 0.479) & (V[:, 2] > 0.4925)]
     assert near[:, 1].min() > -(dc.Y_PLATE - dc.TAB_T) + 0.0004
+
+
+def test_frame_leg_turns_away_and_the_pivot_boss_has_its_rim():
+    """Round 4: the leg's face is crowned (it turns away over the last 18 mm, most at the C round the engine: detail
+    photo 475836), and the boss round the pivot is 34 mm in radius with a raised rim at its fold (RIGHT, LEFT)."""
+    from geom import inside
+    for s in (1, -1):
+        c = dc._Cast(s)
+        xs = np.linspace(0.50, 0.66, 641)
+        P = np.column_stack([xs, np.full(len(xs), 0.60)])
+        P = P[inside(c.o, P)]
+        yo = c.surf(P, True)
+        front = c.surf(np.array([[P[-1, 0] - 0.005, 0.60]]), True)[0]
+        assert yo.max() - front > 0.0015                     # 5 mm inside the front edge: turned away
+        piv = c.piv
+        at = lambda r: c.surf((piv + r * np.array([-0.7071, 0.7071]))[None], True)[0]   # noqa: E731
+        assert at(dc.BOSS_R - dc.BOSS_RIM[0]) - at(0.020) > 0.0006     # the rim stands over the boss's face
+        assert at(0.020) - at(dc.BOSS_R + 0.006) > 0.0012              # the boss stands over the leg

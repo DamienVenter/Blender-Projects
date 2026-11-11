@@ -413,3 +413,29 @@ Still different: the grain and lettering are a normal map (they do not change th
 studio render's step-in face of the swingarm is lit where the photo's is mid grey; the REAR model sits 13 px high (the
 rear camera's known offset, not the part); detail_wheels' hose passes outboard of the web in RIGHT (v 1400..1414,
 ending at u 1626) where their run ends inboard (y -0.100): theirs, reported.
+
+## 2. Frame rear, depth (part `frame`): the boss's rim round the pivot, the leg's turned faces
+Anatomy (RIGHT, LEFT, the Honda detail photo 475836 in directional light): the leg's outer face is crowned, not flat:
+it turns away over its last 1 to 2 cm toward the C round the engine (dark there in the detail photo, a highlight line
+at the edge in the studio photos) and less toward the rear edge; round the pivot a boss about 68 mm across whose fold
+is a raised rim, a C cut open by the leg's front edge, the face inside it reading recessed; no channel along the
+front rim (looked for: none in any profile).
+References: RIGHT fr1 (1640..1900 x 1080..1600, 2x), fr2 and LEFT fl2 (equalised 3.2x, 1660..1830 / 2170..2340 x
+1180..1480); intensity rows 1260..1460 and columns 1700, 1720 of both photos; detail 475836 (d836, d836_leg, rows 1300,
+1500, 1700).
+Numbers: boss fold at 34 mm from the pivot (RIGHT column 1700 lit at v 1415..1440, 40 mm; row 1420 lit at u 1700..
+1710; LEFT row 1440 the boss face lit to u 2296, 36.6 mm, dropping there): BOSS_R 0.026 -> 0.034, the face 1.5 mm
+proud, the rim 0.8 mm over it, 3.5 mm half width (BOSS_RIM). Turned faces (TURN): 2.5 mm at the front edge, 1 mm at
+the rear, over 18 mm (the detail photo, the leg 208 px = 50 mm wide: 125 -> 181 over the first 10 mm from the front
+edge, even 200 beyond); not on the spar above the U bead, the tabs, the footpeg pad or the pedal's seat.
+Built: `_Cast.turn` (blended by the edge radius, front 7 mm to rear 4 mm), the rim in `_Cast.feat`, rows of vertices
+at the rim (`extra`). Test: `test_frame_leg_turns_away_and_the_pivot_boss_has_its_rim`.
+Checks: f1 pairs right 1640..1900 x 1150..1600 and left 2100..2360 (f1_both), f2 tighter pairs (f2_both), close-ups
+cu2 (cu_fl beside d836_leg, cu_fr).
+Engine hanger plates: not in this module's frame. They are detail_engine.py's head hangers (`_hanger`: "plate seated on
+the inner face of the frame's plate") and the engine's plates at x 0.667..0.711, z 0.68..0.735, |y| 0.098..0.102 (part
+`engine`), on the frame's inner face; the photos have them outside: theirs to move. Note for them: detail_engine copies
+this module's boss radius (PIVOT_BOSS_R = 0.026): it is 0.034 now.
+Still different: in the studio render the right side's turned front reads darker where the photo has a highlight
+line along the edge (the left side matches): the render's light, not the shape (the same face on the left is lit);
+the leg's section in between is EST (no photo shows it end on).

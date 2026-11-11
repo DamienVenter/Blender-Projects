@@ -531,8 +531,17 @@ PIV_NUT = (0.021, 0.008)                # across flats, thickness
 PIV_END = (0.008, 0.0035, 0.0015)       # bolt end radius, its bore radius, standing proud of the nut
 PIV_HEX = (0.0277, 0.0035)              # recess across flats, depth
 PIV_HEAD = (0.0250, 0.0053)             # head across flats (1.4 mm gap all round: the outline 2 px wide), bore radius
-BOSS_R, BOSS_H = 0.026, 0.0020          # the boss round the pivot (the old pass's 26 mm; RIGHT: the lit rim round the
-#                                         counterbore and the fold where it meets the leg's front edge)
+BOSS_R, BOSS_H = 0.034, 0.0015          # the boss round the pivot (round 4; it was 26 mm): its fold, a raised rim, is
+#   a C round the pivot cut open by the leg's front edge: RIGHT column 1700 lit from v 1415 to 1440 (40 mm from the
+#   nut, chassis4/fr2), row 1420 lit at u 1700..1710; LEFT row 1440 the boss's face lit to u 2296 (36.6 mm from the
+#   head) and dropping there; the detail photo 475836 (d836_leg) shows the fold as a crisp edge on the boss's rear
+BOSS_RIM = (0.0035, 0.0008)             # the rim's half width and height over the boss's face (EST: the fold's lit band
+#                                         is 4 to 6 px wide; the face inside it reads recessed)
+TURN = (0.0010, 0.0025, 0.018)          # round 4: the leg's face turns away over the last 18 mm before its edges, 2.5
+#   mm at the front (the C round the engine), 1 mm at the rear (a crowned section): the detail photo 475836 (directional
+#   light, the leg 208 px = 50 mm wide) rises 125 -> 181 over the first 10 mm from the front edge and is even (200) over
+#   the rest (rows 1300, 1500, 1700); no channel along the rim. RIGHT row 1340 brightens 182 -> 200 toward the front
+#   edge before its highlight. The old flat face rendered one even grey (f8_right_2)
 TAB_BOSS = (0.009, 0.0020)              # RIGHT: the tabs' bosses 24 px across, standing 2 mm (EST) off the tab
 TAB_T = 0.0045                          # EST: the tabs' thickness (a lug, not the leg's 26 mm box); the master cylinder
 #                                         (brake_pedal) is flattened in front where it passes inboard of them
@@ -638,6 +647,7 @@ class _Cast:
         # (only broad features here: narrow ridges on the 2.5 mm triangulation came out as torn shards in the
         # close-ups; the ribs are swept beads, _cast_ribs)
         h += BOSS_H * _smoothstep((BOSS_R + 0.003 - rb) / 0.006)
+        h += BOSS_RIM[1] * (1 - _smoothstep(np.abs(rb - (BOSS_R - BOSS_RIM[0])) / BOSS_RIM[0]))
         pad = -self.pad_sd(P)
         lift = _smoothstep((pad + 0.004) / 0.008)
         if self.pedal is not None:
@@ -652,7 +662,8 @@ class _Cast:
     def extra(self):
         """Rows of vertices along the features (the grid alone frilled them)."""
         rows = []
-        for r in (BOSS_R - 0.002, BOSS_R + 0.0005, BOSS_R + 0.0025, BOSS_R + 0.0045):
+        for r in (BOSS_R - 2 * BOSS_RIM[0], BOSS_R - 1.4 * BOSS_RIM[0], BOSS_R - BOSS_RIM[0], BOSS_R - 0.6 * BOSS_RIM[0],
+                  BOSS_R - 0.0002, BOSS_R + 0.0015, BOSS_R + 0.0035):
             rows.append(resample(circle(r, 8, *self.piv), 0.0012))
         h = self.hole
         c = h.mean(axis=0)
@@ -668,6 +679,18 @@ class _Cast:
             rows.append(resample(c + q * (1 + k / rr.mean()), 0.0012))
         return np.vstack(rows)
 
+    def turn(self, P, d, r):
+        """How far the leg's outer face turns away near its edges (TURN, more where the edge radius R is the front's):
+        not on the spar's end above the U bead, the tabs, the footpeg pad or the pedal's seat (they carry parts)."""
+        amp = TURN[0] + (TURN[1] - TURN[0]) * np.clip((r - 0.004) / 0.003, 0, 1)
+        t = amp * (1 - _smoothstep(d / TURN[2]))
+        t = t * _smoothstep((0.655 - P[:, 1]) / 0.025) * _smoothstep((self.pad_sd(P) - 0.002) / 0.006)
+        if self.pedal is not None:
+            t = t * _smoothstep((np.linalg.norm(P - self.pedal, axis=1) - 0.020) / 0.008)
+        if self.leg_sd is not None:
+            t = t * _smoothstep((self.tab_sd(P) - 0.002) / 0.004)
+        return t
+
     def surf(self, P, outer, rim=True):
         """|y| of the outer (OUTER) or inner face at points P (N, 2)."""
         P = np.atleast_2d(np.asarray(P, float))
@@ -680,7 +703,7 @@ class _Cast:
                 dh = self.hole_d.query(P)[0]
                 rh = 0.0010
                 kh = np.where(dh < rh, rh - np.sqrt(np.maximum(rh * rh - (rh - np.minimum(dh, rh)) ** 2, 0)), 0.0)
-            return base - k - kh + self.feat(P)
+            return base - k - kh + self.feat(P) - self.turn(P, d, r)
         ri = np.minimum(r, 0.003)
         ki = np.where(d < ri, ri - np.sqrt(np.maximum(ri ** 2 - (ri - np.minimum(d, ri)) ** 2, 0)), 0.0)
         # the lower section's front reaches in round the cradle rail's end (the rail runs 1 to 3 cm inboard)
