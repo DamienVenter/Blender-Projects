@@ -184,6 +184,21 @@ def tail_under():
     # resampled before it is smoothed: smoothing the corner points themselves pulled the top edge down 24 rows
     # (17 mm) and cut both corners off (the old stand-in plate had the same fault)
     px = smooth_poly(plastics.resample(px, 4.0), 2)
+    # the wall stands between the side panels: where their inner faces come closer to the centre line than the
+    # photo's red does (the panels' top edges tuck in under the seat's hem, 76 mm out at z 0.94), it stops 0.5 mm
+    # inside them (it ran 8.6 mm into them once the seat's hem was measured 13 mm narrower)
+    V = np.asarray(plastics.side_panels().V)
+    V = V[np.abs(V[:, 0] - X0) < 0.015]
+    zb = np.arange(0.78, 0.99, 0.005)
+    lim = np.array([np.abs(V[np.abs(V[:, 2] - z) < 0.004, 1]).min() if (np.abs(V[:, 2] - z) < 0.004).any() else np.nan
+                    for z in zb])
+    ok = np.isfinite(lim)
+    lim = np.interp(zb, zb[ok], lim[ok]) - 0.0005
+
+    def keep(uu, vv):
+        Q = REAR.on_plane(np.ravel(uu).astype(float), np.ravel(vv).astype(float), "x", X0)
+        return (np.abs(Q[:, 1]) < np.interp(Q[:, 2], zb, lim)).reshape(np.shape(uu))
+    px = plastics._cut(px, keep)
     grooves = [(1887.0, 1918.0, 612.0, 686.0), (2076.0, 2110.0, 612.0, 686.0)]
 
     def depth(u, v):
@@ -309,9 +324,127 @@ def plate_details():
     return m
 
 
+# ---------------------------------------------------------------- surface textures (normal maps)
+TEXTURES = os.path.join(P.HERE, "..", "..", "textures", "stock")
+SEAT_GRAIN = dict(pitch=1.3, groove=0.22, height=0.12, tile=plastics.SEAT_UV_TILE * 1000.0, size=1024, seed=250)
+# The seat cover's pebble grain. Detail 475833 (left side cover; the seat's skirt at the top of the frame, rows
+# 40..180, u 1700..1900 at 6x): raised irregular pebbles, bright on a darker ground, 3 to 6 px across and 6 to 8 px
+# apart; the panel bolt in the same frame (hex 43 px for 8 mm, SPEC) gives about 0.19 mm/px there, so a pitch of
+# about 1.3 mm. Grooves between the pebbles 0.2 mm wide and the pebbles 0.12 mm high: EST (they vanish in the 0.9
+# mm/px studio photos, where the cover only looks mottled).
+
+
+def _normal_png(h, mm_per_px, path):
+    """A tangent-space normal map (OpenGL: +Y up the image) from a periodic height field h (mm), saved as PNG."""
+    gx = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) / (2.0 * mm_per_px)
+    gy = -(np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) / (2.0 * mm_per_px)      # rows run down the image
+    n = np.stack([-gx, -gy, np.ones_like(h)], axis=-1)
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    Image.fromarray(np.round((n * 0.5 + 0.5) * 255.0).astype(np.uint8)).save(path, optimize=True)
+
+
+def _worley(size, cells, rng):
+    """Periodic Worley distances F1, F2 (in cell units) on a size x size grid, and each pixel's cell index."""
+    pts = rng.random((cells, cells, 2))
+    t = (np.arange(size) + 0.5) / size * cells
+    gx, gy = np.meshgrid(t, t)
+    ix, iy = np.floor(gx).astype(int), np.floor(gy).astype(int)
+    F = np.full((9, size, size), np.inf)
+    idx = np.zeros((9, size, size), int)
+    k = 0
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            cx, cy = (ix + dx) % cells, (iy + dy) % cells
+            px, py = ix + dx + pts[cy, cx, 0], iy + dy + pts[cy, cx, 1]
+            F[k] = np.hypot(gx - px, gy - py)
+            idx[k] = cy * cells + cx
+            k += 1
+    o = np.argsort(F, axis=0)
+    F1, F2 = np.take_along_axis(F, o[:1], 0)[0], np.take_along_axis(F, o[1:2], 0)[0]
+    return F1, F2, np.take_along_axis(idx, o[:1], 0)[0]
+
+
+SIDE_COVER = dict(pitch=17.1, arm=9.0, rib_w=1.3, rib_h=0.40, arms_deg=(115.0, -5.0, 235.0), stipple=0.05,
+                  size=(1024, 886))
+# The black lower part of the side panel (the airbox's side): raised Y-shaped ribs, three arms 120 deg apart, all the
+# same way round, on a hexagonal lattice, over a fine stipple. Detail 475833 at 2.4x (u 1500..2000, v 1450..1800),
+# its scale from the panel bolt in the same frame (hex 43 px for 8 mm: 0.186 mm/px): Y centres 92 px (17.1 mm)
+# apart along a row, the next row offset by half a pitch and 83 px (15.4 mm) across it (hexagonal: 14.8); arms 42 to
+# 52 px (8 to 10 mm) from the centre, 7 px (1.3 mm) wide, round ends, lit edges and a shadow on the far side
+# (raised); arms at about 117, -14 and 233 deg in the photo (its own tilt and perspective not removed: laid on the
+# panel at 115, -5, 235 deg, EST). Rib height 0.4 mm and stipple 0.05 mm: EST.
+
+
+def _tristar_height():
+    g = SIDE_COVER
+    W, H = g["size"]
+    tw, th = 2 * g["pitch"], 2 * g["pitch"] * math.sqrt(3) / 2         # the tile: two lattice steps each way
+    xs, ys = (np.arange(W) + 0.5) / W * tw, (np.arange(H) + 0.5) / H * th
+    X, Y = np.meshgrid(xs, ys[::-1])                                    # image rows run down, v runs up
+    d = np.full(X.shape, np.inf)
+    centres = [(0.0, 0.0), (g["pitch"], 0.0), (g["pitch"] / 2, th / 2), (1.5 * g["pitch"], th / 2)]
+    for cx, cy in centres:
+        for ox in (-tw, 0.0, tw):
+            for oy in (-th, 0.0, th):
+                ax, ay = cx + ox, cy + oy
+                for a in g["arms_deg"]:
+                    ex, ey = ax + g["arm"] * math.cos(math.radians(a)), ay + g["arm"] * math.sin(math.radians(a))
+                    vx, vy = ex - ax, ey - ay
+                    t = np.clip(((X - ax) * vx + (Y - ay) * vy) / (vx * vx + vy * vy), 0.0, 1.0)
+                    d = np.minimum(d, np.hypot(X - ax - t * vx, Y - ay - t * vy))
+    r = g["rib_w"] / 2
+    h = g["rib_h"] * np.sqrt(np.clip(1.0 - (d / r) ** 2, 0.0, 1.0)) ** 0.6
+    return h, tw / W, th / H
+
+
+def make_textures():
+    """Write the normal maps this module's materials use into motocross-whip/textures/stock/."""
+    from scipy.ndimage import gaussian_filter
+    g = SEAT_GRAIN
+    rng = np.random.default_rng(g["seed"])
+    cells = int(round(g["tile"] / g["pitch"]))
+    mmpp = g["tile"] / g["size"]
+    h = np.zeros((g["size"], g["size"]))
+    # pebbles domed from their border (round, as the photo's bright blobs), heights varied cell to cell, and a second
+    # finer grain at half the pitch and a third of the height so the cells do not read as a regular paving
+    for pitch, amp in ((g["pitch"], 1.0), (0.5 * g["pitch"], 0.33)):
+        n = int(round(g["tile"] / pitch))
+        F1, F2, cell = _worley(g["size"], n, rng)
+        edge = (F2 - F1) * pitch / 2.0                       # mm from the pebble's border (about)
+        lift = 1.0 + 0.5 * (rng.random(n * n)[cell] - 0.5)
+        h += amp * g["height"] * lift * plastics.smoothstep_arr(edge / g["groove"]) ** 0.5 \
+            * plastics.smoothstep_arr(edge / (0.35 * pitch))
+    h = gaussian_filter(h, 0.8, mode="wrap")
+    _normal_png(h, mmpp, os.path.join(TEXTURES, "seat_grain_n.png"))
+    # side cover: the ribs, softened over 1.5 px, and the stipple between them (pixels are square within 0.1 %)
+    h, sx, sy = _tristar_height()
+    st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
+    h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
+    _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
+
+
+MATERIALS = {
+    # the cover: matte vinyl, lighter and pinker than the gloss plastics. TOP photo, seat's top (u 2200..2600, rows
+    # 1080..1170): mean (240, 64, 69); the first pass's (176, 18, 26) rendered (208, 58, 62) there. At grazing
+    # angles it goes pink (LEFT skirt (245, 103, 108), TOP roll band (233, 115, 118)): a sheen. Rendered with these
+    # values (pair sheets, same boxes): top (238, 73, 76), skirt (243, 106, 108), roll band (248, 139, 141). Normal
+    # strength 1.6: at 1.0 the pebbles read flatter than detail 475833's bright-topped ones (close-up, 0.1 mm/px).
+    "seat": dict(rgb=(202, 22, 30), rough=0.72, sheen=0.6, normal="stock/seat_grain_n.png", normal_strength=1.6),
+    # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
+    # (plastics.side_panels, x and z over the tile)
+    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
+}
+
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
          "plate_details": plate_details}
 REPLACES = ("fork_guards", "fender_mounts")
 FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
 SMOOTH = {"fork_guards": 60, "tail_under": 50}
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] == ["textures"]:
+        make_textures()
