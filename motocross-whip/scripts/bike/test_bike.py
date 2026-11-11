@@ -187,3 +187,17 @@ def test_seat_height_against_the_spec_sheet(npz):
 def test_overall_width_against_the_spec_sheet(npz):
     G = _ground(npz)
     assert abs(np.ptp(G["bars"][:, 1]) - 0.827) < 0.008
+
+
+def test_a_plugin_cannot_silently_replace_another_plugins_part(monkeypatch):
+    """2026-11-11: two modules named a part `rear_brake` and the later one silently dropped the other's pedal."""
+    import types
+    a = types.SimpleNamespace(__name__="mod_a", PARTS={"thing": lambda: parts.Mesh()}, MATERIALS={"m": dict(rgb=(1, 2, 3))})
+    b = types.SimpleNamespace(__name__="mod_b", PARTS={"thing": lambda: parts.Mesh()})
+    monkeypatch.setattr(parts, "plugins", lambda: [a, b])
+    with pytest.raises(ValueError, match="would replace mod_a"):
+        parts.build()
+    c = types.SimpleNamespace(__name__="mod_c", PARTS={}, MATERIALS={"m": dict(rgb=(9, 9, 9))})
+    monkeypatch.setattr(parts, "plugins", lambda: [a, c])
+    with pytest.raises(ValueError, match="material 'm'"):
+        parts.build()

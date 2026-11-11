@@ -805,14 +805,26 @@ def build():
     own = set(fns)
     front = set(FRONT_END)
     meta = {"thin": [], "bevel": {}, "smooth": {}, "materials": {}, "class": {}, "uv": {}}
+    owner, mat_owner = {}, {}       # part / material name -> the plugin that made it
     for m in plugins():
         for old in getattr(m, "REPLACES", ()):
             fns.pop(old, None)
             front.discard(old)
             own.discard(old)
+            owner.pop(old, None)
         for name, fn in m.PARTS.items():
+            # a plugin may override this file's part of the same name, never another plugin's: on 2026-11-11 the
+            # wheels module's caliper part `rear_brake` silently replaced the chassis module's pedal part of that name
+            if name in owner:
+                raise ValueError(f"part {name!r} of {m.__name__} would replace {owner[name]}'s: rename it or list "
+                                 f"it in {m.__name__}.REPLACES")
             fns[name] = fn
             own.discard(name)
+            owner[name] = m.__name__
+        for k, v in getattr(m, "MATERIALS", {}).items():
+            if k in mat_owner and meta["materials"][k] != dict(v):
+                raise ValueError(f"material {k!r} of {m.__name__} differs from {mat_owner[k]}'s")
+            mat_owner[k] = m.__name__
         front |= set(getattr(m, "FRONT_END", ()))
         meta["thin"] += list(getattr(m, "THIN", ()))
         meta["bevel"].update(getattr(m, "BEVEL", {}))
