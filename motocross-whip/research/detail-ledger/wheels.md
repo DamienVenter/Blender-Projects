@@ -330,6 +330,46 @@ with dimpled heads, materials `chain` (grey steel) and `chain_pin`.
 - The connecting link (clip or riveted) cannot be found in any photo: not modelled.
 - D.I.D's printed plate marks are too small to read in any photo: not modelled.
 
-## 10. Rear disc, 11. rear caliper, 12. front hub, disc and spokes: not started
+## 10. Rear disc, 240 mm wave disc (round 2)
+
+### Anatomy
+- Eight petals round the edge (flat arc, steep drop, flat bottom, ramp back), the braking band r 89.5..120 with
+  three staggered rows of drilled holes (chamfered), four arms down to bolt bosses, four socket-head bolts.
+
+### References and numbers
+- RIGHT photo rectified onto the disc plane (y -0.070) and unwrapped about the disc's own centre (`SCRATCH/
+  disc_polar_c.png`): the four bolt heads fit a circle of r 72.1 centred 8.4 mm above the model's axle (x -0.4, z
+  +8.4 mm: the hub-parts offset the coordinator also found; the model keeps RA). Edge traced per degree
+  (`SCRATCH/disc_edge.png`), the model's edge fitted to it (`SCRATCH/disc_fit.png`): petals start at 63.5 + 45 k
+  deg, plateau 21 deg at r 120 (SPEC 240 mm), drop 4.5 deg to r 109.5, 6 deg flat, 13.5 deg ramp; median
+  |model - photo| 1.1 mm (the trace is cut by spokes in places). The old outline (four 15 mm scallops, 28 ripples)
+  is not in the photo.
+- Inner edge: r 89.5 between the bolts, arms 15 deg wide at r 80, 30 deg at the band, bosses to r 63; bolts on r 71
+  at 86 + 90 k deg (the photo: 84, 179, 263, 339 about its own centre).
+- Holes: the old three rows of 28 (6 mm) kept, now 12-sided with a 0.4 mm chamfer; their exact places not mapped.
+
+### Checks
+- `SCRATCH/disc_plan2_s.png` (model outline on the rectified photo), `SCRATCH/p_disc1.jpg` (RIGHT pair).
+
+### Still different
+- The hole pattern is the old one (rows of 28), not hole-for-hole the photo's.
+
+## 11. Rear caliper (partly)
+
+### Done
+- The stock black caliper guard (RIGHT and rr34 photos, `SCRATCH/cal_ref.jpg`): a skeletal triangle over the
+  caliper's outer face with a triangular window and two black socket bolts; corners cast onto its plane (GUARD).
+
+### Not done, and what the check shows (`SCRATCH/p_cal1.jpg`, RIGHT pair)
+- The bracket is a broad silver plate outboard of the disc reaching up to the caliper: the photo shows the disc's
+  holes there, so the real bracket is a slimmer arm, lower and mostly behind the swingarm.
+- The caliper sits about 15 deg lower in the photo (the guard's window, over the piston, at about 50 deg from the
+  axle, not 65) and the guard should cover it; the hose arrives level from the front with a black clamp on the
+  banjo. Pad pin with its plug, the bronze-coloured plug and the bleed nipple's cap are not checked.
+- These need the caliper moved and the bracket rebuilt, then an audit against the swingarm (detail_chassis), which
+  did not fit in this pass.
+
+## 12. Front hub, front disc 260 mm and front spokes: not started
 (The front spokes and nipples got the component 5 work: count 36 confirmed, new nipples, eyelets and threads; the
-front valve and rim lock moved to their measured places.)
+front valve and rim lock moved to their measured places. The front hub keeps its old light finish and the front
+disc its old outline.)

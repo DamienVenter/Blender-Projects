@@ -1453,6 +1453,10 @@ def rear_wheel():
 
 
 # ---------------------------------------------------------------- rear brake
+HOSE_END = (0.452, -0.100, 0.505)   # meets the brake_pedal part's hose (detail_chassis.py) on its bend, not
+                                    # beside it (audit: the two ends overlapped 2.8 mm)
+
+
 def rear_brake():
     """Rear caliper (single piston, floating; RIGHT and REAR photos for its place, shapes EST), its bracket on the
     axle between the hub collar and the swingarm, pads, slide pins, bleed nipple, banjo and hose."""
@@ -1491,9 +1495,31 @@ def rear_brake():
     from scipy.interpolate import CubicSpline
     s0 = P(0, -0.115, 0.104)                                     # hose: RIGHT rows 1490..1500, level above the arm
     way = np.array([s0, s0 + (0.030, -0.002, 0.008), (0.140, -0.116, 0.436), (0.220, -0.110, 0.440),
-                    (0.360, -0.098, 0.470), (0.440, -0.090, 0.490), (0.470, -0.086, 0.515)])       # onward EST
+                    (0.360, -0.098, 0.470), (0.425, -0.098, 0.488), HOSE_END])                     # onward EST
     m.add(tube(CubicSpline(np.arange(len(way)), way)(np.linspace(0, len(way) - 1, 40)), 0.0042, 8, "cable"))
+    _caliper_guard(m)
     return m
+
+
+# The stock caliper guard (RIGHT photo cols 1020..1220 rows 1440..1580, rr34 cols 1230..1450 rows 1370..1530): a black
+# skeletal triangle over the caliper's outer face, a big triangular window showing the piston housing, two black
+# socket bolts (top and bottom corners), a hooked arm reaching back toward the axle. Corners cast on the plane
+# y -0.112 and moved down by the photo's 8.4 mm hub offset (the disc's bolt circle, see rear_disc_r): x, z from the
+# axle: top 125.6, 114.5; bottom 111.9, 75.0; hook end 31.1, 100.1 mm; the window inside them. 4 mm thick (EST).
+GUARD = dict(outer=[(0.0311, 0.1001), (0.1256, 0.1145), (0.1119, 0.0750)], win=[(0.0620, 0.0980), (0.1010, 0.1040),
+                                                                               (0.0920, 0.0815)], y=-0.1160, t=0.004)
+
+
+def _caliper_guard(m):
+    g = GUARD
+    outer = _fillet(_ccw(np.array(g["outer"])), (0.006, 0.008, 0.008), 4)
+    win = _fillet(_ccw(np.array(g["win"])), 0.004, 4)
+    pl = _plate(resample(np.vstack([outer, outer[:1]]), 0.003)[:-1], [resample(np.vstack([win, win[:1]]), 0.003)[:-1]],
+                g["y"], g["t"], "plastic_black", 0.004, (RA[0], RA[2]))
+    m.add(pl)
+    for (x, z) in (g["outer"][1], g["outer"][2]):                 # its two bolts, black socket heads
+        c = np.array([RA[0] + x * 0.93 + 0.0, g["y"] - g["t"] / 2, RA[2] + z * 0.97])
+        m.add(bolt(c, (0, -1, 0), af=0.011, head_h=0.006, mat="anod_black", kind="cap"))
 
 
 def _hull(circles, n=20):
