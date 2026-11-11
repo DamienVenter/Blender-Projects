@@ -317,6 +317,12 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
 - Disk: agents left 2 GB each of .npz/.blend in their scratch folders and the disk filled during a test run. Tell
   agents to delete their big intermediates; after merging, delete them and remove the merged worktrees.
 - Agent output per run: about 6 components of a 10 to 13 list. Plan rounds, not one heroic run.
+- From the cockpit rounds: a feature ahead of or behind a ruler's plane reads at the wrong place in an end photo
+  (the bar is swept 16 deg: 25 mm of depth moves a point 7 mm along it); pick it in two calibrated photos and
+  triangulate. `geom.tube()` orients its section from the world's up, so a strap round a tilted axis twists: build
+  such rings in the object's own frame. Relief lettering seen from the front: the viewer's right is the bike's left;
+  check one letter in a close-up. build_bike.py drops ALL of a part's UVs if Blender removes one degenerate face:
+  keep UV-mapped pieces (buttons, decals, knurl) free of zero-area faces.
 
 ### The audit (`audit.py`)
 - `blender -b BIKE.blend --python-exit-code 1 --python audit.py -- OUT.json 25`: every pair of objects that cut
