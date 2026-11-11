@@ -409,6 +409,23 @@ def test_disc_guard_outline_window_and_slots(built):
         assert np.linalg.norm(_photo_px("left", parts.FA + np.array([dx, 0.128, dz])) - ph) < 4.0
 
 
+def test_top_clamp_front_face_on_the_top_photo(built):
+    """Round 4, component 2: the top clamp's front face runs straight across the tube axes at f 46 mm on its top
+    plane (TOP cols 1638..1640, rows 1010..1230), ahead of the clutch cable's room and behind the number plate."""
+    v = verts(built["clamps"], "tc_cast")
+    rel = v - df.TUBE0
+    f, t = rel @ df.FWD, rel @ df.UP
+    top = (t > df.T_UP[1] - 0.004) & (np.abs(v[:, 1]) < 0.085)
+    assert abs(f[top].max() - df.TC_FRONT[0]) < 0.0005
+    for y in (0.03, -0.06):
+        px = cams.CAMS["top"].project([df.fk(df.TC_FRONT[0], y, df.T_UP[1])])[0]
+        assert 1636 < px[0] < 1642
+    q = df.clutch_path()
+    rq = q - df.TUBE0
+    near = (np.abs(rq @ df.UP - 0.905) < 0.022) & (np.abs(q[:, 1]) < 0.09)
+    assert (rq[near] @ df.FWD).min() > df.TC_FRONT[0] + 0.004                     # the cable passes ahead of it
+
+
 def test_disc_guard_clears_the_disc_and_its_bolts(built):
     """The dish wraps the disc's rim without touching it: nothing of the guard inside the disc's outer face within
     its radius, and it stays over the bolt heads (4.5 mm proud of the disc) round the bolt circle."""

@@ -819,3 +819,59 @@ the guard is concentric with the axle (r 140.5) and every outline below was read
 - The honeycomb's columns behind dx 30 sit up to 3 mm off the photo's (the whole holes there fit a 12.7 mm pitch):
   a regular lattice kept. A faint moulded mark on the mesh's frame (DR12: "H..." letters) is not modelled.
 - The guard's inner side (behind the dish) and how the upper bolt reaches the holder are hidden in every photo (EST).
+
+## R4-2. Top clamp casting (fiche K95CF0700, top bridge) - partly
+
+### Anatomy
+- Grey bead-blasted cast aluminium (satin, fine grain), two bosses round the tubes with a turned line round each 8 mm
+  under its top, a thick bridge between them whose front face runs straight across ahead of both tubes and turns
+  back round each boss to the pinch lugs (round 3), the bar holder bases and the stem nut on its top, a rear face
+  that is nearly as tall as the bosses with a big rounded top edge and a curved underside behind the head tube
+  (DET835), a 10 x 28 mm rectangle with a light rim in the top face ahead of the stem (TOP).
+
+### References
+- TOP gridded 1615..1705 x 950..1270 (`ref/top_tc.jpg`); LEFT 1480..1700 x 480..660 and rf34 (`ref/tc_left.jpg`);
+  DET835 (`front3/ref/d835_tops.jpg`).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Front face | f 46 mm on the top plane, straight to abs(y) 88, corners r 16 back to the bosses | TOP cols 1638..1640 from row 1010 to 1230 (10.3 px a cm along f on the clamp's top plane) |
+| Front block | t 0.887 up to the bridge, f 16..46, abs(y) 7.5..70 | LEFT: the front face at the boss side from t 0.881 to 0.919 (cols 1600..1620, rows 547..615); EST inboard |
+| Groove | t 0.920, 1.2 mm wide, 0.5 deep | DET835 (the line round the bosses) |
+| Slot | abs(y) < 7.5 from f 14 to the front | the plastics' plate tab (plate_details: y +-6, f 17..61, t 0.893..0.926) passes there |
+
+### What was built
+- `_tc_outlines()`, `_tc_boss()`: the top casting as one `_rplate` (2.5 mm rounded edges) from the bridge's underside
+  to 0.8 mm under the old top (the bar holder bushes sit 0.3 mm over it), the front block either side of the slot,
+  the bosses with their groove; material `tc_cast`; `BEVEL = {"clamps": 0.0004}` (build_bike's 3 mm bevel spiked the
+  first, layered build: bars / clamps 3 mm in the audit). The clutch cable now passes ahead of the front face (f 50..53
+  at the clamp's height, behind the plate's f 60). Test `test_top_clamp_front_face_on_the_top_photo`.
+
+### Checks
+- TOP pair `chk/p8_top.jpg`, `p9_top.jpg` (the front face on the photo's grey band ahead of the pad); LEFT
+  `chk/p8_left.jpg`; close-ups `chk/cu3_a.jpg`, `cu4/render_cu_d835b.png` (DET835 angle: the pad hides the bridge).
+- Audit (`a_t3`): the cable first ran through the new front (5.2 mm: moved), the plate's tab through it (4.3 mm:
+  slot); left only the seats listed in round 3.
+
+### Not done (why "partly")
+- The rear face (DET835: tall, rounded top edge, curved underside behind the head tube) is still round 1's 15 mm
+  bridge; the bar holder bosses on the top face, any ribs or pockets underneath, and TOP's rectangle (the plate's tab
+  in the model shows red through the slot in TOP, where the photo shows grey cast: the tab should stop at f 46 or
+  hook into that rectangle; a shared issue for the plate).
+
+## Round 4 status
+- Done: 1 (disc guard). Partly: 2 (top clamp: front face, groove, finish). Not started: 3 (front disc), 4 (front
+  hub), 5 (front spoke lacing), 6 (cables and hose, rest; only the clutch cable moved ahead of the clamp), 7 (master
+  cylinder fillets).
+- Module vertices (b9.npz): fork 18,093, clamps 12,747, bars 40,830, hand_controls 19,008, front_brake 12,000,
+  disc_guard 43,892, cables 6,462: 153,032 of 220,000.
+- Lessons (for the bike-modelling skill): (1) the side cameras' offset near the front axle grows with y (zero on the
+  centre plane): use (+13.7, -10.3) x y / 0.128 px in LEFT, not a constant; a circular part's outer edge is the
+  check (concentric with the axle only with the scaled offset). (2) Rectify the photo onto the part's plane at a
+  fixed mm a pixel and draw the planned outlines on it (rect.py + overlay.py) before building: every outline here
+  was fixed on the photo, not in renders. (3) A lattice is best fitted from the photo's whole holes (blobs), not an
+  FFT or a web-darkness search (spokes behind a grille fool both). (4) LEFT's grey levels along rays from the axle
+  read a moulding's relief (light = turned up); the model's studio is softer, so the same relief renders at about a
+  third of the contrast. (5) build_bike's 3 mm bevel spikes thin stacked layers: a module whose edges are rounded in
+  the mesh sets its BEVEL near 0.

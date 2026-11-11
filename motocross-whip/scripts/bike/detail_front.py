@@ -689,6 +689,42 @@ def _bridge(front, rear, r_mid):
     return loop_from_half(front + notch + rear)
 
 
+TC_FRONT = (0.0460, 0.0880, 0.8870)   # top clamp's front face: f, how far out it runs straight (|y|), its bottom (t).
+#   TOP cols 1638..1640 from row 1010 to 1230 (both tube axes) on the clamp's top plane: f 45..47 (10.3 px a cm); the
+#   front corner turns back round each boss to the pinch lug; LEFT: the front face at the boss side from t 0.881 to
+#   0.919 (cols 1600..1620, rows 547..615). Round 3's bridge front (f 17, EST) left the tubes' fronts bare.
+TC_SLOT = 0.0075              # half width of a slot through the clamp's front at the centre, from f 14 to the front
+#   face: the number plate's upper tab (plastics' plate_details: y +-6, f 17..61 at t 0.893..0.926) passes there. TOP
+#   shows a 10 x 28 mm rectangle with a light rim at f 27..37 there (cols 1648..1658, rows 1113..1145): where the tab
+#   meets the clamp; its exact form is left to the plate's owner (a shared issue)
+TC_GROOVE = 0.9200            # a turned groove round each boss 8 mm under its top (DET835: the line round the bosses)
+
+
+def _tc_outlines():
+    """Top clamp's top casting (f, y) and its front block under the bridge (ahead of the head tube)."""
+    rm = (0.0259 + R_BOSS_UP) / 2
+    f0, yf, _ = TC_FRONT
+    rc = 0.016
+    half = [(0.0140, 0.0), (0.0140, TC_SLOT), (f0, TC_SLOT), (f0, yf)] + \
+        [(f0 - rc + rc * math.cos(a), yf + rc * math.sin(a)) for a in np.radians([20, 40, 60, 80])]
+    half += [(rm * math.cos(a), FORK_HALF + rm * math.sin(a)) for a in np.radians([30, 10, -10, -30, -50, -70, -90,
+                                                                                    -110, -130, -150])]
+    half += [(-0.036, 0.066), (-0.054, 0.048), (-0.062, 0.020), (-0.063, 0.0)]
+    top = _ccw(loop_from_half(half))
+    fh = np.array([(0.016, TC_SLOT), (f0, TC_SLOT), (f0, 0.070), (0.020, 0.070), (0.016, 0.040)])
+    front = [_ccw(fh * [1, s]) for s in (1, -1)]
+    return top, front
+
+
+def _tc_boss(side, mat):
+    """Top clamp boss round the tube with a turned groove 8 mm under its top (DET835)."""
+    r, r_in, (t0, t1), ch = R_BOSS_UP, 0.0259, T_UP, 0.002
+    g = TC_GROOVE
+    prof = [(r_in, t0), (r - ch, t0), (r, t0 + ch), (r, g - 0.0006), (r - 0.0005, g - 0.0003),
+            (r - 0.0005, g + 0.0003), (r, g + 0.0006), (r, t1 - ch), (r - ch, t1), (r_in, t1)]
+    return rev(fk(0, side * FORK_HALF, 0), UP, prof, mat, 48, solid=True)
+
+
 def clamps():
     """Lower clamp (cast, with the fender bosses and the fender nose), top clamp (machined, stem nut), steering
     stem."""
@@ -721,13 +757,17 @@ def clamps():
         m.add(tube([fk(0.016, yb, 0.670), fk(0.050, yb, 0.670), a, e + 0.007 * unit(e - a)], 0.0075, len(sec), cast,
                    section=sec))
         m.add(cyl(e - 0.003 * Z, [xb, yb, zb], 0.0075, cast, 16, 0.001))
-    # ---- top clamp: LEFT / RIGHT axis silver t 0.884..0.928
+    # ---- top clamp: LEFT / RIGHT axis silver t 0.884..0.928; round 4: the casting rebuilt (TC_FRONT, below)
+    tcast = "tc_cast"
     for side in (-1, 1):
-        m.add(_boss(side, T_UP, R_BOSS_UP, 0.0259, cast))
-    top = _bridge([(0.017, 0.0), (0.017, 0.045), (0.016, 0.066)],
-                  [(-0.036, 0.066), (-0.054, 0.048), (-0.062, 0.020), (-0.063, 0.0)], (0.0259 + R_BOSS_UP) / 2)
-    m.add(slab(top, FACE_UP, T_UP[1] - 0.0005, cast, fk, ch=0.002))
-    _pinch_front(m, T_UP[0], T_UP[1], cast)
+        m.add(_tc_boss(side, tcast))
+    top, front = _tc_outlines()
+    to = lambda f, y, t: fk(f, y, t)
+    m.add(_rplate(top, [], FACE_UP, T_UP[1] - 0.0008, 0.0025, tcast, lambda f, y, w: fk(f, y, w), step=0.0018))
+    for blk in front:
+        m.add(_rplate(blk, [], TC_FRONT[2], FACE_UP + 0.002, 0.0025, tcast, lambda f, y, w: fk(f, y, w),
+                      step=0.0018))
+    _pinch_front(m, T_UP[0], T_UP[1], tcast)
     # ---- stem: the only part between the two faces within the head tube's radius; nut and washer (EST 30 mm)
     m.add(cyl(fk(F_STEER, 0, T_LO[0] - 0.0055), fk(F_STEER, 0, T_UP[1] + 0.011), STEM_R, "steel", 24, 0.001))
     # steering stem nut (fiche K95CF0900): a bright hex flange nut on a washer, the stem's threaded end inside it
@@ -2803,7 +2843,9 @@ def clutch_path():
     tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
     pts = [a0 + 0.0006 * ad, a0 + 0.016 * ad, a0 + 0.034 * ad,            # leaves along the adjuster
            (1.058, 0.118, 1.190), fk(0.041, 0.095, 0.972),
-           fk(0.042, 0.072, 0.968), fk(0.043, 0.060, 0.945), fk(0.040, 0.057, 0.915), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
+           fk(0.046, 0.072, 0.968), fk(0.050, 0.060, 0.945), fk(0.0525, 0.057, 0.915), fk(0.051, 0.056, 0.886),
+           fk(0.040, 0.054, 0.874), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),     # round 4: ahead of the
+           #   top clamp's front face (TC_FRONT, f 46), behind the number plate (f 60)
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),
            (0.951, 0.068, 0.849), (0.909, 0.075, 0.824), (0.866, 0.077, 0.801), (0.815, 0.074, 0.795)] + tail
     return spline(pts, 190)
@@ -2918,11 +2960,14 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              # round 4, disc guard: black polypropylene, its faces matte with a fine moulded grain (DR12), the outer
              # band and skirt smooth (LEFT and lf34 studio: the band reads 110..130 where the faces read 50..80)
              "guard_black": dict(rgb=(28, 28, 30), rough=0.38, bump=0.06),
-             "guard_band": dict(rgb=(28, 28, 30), rough=0.28)}
+             "guard_band": dict(rgb=(28, 28, 30), rough=0.28),
+             # round 4, top clamp: bead-blasted cast aluminium, satin light grey with a fine grain (DET835)
+             "tc_cast": dict(rgb=(176, 176, 179), metal=1.0, rough=0.48, bump=0.14)}
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
          "led_lens": "black", "sw_body": "black", "tie_band": "black", "guard_black": "black",
          "guard_band": "black"}
+BEVEL = {"clamps": 0.0004}   # round 4: the top clamp's edges are rounded in the mesh; a 3 mm bevel spiked its thin layers
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "hand_controls": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],
