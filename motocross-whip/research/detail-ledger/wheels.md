@@ -441,7 +441,9 @@ Built: `_slab` (any outline extruded with every edge rounded, holes allowed, cap
 
 Checks: RIGHT `p_cal1.jpg` (first build: guard far too broad), `p_cal2.jpg`, `p_cal4.jpg`; rr34 `p_calrr1.jpg`,
 `p_calrr3.jpg`, `p_calrr4.jpg`; REAR `p_calb1.jpg`, `p_calb3.jpg`, `p_calb4.jpg`; all three in `p_cal4_all.jpg`.
-Audit `aud4.log`: no clash with the swingarm, wheel or disc; brake_pedal x rear_brake 3.9 mm at the hose joint (below).
+Audit `aud4.log`: no clash with the swingarm, wheel or disc; brake_pedal x rear_brake 3.9 mm at the hose joint, gone
+in the final audit (`aud6.log`: no clash and nothing floating for front_wheel, rear_wheel, drive, rear_brake) once
+the hose came into the joint as in round 2 and tapered to the pedal part's 4.2 mm.
 
 Still different, and why:
 - The whole assembly sits about 8 mm lower than in the photos: the hub parts are built about parts.RA (decided).
@@ -450,9 +452,8 @@ Still different, and why:
 - REAR: the photo's guard box ends 12 px further out (8 mm); the REAR camera reads distances from the centre plane
   about 6 % large (section 1), which is most of it.
 - The hose joint: the pedal part's hose (detail_chassis) comes down to `HOSE_END` and runs on 20 mm forward past it
-  to (0.468, -0.088, 0.513); this hose turns back along the arm there, so the two overlap 3.9 mm at the joint (a
-  joint, not a clash through a solid). Fix in detail_chassis: end its hose at `HOSE_END`, its last control point
-  behind and below it (about (0.440, -0.100, 0.497)).
+  to (0.468, -0.088, 0.513), a stub that points nowhere; this hose meets it at `HOSE_END` without a clash, but the
+  stub would be cleaner ended at `HOSE_END` (detail_chassis).
 - The hose guide clip on the swingarm's top (RIGHT u 1385..1425, v 1445..1475) is not modelled (on the chassis
   agent's swingarm).
 
@@ -460,3 +461,14 @@ Still different, and why:
 (The front spokes and nipples got the component 5 work: count 36 confirmed, new nipples, eyelets and threads; the
 front valve and rim lock moved to their measured places. The front hub keeps its old light finish and the front
 disc its old outline.)
+
+### Round 3: not started
+Components 4 (front hub), 5 (front disc 260 mm) and 6 (front spoke lacing) of the round 3 brief were not reached:
+the rear caliper, the rear disc's holes and the rear hub's disc-side end took the round. The front hub keeps its
+EST lathe and light finish, the front disc its 18-scallop outline and old holes, the spokes their three-cross lacing
+(count 36 confirmed in round 1).
+
+## Round 3 totals
+- Module vertices (b6.npz): front_wheel 137,391, rear_wheel 177,320, drive 27,707, rear_brake 23,750: 366,168 of
+  the 450k budget.
+- Audit (`SCRATCH3/aud6.log`): no clash, nothing floating for the four parts.
