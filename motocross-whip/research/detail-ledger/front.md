@@ -552,3 +552,171 @@ built .blend), `patch.py`.
   started.
 - Module vertices: 82,528 (fork 3,920, clamps 5,000, bars 40,830, hand_controls 19,008, front_brake 4,206,
   disc_guard 3,102, cables 6,462); budget 220,000.
+
+# Round 3 (brief FRONT3.md: seven components, each its own build)
+
+Check images and tools: `SCRATCH3/` =
+`/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/front3/`
+(not committed). New tools there: `tri2.py` (cast or triangulate a pixel about the photo's own axle: each view's
+pixel is first moved by that view's offset, photo axle end minus the model's), `gpair.py` (photo and render of a
+pair.py run on one labelled pixel grid, with a 50/50 overlay and the render shifted by the offset), `p1..p5.py`.
+
+## The front axle in the side photos (a shared finding)
+- The axle's ends sit 10 to 14 px behind and 5 to 10 px above FA's projection at their own y in both side photos
+  (right hex socket (2948, 1606) against 2958, 1611; left nut (1050, 1605) against 1036, 1615) and 10 px above it in
+  FRONT (shaft centre row 1525 against 1535). The cameras put FA (y 0) on the blueprint's wheel centre, so this is
+  the side cameras' parallax at y +-0.12 (it falls to zero at the centre plane), the same effect the chassis pass
+  found at the rear axle. As there: every foot and caliper feature was cast on its own plane after moving its pixel
+  by the view's offset (LEFT +13.7 / -10.3, RIGHT -10.4 / -5.2, FRONT 0 / -10.3), and built about FA; in the pair
+  sheets the model therefore stands 13 px ahead and 10 px under the photo there (`gpair.py ... 14,-10` overlays
+  them). rf34 and lf34 are fitted to the model, so they show no offset and are not used for positions.
+
+## R3-1. Fork feet and front caliper (fiche K95CF1100, K95CF1200)
+
+### Anatomy
+- Axle holders (both, Showa, cast, satin mid grey with a fine grain): a round socket round the inner tube's foot;
+  ahead of it the axle boss, a block with a flat top and front, the front corners rounded (top 7 mm, bottom 9 mm);
+  the whole foot's underside one horizontal plane; raised italic SHOWA round the socket's outboard-front side, a
+  second small cast mark lower down (RIGHT "TECH"/"S", unreadable, not modelled).
+- Right holder: the boss split by a horizontal slit from the axle forward, two vertical M6 hex flange bolts on its
+  top (zinc), their threaded ends in the underside (FRONT: two dark dots); the axle's end flush in the boss with a
+  bright head ring and a 17 mm hex socket.
+- Left holder: the axle nut's side (flange nut and washer, the hollow axle end showing in it, DET831); covered in
+  every photo by the disc guard's black mount; the caliper bracket's grey arm leaves the socket's rear in two
+  branches to two hex flange bolts with washers (zinc), a cast triangular pocket in the upper branch.
+- Caliper (Nissin, two pistons 30 / 27 mm): the outer body's two lobes over the bores with a machined D-shaped flat on
+  each, raised italic NISSIN along the waist between them reading up the arc, letters' tops towards the axle; the top
+  end with a round bright plug with a hex socket; the bleed screw and its black rubber cap at the top rear; the
+  banjo (black) with its bolt and the hose's black steel pipe, crimp and sleeve at the rear; a black slotted plug end-on
+  on the front edge; a hex bolt under the foot; the bridge over the disc's rim to the reaction half; bronze pad
+  shims (RIGHT, rf34 through the spokes).
+- Disc guard: two zinc socket flange bolts on black bosses (upper over the left holder, lower under the foot).
+- Brake hose clamp on the left fork guard (the guide): plate, two bolts, rubber grommet round the hose.
+
+### References
+- DET831 (475831) whole (`ref/d831_small.jpg`), crops 1900..2900 x 1100..2150 (`d831_cal.jpg`: caliper) and
+  1300..2100 x 1000..1900 (`d831_foot.jpg`: left foot, axle end, bolts). DR12 whole (`ref/dr12.jpg`).
+- LEFT gridded 1000..1300 x 1480..1720 (`ref/g_left_cal.jpg`), RIGHT 2800..3020 x 1500..1690 (`g_right_foot.jpg`),
+  FRONT 1800..1960 x 1420..1600 (`g_front_foot.jpg`), rf34 2580..2780 x 1490..1660 (`g_rf34_foot.jpg`); crops of
+  lf34 and rf34 (`lf34_foot.jpg`, `rf34_foot.jpg`). Fiche K95CF1100 (24 pinch bolts, 13 centre bolt with 28),
+  K95CF1200 (3, 4, 5, 14, 16).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Boss faces | outer y 106 mm, inner 72.8 (FRONT 70.5: kept 0.3 mm off the hub's end collar) | FRONT cols 1845 / 1897 cast at f 70 |
+| Boss outline | top z +22, front x +29, underside z -25, slit z +2 (gap 0.8) | RIGHT cast on y -0.107: bolt seats 19.3..20.7, front 28.3..29.1; FRONT top / slit rows 1491 / 1526 |
+| Underside | one horizontal plane 25 mm under the axle (socket and boss) | RIGHT socket bottom rear (f -18.7, t +2.3), FRONT front rim (27.5, -21.3): slope 0.51 = tan of the rake |
+| Socket | radius 27.5 | FRONT 1820..1902 (56.8 over the silhouette's cast bulges) |
+| Pinch bolts | M6 flange, 10 mm hex; x +17, abs(y) 97.5 / 79.0 | FRONT cols 1859 / 1885; x EST between the bore and the front (RIGHT +11, within its offset doubt) |
+| Axle | 20 mm; right hex socket 17 mm, head ring 26.4; left nut 22 mm with washer 34 | RIGHT 19.8 mm corner to corner; FRONT shaft 29 px; LEFT nut 21..23 mm |
+| SHOWA | 27 x 6 mm round the socket, centre 16 deg ahead of outboard, t 31.5 | RIGHT 2878..2914 x 1584..1600 cast on the socket |
+| Caliper centre | r 116, 17.5 deg below the rearward horizontal | LEFT NISSIN (1200, 1645) on y 0.100 |
+| Lobes, D-flats | bores at w +-19.5, walls r 21.5 / 20; flats r 0.66 of the wall beyond a chord 2 mm out | LEFT flats (1205, 1615) and (1190, 1672): w +23.5 / -22.3; SPEC pistons |
+| Plug, bleed, banjo, slot, foot bolt | (q, w) mm: (6.6, 55.3), (22.9, 46.8), (38.3, 0.3), (-26.4, -1.1), (11.5, -45.2) | LEFT (1230,1580), (1247,1597), (1248,1660), (1167,1636), (1197,1705) |
+| Bracket bolts | world (dx, dz) (-108.3, 17.2), (-75.1, -54.6); 10 mm hex, washer 16 | LEFT (1197,1578), (1154,1670); head in a 20 px washer face |
+| Bracket roots | the socket's rear, f -14 / t 19 and f -30 / t 0 | LEFT (1128,1600) .. (1142,1648) |
+| Body step | the top end, rear block and foot 8 mm under the lobes' face | DET831 (EST depth) |
+| Guard bolts | (-8.7, 38.8), (-54.9, -33.1) | LEFT (1060,1556), (1121,1650) on y 0.134 |
+
+### What was built
+- `axle_holder(side)` (in `fork`): the socket as rings round the tube whose underside follows the horizontal plane
+  (rounded 4 mm), a recess with the damper's centre bolt and slotted rebound adjuster (EST, unseen), SHOWA on
+  `_decal_cyl` (relief map `stock/showa_n.png`), the boss as rounded castings (`_rplate`: any outline with holes,
+  every edge rounded, a radius per vertex): right as two jaws round the bore with the slit (0.4 mm edges at the slit,
+  2.4 mm elsewhere), left one piece; pinch bolts; the left lug for the guard's upper bolt; the caliper bracket's two
+  branches with the pocket and bolts (part of the left casting, in `fork`). `axle()`: hollow shaft, right end with
+  the hex socket and head ring, left flange nut and washer. Material `ah_cast` (satin, grain).
+- `caliper()` (in `front_brake`): `_cal_outline()` (hull of lobes, ends and bosses, notched round the bracket bolts),
+  the lower casting and the lobes' casting standing 8 mm proud, D-flats (`cal_spot`), NISSIN (`cal_nissin`, map
+  `stock/cal_nissin_n.png`), the bridge and reaction half, pads (`pad_friction`) on bronze shims (`pad_shim`), plug,
+  slotted plug, foot bolt, bleed screw and cap, banjo with washers and bolt; the hose ends in a black pipe, crimp and
+  sleeve. `disc_guard`: the two bolts moved to the photo's places, on black bosses.
+- The hose guide on the fork guard moved 3 mm forward (it reached 1.5 mm into the guard's front: the guard's bump at
+  t 0.365..0.38 stands at f 59.7 and Blender solidifies it 3 mm).
+- Tests: `test_right_axle_clamp_on_the_photos`, `test_caliper_and_bracket_bolts_on_the_left_photo`,
+  `test_caliper_pads_straddle_the_disc_and_the_body_clears_it`; the axle test follows the new ends.
+
+### Checks
+- Pairs: `chk/p0_*` (round 2's foot and caliper), `p1_*` (first build), `p2_*`, `p4_left`, `p4_lf34`; overlays
+  `chk/g1c_left.jpg`, `g2_left.jpg`, `g2_right.jpg` (render shifted by the offset).
+- Close-ups: `chk/cu1_a.jpg` (DET831 angle), `cu1_b.jpg` (DR12, right foot), `cu2_a.jpg` (after the step).
+- Fixed after cycle 1: socket 12 mm too low at the rear (the underside is horizontal, not square to the tube),
+  socket 0.7 mm smaller, boss underside 3 mm higher, bracket as two branches (one hull filled the gap where the
+  body's front shows), caliper rear block narrower. After cycle 2: the lobes stand 8 mm proud of the rest (one flat
+  face read as a slab), bracket bolts smaller, the body notched round them.
+- Audit (`a_c4`): the boss first sat 3.7 mm on the hub's collar (inner face moved), the bracket in the socket and the
+  caliper (moved into the fork part, notched), the guard boss in the socket and the bracket (shortened onto the
+  branch), the fork guard into the hose guide (moved). Left: guard bosses seated 0.8 mm on the lug and the branch;
+  no loose piece.
+
+### Still different
+- The disc guard itself (honeycomb window, the angular black mount round the left foot and axle) is round
+  dome-and-holes as before; so the left socket and its SHOWA show where the photos have the black mount. It needs its
+  own build (not on this round's list).
+- The caliper's casting is two stepped slabs: DET831's body has deeper sculpting between the lobes and the rear block
+  (a notch under the lower lobe, the banjo boss as its own block). The bracket's upper branch is a plain hull; the
+  pocket is shallow.
+- The second cast mark on the right socket and any lettering on the left one are not modelled; the pinch bolts' x
+  rests on room between the bore and the front (RIGHT reads 5 mm further back within its offset doubt).
+- The fork guards' bolts are the plastics' (`guard_hardware`); that part also holds a hose clamp block on the guard's
+  outer face where this module's guide is (one real clamp modelled twice): a shared issue.
+
+## R3-2. Fork tops (fiche K95CF1100 cap parts 16 / 30, K95CF0700 top bridge, K95CF0900 stem nut)
+
+### Anatomy
+- The outer tube's top 5 mm above the top clamp, gold with fine turning lines.
+- Showa cap: a bright turned hex with a chamfered top edge, its corners turned round inside the tube's diameter; a
+  recessed black anodised top with a raised lip; on it a raised black block with chamfered edges running from the
+  centre to the rim, a large slotted adjuster at its outer end and a small slotted screw near the centre; a short white
+  index line on the black rim.
+- Top clamp: grey satin casting; on each boss's front-outboard side a lug split along the tube's plane with two hex
+  flange pinch bolts from outboard (LEFT, DET835). The steering stem nut: a large bright hex flange nut on a washer.
+
+### References
+- DET835 crops 1300..2500 x 900..1650 (`ref/d835_tops.jpg`), 1420..1700 x 960..1190 at 3x (`d835_cap.jpg`),
+  2250..2520 x 1290..1430 (`d835_capR.jpg`, the right cap under the pad). LEFT gridded 1560..1720 x 500..630
+  (`ref/g_left_top.jpg`). TOP (`g_top_caps.jpg`: the pad hides both caps but a rim). FRONT: the plate hides the clamp.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Pinch bolts | f 30.2, t 0.8935 / 0.9102, heads' faces about 23 mm outboard of the tube's plane | LEFT (1580, 575), (1590, 555) cast on y 0.122 (round 1 saw the same two heads) |
+| Turned band | t 0.928..0.933, five grooves 0.15 mm deep every 0.8 mm | LEFT axis (round 1), DET835 lines |
+| Cap hex | 47 mm across flats, corners turned to r 25.2, t 0.933..0.941, top chamfer 1.6 mm | DET835 (flats as wide as the tube); LEFT top front edge t 0.925 + lean -> 0.941 |
+| Black top | 1.5 mm under the hex's top, lip r 20.5 | DET835 |
+| Block | 30 x 21 mm, 4.5 mm tall, from 6 mm ahead of the centre rearwards | DET835 proportions; LEFT top t 0.947 on y 0.099; held under the pad's underside t 0.945 |
+| Screws | slotted, 9 and 6 mm | DET835 |
+| Stem nut | 30 mm hex flange, washer 42 mm | DET835 (0.6 of the cap's width) |
+
+### What was built
+- `fork_cap(side)` (in `fork`): hex rim as rings with per-band materials (bright hex, black top), the block as a
+  rounded casting (`_rplate`), the two slotted screws, the index mark (material `mark_white`); the outer tube's
+  profile carries the turned band.
+- `_pinch_front()` replaces the top clamp's rear lugs (round 1, EST): the lug 26.2..37.2 mm ahead of the tube's axis
+  (clear of the 51 mm tube), the slit, two M6 flange bolts; the top clamp's bosses and bridge now `alu_cast`. The
+  stem nut is a `fastener()` with its washer and the stem's end.
+- Test `test_fork_caps_and_top_clamp_pinch_bolts` (bolt heads on LEFT within 3 px, caps under the pad, index marks).
+
+### Checks
+- Close-ups `chk/cu4_a.jpg` (DET835 angles: the pad hides the cap from above), `cu5_a.jpg` (cap and clamp alone
+  beside `d835_cap.jpg`). Pairs `chk/p8_left.jpg`, `p8_lf34.jpg`.
+- Audit (`a_c8`): the first lug reached 2 mm into the tube (moved forward) and its bolt heads 4.9 mm into the number
+  plate's wing (seat moved 3 mm in; the plate's wing runs 45 deg across the bolts); none left over 0.8 mm.
+
+### Still different
+- The model's number plate wing (plastics) covers the pinch bolts in LEFT where the photo's plate edge stands 25 px
+  further forward and shows them: a shared issue for the plate.
+- The adjuster block's direction is EST (rearwards, LEFT shows it at the cap's rear; DET835 suggests rear-outboard)
+  and it is 4.5 mm tall to stay under the pad, where DET835's looks taller (its pad end sits beside the cap).
+- The top clamp itself is still round 1's thin bridge with ring bosses; DET835 and LEFT show a thicker casting with a
+  squared rear end (a clamp build, not on this list).
+
+## Round 3 status
+- Component 3 (cables and hose routing, rest), 4 (front disc), 5 (front hub), 6 (front spoke lacing), 7 (master
+  cylinder fillets): not started.
+- Module vertices: 106,962 (fork 18,219, clamps 6,961, bars 40,830, hand_controls 19,008, front_brake 12,040,
+  disc_guard 3,442, cables 6,462); budget 220,000.
+- Lessons: the foot's underside is world-horizontal, not square to the tube (a socket read on the wrong plane came out
+  12 mm long); features at |y| 0.1 to 0.13 near the front axle need the side cameras' parallax offset (above); a
+  close-up camera for the fork caps must look past the bar pad's end (the pad covers their inboard halves).

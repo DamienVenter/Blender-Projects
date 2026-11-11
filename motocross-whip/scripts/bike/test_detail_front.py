@@ -116,7 +116,8 @@ def test_axle_is_on_the_front_axle_and_clamps_hold_both_tubes(built):
     steel = verts(built["fork"], "steel")
     r = np.hypot(steel[:, 0] - parts.FA[0], steel[:, 2] - parts.FA[2])
     axle = steel[(r < 0.0105) & (np.abs(steel[:, 1]) < 0.1265)]                           # 20 mm axle on parts.FA
-    assert len(axle) >= 40 and axle[:, 1].min() < -0.12 and axle[:, 1].max() > 0.12
+    # round 3: its right end (hex socket) flush in the right clamp's face, its left end 1.5 mm past the nut
+    assert len(axle) >= 40 and abs(axle[:, 1].min() + df.AH_Y[1]) < 0.0015 and abs(axle[:, 1].max() - 0.1215) < 0.0005
     cl = verts(built["clamps"])
     assert cl[:, 1].max() > parts.FORK_HALF + 0.030 and cl[:, 1].min() < -parts.FORK_HALF - 0.030
 
@@ -326,3 +327,63 @@ def test_band_ties_hold_the_bar_and_the_lead():
             assert dd[j] > float(df.bar_r(path[j, 1])) + 0.0002
         assert np.abs(q @ ax).max() < 0.040                                # a band, not a sleeve
         assert (q @ df.Z).min() < -(rr + 0.0092 + 0.0029)                  # it reaches round the lead
+
+
+def _photo_px(view, P):
+    """Pixel of a model point read about the photo's own axle (round 3: the feet and the caliper were cast after
+    moving each pixel by the view's offset, photo axle end minus the model's)."""
+    off = {"left": (13.7, -10.3), "right": (-10.4, -5.2)}[view]
+    return cams.CAMS[view].project([P])[0] + np.array(off)
+
+
+def test_right_axle_clamp_on_the_photos(built):
+    """Round 3, component 1: the clamp boss (outer face 106 mm out, FRONT 35.5 mm wide, front face 29 mm ahead of
+    the axle), the slit over the axle, two pinch bolts 18.5 mm apart, the foot's underside one horizontal plane."""
+    assert abs(df.AH_Y[1] - 0.106) < 1e-9 and abs(df.AH_Y[1] - df.AH_Y[0] - 0.0332) < 0.0025
+    ah = verts(built["fork"], "ah_cast")
+    right = ah[ah[:, 1] < -0.06]
+    assert abs((right[:, 0] - parts.FA[0]).max() - 0.029) < 0.001                         # front face (RIGHT)
+    assert abs((right[:, 2] - parts.FA[2]).min() - df.AH_BOTTOM) < 0.001                  # underside
+    assert abs(df.AH_BOLT[1][0] - df.AH_BOLT[1][1] - 0.0185) < 0.001
+    for p, ph in ((parts.FA + np.array([0.0, -0.106, 0.0]), (2948, 1606)),               # hex socket's centre
+                  (parts.FA + np.array([0.029, -0.106, df.AH_SLIT[0]]), (2985, 1600))):   # slit at the front face
+        assert np.linalg.norm(_photo_px("right", p) - ph) < 4.0
+
+
+def test_caliper_and_bracket_bolts_on_the_left_photo():
+    """Round 3, component 1: NISSIN's centre, the bracket bolts and the top plug on LEFT's pixels within 2 px."""
+    for p, ph in ((df.cal(0, 0, 0.100), (1200, 1645)),
+                  (parts.FA + np.array([df.CAL_BOLTS[0][0], 0.1045, df.CAL_BOLTS[0][1]]), (1197, 1578)),
+                  (parts.FA + np.array([df.CAL_BOLTS[1][0], 0.1045, df.CAL_BOLTS[1][1]]), (1154, 1670)),
+                  (df.cal(*df.CAL_TOP, 0.100), (1230, 1580))):
+        assert np.linalg.norm(_photo_px("left", p) - ph) < 2.0
+    assert [round(2 * b, 4) for _, _, b in df.CAL_LOBES] == [0.030, 0.027]               # SPEC pistons
+
+
+def test_fork_caps_and_top_clamp_pinch_bolts(built):
+    """Round 3, component 2: the pinch bolts' heads on LEFT's two heads within 3 px; the caps' hex and adjuster
+    block stay under the bar pad's measured underside; the stem nut is a 30 mm hex on the top clamp."""
+    f, dy, ts = df.TC_BOLTS
+    for t, ph in zip(ts, ((1580, 575), (1590, 555))):
+        head = df.fk(f, parts.FORK_HALF + dy - 0.001 + 0.0058, t)                       # the head's outer face
+        assert np.linalg.norm(cams.CAMS["left"].project([head])[0] - ph) < 3.0
+    fv = verts(built["fork"])
+    rel = fv - df.TUBE0
+    tt = rel @ df.UP
+    caps = fv[(tt > df.T_TUBE_TOP) & (np.abs(np.abs(fv[:, 1]) - parts.FORK_HALF) < 0.03)]
+    assert ((caps - df.TUBE0) @ df.UP).max() < df.PAD_T[0]                                 # under the pad
+    assert abs(df.CAP_HEX[0] - 0.047) < 1e-9 and df.CAP_HEX[1] < 0.0255                    # inside the 51 mm tube
+    assert len(verts(built["fork"], "mark_white")) == 16                                   # an index mark per cap
+
+
+def test_caliper_pads_straddle_the_disc_and_the_body_clears_it(built):
+    import detail_wheels as dw
+    y0, y1 = dw.DISC_F["y"] - dw.DISC_F["t"] / 2, dw.DISC_F["y"] + dw.DISC_F["t"] / 2
+    V = verts(built["front_brake"], "pad_friction")
+    assert not np.any((V[:, 1] > y0 + 0.0001) & (V[:, 1] < y1 - 0.0001))                 # nothing inside the disc
+    r = np.hypot(V[:, 0] - parts.FA[0], V[:, 2] - parts.FA[2])
+    assert r.max() < dw.DISC_F["r"] and r.min() > 0.090                                   # on the braking band
+    body = verts(built["front_brake"], "cal_cast")
+    rb = np.hypot(body[:, 0] - parts.FA[0], body[:, 2] - parts.FA[2])
+    across = (body[:, 1] > y0 - 0.0015) & (body[:, 1] < y1 + 0.0015)
+    assert np.all(rb[across] > dw.DISC_F["r"] + 0.001)                                    # the bridge passes outside
