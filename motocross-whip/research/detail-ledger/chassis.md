@@ -339,6 +339,23 @@ evenly lit (muffler roughness raised 0.26 to 0.36 for it; not re-rendered); the 
 chamfers on the inner side; the nose's pressed facets (a crease in the photo) are a smooth morph; in the right view
 the plastics agent's side panel hangs over the can's upper half (theirs).
 
+## Round 3 audit (audit.py 25 mm, merged with main's plastics), chassis parts
+engine x frame 1.9 mm at (0.601, 0.134, 0.412): detail_engine's EST shift clamp over the frame's front branch (LEFT
+l_shift: the clamp is centred near (2185, 1505), z 0.425; SHIFT is at 0.403); footpegs x frame 1.0 (the hinge pin's
+washer seated on the pad); exhaust x frame 0.9; brake_pedal x frame 0.8 (cylinder lug behind the tab); frame x
+linkage 0.8; cables x frame 0.5; frame x shock 0.4; brake_pedal x rear_brake 0.0 (the hose joint, end to end). No
+floating pieces (the first audit found the lower cross member loose: the right plate's tab thinning had spread over
+the whole lower section; fixed). Module 196,794 vertices (budget 260,000).
+
+## 2b. The coordinator's lr34 evidence (plastics s_r16_lr34): looked at, not resolved
+The photo's cap and the can's inner face look about twice as wide as the model's and its can more level. The model's
+can axis projected into lr34 (lr34_axis: its cap centre lands on the photo's outlet at (2921, 862)) runs 96 px under
+the middle of the photo's can at u 2565. Against a yaw toward the left rear: TOP (calibrated) has the outer flank
+converging inboard toward the front (-0.194 at x 0.05, -0.180 at x 0.175), and the RIGHT pair (f8_right_0) has both
+of the can's edges on the photo's. lr34 is fitted to the model and least constrained for far-side parts. Not changed;
+to settle it: fit lr34 with right-side landmarks (outlet, cap corners, nose seam) or read the inner flank in REAR and
+TOP together. The inner face's weld beads and stamped text (HONDA, certification block): not started.
+
 ## Coordinator's items (round 3)
 - Brake hose joint: this part's hose now starts exactly at the wheels hose's end, leaving it along that run's own last
   direction (0.718, -0.182, 0.672), both read off detail_wheels' built mesh (`_wheels_hose`), inside a 16 mm crimped
