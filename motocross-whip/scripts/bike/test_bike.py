@@ -223,3 +223,16 @@ def test_bar_top_edge_on_the_front_photo(npz):
         col = im[int(top) - 60:int(top) + 40, uc - 1:uc + 2].mean(1)
         photo = int(top) - 60 + np.where(col < 170)[0].min()
         assert abs(photo - top) < 4, (yb, photo, top)
+
+
+def test_the_see_through_check_still_sees_a_missing_fender(npz, tmp_path):
+    """The check looks only where the photo shows red (2026-11-11): it must still catch a plastic that is missing."""
+    d = dict(np.load(npz, allow_pickle=True))
+    names = [str(n) for n in d["names"]]
+    out = {k: v for k, v in d.items() if not k.startswith("rear_fender__")}
+    out["names"] = np.array([n for n in names if n != "rear_fender"])
+    p = str(tmp_path / "nofender.npz")
+    np.savez(p, **out)
+    found = compare.intruders(p, min_cm2=2.0)
+    assert found.get(("left", "(hole: background shows)"), 0) > 40
+    assert found.get(("right", "(hole: background shows)"), 0) > 40
