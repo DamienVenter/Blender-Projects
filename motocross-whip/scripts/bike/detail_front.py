@@ -809,21 +809,8 @@ def bars():
     for a, u, mat in ((0.114, 0.012, "btn_blue"), (0.126, 0.012, "btn_red"), (0.120, -0.004, "btn_green")):
         m.add(cyl(L.p(a, -0.0185, u), L.p(a, -0.0212, u), 0.0042, mat, 12, 0.0006))
     m.add(_wire(L, 0.131, -0.004, -0.014))
-    # ---- left: clutch perch (FRONT col 2340: black, z 1.188..1.243 at y 0.253), pivot, lever, cable adjuster
-    m.add(_block(L, 0.150, 0.168, 0.036, 0.048, "anod_black", r=0.012))
-    for u in (-0.0165, 0.0165):
-        m.add(bolt(L.p(0.159, -0.018, u), -L.f, af=0.008))
-    arm = [(0.150, 0.012), (0.170, 0.012), (0.188, 0.026), (0.190, 0.040), (0.180, 0.048), (0.162, 0.046),
-           (0.150, 0.034)]
-    m.add(slab(arm, -0.012, 0.008, "anod_black", L.p))
-    m.add(bolt(L.p(0.178, 0.036, 0.008), Z, af=0.010))
-    m.add(bolt(L.p(0.178, 0.036, -0.012), -Z, af=0.010, head_h=0.006))
-    m.add(_lever(L, [(0.178, 0.036, -0.002), (0.165, 0.050, -0.005), (0.130, 0.060, -0.009), (0.087, 0.070, -0.014),
-                     (0.062, 0.084, -0.018), (0.0495, 0.095, -0.021)]))
-    a0, ad = _clutch_adjuster()
-    m.add(cyl(a0, a0 + 0.007 * ad, 0.009, "anod_black", 16, 0.001))
-    m.add(cyl(a0 + 0.007 * ad, a0 + 0.022 * ad, 0.0055, "steel", 12))
-    m.add(rev(a0 + 0.022 * ad, ad, [(0.0062, 0.0), (0.0058, 0.008), (0.0042, 0.024)], "rubber_black", 12, cap1=True))
+    # ---- left: clutch perch, lever, boot, cable adjuster (component 6)
+    m.add(clutch_perch())
     # ---- right: throttle housing, cable hood and boot (component 4)
     m.add(throttle_housing())
     # ---- right: start button and its lead
@@ -1022,9 +1009,82 @@ def master_cylinder():
     return m
 
 
-def _clutch_adjuster():
-    s = _Side(1, CTRL_SHIFT[0])
-    return s.p(0.188, 0.036, -0.002), unit(-s.d + 0.25 * s.f)
+# ---- clutch perch (fiche K95CF0400: holder 14, clamp 15 with bolts 20, lever 17, pivot bolt 22, nut 24, lever boot 16,
+# cable adjuster 18 / 19). Positions read in TOP (`ref/top_perch.jpg`, 5x, pixel ticks), cast at their heights and
+# measured in the photo's own left-grip frame (its end and axis from gripscan.py: the top photo draws the left bar
+# 5 deg less swept than the side photos and the model, so the photo's grip is the reference, not the model's)
+CP_CLAMP = (0.1650, 0.1930)   # silver clamp round the bar (TOP a 164.7..193.0)
+CP_PIVOT = (0.1743, 0.0333)   # pivot bolt's head (TOP)
+# black lever boot in plan: TOP corners a 154..211, f 24.7..66.2 (the sleeve's stations in clutch_perch)
+CP_ADJ = ((0.2027, 0.0439), (0.2392, 0.0460))     # cable adjuster from the boot to its inboard end (TOP)
+CP_SCREW = (0.2067, 0.0291)   # small hex screw and nut on the boot's inboard end (TOP, DR05: two small nuts)
+CP_BALL = (0.0495, 0.095, -0.021)   # lever's ball: FRONT (2526, 284.5) cast on its x plane: a 55, f 92, u -20 (LEFT
+#   hides it behind the grip's end); the earlier model's a 49.5 f 95 kept within that
+
+
+def clutch_perch():
+    """Clutch perch on the left bar: silver cast clamp and its holder with two flange bolts from behind (DR06), the arm
+    and two ears round the lever's root, pivot bolt and nut, the forged lever, the black rubber boot over the root, the
+    knurled cable adjuster with its castellated lock ring, the small screw and nut on the boot."""
+    s = _Side(1)
+    m = Mesh()
+    cast = "mc_cast"
+    a0, a1 = CP_CLAMP
+    rb = bar_r(s.p(0.18)[1])
+    ring = [(rb + 0.0004, a0), (rb + 0.0055, a0), (rb + 0.0063, a0 + 0.0008), (rb + 0.0063, a1 - 0.0008),
+            (rb + 0.0055, a1), (rb + 0.0004, a1)]
+    m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(-1.38, 1.38), solid=True))             # clamp, front half
+    m.add(rev(s.T, -s.d, ring, cast, 40, ref=s.f, arc=(1.76, 4.52), solid=True))              # holder, rear half
+    m.add(_block(s, a0 + 0.001, a1 - 0.001, 0.0055, 0.048, cast, cf=-(rb + 0.0050), r=0.003))
+    for u_ in (0.016, -0.016):
+        m.add(fastener(s.p((a0 + a1) / 2, -(rb + 0.0077), u_), -s.f, "flange", af=0.010, h=0.0058, flange_d=0.0135))
+    pa, pf = CP_PIVOT
+    arm = [(a0 + 0.002, rb + 0.004), (a1 - 0.003, rb + 0.004), (pa + 0.012, pf + 0.002), (pa + 0.004, pf + 0.010),
+           (pa - 0.006, pf + 0.009), (pa - 0.011, pf + 0.001), (a0 + 0.001, rb + 0.008)]
+    for u0, u1 in ((0.0035, 0.0100), (-0.0130, -0.0065)):
+        m.add(slab(arm, u0, u1, cast, lambda a_, f_, h: s.p(a_, f_, h), ch=0.0008))
+    m.add(fastener(s.p(pa, pf, 0.0100), s.u, "flange", af=0.010, h=0.005, flange_d=0.013, mat="alu_machined"))
+    m.add(fastener(s.p(pa, pf, -0.0130), -s.u, "flange", af=0.010, h=0.0065, flange_d=0.0135, mat="steel",
+                   thread=0.003, thread_d=0.006))
+    m.add(cyl(s.p(pa, pf, -0.0063), s.p(pa, pf, 0.0033), 0.0090, "lever", 24, 0.0008))
+    m.add(_lever(s, [(pa - 0.002, pf + 0.007, -0.003), (pa - 0.016, pf + 0.015, -0.013), (0.130, 0.060, -0.019),
+                     (0.087, 0.072, -0.0205), (0.062, 0.085, -0.021), CP_BALL]))     # level from the boot (FRONT pair)
+    # boot over the lever's root and the arm: a sleeve tapering outboard to the lever (DR05; FRONT pair: its top falls
+    # from the clamp to the lever, the lever leaves it at the ball's height)
+    st = [(0.2095, (0.026, 0.062), (-0.026, 0.006)), (0.1900, (0.025, 0.066), (-0.026, 0.004)),
+          (0.1700, (0.032, 0.068), (-0.025, -0.004)), (0.1560, (0.042, 0.066), (-0.022, -0.009)),
+          (0.1520, (0.046, 0.063), (-0.020, -0.011))]
+    rings = []
+    for a_, (f0, f1), (u0, u1) in st:
+        rr_ = rounded_rect(f1 - f0, u1 - u0, min(0.006, (u1 - u0) * 0.45), 4)
+        rings.append(np.array([s.p(a_, (f0 + f1) / 2 + q[0], (u0 + u1) / 2 + q[1]) for q in rr_]))
+    m.add(_outward(grid(Mesh(), rings, "rubber_black", cap0=True, cap1=True)))
+    m.add(fastener(s.p(CP_SCREW[0], CP_SCREW[1], 0.0060), s.u, "hex", af=0.008, h=0.0045, mat="alu_machined"))
+    m.add(fastener(s.p(CP_SCREW[0], CP_SCREW[1], 0.0105), s.u, "hex", af=0.008, h=0.004, mat="alu_machined",
+                   thread=0.0025, thread_d=0.005))
+    # cable adjuster: threaded sleeve out of the boot, castellated lock ring, knurled barrel (DR05)
+    p0, ad = _clutch_adjuster(start=True)
+    p1, _ = _clutch_adjuster()
+    L = float(np.linalg.norm(p1 - p0))
+    m.add(cyl(p0 - 0.003 * ad, p0 + 0.006 * ad, 0.0042, "alu_machined", 16, 0.0004))
+    prof = [(0.0050, 0.006)]
+    for i in range(6):                                               # lock ring: six castellations' ribs
+        z = 0.0068 + i * 0.0011
+        prof += [(0.0080, z), (0.0080, z + 0.0005), (0.0074, z + 0.0007)]
+    prof += [(0.0074, 0.0136), (0.0056, 0.0142)]
+    for i in range(10):                                              # knurled barrel
+        z = 0.0150 + i * (L - 0.0175) / 10
+        prof += [(0.0066, z), (0.0069, z + 0.0006), (0.0066, z + 0.0012)]
+    prof += [(0.0062, L - 0.0010), (0.0045, L)]
+    m.add(rev(p0, ad, prof, "anod_black", 24, cap1=True))
+    return m
+
+
+def _clutch_adjuster(start=False):
+    """The adjuster's axis: its boot end (start) or its inboard end, where the cable leaves; and its direction."""
+    s = _Side(1)
+    q0, q1 = s.p(CP_ADJ[0][0], CP_ADJ[0][1], -0.002), s.p(CP_ADJ[1][0], CP_ADJ[1][1], -0.002)
+    return (q0 if start else q1), unit(q1 - q0)
 
 
 THROTTLE_F = (-0.005, 0.005)                          # the two cables leave side by side over the bar, EST
@@ -1202,7 +1262,7 @@ def clutch_path():
     w = unit(np.array([0.815, 0.074, 0.795]) - CLUTCH_JOIN)
     route = _engine("CLUTCH_CABLE")                      # the engine module's own route, from CLUTCH_JOIN to its last guide
     tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
-    pts = [a0 + 0.0466 * ad, a0 + 0.062 * ad, a0 + 0.085 * ad,            # leaves along the adjuster
+    pts = [a0 + 0.0006 * ad, a0 + 0.016 * ad, a0 + 0.034 * ad,            # leaves along the adjuster
            (1.058, 0.118, 1.190), fk(0.041, 0.095, 0.972),
            fk(0.042, 0.072, 0.968), fk(0.043, 0.060, 0.945), fk(0.040, 0.057, 0.915), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),

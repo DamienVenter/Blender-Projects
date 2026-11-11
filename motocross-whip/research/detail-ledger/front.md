@@ -279,3 +279,43 @@ frame), `mk.py` / `only.py` (swap this module's parts into a parts file; a light
   and the raised NISSIN mark on the reservoir's front face; the lever boot is a block where the photo's is rounded
   over the body's outboard end.
 - The LWR mark is a raised line, not lettering.
+
+## 6. Clutch perch and lever (fiche K95CF0400: holder 14, clamp 15, bolts 20, lever 17, pivot bolt 22, nut 24, boot
+16, adjuster 18 / 19)
+
+### Anatomy
+- Silver cast clamp round the bar (not black: TOP, DR05, DR06), its holder behind with two M6 flange bolts from
+  behind; an arm with two ears round the lever's root; pivot bolt from above (bright head), nut and thread below.
+- Black rubber boot: a sleeve over the arm and the lever's root, tapering outboard to where the lever leaves it.
+- Forged silver lever, nearly level from the boot to the ball; ball end.
+- Cable adjuster at the boot's inboard end: threaded sleeve, castellated lock ring, knurled black barrel; the cable
+  leaves along its axis. A small hex screw with a nut on the boot's inboard end (DR05: two small nuts).
+
+### References
+- TOP zoom `ref/top_perch.jpg` (1690..1830 x 1300..1470, 5x, pixel ticks); FRONT 2280..2480 x 190..320; REAR
+  1520..1720 x 180..310; DR05 (whole photo), DR06 (holder bolts from behind).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Frame for TOP readings | the photo's own left grip: end (0.9163, 0.4121), 13.34 deg sweep | gripscan.py; TOP draws the left bar 5 deg less swept than the side photos and the model, so positions are read relative to the photo's grip and placed relative to the model's |
+| Clamp | a 165..193 | TOP |
+| Pivot | a 174.3, f 33.3 (the model had a 195, f 36) | TOP |
+| Boot | a 152..210, f 25..68, sleeve stations from u -0.026..+0.006 inboard to -0.020..-0.011 at the lever | TOP corners; FRONT pair (top edge falling to the lever) |
+| Adjuster | a 202.7 f 43.9 to a 239.2 f 46.0; lock ring 16 mm, barrel 13.8 mm | TOP; DR05 proportions |
+| Ball | a 49.5, f 95, u -21 (kept) | FRONT (2526, 284.5) cast on its x plane: a 55, f 92, u -20 (LEFT hides it behind the grip's end) |
+| Lever height | level at u -19..-21 from the boot out | FRONT pair (the model's root had been 10 mm high) |
+
+### What was built
+- `clutch_perch()` (clamp halves, holder and bolts, ears, pivot bolt and nut, lever boss and lever, boot sleeve,
+  small screw and nut, adjuster); `_clutch_adjuster()` gives the adjuster's axis; the clutch cable starts at its
+  inboard end.
+
+### Checks
+- Pairs: `chk/p15_front_st.jpg`, `p15_rear_st.jpg` (boot a block and too high, lever root 10 mm high: fixed),
+  `p16_front_st.jpg` (boot and lever heights agree). Close-up `chk/c16.jpg` beside DR05.
+- Audit: nothing on these parts.
+
+### Still different
+- DR05's lever has a dog-leg bend just outboard of the boot; the model's blade is one smooth curve.
+- The holder's rear face has a cast rectangular recess between its bolts (DR06), not modelled.
