@@ -323,6 +323,9 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   such rings in the object's own frame. Relief lettering seen from the front: the viewer's right is the bike's left;
   check one letter in a close-up. build_bike.py drops ALL of a part's UVs if Blender removes one degenerate face:
   keep UV-mapped pieces (buttons, decals, knurl) free of zero-area faces.
+- Near the front axle the side cameras put features off their projection by an amount that grows with y: about
+  (+13.7, -10.3) px x y / 0.128 m in LEFT. Measure fork-foot and disc-guard features relative to the photo's own
+  axle (or flatten the photo onto the feature's plane), not through the camera alone. (Round 4 of the front.)
 
 ### The audit (`audit.py`)
 - `blender -b BIKE.blend --python-exit-code 1 --python audit.py -- OUT.json 25`: every pair of objects that cut
