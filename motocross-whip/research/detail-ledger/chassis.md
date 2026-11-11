@@ -439,3 +439,22 @@ this module's boss radius (PIVOT_BOSS_R = 0.026): it is 0.034 now.
 Still different: in the studio render the right side's turned front reads darker where the photo has a highlight
 line along the edge (the left side matches): the render's light, not the shape (the same face on the left is lit);
 the leg's section in between is EST (no photo shows it end on).
+
+## 3. Subframe (part `subframe`): investigated, not built (partly)
+What the photos show of it (every other stretch is under the seat, the side panels or the rear fender: REAR shows only
+the inner fender, TOP the seat): the lower rails' front mounts. fiche K95CF3900 part 7: two upper box rails from cast
+front lugs (bolts 15) to the tail, the lower rails from the tail down and forward to the lower mounts (bolts 21), a
+cross brace and a bracket (8, bolt 14) near the front of the right upper rail.
+- LEFT (sf_left, s0_left 2240..2440 x 1120..1300): a cast lug with a ribbed end comes out from under the airbox panel
+  (u 2355, v 1200: x 0.484, z 0.656 on y 0.141) down to ONE flange bolt on the leg's rear edge at (2305, 1250): x
+  0.521, z 0.618, 4.3 mm behind the model's outline; a second bolt above it (2290, 1185: x 0.534, z 0.667) is the
+  frame's own. The model's hidden bracket foot is at the same x, z (0.521, 0.603) but inboard (y 0.1105).
+- RIGHT (sf_right, s0_right 1600..1800 x 1080..1260, rr34 sf_rr34): a lug from under the panel (1670, 1110: x 0.507,
+  z 0.726) down to a plate with TWO flange bolts at (1690, 1165) and (1740, 1165): z 0.684, x 0.521 and 0.559. The
+  front bolt lies on the model's frame outline, the rear one 31 mm behind it: the model's frame is short there (the
+  photo's casting reaches back under the plate).
+- Not built: from the plates outside the frame (|y| 0.14) to the rails (0.08 to 0.09) the lugs pass under the side
+  panel, whose skins in the model fill |y| 0.082..0.107 down to z 0.63 there (the plastics agent's part, being
+  reworked now); and the right plate needs the frame's outline extended 31 mm. Both need the coordinator: the frame's
+  outline (this module) and the panel's inner skin (plastics) together. The rails, welds and the seat and airbox mounts
+  are hidden in every photo (EST as before).
