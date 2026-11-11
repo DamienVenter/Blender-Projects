@@ -308,7 +308,21 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   now raises when a plugin's part would replace another plugin's (unless it lists it in REPLACES) or two plugins
   define one material differently (test in test_bike.py).
 - `compare.intruders` flagged the muffler "inside the fender" after the fender changed. Check the photo's pixels
-  there before blaming the traced outline: 58 % were red, so the panel's edge was short, not the trace wrong.
+  there before blaming the traced outline: 58 % were red, so the panel's edge was short, not the trace wrong. On the
+  right side the same check later failed where only 10 % was red (the can's pink reflection of the panel, traced as
+  panel). The check now looks only where the photo itself shows red (`compare.photo_red`: closed over highlights,
+  grown 3 px); a test removes the rear fender and makes sure the hole is still found.
+- The handlebar's own top sits on the front photo's bar edge within 3 px (test), 6 mm under Honda's 1262 mm; the
+  throttle hood stands 12 mm over it in the photos. The overall height test takes the cockpit's top within -8/+15.
+- Disk: agents left 2 GB each of .npz/.blend in their scratch folders and the disk filled during a test run. Tell
+  agents to delete their big intermediates; after merging, delete them and remove the merged worktrees.
+- Agent output per run: about 6 components of a 10 to 13 list. Plan rounds, not one heroic run.
+- From the cockpit rounds: a feature ahead of or behind a ruler's plane reads at the wrong place in an end photo
+  (the bar is swept 16 deg: 25 mm of depth moves a point 7 mm along it); pick it in two calibrated photos and
+  triangulate. `geom.tube()` orients its section from the world's up, so a strap round a tilted axis twists: build
+  such rings in the object's own frame. Relief lettering seen from the front: the viewer's right is the bike's left;
+  check one letter in a close-up. build_bike.py drops ALL of a part's UVs if Blender removes one degenerate face:
+  keep UV-mapped pieces (buttons, decals, knurl) free of zero-area faces.
 
 ### The audit (`audit.py`)
 - `blender -b BIKE.blend --python-exit-code 1 --python audit.py -- OUT.json 25`: every pair of objects that cut
