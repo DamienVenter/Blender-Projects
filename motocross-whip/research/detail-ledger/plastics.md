@@ -404,3 +404,87 @@ into the fender's root: fixed as above).
 ## R3.3 Side panels, rest (intake's exact shape, raised airbox cover): not started
 ## R3.4 Mud flap and inner mudguard, rest: not started
 ## R3.5 Shroud small items: not started
+
+# Round 4 (2026-11-11, PLASTICS4 brief)
+
+Check images in `/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/plastics4`
+(`p*_` pair sheets, photo left; `g_*` gridded crops of the photos; `cu*/` close-ups; `cmp*` close-ups beside 475833;
+`tools/` the measuring scripts: `intake_contour.py`, `runs.py`, `cover_contour.py`).
+
+## R4.1 Side panels, rest: the intake, its scoop and screen, the airbox cover, the side cover's window (done)
+
+### Anatomy (LEFT, detail 475833, Dirt Rider 04, fiche K95CF2300 / K95CF2500, at 30 cm)
+- Intake: a quadrilateral opening, its front tip sharp (4 px round), a long straight top edge, the rear end round
+  (5 px), a lower-rear edge to a round lowest corner (8 px), a lower-front edge back to the tip. It sits in a scoop:
+  over the top edge a facet facing up under one crisp crease (the scoop's top edge), which runs on 50 px ahead of the
+  tip to a point; under the lower-rear edge the face rolls in (a bright band); under the lower-front edge one thin
+  light line; a V under the lowest corner; at the rear the crease hooks down round the opening's end.
+- Behind the opening: the panel's red moulding turns in, then a black rim (the airbox's) round the filter, the
+  filter itself green open-cell foam (speckled pores in 475833; Dirt Rider 04 shows the stock filter, green foam).
+  Rounds 1 to 3 read it as a diamond mesh.
+- The black side cover (fiche 10) is a frame with a window at its front: a smooth top bar (a double line along its
+  lower edge), the ribbed part behind the window (its inner edge rolled and lit). In the window the airbox's side cover
+  (fiche K95CF2500 item 2): a flat satin plateau, a broad bevel round it, a dark gap; under and ahead of it the main
+  frame's spar, no bar of the side cover.
+- The ribs: Y shapes on a hexagonal lattice; in the studio light they read near black on the satin ground.
+- RIGHT photo: no intake (plain red with a bolt at (1320, 921)), and its black cover's window is open (the shock's top
+  mount shows), a triangular pocket at its foot, its bolt at (1585, 1076), not the left's mirror: not built this round.
+
+### References
+- LEFT u 2300..2640, v 860..1010 at 5x (`g_left_intake.jpg`), runs per column every 8 px (`runs.py`, 2322..2602);
+  LEFT u 2080..2560, v 940..1260 (`g_left_black.jpg`), u 2170..2420, v 950..1210 and u 2130..2430, v 915..1095 at 4x,
+  contrast stretched (`g_cover4x.jpg`, `g_topbar4x.jpg`); u 2380..2680, v 1150..1450 (`leg.jpg`).
+- 475833: u 300..1800, v 250..2050 (`d833_cover.jpg`), u 1050..3550, v 350..1350 (`d833_intake.jpg`), edges at 2x
+  (`d833_edges.jpg`), the ribs beside the bolt u 1450..2150, v 1600..2300 (`ycmp.jpg`). Dirt Rider 04 (filter).
+- TOP u 2280..2640, v 1180..1300 (`top_intake.jpg`): the intake from above, a dark line 2 to 3 px under a lit facet.
+
+### Numbers and sources (plastics.py, next to each table)
+- INTAKE_PX: the red channel's contour at 120 (0.6 px blur): tip (2385.8, 938.4), rear end (2585.3, 902.3), lowest
+  (2471.7, 978.3); top edge rising 0.164 px a px, lower-rear edge 0.59, lower-front 0.44. The round 2 opening
+  (segmented, eroded, smoothed over 7 px) bulged at its lower front and lost the tip.
+- SCOOP_PX: the crease's row (930 at u 2346 to 893 at 2582), the hook (2594..2599, 892..914), the lower band's last row
+  (920.5 at 2590 to 989 at 2474), the V (2467, 988), the lower-front line (977.5 at 2458 to 938.5 at 2338), the front
+  point (2334, 937). Facet 4 to 7 px, lower band 4 to 9 px, lower-front line 3 to 4 px outside the edge.
+- SCOOP_D 5 / 8 mm (facet / lip; EST: steep in LEFT, 6 and 15 to 17 mm wide in 475833 seen from ahead and below);
+  INTAKE_FOAM_D 10 mm behind the edge (EST: the foam is near black 23 px under the top edge in LEFT, the facet's
+  shadow); the black rim 2.5 mm deep, lapping 1.5 px over the foam.
+- COVER_OUT_PX (the cover's edge: the double line, rows 994.5 / 1026 / 1054.5 at u 2240 / 2290 / 2340; the gap before
+  the frame's lit wall, u 2373 / 2351 at rows 1090 / 1130; the bevel's last row 1111.5 / 1147.5 at u 2240 / 2290; its
+  first column 2205 / 2207 at rows 1010 / 1050), COVER_TOP_PX (the plateau: grey contour at 28 and the rows and
+  columns where it ends). COVER_SET 12 mm, COVER_RISE 9 mm (EST: the bevel is lit as a steep face, its left side 95,
+  its lower side 57 against the plateau's 21). WINDOW_GAP 2.5 px, WINDOW_ROLL 12 px and 6 mm (its lit band 15 to 18
+  px; depth EST). TOPBAR_END_PX (2318, 990)..(2384, 1078); COVER_LOW_PX (the mud flap's top cut from the trace).
+- Ribs, scale corrected: LEFT u 2400..2520, rows 1040..1110 autocorrelated: hexagonal, neighbours 12.0 / 12.1 / 12.2 px
+  apart = 9.0 mm (SIDE_COVER_TILE 18 mm, two steps). Rounds 1 to 3 had 17.1 mm from 475833 with its scale taken off
+  the bolt's hex as 43 px for 8 mm; the hex there is about 70 px, the pocket 257 px (31 mm, 42 px in LEFT): 0.12 mm/px,
+  so the Ys are 10.4 mm apart there; the spacing-to-pocket ratio is 0.30 in LEFT and 0.34 in 475833. Arms 4.2 mm,
+  1.0 mm wide (0.75 mm in 475833; 2 px dark in LEFT with their shadow), 0.25 mm high (EST). Colour map
+  `side_cover_c.png`: ground (26, 26, 28), ribs (7, 7, 8) (LEFT: median (23, 24, 26), 10th percentile (5, 6, 6)).
+- Foam: INTAKE_FOAM cells 1.2 mm, struts 0.22 mm, pores 0.35 mm (475833: speckles 0.4 to 0.6 mm, 1 to 2 mm apart;
+  EST), `intake_foam_n.png`; colour (8, 46, 3) (LEFT lit low front (26..44, 41..65, 5..11)).
+
+### Built
+`plastics.INTAKE_PX` as the panel's hole (left only); `scoop_depth(u, v)` pushes the face in round it (a straight facet
+from the crease above SCOOP_SPLIT_PX, a lip rolling in under it, t^2), with rows of vertices on the scoop's outline
+(smoothed over 3 px) and 2.5 / 5.5 px outside the opening; the duct (red, then the black rim) and the foam
+(`intake_foam`, UVs). `_window_left` cuts the window, the gap and the mud flap's top out of the traced side cover; the
+frame's edge rolls into the window (lsurf); its top bar is `plastic_black` (smooth), the rest `black_texture`
+(normal and colour maps). `_airbox_cover`: paired rounded quads (`_round_quad`, `_quad_pair`), skirt, bevel rings
+(rounded both ends), plateau rings, cap. side_panels 14,792 vertices (was 11,294).
+
+### Checks
+`p1_left.jpg`, `p3_left.jpg`, `p5_left.jpg` (the cover, the ribs, the window), `p6_intake.jpg`, `p8_intake.jpg` (6x on the
+intake), `cmp_cover1.jpg`, `cmp2.jpg` (close-ups beside 475833). Scores (b8 against b0, the round's start): left red
+0.8921 (0.8953: the score counts the traced outline red all over, intake included, and the opening is now the
+photo's full size), top red 0.8557 (0.8562), rear red 0.6427 (0.6438): the scoop's opening seen from above and behind
+(TOP shows it as a dark line 2 to 3 px; with an all-black duct the top fell to 0.8547, so the duct's first part is the
+panel's red). Audit: no clash of the cover, duct or foam. Also found: build_bike.srgb reads a channel value of 1 as
+1.0 (the foam at (5, 32, 1) rendered bright blue): keep channels at 0 or 2 and up.
+
+### Still different
+- The photo's crease and lower lip read as crisp light lines; the model's as softer shading, with a jog in the
+  reflection near u 2440..2470. The photo's crease may run further ahead faintly (475833); LEFT shows it to u 2334.
+- The cover's bevels and the frame's rolled edge do not light as in the photo (left bevel 95, frame wall 130 there):
+  the depths are EST and the studio lights differ.
+- The red face round the intake and toward the tail still undulates softly (rounds 2 and 3).
+- The right side cover (open window, pocket, bolt positions) and the right red panel's bolt: not built (see anatomy).

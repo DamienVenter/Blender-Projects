@@ -431,15 +431,22 @@ def _worley(size, cells, rng):
     return F1, F2, np.take_along_axis(idx, o[:1], 0)[0]
 
 
-SIDE_COVER = dict(pitch=17.1, arm=9.0, rib_w=1.3, rib_h=0.40, arms_deg=(115.0, -5.0, 235.0), stipple=0.05,
-                  size=(1024, 886))
+SIDE_COVER = dict(pitch=plastics.SIDE_COVER_TILE * 500.0, arm=4.2, rib_w=1.0, rib_h=0.25,
+                  arms_deg=(115.0, -5.0, 235.0), stipple=0.04, size=(1024, 886))
 # The black lower part of the side panel (the airbox's side): raised Y-shaped ribs, three arms 120 deg apart, all the
-# same way round, on a hexagonal lattice, over a fine stipple. Detail 475833 at 2.4x (u 1500..2000, v 1450..1800),
-# its scale from the panel bolt in the same frame (hex 43 px for 8 mm: 0.186 mm/px): Y centres 92 px (17.1 mm)
-# apart along a row, the next row offset by half a pitch and 83 px (15.4 mm) across it (hexagonal: 14.8); arms 42 to
-# 52 px (8 to 10 mm) from the centre, 7 px (1.3 mm) wide, round ends, lit edges and a shadow on the far side
-# (raised); arms at about 117, -14 and 233 deg in the photo (its own tilt and perspective not removed: laid on the
-# panel at 115, -5, 235 deg, EST). Rib height 0.4 mm and stipple 0.05 mm: EST.
+# same way round, on a hexagonal lattice, over a fine stipple. Scale (round 4): the LEFT photo's ribbed area (u
+# 2400..2520, rows 1040..1110), autocorrelated: a hexagonal lattice, rows along the bike, neighbours 12.0 / 12.1 /
+# 12.2 px apart, 9.0 mm at the panels' 0.746 mm/px (plastics.SIDE_COVER_TILE: two steps). Rounds 1 to 3 had 17.1 mm,
+# from detail 475833's scale taken off the panel bolt's hex as 43 px for 8 mm; the hex there is about 70 px, and the
+# bolt's pocket, 42 px (31 mm) in LEFT, is 257 px in 475833 (0.12 mm/px): Y centres 87 px apart there, 10.4 mm, and
+# the ratio of the Ys' spacing to the pocket's width is 0.30 in LEFT and 0.34 in 475833. Proportions from 475833 at
+# 2.4x (u 1450..2150, v 1600..2300, `ycmp.jpg`): arms 0.47 of the pitch from the centre (4.2 mm), 0.08 of it wide
+# (0.75 mm; 1.0 mm built: in LEFT the dark arms are 2 px, 1.5 mm, with their shadow side), round ends, lit edges and a shadow on the far side (raised); arms at about 117, -14 and 233 deg in the
+# photo (its own tilt not removed: laid on the panel at 115, -5, 235 deg, EST). Rib height 0.25 mm and stipple
+# 0.04 mm: EST.
+
+
+SIDE_COVER_RGB = ((26, 26, 28), (7, 7, 8))       # ground, ribs (sRGB; LEFT, see make_textures)
 
 
 def _tristar_height():
@@ -488,27 +495,33 @@ def make_textures():
     st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
     h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
     _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
-    h, mm = _intake_height()
-    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_mesh_n.png"))
+    # and its colour: in the studio photos the ribs read near black on the satin ground (LEFT, u 2400..2520, rows
+    # 1040..1110: 10th percentile (5, 6, 6), median (23, 24, 26); the smooth part beside it (25, 26, 28)): glossy ribs
+    # mirroring the dark studio (475833, in the sun: lit edges)
+    h, sx, sy = _tristar_height()
+    k = np.clip(gaussian_filter(h, 1.5, mode="wrap") / (0.5 * SIDE_COVER["rib_h"]), 0.0, 1.0)[..., None]
+    col = np.array(SIDE_COVER_RGB[0], float) * (1.0 - k) + np.array(SIDE_COVER_RGB[1], float) * k
+    Image.fromarray(np.round(col).astype(np.uint8)).save(os.path.join(TEXTURES, "side_cover_c.png"), optimize=True)
+    h, mm = _foam_height()
+    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_foam_n.png"))
 
 
-INTAKE_MESH = dict(pitch=2.0, strand=0.45, height=0.25, size=512)
-# The air intake's screen (detail 475833 at 4x, u 2350..2650, v 600..800; 0.186 mm/px from the panel bolt's hex):
-# strands on two diagonals about 11 px (2 mm) apart, small bright specks where they cross. Strand width and height
-# EST. One 16 mm tile (8 cells each way) per texture.
+INTAKE_FOAM = dict(pitch=1.2, strut=0.22, depth=0.35, tile=16.0, size=512, seed=11)
+# The air filter's foam seen through the intake (round 4; round 2 read it as a diamond mesh). Detail 475833 at 4x
+# (u 1750..3500, v 500..1150, `d833_edges.jpg`): an even speckle of light points on dark green, the pores' rims
+# catching the light, points 2 to 3 px (0.4 to 0.6 mm) across and 5 to 10 px (1 to 2 mm) apart; Dirt Rider's air
+# filter photo (04): the stock filter is green open-cell foam. Cells 1.2 mm (EST, within the speckle's spacing), struts
+# 0.22 mm, pores 0.35 mm deep (EST). One 16 mm tile.
 
 
-def _intake_height():
-    g = INTAKE_MESH
-    n = g["size"]
-    t = (np.arange(n) + 0.5) / n * 16.0
-    X, Y = np.meshgrid(t, t)
-    h = np.zeros((n, n))
-    step = g["pitch"] / math.sqrt(2.0)                       # strands at +-45 deg, 2 mm apart along x and y
-    for sgn in (1.0, -1.0):
-        d = np.abs(((X + sgn * Y) / math.sqrt(2.0)) % step - step / 2)
-        h = np.maximum(h, g["height"] * np.clip(1.0 - (d / (g["strand"] / 2)) ** 2, 0.0, 1.0) ** 0.5)
-    return h, 16.0 / n
+def _foam_height():
+    g = INTAKE_FOAM
+    rng = np.random.default_rng(g["seed"])
+    n = int(round(g["tile"] / g["pitch"]))
+    F1, F2, cell = _worley(g["size"], n, rng)
+    edge = (F2 - F1) * g["pitch"] / 2.0                       # mm from the cell's border (about)
+    h = g["depth"] * (1.0 - np.exp(-(edge / g["strut"]) ** 2))   # struts on the borders, pores sunk between them
+    return -h, g["tile"] / g["size"]
 
 
 MATERIALS = {
@@ -520,11 +533,14 @@ MATERIALS = {
     "seat": dict(rgb=(202, 22, 30), rough=0.72, sheen=0.6, normal="stock/seat_grain_n.png", normal_strength=1.6),
     # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
     # (plastics.side_panels, x and z over the tile)
-    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
-    # the intake's screen: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow), satin
-    "intake_mesh": dict(rgb=(10, 58, 2), rough=0.5, normal="stock/intake_mesh_n.png", normal_strength=1.0),
+    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, image="stock/side_cover_c.png", normal="stock/side_cover_n.png",
+                          normal_strength=1.0),
+    # the filter's foam: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow; LEFT (26..44, 41..65,
+    # 5..11) at its lit lower front: (10, 58, 2) rendered (55, 75, 50) there, round 4), matte. (No channel at 1:
+    # build_bike.srgb reads a value of 1 as 1.0, full, not 1/255: (5, 32, 1) rendered bright blue.)
+    "intake_foam": dict(rgb=(8, 46, 3), rough=0.9, normal="stock/intake_foam_n.png", normal_strength=1.0),
 }
-CLASS = {"intake_mesh": "black"}                             # dark, as the louvre panel it replaces
+CLASS = {"intake_foam": "black"}                             # dark, as the louvre panel it replaces
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,

@@ -148,7 +148,7 @@ def test_rear_fender_profile_on_the_left_photo(fender):
 
 def test_side_cover_ribs():
     """The side panels' black lower part carries UVs on every face (the Y-rib normal map), right-handed on the outer
-    faces (or the ribs read as grooves); the map's rib lattice is the measured 17.1 mm pitch."""
+    faces (or the ribs read as grooves); the map's rib lattice is the measured 9.0 mm pitch (LEFT: 12 px)."""
     m = pl.side_panels()
     V = np.asarray(m.V)
     faces = [i for i, q in enumerate(m.M) if q == "black_texture"]
@@ -173,7 +173,7 @@ def test_side_cover_ribs():
 
 def test_round2_plastics():
     """The panel's lower edge over the can is each photo's red edge (round 3: PANEL_LOW_PX, within 2 px; the right
-    one the RIGHT photo's red-to-silver edge, 20 to 27 px over round 2's); the intake carries the green mesh with UVs;
+    one the RIGHT photo's red-to-silver edge, 20 to 27 px over round 2's); the intake carries the green foam with UVs;
     the panel bolt sits at its pocket's floor; the mudguard's top fills the wall's arch ahead of the wall."""
     assert np.interp(2800, *np.array(pl.PANEL_LOW_PX[-1]).T) == 936.5          # RIGHT, the red-to-silver edge
     for side in (1, -1):
@@ -184,9 +184,9 @@ def test_round2_plastics():
             k = np.abs(Pn.px[:, 0] - uu) < 2.0
             assert abs(Pn.px[k, 1].max() - v) < 2.0, (side, u, Pn.px[k, 1].max(), v)
     m = pl.side_panels()
-    mesh = [i for i, q in enumerate(m.M) if q == "intake_mesh"]
+    mesh = [i for i, q in enumerate(m.M) if q == "intake_foam"]
     assert mesh and all(i in m.uv for i in mesh)
-    assert "intake_mesh" in dp.MATERIALS and dp.CLASS["intake_mesh"] == "black"
+    assert "intake_foam" in dp.MATERIALS and dp.CLASS["intake_foam"] == "black"
     b = np.asarray(dp.panel_bolts().V)
     u, v = dp._px(1, *pl.PANEL_BOLT_PX)
     face = pl.panel_point(1, u, v, inset=0.006)
@@ -232,3 +232,39 @@ def test_round3_tunnel_wall():
     assert abs(V[k, 0].max() - (X0 + 0.002 + dp.DOME_D)) < 0.0015, V[k, 0].max()
     k = (V[:, 0] < X0 - 0.0025) & (V[:, 2] > 0.86) & (V[:, 2] < 0.93)              # the rib blocks' faces
     assert k.any() and np.abs(V[k, 1]).max() < 0.0715
+
+
+def test_round4_intake_and_airbox_cover():
+    """Round 4, the left panel's intake: the opening is the photo's (red mesh edge vertices on INTAKE_PX within 1 px,
+    nothing red across it); the scoop is 0 on its outline and SCOOP_D at the opening (facet above, lip below); the
+    foam sits INTAKE_FOAM_D behind the edge. The airbox cover: its plateau stands COVER_RISE over its edge, and the
+    ribbed side cover is cut away round it; the ribs' lattice is 9.0 mm, 12 px in LEFT. The right panel has no
+    intake."""
+    L = cams.CAMS["left"]
+    o = np.array(pl.INTAKE_PX)
+    for u, v in pl.SCOOP_PX[::4]:
+        assert pl.scoop_depth(u, v) < 0.0002, (u, v)
+    assert abs(pl.scoop_depth(2480.0, 914.7) - pl.SCOOP_D[0]) < 0.0006               # under the top edge
+    assert abs(pl.scoop_depth(2500.0, 965.6) - pl.SCOOP_D[1]) < 0.001                # over the lower-rear edge
+    m = pl.side_panels()
+    V = np.asarray(m.V)
+    mat_v = lambda name: np.unique([i for fi, q in enumerate(m.M) if q == name for i in m.F[fi]])
+    foam, red = mat_v("intake_foam"), mat_v("plastic_red")
+    assert (V[foam, 1] > 0).all()                                                    # left only
+    near = L.project(V[red])
+    near = near[(np.abs(near[:, 0] - 2485) < 105) & (np.abs(near[:, 1] - 940) < 45)]
+    d = np.array([np.hypot(*(o - p).T).min() for p in near])
+    assert (d < 1.0).sum() > 60                                                       # the opening's own edge
+    edge = pl.panel_point(1, 2480.0, 914.7)
+    fv = V[foam]
+    k = np.hypot(*(L.project(fv) - [2480.0, 925.0]).T) < 6.0
+    assert k.any() and abs(fv[k, 1].mean() - (edge[1] - pl.INTAKE_FOAM_D)) < 0.0015
+    Pn = pl._panel(1)
+    C = np.asarray(pl._airbox_cover(Pn, L).V)
+    k = np.hypot(*(L.project(C) - [2290.0, 1080.0]).T) < 15.0                       # the plateau's middle
+    top = np.array([Pn.width(x) for x in C[k, 0]]) - 0.006 - pl.COVER_SET + pl.COVER_RISE
+    assert k.any() and np.abs(C[k, 1] - top).max() < 0.0003
+    bt = V[mat_v("black_texture")]
+    ut = L.project(bt[bt[:, 1] > 0])                                                   # the left side cover
+    assert not pl.inside(np.array(pl.COVER_TOP_PX)[:, :2], ut).any()
+    assert pl.SIDE_COVER_TILE == 2 * 0.009 and abs(dp.SIDE_COVER["pitch"] - 12.0 * pl.MPP * 1000) < 0.1

@@ -1156,6 +1156,10 @@ def _panel(side):
             if x < 0.125 and (v > F or wt < 1.0):          # never inside the fender: clear of its face by the
                 y = max(y, fender_outer_y(x, z) + 0.0035)  # panel's 3 mm shell and 0.5 mm
             return side * y
+        if side > 0:                                       # the intake's scoop (left panel only)
+            dd = scoop_depth(u, v)
+            if dd > 0.0:
+                return lambda x, z, f=f, dd=dd: f(x, z) - dd
         return f
     # extra rows of vertices through the tail, where four lines meet within a few px and the face turns 40 mm in 20
     # px: between the crease and the fold, under the fold, and along the lower edge (on a 9 px mesh it came out
@@ -1170,6 +1174,205 @@ def _panel(side):
                            ridge=_mpx(view, rg))
 
 
+# ---------------------------------------------------------------- the left panel's air intake (round 4)
+# The opening (LEFT: the dark run's edge, the red channel's contour at 120 after a 0.6 px blur, every 4 px round the
+# corners and 16 px along the straight edges; detail 475833: the same quadrilateral, its front tip sharp, its rear end
+# round). Front tip (2385.8, 938.4); the top edge straight, rising 0.164 px a px to the rear end (2585.3, 902.3),
+# rounded over 5 px; the lower-rear edge falling 0.59 px a px to the lowest corner (2471.7, 978.3), rounded over 8 px;
+# the lower-front edge rising 0.44 px a px back to the tip, rounded over 4 px. The round 2 opening came from the
+# segmented photo's dark class, eroded, closed and smoothed over 7 px: it bulged at its lower front and rounded off
+# the tip. The RIGHT photo's panel has no intake (plain red, one bolt): the left panel only.
+INTAKE_PX = [(2389.2, 931.6), (2386.5, 934.5), (2385.8, 938.4), (2387.8, 941.8), (2390.8, 944.3), (2394.3, 946.3),
+             (2397.8, 948.1), (2412.6, 954.3), (2427.3, 960.5), (2442.0, 966.8), (2456.7, 973.2), (2460.4, 974.8),
+             (2464.0, 976.3), (2467.8, 977.7), (2471.7, 978.3), (2475.7, 978.0), (2479.6, 976.9), (2483.2, 975.4),
+             (2486.7, 973.4), (2500.4, 965.2), (2514.2, 956.9), (2527.8, 948.7), (2541.5, 940.4), (2555.3, 932.3),
+             (2565.6, 926.1), (2569.0, 924.0), (2572.3, 921.8), (2575.5, 919.3), (2578.3, 916.5), (2580.6, 913.2),
+             (2582.6, 909.8), (2584.4, 906.2), (2585.3, 902.3), (2582.8, 899.6), (2578.8, 899.5), (2574.8, 899.8),
+             (2558.2, 902.2), (2542.4, 904.6), (2526.6, 907.0), (2510.8, 909.6), (2495.0, 912.0), (2479.2, 914.5),
+             (2463.4, 917.0), (2447.6, 919.5), (2431.8, 922.0), (2416.0, 924.5), (2404.2, 926.5), (2400.3, 927.3),
+             (2396.4, 928.3), (2392.6, 929.6)]
+# The scoop round it: the panel's face is pushed in round the opening. LEFT, per column every 8 px, runs of lighter
+# pixels on the red (g > 55; `runs.py`), and detail 475833 at 1.7x: over the top edge a lit facet 4 to 7 px tall facing
+# up, a crisp crease at its top (the scoop's upper edge), which runs on 50 px ahead of the opening's tip to a point at
+# (2334, 937); under the lower-rear edge a bright band 4 to 9 px out (the face rolling into the opening); under the
+# lower-front edge one thin light line 3 to 4 px out (the scoop's edge there); the lower lines meet in a V under the
+# lowest corner (2467, 988); at the rear the crease hooks down round the opening's end (u 2594..2599, rows 892..914)
+# into the lower band. The scoop's outline, clockwise from the front point (the crease's top row, the lower band's
+# last row, the lower-front line's row plus half a pixel):
+SCOOP_PX = [(2334, 937.0), (2346, 929.5), (2354, 928.0), (2370, 926.0), (2386, 924.0), (2402, 922.0), (2418, 919.0),
+            (2434, 917.0), (2450, 914.0), (2466, 912.0), (2482, 910.5), (2498, 907.0), (2514, 905.0), (2530, 902.0),
+            (2546, 899.0), (2558, 897.0), (2570, 895.0), (2582, 893.0), (2594, 892.5), (2599, 897.0), (2599, 906.0),
+            (2596, 914.0), (2590, 920.5), (2586, 923.5), (2578, 928.5), (2570, 933.5), (2562, 937.5), (2554, 942.5),
+            (2546, 947.5), (2538, 952.5), (2530, 956.5), (2522, 961.5), (2514, 966.5), (2506, 970.5), (2498, 975.5),
+            (2490, 980.5), (2482, 984.5), (2474, 989.0), (2467, 988.0), (2458, 977.5), (2450, 974.5), (2442, 970.5),
+            (2434, 967.5), (2426, 963.5), (2418, 960.5), (2402, 953.5), (2394, 950.0), (2388, 945.0), (2378, 941.5),
+            (2362, 940.0), (2346, 939.0), (2338, 938.5)]
+# The line between the upper facet and the lower lip: the front point, the opening's tip and rear end, the hook.
+SCOOP_SPLIT_PX = [(2290.0, 937.0), (2334.0, 937.0), (2385.8, 938.4), (2585.3, 902.3), (2599.0, 901.5), (2640.0, 895.0)]
+SCOOP_D = (0.005, 0.008)  # the face's depth at the opening's edge under the upper facet and at the lower lip (EST: in
+#                           LEFT the facet is 4 to 7 px tall and the lip 3 to 9 px, in detail 475833, seen from ahead
+#                           and below, about 6 and 15 to 17 mm: both surfaces steep, the lip a ramp into the duct)
+INTAKE_FOAM_D = 0.010     # the filter's foam behind the opening's edge (EST: LEFT col 2500, the foam is near black for
+#                           23 px under the top edge, the shadow of the facet and the duct's top wall; 475833 shows the
+#                           duct's wall at the rear end, 10 px, 2 mm, as a black band)
+INTAKE_FRAME_PX = 1.5     # the duct's black rim laps over the foam's edge (LEFT: a black line 1 to 2 px at the rear end)
+
+
+@functools.lru_cache(maxsize=None)
+def _scoop():
+    from scipy.spatial import cKDTree
+    from scipy.ndimage import gaussian_filter1d
+    o = np.array(INTAKE_PX, float)
+    # the scoop's outline, read to a pixel every 8 to 16 px: resampled every 2 px and smoothed over 3 px (the
+    # crease is a function of the distance to it: its readings' kinks came out as dents along it at 6x)
+    s = resample(np.array(SCOOP_PX, float), 2.0)
+    s = np.stack([gaussian_filter1d(s[:, 0], 1.5, mode="wrap"), gaussian_filter1d(s[:, 1], 1.5, mode="wrap")], 1)
+    return o, s, cKDTree(_dense(o, 16, closed=True)), cKDTree(_dense(s, 4, closed=True)), np.array(SCOOP_SPLIT_PX)
+
+
+def scoop_depth(u, v):
+    """How far the left panel's face is pushed in (m) at LEFT pixel (u, v) by the intake's scoop: zero on the scoop's
+    outline, SCOOP_D at the opening's edge; above SCOOP_SPLIT_PX a straight facet from the crease (the crease stays
+    crisp), under it a lip that rolls in (flat at the scoop's edge, steepest at the opening)."""
+    o, s, to, ts, sp = _scoop()
+    if not (s[:, 0].min() < u < s[:, 0].max() and s[:, 1].min() < v < s[:, 1].max()):
+        return 0.0
+    q = np.array([[u, v]], float)
+    if not inside(s, q)[0]:
+        return 0.0
+    do = 0.0 if inside(o, q)[0] else float(to.query(q[0])[0])
+    ds = float(ts.query(q[0])[0])
+    t = ds / max(ds + do, 1e-9)
+    wu = smoothstep((float(np.interp(u, sp[:, 0], sp[:, 1])) - v) / 3.0 + 0.5)
+    return wu * SCOOP_D[0] * t + (1.0 - wu) * SCOOP_D[1] * t * t
+
+
+# ---------------------------------------------------------------- the left side cover's window and the airbox cover
+# Fiche K95CF2300 item 10 (the black side cover: a frame with a window at its front) and K95CF2500 item 2 (the airbox's
+# side cover: a plate with a raised panel). LEFT at 4x, grey level per row and column (`g_cover4x.jpg`,
+# `g_topbar4x.jpg`), and detail 475833: in the window a smooth satin plateau, a broad bevel round it falling to the
+# cover's edge, a dark gap, then the frame: its smooth top bar (a double line along its lower edge, the window's top)
+# and its textured part behind the window (its inner edge lit, rows 1090 / 1130 at u 2376..2391 / 2355..2372). Under
+# and ahead of the cover the photo shows a dark gap and the main frame's spar: no bar of the side cover there.
+# Corners (u, v, fillet radius px), top-left, top-right, bottom-right, bottom-left:
+COVER_OUT_PX = [(2205.0, 973.5, 4.0), (2379.6, 1078.0, 8.0), (2327.0, 1174.0, 6.0), (2209.0, 1094.0, 8.0)]
+# (the top edge: the double line, rows 994.5 / 1026 / 1054.5 at u 2240 / 2290 / 2340; the right edge: the gap before
+# the frame's lit wall, u 2373 / 2351 at rows 1090 / 1130; the bottom: the bevel's last row, 1111.5 / 1147.5 at u 2240
+# / 2290; the left: the bevel's first column, 2205 / 2207 at rows 1010 / 1050)
+COVER_TOP_PX = [(2223.0, 999.5, 6.0), (2363.0, 1089.0, 6.0), (2330.0, 1146.0, 6.0), (2230.0, 1077.0, 8.0)]
+# (the plateau, darkest: its top edge at rows 1010 / 1043 / 1074 at u 2240 / 2290 / 2340, its left edge u 2223 / 2226
+# at rows 1010 / 1050, its bottom row 1083 / 1119 at u 2240 / 2290 and its right edge u 2371 / 2341 at rows 1090 /
+# 1130, read from the contour of the grey level 28)
+COVER_SET = 0.012         # the cover's edge lies this far inside the frame's face (EST: hidden by the frame's edge)
+COVER_RISE = 0.009        # the plateau stands this far above the cover's edge (EST: the bevel, 10 to 28 px wide, is lit as
+#                           a steep face in LEFT: its left side (95), its lower side (57) against the plateau (21))
+WINDOW_GAP = 2.5          # px between the cover's edge and the frame's (the double line, 6 px with the edges' rounds)
+WINDOW_ROLL = (12.0, 0.006)  # the frame's edge rolls into the window over 12 px and 6 mm, its 3 mm shell under it (LEFT:
+#                             its lit band, 18 px over the top edge at u 2290 and 15 to 17 px by the right edge; depth EST)
+# The frame's smooth top bar ends where the ribbed part begins: a line from the red panel's edge at (2318, 995) to the
+# window's top-right corner (LEFT, 4x)
+TOPBAR_END_PX = [(2318.0, 990.0), (2384.0, 1078.0)]
+# The mud flap's top, traced with the side cover (OUT2): cut along the cover's lower edge (LEFT: (2380, 1242) to
+# (2580, 1185); under it the flap, component 2)
+COVER_LOW_PX = [(2380.0, 1242.0), (2580.0, 1185.0)]
+
+
+def _round_quad(corners, step=2.0):
+    """A closed outline through four corners (u, v, r) with each corner filleted (radius r px), sampled every STEP
+    px; each side's samples are spaced evenly, so two such outlines can be paired point by point side by side."""
+    P = np.array([c[:2] for c in corners], float)
+    out = []
+    for i in range(4):
+        a, b, c = P[i - 1], P[i], P[(i + 1) % 4]
+        r = corners[i][2]
+        e1, e2 = (a - b) / np.linalg.norm(a - b), (c - b) / np.linalg.norm(c - b)
+        th = math.acos(float(np.clip(e1 @ e2, -1.0, 1.0)))
+        k = r / math.tan(th / 2)
+        t1, t2 = b + e1 * k, b + e2 * k
+        cen = b + (e1 + e2) / np.linalg.norm(e1 + e2) * r / math.sin(th / 2)
+        a1, a2 = math.atan2(*(t1 - cen)[::-1]), math.atan2(*(t2 - cen)[::-1])
+        da = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        out.append([cen + r * np.array([math.cos(a1 + da * s), math.sin(a1 + da * s)]) for s in np.linspace(0, 1, 7)])
+    pts = []
+    for i in range(4):
+        arc, nxt = out[i], out[(i + 1) % 4]
+        pts += arc
+        p, q = arc[-1], nxt[0]
+        n = max(int(np.linalg.norm(q - p) / step), 1)
+        pts += [p + (q - p) * s for s in np.linspace(0, 1, n + 1)[1:-1]]
+    return np.array(pts)
+
+
+def _quad_pair(outer, inner, n_side=24):
+    """The two outlines of _round_quad sampled with the same count per side (arcs 7, sides n_side): paired rings."""
+    def one(c):
+        P = np.array([q[:2] for q in c], float)
+        full = _round_quad(c, step=1e6)                      # arcs only (7 points each, sides as one segment)
+        pts = []
+        for i in range(4):
+            arc = full[i * 7:(i + 1) * 7]
+            nxt = full[((i + 1) % 4) * 7]
+            pts += list(arc) + [arc[-1] + (nxt - arc[-1]) * s for s in np.linspace(0, 1, n_side + 1)[1:-1]]
+        return np.array(pts)
+    return one(outer), one(inner)
+
+
+def _window_top():
+    """The frame's edge over the cover's top edge (LEFT px): the cover's top edge moved WINDOW_GAP out, as two points."""
+    P = np.array([c[:2] for c in COVER_OUT_PX], float)
+    d = P[1] - P[0]
+    n = np.array([d[1], -d[0]]) / np.linalg.norm(d)            # up, away from the cover
+    return P[0] + n * WINDOW_GAP, P[1] + n * WINDOW_GAP
+
+
+@functools.lru_cache(maxsize=None)
+def _window_left():
+    """The region cut out of the left side cover's traced outline (LEFT px, closed), and the distance (px) from a
+    pixel to the frame's edge round it. Its top: the cover's top edge WINDOW_GAP out, from u 2150 (the top bar runs on
+    over it to its front end); its right: the cover's right edge WINDOW_GAP out, carried on down past the cover's
+    corner to row 1235 (LEFT: the frame's edge runs on to its lower corner at about (2330, 1205)); then round under
+    and ahead of the cover, outside the trace."""
+    from scipy.spatial import cKDTree
+    P = np.array([c[:2] for c in COVER_OUT_PX], float)
+    tl, tr = _window_top()
+    d = P[2] - P[1]
+    n = np.array([d[1], -d[0]]) / np.linalg.norm(d)
+    if n[0] < 0:
+        n = -n
+    r1, r2 = P[1] + n * WINDOW_GAP, P[2] + n * WINDOW_GAP
+    # the corner where the two moved edges meet
+    A = np.array([tr - tl, -(r2 - r1)]).T
+    s = np.linalg.solve(A, r1 - tl)[0]
+    tr_ = tl + (tr - tl) * s
+    a = tl + (tr - tl) * ((2150.0 - tl[0]) / (tr[0] - tl[0]))
+    c = r1 + (r2 - r1) * ((1235.0 - r1[1]) / (r2[1] - r1[1]))
+    W = _round_quad([(a[0], a[1], 0.5), (tr_[0], tr_[1], COVER_OUT_PX[1][2] + WINDOW_GAP), (c[0], c[1], 0.5),
+                     (2150.0, 1300.0, 0.5)], step=1.0)
+    edge = np.array([q for q in _dense(W, 4, closed=True) if q[0] > 2152.0 and q[1] < 1236.0])   # the frame's side
+    tree = cKDTree(edge)
+    return W, (lambda u, v: float(tree.query([u, v])[0]))
+
+
+def _airbox_cover(Pn, cam):
+    """The airbox's side cover in the left side cover's window (COVER_OUT_PX, COVER_TOP_PX): its edge COVER_SET inside
+    the frame's face, a bevel rising COVER_RISE to a flat plateau (both ends of the bevel rounded), a skirt under the
+    frame's edge and over the dark gap round it, satin black (no ribs)."""
+    out, top = _quad_pair(COVER_OUT_PX, COVER_TOP_PX)
+    face = lambda x: Pn.width(x) - 0.006                       # the frame's face (side_panels: lsurf)
+
+    def ring(px, dy):
+        return np.array([_on_surface(cam, u, v, (lambda x, z: face(x) - dy), 0.15) for u, v in px])
+    rings = [ring(_offset_loop(out, -3.0), COVER_SET + 0.002)]      # the skirt
+    for a in (0.0, 0.06, 0.15, 0.3, 0.5, 0.7, 0.85, 0.94, 1.0):
+        p = a - math.sin(2 * math.pi * a) / (2 * math.pi)            # rounded into the edge and into the plateau
+        rings.append(ring(out + (top - out) * a, COVER_SET - COVER_RISE * p))
+    c = top.mean(axis=0)
+    for k in (0.75, 0.5, 0.25):
+        rings.append(ring(c + (top - c) * k, COVER_SET - COVER_RISE))
+    m = grid(Mesh(), rings, "plastic_black", closed_u=True, cap1=True)
+    return m
+
+
 def panel_point(side, u, v, inset=0.0):
     """3D point of a side panel's face (or of a surface INSET inside its envelope) at a pixel of its photo."""
     Pn = _panel(side)
@@ -1182,10 +1385,32 @@ def side_panels():
     for side, low in ((1, "lower_panel"), (-1, "lower_panel_R")):
         Pn = _panel(side)
         view, cam = Pn.view, cams.CAMS[Pn.view]
-        name = "side_panel" if side > 0 else "side_panel_R"
-        holes = [clean_outline(view, h, sigma=7.0) for h in _vent_holes(view, name, min_area=200)]
+        holes, slines = [], []
+        if side > 0:
+            # the intake (INTAKE_PX) in its scoop: rows of vertices on the scoop's outline (the crease), 2.5 and 5.5
+            # px outside the opening's edge and on the split between the facet and the lip
+            o = np.array(INTAKE_PX, float)
+            holes = [o]
+            sc, tsc = _scoop()[1], _scoop()[3]
+            slines = [np.vstack([sc, sc[:1]])]
+            for d_ in (2.5, 5.5):
+                # only inside the scoop and clear of its outline (a row 0 to 2 px from the crease, thinned against
+                # it point by point, left long thin triangles across the crease: dents along it)
+                q = _offset_loop(resample(o, 2.0), -d_)
+                ok = inside(sc, q) & (tsc.query(q)[0] > 1.8)
+                i = 0
+                while i < len(q):
+                    if ok[i]:
+                        j = i
+                        while j < len(q) and ok[j]:
+                            j += 1
+                        if j - i >= 3:
+                            slines.append(q[i:j])
+                        i = j
+                    else:
+                        i += 1
         m.add(photo_panel(view, Pn.px, Pn.surf, 0.003, "plastic_red", holes_px=holes, step=9.0, rings=(2.5, 5.0),
-                          lines=[Pn.crease, Pn.ridge] + Pn.tail_lines, line_step=5.0))
+                          lines=[Pn.crease, Pn.ridge] + Pn.tail_lines + slines, line_step=4.0))
         for piece in Pn.extra:
             # the red triangle under the seat's nose, between the seat and the shroud's traced top edge: outlines.py
             # hands it to the side panel (its hand-drawn seam), but it is the shroud's roof running on under the
@@ -1201,23 +1426,31 @@ def side_panels():
                 if len(part) >= 8:
                     m.add(photo_panel(view, part, shroud_roof(side, 0.006), 0.003, "plastic_red", step=9.0))
         for h in holes:
-            # air intake: the opening's edge turns in 16 mm (LEFT, zoomed: a lighter lip 8 px wide above the
-            # opening; depth EST) onto a dark panel (the photo shows the filter's dark green behind it)
-            c = h.mean(axis=0)
-            hin = c + (h - c) * 0.92
-            back = lambda u, v, q=side: (lambda x, z, f=Pn.surf(u, v): f(x, z) - q * 0.016)
-            hr = resample(h, 4.5)                          # the panel's own vertices round the opening (step / 2)
-            r0 = np.array([_on_surface(cam, u, v, Pn.surf(u, v), side * 0.15) for u, v in hr])
-            r1 = np.array([_on_surface(cam, u, v, back(u, v), side * 0.15) for u, v in c + (hr - c) * 0.92])
-            m.add(grid(Mesh(), [r0, r1], "plastic_red", closed_u=True))
-            # the filter's screen behind it: a dark green diamond mesh (detail 475833, u 2350..2650, v 600..800 at 4x:
-            # strands on two diagonals about 11 px, 2 mm, apart, lit (18, 63, 5), in the shadow (8, 35, 2)),
-            # detail_plastics.INTAKE_MESH, laid on x and z
-            sc = photo_panel(view, hin, back, 0.002, "intake_mesh", step=9.0)
-            V = np.asarray(sc.V)
-            for fi, f in enumerate(sc.F):
-                sc.uv[fi] = [(float(-side * V[i, 0] / 0.016), float(V[i, 2] / 0.016)) for i in f]
-            m.add(sc)
+            # the duct behind the opening: the panel's red moulding from its 3 mm shell straight in, then the airbox's
+            # black rim round the filter (the "screen's frame"), its last 2.5 mm, lapping INTAKE_FRAME_PX over the
+            # foam's edge (detail 475833: a black band inside the rear end; LEFT: a black line 1 to 2 px there). The
+            # foam lies INTAKE_FOAM_D behind the opening's edge. (All black, the top and rear cameras saw down and
+            # forward into the duct where their photos show red: TOP shows the opening as a dark line 2 to 3 px tall
+            # under the lit facet, u 2387..2430, row 1237)
+            sf = lambda u, v, dy: (lambda x, z, f=Pn.surf(u, v): f(x, z) - side * dy)
+            hr = resample(h, 3.0)
+            ring = lambda P, dy: np.array([_on_surface(cam, u, v, sf(u, v, dy), side * 0.15) for u, v in P])
+            h1 = _offset_loop(hr, 0.3)
+            h2 = _offset_loop(hr, 0.9)
+            h3 = _offset_loop(hr, 0.9 + INTAKE_FRAME_PX)
+            duct = grid(Mesh(), [ring(h1, 0.0028), ring(h2, INTAKE_FOAM_D - 0.0025), ring(h2, INTAKE_FOAM_D - 0.0012),
+                                 ring(h2, INTAKE_FOAM_D - 0.0004), ring(h3, INTAKE_FOAM_D - 0.0004)], "plastic_black",
+                        closed_u=True, mats=["plastic_red", "plastic_black", "plastic_black", "plastic_black"])
+            m.add(duct)
+            # the filter's foam behind it: dark green open-cell foam (detail 475833 at 4x: speckled pores; Dirt
+            # Rider's air filter photo: the stock filter is green foam; LEFT: lit (26..44, 41..65, 5..11) low in
+            # the opening, near black under its top edge), detail_plastics.INTAKE_FOAM, laid on x and z
+            hin = _offset_loop(hr, 0.9 + INTAKE_FRAME_PX - 1.0)
+            fm = photo_panel(view, hin, lambda u, v: sf(u, v, INTAKE_FOAM_D), 0.002, "intake_foam", step=6.0)
+            V = np.asarray(fm.V)
+            for fi, f in enumerate(fm.F):
+                fm.uv[fi] = [(float(-side * V[i, 0] / 0.016), float(V[i, 2] / 0.016)) for i in f]
+            m.add(fm)
         # black textured lower panel (airbox side): its own exact outline, 6 mm inside the red panel's envelope.
         # Its moulded Y ribs are a normal map (detail_plastics.SIDE_COVER) laid on x and z, the tile 34.2 x 29.6 mm
         # (two lattice steps each way), u running backward on the left and forward on the right
@@ -1228,8 +1461,37 @@ def side_panels():
         pr = POCKET_R / MPP
         ang = np.linspace(0.0, 2 * math.pi, 33)[:-1]
         hole = np.stack([bc[0] + pr * np.cos(ang), bc[1] + pr * np.sin(ang)], axis=1)
-        lp = photo_panel(view, clean_outline(view, OUT2[low], sigma=4.0), lsurf, 0.003, "black_texture",
-                         holes_px=[hole])
+        louter, llines = clean_outline(view, OUT2[low], sigma=4.0), []
+        if side > 0:
+            # the window (_window_left): cut out of the traced outline (with the gap and the main frame's dark side
+            # under and ahead of the cover, which the trace took in, and the mud flap's top under the cover's lower
+            # edge); the frame's edge rolls into it; the airbox cover sits in it
+            Wp, wdist = _window_left()
+            lo_ = np.array(COVER_LOW_PX)
+            keep = lambda uu, vv: (~inside(Wp, np.stack([uu.ravel(), vv.ravel()], 1)).reshape(uu.shape)
+                                   & ~((uu > 2440) & (uu < 2600)
+                                       & (vv > np.interp(uu, lo_[:, 0], lo_[:, 1]) + 2.0)))
+            louter = _cut(louter, keep)
+            rs, rd = WINDOW_ROLL
+            lsurf = lambda u, v, q=side: (lambda x, z, dd=rd * (1.0 - sat(wdist(u, v) / rs)) ** 2:
+                                          q * (Pn.width(x) - 0.006 - dd))
+            for d_ in (1.5, 4.0, 7.5, rs):
+                q_ = _offset_loop(resample(Wp, 2.0), -d_)
+                llines.append(np.vstack([q_, q_[:1]]))
+            llines.append(np.array(TOPBAR_END_PX))
+            m.add(_airbox_cover(Pn, cam))
+        lp = photo_panel(view, louter, lsurf, 0.003, "black_texture", holes_px=[hole], lines=llines, line_step=3.0)
+        if side > 0:
+            # the frame's smooth top bar (no ribs): over the window's top edge and ahead of TOPBAR_END_PX
+            uvp = cam.project(np.asarray(lp.V))
+            t0, t1 = np.array(TOPBAR_END_PX)
+            tl, tr = _window_top()
+            for fi, f in enumerate(lp.F):
+                cu, cv = uvp[list(f)].mean(axis=0)
+                above = cv < tl[1] + (tr[1] - tl[1]) * (cu - tl[0]) / (tr[0] - tl[0]) + 3.0
+                ahead = (t1[0] - t0[0]) * (cv - t0[1]) - (t1[1] - t0[1]) * (cu - t0[0]) > 0.0
+                if above and ahead:
+                    lp.M[fi] = "plastic_black"
         rim = np.array([_on_surface(cam, u, v, lsurf(u, v), side * 0.15) for u, v in hole])
         rings = [rim]
         for k_ in (0.3, 0.7, 1.0):                         # the wall, rounded into the floor
@@ -1241,13 +1503,14 @@ def side_panels():
             pk.F = [f[::-1] for f in pk.F]
         m.add(pk)
         V = np.asarray(lp.V)
-        tw, th = 0.0342, 0.0342 * math.sqrt(3) / 2
+        tw, th = SIDE_COVER_TILE, SIDE_COVER_TILE * math.sqrt(3) / 2
         for fi, f in enumerate(lp.F):
             lp.uv[fi] = [(float(-side * V[i, 0] / tw), float(V[i, 2] / th)) for i in f]     # (u, v, n) right-handed
         m.add(lp)
     return m
 
 
+SIDE_COVER_TILE = 0.018   # the ribbed texture's tile: two lattice steps of 9.0 mm (detail_plastics.SIDE_COVER)
 PANEL_BOLT_PX = (2426.0, 1136.0)   # LEFT: the side panel's bolt in its black lower part (detail_plastics.panel_bolts)
 POCKET_R, POCKET_D = 0.015, 0.008  # its pocket's radius and depth
 
