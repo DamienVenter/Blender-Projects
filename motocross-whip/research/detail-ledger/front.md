@@ -461,3 +461,38 @@ built .blend), `patch.py`.
   a large concave fillet and a rounded body under it; not rebuilt (it needs a lofted casting, not more pieces).
 - In REAR the throttle cables cross in front of the reservoir's top; in the model they pass over it (component 4).
 - The boot's front opening round the lever is a plain end; the photo's wraps the lever's root.
+
+## R2-3. Clutch lever, the rest of round 1's component 6 (fiche K95CF0400: lever 17)
+
+### Anatomy
+- Forged lever, flat sides with rounded edges; out of the boot it jogs back towards the grip in an S (the dog-leg)
+  and runs on in a straight, gently curving blade to the ball (TOP, DR05, lf34).
+
+### References
+- TOP grid crop at u -19 mm (`ref/lever_top.jpg`, 5x, grid of a and f every 10 mm); DR05 whole photo
+  (`ref/dr05.jpg`); lf34 1867..2151 x 330..449; FRONT (round 1's ball).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Dog-leg | up to 19.3 mm off the boot-to-ball line towards the grip, a third of the way along; 2.8 / 9.9 / 16.0 / 19.3 / 16.7 / 15.1 / 13.0 / 10.8 / 6.9 mm at 0.10..0.90 of the way | TOP centre line picks fitted through the grid (fit 0.01 mm), read relative to the photo's own boot exit (a 159.5, f 67.4) and ball (62.1, 110.6) because TOP's left bar is turned (round 1); scaled 111.5 / 106.5 to the model |
+| Ball | a 55.5, f 93, u -20.5 | FRONT cast (a 55, f 92, u -20); round 1 had kept a 49.5; TOP in its own frame a 62; the lf34 pair also had the model's ball outboard |
+| Section | rounded square scaled per point to 12 x 16 mm at the root, 7.2 x 10.4 at the ball | round 1's sizes; flat sides from rf34 / DR05 |
+
+### What was built
+- `clutch_lever_line()` (CP_EXIT, CP_DOGLEG), the lever spline sampled at 44 points (26 could not hold the S),
+  `LEVER_SEC` for both levers. Also, from DR05 for component 1: the left holder's strap lug under the bar's front with
+  its cross-head clamp screw, the grommet and the lead's drop moved inboard of the strap (a 146, where DR05 has it),
+  the drop in an 8 mm rubber sleeve, the collar matte.
+- Test `test_clutch_lever_dog_leg`.
+
+### Checks
+- Pairs `chk/p9_lever_top.jpg`, `p9_lever_lf34.jpg` (`p9s_lever.jpg`): the S matches TOP's in shape; the ball sat
+  outboard in lf34 (moved). Close-up `chk/l10.jpg` beside DR05.
+- Audit: the strap lug first cut the lead (6.5 mm), then the sleeve's curve grazed the collar (2.6 mm): both moved;
+  only the leads' 0.5 mm seats remain (bars / hand_controls).
+
+### Still different
+- DR05 shows the left switch's top from the front as a taller block than the model's (as LEFT and lf34 do; REAR
+  does not): see component 1.
+- The blade's thickness tapers in DR05 more sharply just past the dog-leg; the model's section changes linearly.

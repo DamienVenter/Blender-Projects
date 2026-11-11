@@ -297,3 +297,15 @@ def test_master_cylinder_window_and_lettering():
 
 
 Z_ = np.array([0.0, 0.0, 1.0])
+
+
+def test_clutch_lever_dog_leg():
+    """Round 2, component 3: the blade jogs back towards the grip out of the boot (TOP: 19 mm off the boot-to-ball
+    line a third of the way along) and runs on to the ball; the ball on FRONT's cast (a 55, f 92, u -20)."""
+    line = np.array(df.clutch_lever_line())[:, :2]
+    B, E = line[0], line[-1]
+    t = (E - B) / np.linalg.norm(E - B)
+    off = (line - B) @ np.array([t[1], -t[0]])
+    i = int(np.argmin(off))
+    assert -0.0215 < off[i] < -0.0185 and 0.25 < np.linalg.norm(line[i] - B) / np.linalg.norm(E - B) < 0.42
+    assert abs(df.CP_BALL[0] - 0.055) < 0.002 and abs(df.CP_BALL[1] - 0.092) < 0.002

@@ -734,7 +734,7 @@ def _lever(s, pts):
     """Forged lever blade through grip-frame points (a, f, u), ball end. FRONT: ball at |y| 0.389, z 1.18;
     TOP rows 685..865 and 1405..1540: blade 52 mm ahead of the grip at |y| 0.265, 70 at 0.345, 95 at the ball
     (offsets kept relative to the grip)."""
-    q = spline([s.p(a - s.shift * (1 - min(1.0, max(0.0, (a - 0.06) / 0.10))), f, u) for a, f, u in pts], 26)
+    q = spline([s.p(a - s.shift * (1 - min(1.0, max(0.0, (a - 0.06) / 0.10))), f, u) for a, f, u in pts], 44)
     k = np.linspace(0, 1, len(q))
     rad = np.stack([np.interp(k, [0, 0.25, 1], [0.0060, 0.0042, 0.0036]),
                     np.interp(k, [0, 0.25, 1], [0.0080, 0.0068, 0.0052])], axis=1)
@@ -1163,8 +1163,9 @@ CP_PIVOT = (0.1743, 0.0333)   # pivot bolt's head (TOP)
 # black lever boot in plan: TOP corners a 154..211, f 24.7..66.2 (the sleeve's stations in clutch_perch)
 CP_ADJ = ((0.2027, 0.0439), (0.2392, 0.0460))     # cable adjuster from the boot to its inboard end (TOP)
 CP_SCREW = (0.2067, 0.0291)   # small hex screw and nut on the boot's inboard end (TOP, DR05: two small nuts)
-CP_BALL = (0.0495, 0.095, -0.021)   # lever's ball: FRONT (2526, 284.5) cast on its x plane: a 55, f 92, u -20 (LEFT
-#   hides it behind the grip's end); the earlier model's a 49.5 f 95 kept within that
+CP_BALL = (0.0555, 0.093, -0.0205)  # lever's ball: FRONT (2526, 284.5) cast on its x plane: a 55, f 92, u -20 (LEFT
+#   hides it behind the grip's end); round 1 kept the earlier a 49.5 f 95; round 2 takes FRONT's (TOP in its own grip
+#   frame: a 62; the lf34 pair also put the model's ball outboard of the photo's)
 
 
 def clutch_perch():
@@ -1192,8 +1193,7 @@ def clutch_perch():
     m.add(fastener(s.p(pa, pf, -0.0130), -s.u, "flange", af=0.010, h=0.0065, flange_d=0.0135, mat="steel",
                    thread=0.003, thread_d=0.006))
     m.add(cyl(s.p(pa, pf, -0.0063), s.p(pa, pf, 0.0033), 0.0090, "lever", 24, 0.0008))
-    m.add(_lever(s, [(pa - 0.002, pf + 0.007, -0.003), (pa - 0.016, pf + 0.015, -0.013), (0.130, 0.060, -0.019),
-                     (0.087, 0.072, -0.0205), (0.062, 0.085, -0.021), CP_BALL]))     # level from the boot (FRONT pair)
+    m.add(_lever(s, [(pa - 0.002, pf + 0.007, -0.003), (pa - 0.016, pf + 0.015, -0.013)] + clutch_lever_line()))
     # boot over the lever's root and the arm: a sleeve tapering outboard to the lever (DR05; FRONT pair: its top falls
     # from the clamp to the lever, the lever leaves it at the ball's height)
     st = [(0.2095, (0.026, 0.062), (-0.026, 0.006)), (0.1900, (0.025, 0.066), (-0.026, 0.004)),
@@ -1223,6 +1223,31 @@ def clutch_perch():
     prof += [(0.0062, L - 0.0010), (0.0045, L)]
     m.add(rev(p0, ad, prof, "anod_black", 24, cap1=True))
     return m
+
+
+CP_EXIT = (0.152, 0.051)      # where the blade leaves the boot's outboard end (the boot's last station, a 152)
+CP_DOGLEG = ((0.097, -2.8), (0.189, -9.9), (0.267, -16.0), (0.330, -19.3), (0.414, -16.7), (0.515, -15.1),
+             (0.650, -13.0), (0.784, -10.8), (0.903, -6.9))    # the blade's dog-leg in plan: (fraction of the way
+#   from the boot's exit to the ball, mm off that straight line, negative towards the grip). TOP: the blade's centre
+#   line cast at u -19 and read relative to the photo's own exit (a 159.5 f 67.4) and ball (62.1, 110.6), since the
+#   top photo's left bar is turned (round 1); 106.5 mm there, scaled to the model's 111.5. DR05: the same S out of the
+#   boot, then a straight run to the ball
+
+
+def clutch_lever_line():
+    """The clutch lever's centre line (a, f, u) from the boot's exit to the ball, with its dog-leg (CP_DOGLEG);
+    level from the boot out (FRONT pair: u -17 at the boot to -21 at the ball)."""
+    B, E = np.array(CP_EXIT), np.array(CP_BALL[:2])
+    dv = E - B
+    ln = float(np.linalg.norm(dv))
+    t_ = dv / ln
+    n_ = np.array([t_[1], -t_[0]])                         # off the line, positive away from the grip
+    k = ln / 0.1065
+    out = [(B[0], B[1], -0.017)]
+    for fr, off in CP_DOGLEG:
+        p = B + fr * dv + off * 0.001 * k * n_
+        out.append((p[0], p[1], -0.017 - 0.004 * fr))
+    return out + [CP_BALL]
 
 
 def _clutch_adjuster(start=False):
@@ -1461,13 +1486,21 @@ def switch_left():
     a0, a1, rc = SW_COLLAR
     rb_ = BAR_R[1] + 0.0003
     m.add(rev(s.T, -s.d, [(rb_, a0), (rc - 0.0008, a0), (rc, a0 + 0.0008), (rc, a1 - 0.0008), (rc - 0.0008, a1),
-                          (rb_, a1)], hs, 48, solid=True))
+                          (rb_, a1)], "sw_body", 48, solid=True))
     m.add(_block(s, 0.1400, 0.1600, 0.0160, 0.0185, "sw_body", cf=-0.0095, cu=0.0238, r=0.0025, ch=0.001))
     # lead: a grommet block on the front-top outboard corner (lf34: a black bracket there, the lead dropping from its
     # front in front of the bar; DET829: a dark block with a hole behind the chamfer's top), the lead out of its front,
     # down in front of the bar and into the run under the bar (TOP: its front at a 138, f 14)
-    m.add(_block(s, 0.1275, 0.1395, 0.0125, 0.0180, "sw_body", cf=-0.0100, cu=0.0215, r=0.002, ch=0.0008))
-    m.add(cyl(s.p(0.1335, -0.0040, 0.0245), s.p(0.1335, 0.0035, 0.0245), 0.0036, "rubber_black", 16, 0.0006))
+    m.add(_block(s, 0.1400, 0.1520, 0.0125, 0.0180, "sw_body", cf=-0.0100, cu=0.0215, r=0.002, ch=0.0008))
+    m.add(cyl(s.p(0.1460, -0.0040, 0.0245), s.p(0.1460, 0.0035, 0.0245), 0.0036, "rubber_black", 16, 0.0006))
+    # the holder's lug under the bar's front with its cross-head clamp screw (DR05: a black strap round the bar beside
+    # the grip's collar, a lug at its lower front, the screw facing forward and down), M5, EST sizes
+    th = math.radians(-60)
+    rad_ = math.cos(th) * s.f + math.sin(th) * s.u
+    tan_ = -math.sin(th) * s.f + math.cos(th) * s.u
+    lc = s.p(0.1330) + (SW_COLLAR[2] + 0.0020) * rad_
+    m.add(box(lc, (0.0090, 0.0060, 0.0100), "sw_body", np.column_stack([-s.d, rad_, tan_])))
+    m.add(fastener(lc + 0.0030 * rad_, rad_, "button", af=0.0075, h=0.0022, recess=0.0030, mat="steel"))
     return m
 
 
@@ -1476,10 +1509,14 @@ def switch_leads():
     grommet's front over the bar's front and down into the run under the bar, the start switch's from its box's
     front under the bar; each ends 0.5 mm inside the face it enters."""
     m = Mesh()
-    m.add(_wire(_Side(1), 0.160, 0.0, 0.0, loop=[(0.140, 0.006, -0.0218), (0.1365, 0.0165, -0.0150),
-                                                 (0.1345, 0.0215, -0.0010), (0.1338, 0.0205, 0.0140),
-                                                 (0.1335, 0.0140, 0.0235), (0.1335, 0.0060, 0.0245),
-                                                 (0.1335, 0.0030, 0.0245)]))
+    m.add(_wire(_Side(1), 0.165, 0.0, 0.0, loop=[(0.1500, 0.006, -0.0218), (0.1475, 0.0180, -0.0160),
+                                                 (0.1465, 0.0230, -0.0010), (0.1462, 0.0220, 0.0140),
+                                                 (0.1460, 0.0140, 0.0235), (0.1460, 0.0060, 0.0245),
+                                                 (0.1460, 0.0030, 0.0245)]))     # inboard of the strap (DR05)
+    s1 = _Side(1)                       # the drop in a rubber sleeve about 8 mm thick (DR05: a third of the bar's width)
+    m.add(sweep([s1.p(*q) for q in ((0.1475, 0.0180, -0.0160), (0.1465, 0.0230, -0.0010), (0.1462, 0.0220, 0.0140),
+                                     (0.1460, 0.0140, 0.0235), (0.1460, 0.0060, 0.0245), (0.1460, 0.0040, 0.0245))],
+                0.0040, "rubber_black", 12))   # (it stops 0.5 mm short of the grommet's face; the lead runs on in)
     s = _Side(-1)
     e = s.p(*SS_C) + np.array([SS_DEPTH - 0.0004, 0.0, 0.0]) + 0.0002 * s.d - 0.0080 * Z    # 0.4 mm into the box's
     ends = []                                                                                # front face, square to it
