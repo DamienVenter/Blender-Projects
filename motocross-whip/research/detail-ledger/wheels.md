@@ -126,3 +126,43 @@ raised from a surface: Delaunay top, walls facing out), `_arc_map` (text on an a
   substitute; the long P is drawn as a bar over the word.
 - The MID SOFT box, the big PIRELLI word, the small box and the arrow sit where Pirelli's layout puts them (hidden
   or too faint in Honda's photos to place better).
+
+## 3. Front tyre tread and sidewall (Pirelli Scorpion MX32 Mid Soft 80/100-21)
+
+### Anatomy
+- 41 rows. Per row: a centre knob split by a V slit (like the rear's), its trailing edge rising toward the slit
+  (arrow-shaped halves); a shoulder knob each side in the same row; half a pitch on, an arrowhead knob each side
+  pointing out with a V notch in its inner side. Drafted walls, rounded edges, root fillets, vent hairs.
+- Sidewall: emblem, SCORPION MX32, MID SOFT box, PIRELLI word, size code "80/100-21 M/C 51M MST", small box,
+  arrow, rim line, vent hairs (as the rear).
+
+### References
+- LEFT / RIGHT polar scans about the front axle (`SCRATCH/scan_front.png`): tall plateaus r 359 every 8.78 deg
+  (41 rows), 3.8 deg wide; low plateaus r 354 half a pitch on; floor 347..348.
+- FRONT studio photo rows 1380..1560 cols 1930..2070 zoomed (`SCRATCH/front_mid.jpg`): the centre pair, the
+  shoulder knobs in the row, the arrowheads between rows.
+- LEFT / RIGHT unwraps of the front sidewall (`SCRATCH/uw_front.png`, `uw_fsw.png`, `uw_f.png`).
+- 475831: "80/100" in large letters beside the rim; Pirelli's flat view of the front tread (web/).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Rows | 41 | side scans |
+| Centre knob | 22 mm long, 40 mm across at the root (38 at the top), slit 3.7 mm at the top, V 2.5 mm | FRONT cols 1969..2030; scan plateau 3.8 deg |
+| Shoulder knob | y 30..44 mm, 17 mm long | FRONT cols 1930..1952 |
+| Arrowhead knob | 22 mm long, t 16.5..40 mm | FRONT zoom, pair p_ff2 |
+| Tip envelope | R - 11 mm (t / 31.5 mm)^2 | `edge.py` LEFT and RIGHT |
+| Size code | 267..340 deg left, caps 12.5 mm at r 293 | LEFT unwrap (475831 reads about 14 mm by the nipples' size) |
+| SCORPION MX32 | 69..156 deg left, 100..13 deg right, caps 17 mm | LEFT / RIGHT unwraps |
+
+### Checks
+- `SCRATCH/p_fl2.jpg.d/edge.png` and `p_fr2.jpg.d/edge.png`: LEFT and RIGHT outlines, model 2 to 3 px outside the
+  photo's on the tall plateaus (both photos alike: the shared radius), low plateaus within 2 px, rows in phase.
+- `SCRATCH/p_ff3.jpg`: FRONT pair (tread from ahead). `SCRATCH/r10/render_cu_831.png` beside 475831.
+- `SCRATCH/uw_fsw.png`: RIGHT sidewall unwrap, photo above model (MX32 in place, emblem moved to 105 deg after it).
+
+### Still different, and why
+- The rows in the FRONT photo stand about 6 % closer than the model's through the front camera: the same scale
+  question as the rear (section 1), reported.
+- 475831 shows the size code on another part of the wall: the wheel turns between photos; the studio photos place
+  the marks.

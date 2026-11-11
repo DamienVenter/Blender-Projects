@@ -76,6 +76,28 @@ def test_rear_sidewall_marks():
     assert 0.0005 <= dw.MARK_H <= 0.0012
 
 
+def test_front_tread_and_wall():
+    """The front MX32 pattern: 41 rows (side scans, 8.78 deg), every pitch alike, tips at R_FRONT; the size code
+    80/100-21 M/C 51M MST (SPEC) where the LEFT photo shows it (267..340 deg)."""
+    assert dw.FRONT["pitches"] == 41
+    sec = dw.Section(dw.FRONT, dw.FRONT_SECTION)
+    m, na, a0, n_t = dw.carcass(sec, 41, dw.FRONT_PHASE, 8, 0.050)
+    nf = len(m.F)
+    dw.front_tread(m, sec, 41, a0, dw.FRONT)
+    V = np.asarray(m.V)
+    knob = np.array(sorted({i for f, mt in zip(m.F[nf:], m.M[nf:]) if mt == "tyre" for i in f}))
+    assert abs(np.hypot(V[knob, 0], V[knob, 2]).max() - dw.FRONT["R"]) < 1e-4
+    assert len(knob) % 41 == 0
+    P = V[knob].reshape(41, -1, 3)
+    turn = 2 * math.pi / 41
+    rot = np.array([[math.cos(turn), 0, -math.sin(turn)], [0, 1, 0], [math.sin(turn), 0, math.cos(turn)]])
+    assert np.allclose(P[0] @ rot.T, P[1], atol=1e-6)
+    lay = {txt: (d0, d1) for kind, txt, d0, d1, r, cap in dw.FRONT_WALL["items"] if kind == "text"}
+    d0, d1 = lay["80/100-21  M/C  51M  MST"]
+    e = dw.FRONT_WALL["emblem"][0]
+    assert abs(e + d0 - 267) < 2 and abs(e + d1 - 340) < 2
+
+
 def test_rear_tread():
     """The rear MX32 pattern (REAR_TREAD): 46 rows, each a slit centre knob, two intermediates, two shoulders half
     a pitch on, a pad; the outline the LEFT photo shows; vent hairs on the knobs."""

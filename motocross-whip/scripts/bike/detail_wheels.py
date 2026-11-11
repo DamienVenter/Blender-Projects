@@ -52,21 +52,6 @@ FRONT_SECTION = [(0.0, 0.0), (0.0121, -0.0019), (0.0228, -0.0073), (0.0307, -0.0
                  (0.0361, -0.0310), (0.0356, -0.0420), (0.0336, -0.0520)]
 REAR_SECTION = [(0.0, 0.0), (0.0127, -0.0010), (0.0245, -0.0055), (0.0322, -0.014), (0.0358, -0.026), (0.0367, -0.037),
                 (0.0345, -0.048)]
-# tread rows: (phase in pitches, t0, t1 = arc length from the crown centre along the carcass, block length along the
-# tread, height at t0, height at t1, skew = how far the outer end leads the inner end; both sides unless t0 < 0).
-# FRONT photo: centre pairs with a V between them, intermediates half a pitch on, shoulder knobs between the rows
-# (zig-zag silhouette, two shoulder knobs per pitch in the LEFT photo). Block sizes EST from those photos.
-FRONT_ROWS = [(0.00, 0.0012, 0.0150, 0.015, 0.012, 0.012, 0.006),
-              (0.50, 0.0185, 0.0300, 0.017, 0.0118, 0.0110, -0.008),
-              (0.25, 0.0340, 0.0470, 0.018, 0.0105, 0.0090, 0.004),
-              (0.75, 0.0355, 0.0500, 0.015, 0.0100, 0.0088, -0.004)]
-# REAR photo rows 1500..1560: one row of four blocks across the tread per pitch (shoulder 17 mm, two centre blocks
-# 22 mm each, shoulder). LEFT / RIGHT rear arc: one bump per pitch (harmonic 46, none at 92), 24 mm long 10 mm below
-# the tips, the groove floor in view between rows 15 mm down: nothing stands on the crown between the rows. Small
-# shoulder knobs half a pitch on (EST). The 3-pitch variation of Honda's profile is not resolved: every pitch alike.
-REAR_ROWS = [(0.00, 0.0015, 0.0235, 0.0205, 0.0165, 0.0160, 0.003),
-             (0.00, 0.0270, 0.0480, 0.0205, 0.0155, 0.0105, 0.002),
-             (0.50, 0.0330, 0.0480, 0.0150, 0.0140, 0.0110, -0.002)]
 # where the first row stands, in pitches (LEFT and RIGHT edge scans agree: front tips at 3.35 deg, rear 4.4 / 5.35)
 FRONT_PHASE, REAR_PHASE = 3.35 / (360 / 41), 4.9 / (360 / 46)
 # spokes: LEFT and RIGHT ring scans at four radii, fitted through the cameras (three-cross, 60 deg): front hub holes
@@ -239,76 +224,6 @@ class Section:
         dy, dr = lean * ny, lean * nr + (1 - lean)
         k = np.hypot(dy, dr)
         return (np.interp(t, self.t, self.P[:, 0]) + h * dy / k, np.interp(t, self.t, self.P[:, 1]) + h * dr / k)
-
-
-def tyre(spec, ctrl, rows, phase0=0.0, per=8):
-    """Knobby tyre as one mesh. The carcass is a grid: PER columns per knob pitch round the wheel, and section
-    samples that include every block's edges. Each tread block is raised from the grid cells under it, its walls
-    starting on the carcass's own vertices (nothing sunk in, nothing loose), its top standing on the carcass normal:
-    L long, inset 1.4 mm, the outer end leading by SKEW."""
-    sec = Section(spec, ctrl)
-    n = spec["pitches"]
-    na = per * n
-    edges = sorted({round(t, 5) for row in rows for t in row[1:3]})
-    end = max(edges) + 0.004
-    ts = {0.0} | set(edges)
-    for t in list(np.linspace(0.0, end, int(end / 0.0045) + 1)) + list(np.linspace(end, sec.length, 8)[1:]):
-        if all(abs(t - e) > 0.0018 for e in edges):
-            ts.add(round(float(t), 5))
-    ts = sorted(ts)
-    T = ts[::-1] + [-t for t in ts[1:]]                          # +y bead, crown, -y bead
-    col = {t: j for j, t in enumerate(T)}
-    a0 = 2 * math.pi * phase0 / n
-    ang = a0 + 2 * math.pi * np.arange(na) / na
-    C = np.empty((len(T), na, 3))
-    for j, t in enumerate(T):
-        y, r = sec.at(t)
-        C[j] = np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1)
-    m = Mesh()
-    m.verts(C.reshape(-1, 3))
-    raised = set()
-    blocks = []
-    for k in range(n):
-        for phase, t0, t1, length, h0, h1, skew in rows:
-            r_mid = sec.at(0.5 * (t0 + t1))[1]
-            ni = max(2, int(round((length + 0.0044) / (2 * math.pi * r_mid / na))))
-            i0 = int(round((k + phase) * per - ni / 2))
-            ac = a0 + 2 * math.pi * (i0 + ni / 2) / na
-            for side in (1, -1):
-                j0, j1 = (col[t1], col[t0]) if side > 0 else (col[-t0], col[-t1])
-                top = np.empty((j1 - j0 + 1, ni + 1, 3))
-                for jj in range(j1 - j0 + 1):
-                    v = (abs(T[j0 + jj]) - t0) / (t1 - t0)
-                    y, r = sec.at(side * (t0 + 0.0014 + v * (t1 - t0 - 0.0028)), h0 + v * (h1 - h0))
-                    aa = ac + skew * (v - 0.5) / r + (np.arange(ni + 1) / ni - 0.5) * length / r
-                    top[jj] = np.stack([r * np.cos(aa), np.full(ni + 1, y), r * np.sin(aa)], axis=1)
-                raised |= {((i0 + ii) % na, j) for ii in range(ni) for j in range(j0, j1)}
-                blocks.append((i0, ni, j0, j1, top))
-    for j in range(len(T) - 1):
-        for i in range(na):
-            if (i, j) not in raised:
-                i2 = (i + 1) % na
-                m.face((j * na + i, j * na + i2, (j + 1) * na + i2, (j + 1) * na + i), "rubber")
-    for i0, ni, j0, j1, top in blocks:
-        nj = j1 - j0
-        o = m.verts(top.reshape(-1, 3))
-        base = lambda ii, jj: (j0 + jj) * na + (i0 + ii) % na
-        tp = lambda ii, jj: o + jj * (ni + 1) + ii
-        pos = lambda idx: top.reshape(-1, 3)[idx - o] if idx >= o else C.reshape(-1, 3)[idx]
-        centre = 0.5 * (top.mean(axis=(0, 1)) + C[j0:j1 + 1, [(i0 + ii) % na for ii in range(ni + 1)]].mean(axis=(0, 1)))
-        faces = [(tp(ii, jj), tp(ii + 1, jj), tp(ii + 1, jj + 1), tp(ii, jj + 1)) for ii in range(ni) for jj in range(nj)]
-        for ii in range(ni):
-            for jj in (0, nj):
-                faces.append((base(ii, jj), base(ii + 1, jj), tp(ii + 1, jj), tp(ii, jj)))
-        for jj in range(nj):
-            for ii in (0, ni):
-                faces.append((base(ii, jj), base(ii, jj + 1), tp(ii, jj + 1), tp(ii, jj)))
-        for f in faces:
-            P = np.array([pos(i) for i in f])
-            if np.cross(P[1] - P[0], P[2] - P[0]) @ (P.mean(axis=0) - centre) < 0:
-                f = f[::-1]
-            m.face(f, "rubber")
-    return m, na, a0, len(T)
 
 
 # ---------------------------------------------------------------- tread blocks (shaped knobs on a whole carcass)
@@ -768,10 +683,102 @@ def sidewall(m, sec, spec, side, layout):
     n = spec["pitches"]
     for k in range(n):
         a = 2 * math.pi * (k + 0.25) / n + rng.normal() * 0.01
-        rho = 0.2885 if spec is REAR else 0.3130
+        rho = 0.2885 if spec is REAR else 0.3160
         p = np.array([rho * math.cos(a), side * (ysw(rho) - 0.0002), rho * math.sin(a)])
         d = np.array([0.6 * math.cos(a), side * 0.8, 0.6 * math.sin(a)]) + 0.25 * rng.normal(size=3)
         _spew(m, p, d, rng.uniform(0.0025, 0.004), rng)
+
+
+# Front: Pirelli Scorpion MX32 Mid Soft 80/100-21 (SPEC). 41 rows (LEFT / RIGHT polar scans about the front axle,
+# scan_front: tall plateaus at r 359 every 8.78 deg, 3.8 deg wide; low plateaus at r 354 half a pitch on; floor
+# 347..348). Per row (FRONT photo rows 1380..1560, cols 1930..2070 zoomed; 1.6 px a mm there):
+#   a centre knob split by a V slit like the rear's: cols 1969..2030 = 38 mm across at the top, the gap 6 px =
+#     3.7 mm; its trailing edge rises 2.5 mm toward the slit (the halves point backward, Pirelli's arrow knobs)
+#   a shoulder knob each side in the same row: cols 1930..1952 = y 30..44 mm, 17.5 mm long
+#   half a pitch on: an intermediate knob each side, an arrowhead pointing out (corners fore, aft and out, a V notch
+#     in its inner side: the dark notch inside each in the FRONT zoom; Pirelli's arrow knobs): 36 px = 22 mm long,
+#     y 17..40 mm (FRONT pair p_ff2: the first try at 18 mm and y 17..36 stood smaller and further in than the photo's)
+# Heights from the outline as for the rear (edge.py on LEFT and RIGHT: tall plateaus 2 to 3 px outside the photo's
+#   in both, low plateaus within 2 px); the rest EST.
+FRONT_TREAD = dict(
+    env=0.0110,                                     # tip envelope: R - env (t / 31.5 mm)^2 (LEFT outline)
+    centre=dict(s=0.0110, t=0.0200, v=0.0025, slit_z=0.0060, slit_t=0.0004, draft=4.0, slit_draft=7.5),
+    shoulder=dict(t0=0.0300, t1=0.0450, s=0.0085, h0=0.0120, h1=0.0105, lean=0.85, draft=5.0),
+    inter=dict(t0=0.0165, t1=0.0400, s=0.0110, cut=0.0050, r0=0.3480, lean=0.5, draft=5.0))
+
+
+def front_tread(m, sec, n, a0, spec, seed=21):
+    """Every knob of the front tyre on the carcass grid already in M."""
+    q = FRONT_TREAD
+    rng = np.random.default_rng(seed)
+    rc = lambda t: float(np.interp(abs(t), sec.t, sec.P[:, 1]))
+    r_env = lambda t: spec["R"] - q["env"] * (t / 0.0315) ** 2
+
+    def h_to(t, r_top, lean):
+        y0, r0 = sec.lift(abs(t), 0.0, lean)
+        y1, r1 = sec.lift(abs(t), 0.01, lean)
+        return float((r_top - r0) / ((r1 - r0) / 0.01))
+
+    for k in range(n):
+        a = a0 + 2 * math.pi * k / n
+        xc = _signed(Knob(sec, a, 1, 0.0))
+        c = q["centre"]
+        hc = lambda s, t: r_env(t) - rc(t)
+        body = _fillet([(-c["s"], -c["t"]), (c["s"], -c["t"]), (c["s"], c["t"]), (-c["s"], c["t"]),
+                        (-c["s"] - c["v"], 0.0)], 0.0015)
+        _knob(m, xc, body, lambda s, t: c["slit_z"], math.radians(c["draft"]), top=False, step=0.002)
+        for sg in (1, -1):
+            ts, to = sg * c["slit_t"], sg * c["t"]
+            # the half's slit edge runs from the V's point to the leading edge; rounded outer corners only
+            half = [(-c["s"] - c["v"] * (1 - c["slit_t"] / c["t"]), ts), (c["s"], ts), (c["s"], to), (-c["s"], to)]
+            half = _ccw(half)                                   # sg < 0: reversed, the slit corners last
+            half = _fillet(half, (0.0003, 0.0003, 0.0015, 0.0015) if sg > 0 else (0.0015, 0.0015, 0.0003, 0.0003))
+            dr = np.where(abs(half[:, 1]) < c["slit_t"] + 0.0005, math.radians(c["slit_draft"]), math.radians(c["draft"]))
+            P3, Qt = _knob(m, xc, half, hc, dr, base=c["slit_z"], base_draft=math.radians(c["draft"]))
+            up = xc(0.0, sg * 0.01, hc(0, 0.01) + 0.001) - xc(0.0, sg * 0.01, hc(0, 0.01))
+            far = [i for i in range(len(Qt)) if abs(Qt[i][1]) > c["t"] - 0.004]
+            _spews_at(m, P3, up / np.linalg.norm(up), far[::2], rng, 0.5)
+        for side in (1, -1):
+            g = q["shoulder"]
+            hf = lambda s, t, g=g: g["h0"] + (g["h1"] - g["h0"]) * (t - g["t0"]) / (g["t1"] - g["t0"])
+            xs = Knob(sec, a, side, g["lean"])
+            P3, Qt = _knob(m, xs, _rect(-g["s"], g["s"], g["t0"], g["t1"], 0.0012), hf, math.radians(g["draft"]))
+            up = xs(0.0, g["t1"] - 0.004, 0.02) - xs(0.0, g["t1"] - 0.004, 0.0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.8)
+            g = q["inter"]
+            tm = 0.5 * (g["t0"] + g["t1"])
+            plan = [(0.0, g["t1"]), (-g["s"], tm), (-0.5 * g["s"], g["t0"]), (0.0, g["t0"] + g["cut"]),
+                    (0.5 * g["s"], g["t0"]), (g["s"], tm)]                   # arrowhead pointing out
+            h0 = h_to(tm, g["r0"], g["lean"])
+            hf = lambda s, t, g=g, h0=h0: h0
+            xi = Knob(sec, a + math.pi / n, side, g["lean"])
+            P3, Qt = _knob(m, xi, _fillet(_ccw(plan), 0.0014), hf, math.radians(g["draft"]))
+            up = xi(0.0, tm, h0 + 0.001) - xi(0.0, tm, h0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.6)
+
+
+def front_tyre():
+    """Front tyre: carcass grid, the shaped knobs and the sidewall marks."""
+    sec = Section(FRONT, FRONT_SECTION)
+    m, na, a0, n_t = carcass(sec, FRONT["pitches"], FRONT_PHASE, 8, 0.050)
+    front_tread(m, sec, FRONT["pitches"], a0, FRONT)
+    for side in (1, -1):
+        sidewall(m, sec, FRONT, side, FRONT_WALL)
+    return m, na, a0, n_t
+
+
+# Front wall layout (as REAR_WALL). LEFT unwrap about the front axle (plane y 0.036): a small box at 24..37 deg,
+# SCORPION MX32 from about 70 deg to 155 (the fork leg hides 113..130), the size code "80/100-21 M/C 51M MST" (SPEC
+# service description: research/crf250r-2026.md, OM) 267..340 deg, caps 12.5 mm at r 293. RIGHT unwrap: the
+# small box 142..152 deg, SCORPION MX32 107 down to 17 deg. 475831 shows "80/100-21" large beside the rim.
+FRONT_WALL = dict(emblem=(64.0, 105.0), items=[
+    ("box", "PIRELLI", -41.0, -30.0, 0.2960, 0.0055),
+    ("emblem", None, 0.0, None, 0.3050, 0.016),
+    ("text", "SCORPION  MX32", 5.0, 92.0, 0.2905, 0.017),
+    ("box", "MID SOFT", 97.0, 110.0, 0.2960, 0.0065),
+    ("logo", "PIRELLI", 122.0, 155.0, 0.2930, 0.015),
+    ("text", "80/100-21  M/C  51M  MST", 203.0, 276.0, 0.2930, 0.0125),
+    ("arrow", None, 282.0, 293.0, 0.2960, 0.008)])
 
 
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
@@ -1148,9 +1155,9 @@ def rear_tyre():
     return m, na, a0, n_t
 
 
-def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems, tyre_fn=None):
+def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems, tyre_fn):
     """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
-    m, na, a0, n_t = tyre_fn() if tyre_fn else tyre(spec, ctrl, rows, tread_phase)
+    m, na, a0, n_t = tyre_fn()
     _rim(m, spec, na, a0, n_t)
     _hub(m, prof, mats, spoke0)
     _spokes(m, spec, rh, yl, yr, spoke0)
@@ -1171,8 +1178,8 @@ def front_wheel():
             (0.0155, -0.0705), (0.0104, -0.0705)]                 # collars to +72.5 / -70.5: the fork lugs clamp outside
     mats = ["steel", "steel", "rubber_black", "rubber_black"] + ["hub"] * (len(prof) - 9) + [
         "rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(FRONT, FRONT_SECTION, FRONT_ROWS, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
-               ((245.0, False), (65.0, True)))
+    m = _wheel(FRONT, FRONT_SECTION, None, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
+               ((245.0, False), (65.0, True)), front_tyre)
     b0 = DISC_F_DEEP + math.pi / 6
     m.add(_plate(_lobes(6, 0.040, 0.063, 20.0, b0), [circle(0.0255, 48)] + _pilots(DISC_F_BOLT_R, b0, 6), yc + 0.003,
                  0.006, "hub", 0.008))
@@ -1199,7 +1206,7 @@ def rear_wheel():
              (0.0125, -0.0855)]                                  # right collar, up to the caliper bracket
     mats += ["rubber_black", "rubber_black"]
     mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
-    m = _wheel(REAR, REAR_SECTION, REAR_ROWS, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
+    m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
                ((115.0, False), (295.0, True)), rear_tyre)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
