@@ -488,3 +488,58 @@ panel's red). Audit: no clash of the cover, duct or foam. Also found: build_bike
   the depths are EST and the studio lights differ.
 - The red face round the intake and toward the tail still undulates softly (rounds 2 and 3).
 - The right side cover (open window, pocket, bolt positions) and the right red panel's bolt: not built (see anatomy).
+
+## R4.2 Mud flap and inner mudguard (done)
+
+### Anatomy (REAR, LEFT, lr34, rr34, fiche K95CF3400)
+- Inner mudguard, seen from behind: a shield 131 mm wide between the wall's arch and a rounded foot (lowest on the
+  centre line), convex across (an upright highlight left of centre), a dark rolled lip along its foot; either side a
+  flange running forward and out (lit in REAR on the left, the right one behind the can), carrying two tabs with
+  holes (its mounts on the subframe's lower rails). Rounds 1 to 3 had it 170 mm wide (the flange's outer edge taken as
+  the face's) and flat-sided.
+- Two small round-head screws hold the flap's top to the mudguard's foot, just under the lip.
+- Mud flap: hangs from the foot, an S-curve in side view (back leaning back down to the chain, then upright), its
+  sides curled forward 24 to 26 mm, a fold (LEFT: a light line 6 to 8 px inside the rear edge) where the curl starts,
+  smooth satin back (lr34, rr34: no ribs on its back; the fold and the curled edges are its ribs), running on behind
+  the chain toward the tyre.
+
+### References
+- REAR u 1860..2140, v 780..1090 at 3x, contrast stretched (`g_rear_mud.jpg`); pairs `m0_rear.jpg`, `m1_rear.jpg`.
+- LEFT u 2420..2640, v 1150..1500 (`m0_left.jpg`, `leg.jpg`), dark runs per row every 10 px (rows 1200..1460).
+- lr34 u 2254..2588, v 782..1492 and rr34 u 1405..1742, v 785..1497 at 2x (`lr34_flap.jpg`, `rr34_flap.jpg`).
+
+### Numbers and sources (plastics.py)
+- MUD_HW 65.5 mm (REAR u 1913 / 2094 at rows to 940, cast at x 0.335, 0.727 mm/px: y +0.0629 / -0.0680; built
+  symmetric, the photo's face is 2.5 mm right of the centre line). MUD_LOW_PX: the foot (1913, 940) .. (1950, 974) ..
+  (2003.5, 999), mirrored (the right half within 4 px). Face lean 0.15 and convexity 10 mm: EST (as rounds 1 to 3).
+- Flange: REAR u 1880..1913, rows 790..950 (out to y 0.087); built to MUD_Y_MAX 0.079, forward 12 mm (EST): the
+  subframe's lower rails' inner faces are at y 0.083..0.086 there (at the photo's 87 mm the flange cut them 17 mm,
+  audit). Tabs: holes at REAR (1903, 841) and (1892, 930) (y 0.070 / 0.078, z 0.778 / 0.713), 17 x 18 mm, holes 5 mm
+  (7 px), held inside MUD_Y_MAX. Lip radius 1.5 mm (REAR: a dark line 3 to 4 px; EST).
+- Screws: REAR (1947, 993), (2057, 993): y +0.038 / -0.041 (built at +-0.040), z 0.667; heads 5.5 mm (7 px), 2.5 mm
+  tall (EST).
+- Flap (MUD_FLAP_PX): rear / front u per row from LEFT, 2531 / 2499 at row 1220 to 2554 / 2520 at row 1390 (x 0.339 to
+  0.318 at its back). Rows 1440 / 1450 reach z 0.447 at x 0.312, where the model's tyre is (the photo's axle sits
+  about 8 mm higher): knobs as much as flap; the flap ends at MUD_FLAP_Z1 0.447, 7 mm over the model's tyre (rounds 1
+  to 3: 0.485, at the chain). Width 55 mm a side at the top (REAR u 1928..2079 under the lip), 50 at the foot (EST).
+  Fold at 78 % of the half-width, 22 % of the curl (the light line).
+
+### Built
+`plastics.inner_mudguard` (face, lip, flanges with `_thick`, tabs with holes), `_mud_flap_rings` (the back face) with
+the lap behind the mudguard's foot following its convex face across (`MUD_LAP` 0.7 mm clear), `detail_plastics.rear_flap`
+(the flap 3 mm thick ahead of its back; it replaces parts.py's single-surface `mud_flap`, whose Blender solidify is
+set by vertex normals), `mud_hardware` (the two screws, seated on the back under their rims). rear_inner 1,568,
+rear_flap 1,208, mud_hardware 124 vertices.
+
+### Checks
+`m1_rear.jpg`, `m1_left.jpg`, `m2_lr34.jpg`. Audit: no clash of these parts (on the way: the flange into the rails 17.3
+mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.0 mm: all fixed). Scores (b13): left
+0.8809 / 0.8931, right 0.8689 / 0.8974, front 0.88 / 0.793, rear 0.9034 / 0.6427, top 0.879 / 0.8557.
+
+### Still different
+- REAR: the photo's left flange reads lit grey and wider (to y 0.087); the model's stops at 0.079 for the rails.
+- The flap reads lighter than the photo's (in the photo it is in the mudguard's shadow, with red reflections).
+- lr34: the model shows the mudguard's lower part beside the flap's top where the photo has the side cover's inner
+  wall and the can (the panel's tail and the can's position: rounds 3, detail_chassis).
+- The viewer's plastics toggle (viewer/bike-v0.html, PLASTICS) lists `mud_flap`, now `rear_flap` (and lacks
+  `mudguard_top`, `mud_hardware`): a shared file.

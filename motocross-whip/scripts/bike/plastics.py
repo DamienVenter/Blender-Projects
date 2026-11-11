@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 import cams
-from geom import Mesh, bolt, grid, inside, plate2d, resample, rounded_rect, smooth_poly
+from geom import Mesh, bolt, grid, inside, plate2d, resample, rounded_rect, smooth_poly, tube
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "..", "..", "research")
@@ -2211,50 +2211,163 @@ def number_plate():
 
 
 MUD_X = 0.335        # LEFT: the mud flap's rear face is at x 0.339 where it leaves the airbox (z 0.643)
+# Inner mudguard (round 4). REAR at 3x (`g_rear_mud.jpg`), cast at MUD_X (0.727 mm/px): its face's sides at u 1913 /
+# 2094 from the wall's arch down to row 940 (y +0.0629 / -0.0680: built symmetric, 65.5 mm; rounds 1 to 3 had 117 px,
+# 85 mm, the outer edge of its side flange); a bright upright highlight at u 1950..1975 (the face is convex across);
+# its lower edge (the left half, mirrored; the right agrees within 4 px):
+MUD_HW = 0.0655
+MUD_LOW_PX = [(1913.0, 940.0), (1922.0, 955.0), (1935.0, 966.0), (1950.0, 974.0), (1970.0, 990.0), (1986.0, 997.0),
+              (2003.5, 999.0)]
+# its side flange: a wall from the face's side forward and out, lit, u 1880..1913 at rows 790..950 (to y 0.087), carrying
+# two tabs with holes (REAR: holes at (1903, 841) and (1892, 930), tabs 23 x 25 px, 17 x 18 mm, holes 7 px, 5 mm): the
+# mudguard's mounts on the subframe's lower rails, whose inner faces are at y 0.083..0.086 there (detail_chassis): the
+# flange and tabs stop 4 mm short of them (MUD_Y_MAX; at the photo's 87 mm they cut the rails 17 mm, audit). Forward
+# 12 mm (EST). The right one is behind the can (built as the left's mirror).
+MUD_Y_MAX = 0.079
+MUD_FLANGE = (MUD_Y_MAX - 0.0645, 0.012)
+MUD_FLANGE_ROWS = (790.0, 950.0)
+MUD_TABS_PX = [(1903.0, 841.0), (1892.0, 930.0)]
+MUD_LIP_R = 0.0015   # REAR: a dark lip 3 to 4 px along the face's lower edge (rolled, radius EST)
+# Mud flap, LEFT (dark run per row, cast on the centre plane: its front edge is the curled sides' front, its rear edge
+# the face's back; a light line 6 to 8 px inside the rear edge all down it: the fold where the sides start to curl):
+# (row, front u, rear u). It runs on behind the chain (rows 1395..1430) toward the tyre: the dark runs at rows 1440 /
+# 1450 reach z 0.447 at x 0.312, where the model's tyre is (axle frame; the photo's rear axle sits about 8 mm higher):
+# they are the knobs as much as the flap. It ends 7 mm over the model's tyre, straight on from row 1390 (rounds 1 to 3
+# ended it at the chain, z 0.485).
+MUD_FLAP_PX = [(1220, 2499, 2531), (1240, 2499, 2532), (1260, 2499, 2533), (1280, 2501, 2535), (1300, 2504, 2537),
+               (1320, 2508, 2540), (1340, 2512, 2545), (1360, 2516, 2549), (1380, 2519, 2553), (1390, 2520, 2554)]
+MUD_FLAP_Z1 = 0.447
+MUD_FLAP_HW = (0.055, 0.050)   # REAR: its top 1928..2079 under the mudguard's lip (y +0.052 / -0.057: 55 mm); the
+#                                tyre hides the rest (50 mm at the foot EST)
+MUD_LAP = 0.0022               # its back 0.7 mm ahead of the mudguard's front face where it laps behind it
+MUD_FLAP_FOLD = (0.78, 0.22)   # the fold at 78 % of its half-width, where the side has come 22 % of the curl forward
+#                                (LEFT: the light line 6 to 8 px in front of the rear edge in a 32 to 35 px curl)
+
+
+def _mud_x(y, z):
+    """The inner mudguard's face (its mid-surface): leaning forward 0.15 m a metre up (EST), convex across, 10 mm
+    proud on the centre line (EST: REAR, the upright highlight)."""
+    z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])
+    return MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(y) / MUD_HW, 1.0) ** 2)
+
+
+def _mud_low():
+    """The face's lower edge, y and z (left half, from the side's foot to the centre line)."""
+    P = np.array(MUD_LOW_PX)
+    Q = REAR.on_plane(P[:, 0], P[:, 1], "x", MUD_X)
+    y = np.abs(Q[:, 1] - REAR.on_plane(np.array([2003.5]), np.array([999.0]), "x", MUD_X)[0][1])
+    y[0] = MUD_HW
+    return y, Q[:, 2]
+
+
+def _thick(rings, t, mat):
+    """A sheet t thick from a grid of points (its back face moved t along the grid's normals), edges closed."""
+    R = np.asarray(rings, float)
+    du = np.gradient(R, axis=1)
+    dv = np.gradient(R, axis=0)
+    n = np.cross(du, dv)
+    n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-12)
+    B = R - n * t
+    m = grid(Mesh(), list(R), mat, closed_u=False)
+    back = grid(Mesh(), [r[::-1] for r in B], mat, closed_u=False)
+    m.add(back)
+    for edge in (lambda X: X[:, 0], lambda X: X[:, -1], lambda X: X[0], lambda X: X[-1]):
+        m.add(grid(Mesh(), [edge(R), edge(B)], mat, closed_u=False))
+    return m
 
 
 def inner_mudguard():
-    """Black panel behind the airbox, above the rear tyre (the black arch under the fender in the rear photo).
-    REAR (refitted camera, dark region on the centre line): arched top at row 726, then 117 px either side of the
-    centre line from row 800 to 985 and a rounded lower edge at row 1000. Cast at x 0.335, where the left photo
-    shows the mud flap leaving the airbox: +-84 mm wide, z 0.867 down to 0.669. Above row 800 its corners are hidden
-    by the red walls under the fender (fender_mounts), so it is drawn full width there. Lean (top 30 mm further
-    forward) and the 10 mm bulge toward the tyre are EST."""
-    rows = np.array([726, 734, 748, 770, 800, 850, 950, 985, 1000])
-    half = np.array([0, 60, 95, 117, 117, 117, 117, 108, 78])
-    P = REAR.on_plane(np.full(len(rows), 2000.0), rows.astype(float), "x", MUD_X)
-    zs = P[:, 2]
-    hw = half * ((MUD_X - REAR.C[0]) / REAR.f)
-    outer = np.array([(w, z) for w, z in zip(hw, zs)] + [(-w, z) for w, z in zip(hw[::-1], zs[::-1])][:-1])
-    outer = smooth_poly(outer, 2)
-    z0 = float(zs.min())
+    """Black panel behind the airbox, above the rear tyre (round 4: REAR at 3x). The face: MUD_HW either side of the
+    centre line from the wall's arch (rows 726..800; above row 800 the red wall hides it but through its arch, where
+    detail_plastics.mudguard_top shows) down to row 940, then the rounded lower edge MUD_LOW_PX to row 999 on the
+    centre line; a rolled lip along that edge. Either side a flange from the face's side forward and out with two
+    tabs with holes (MUD_TABS_PX). 3 mm thick (EST)."""
+    rows = np.array([726.0, 734.0, 748.0, 770.0, 800.0])
+    half = np.array([0.0, 0.62, 0.90, 1.0, 1.0])                  # the arch (hidden but in the wall's arch)
+    zt = REAR.on_plane(np.full(5, 2000.0), rows, "x", MUD_X)[:, 2]
+    yl, zl = _mud_low()
+    left = [(h * MUD_HW, z) for h, z in zip(half, zt)] + list(zip(yl, zl))
+    outer = np.array(left + [(-y, z) for y, z in left[::-1]][1:-1])
+    outer = smooth_poly(resample(outer, 0.004), 1)
 
     def to3d(y, z, w):
-        x = MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(y) / 0.084, 1.0) ** 2)
-        return (x - w, y, z)
-    return plate2d(outer, [], 0.003, "plastic_black", to3d, step=0.012)
+        return (_mud_x(y, z) - w, y, z)
+    m = plate2d(outer, [], 0.003, "plastic_black", to3d, step=0.010)
+    # the lip: a roll along the lower edge, on the face's front side
+    low = outer[outer[:, 1] < float(zl[0]) + 0.004]
+    low = low[np.argsort(low[:, 0])]
+    m.add(tube(np.array([(_mud_x(y, z) + 0.0002, y, z + MUD_LIP_R * 0.6) for y, z in low]), MUD_LIP_R, 8,
+               "plastic_black", cap0=True, cap1=True))
+    # flanges and tabs (the left as measured, the right its mirror)
+    z0, z1 = REAR.on_plane(np.full(2, 2000.0), np.array(MUD_FLANGE_ROWS), "x", MUD_X)[:, 2]
+    zs = np.linspace(z1 + 0.004, z0, 14)
+    for sgn in (1.0, -1.0):
+        rings = []
+        for z in zs:
+            xf = _mud_x(MUD_HW, z)
+            rings.append(np.array([(xf + MUD_FLANGE[1] * a, sgn * (MUD_HW - 0.001 + MUD_FLANGE[0] * a ** 1.5), z)
+                                   for a in np.linspace(0.0, 1.0, 6)]))
+        f = _thick(rings, 0.0025 * sgn, "plastic_black")
+        m.add(f)
+        for u, v in MUD_TABS_PX:
+            c = REAR.on_plane(np.array([u]), np.array([v]), "x", MUD_X)[0]
+            yc = abs(c[1] - REAR.on_plane(np.array([2003.5]), np.array([v]), "x", MUD_X)[0][1])
+            xt = _mud_x(MUD_HW, c[2]) + 0.006
+            yc = min(yc, MUD_Y_MAX - 0.0045)
+            hole = np.array([(yc + 0.0025 * math.cos(q), c[2] + 0.0025 * math.sin(q))
+                             for q in np.linspace(0, 2 * math.pi, 17)[:-1]])
+            tab = np.asarray(rounded_rect(MUD_Y_MAX - MUD_HW + 0.0005, 0.018, 0.003, 4), float)
+            tab = tab + np.array([(MUD_Y_MAX + MUD_HW - 0.0005) / 2, c[2]])
+            t = plate2d(tab, [hole], 0.0025, "plastic_black", lambda y, z, w, s=sgn, x0=xt: (x0 - w, s * y, z),
+                        step=0.006)
+            if sgn < 0:
+                t.F = [f_[::-1] for f_ in t.F]
+            m.add(t)
+    return m
+
+
+def _mud_flap_rings():
+    """Mud flap hanging from the inner mudguard's foot in front of the rear tyre (round 4). Side profile from LEFT
+    (MUD_FLAP_PX: rear face and the curled sides' front per row, cast on the centre plane) down to MUD_FLAP_Z1; width
+    from REAR under the mudguard's lip (MUD_FLAP_HW). Section: a nearly flat back, a fold (MUD_FLAP_FOLD), then the
+    sides curling forward to the photo's front edge, their edges rounded. Its top laps 0.3 mm in front of the
+    mudguard's foot (the two screws at its foot: detail_plastics.mud_hardware). Its back face, as rings."""
+    T = np.array(MUD_FLAP_PX, float)
+    zr = LEFT.on_plane(T[:, 2], T[:, 0], "y", 0.0)
+    zf = LEFT.on_plane(T[:, 1], T[:, 0], "y", 0.0)
+    zt, xr, xd = zr[:, 2], zr[:, 0], zf[:, 0] - zr[:, 0]
+    a0, c0 = MUD_FLAP_FOLD
+
+    def curl(a):
+        a = abs(a)
+        if a <= a0:
+            return c0 * (a / a0) ** 2
+        return c0 + (1.0 - c0) * ((a - a0) / (1.0 - a0)) ** 1.6
+    U = np.concatenate([-np.linspace(1, 0, 9)[:-1] ** 0.7, np.linspace(0, 1, 9) ** 0.7])
+    U = np.sign(U) * np.abs(U)
+    yl, zl = _mud_low()
+    rings = []
+    for z in (0.735, 0.722, 0.709, 0.697):                  # the lap behind the mudguard's foot
+        rings.append(np.array([(_mud_x(u * MUD_FLAP_HW[0], z) + MUD_LAP + 0.006 * curl(u), u * MUD_FLAP_HW[0], z)
+                               for u in U]))
+    for z in np.linspace(0.684, MUD_FLAP_Z1, 26):
+        x = float(np.interp(-z, -zt, xr))
+        d = float(np.interp(-z, -zt, xd))
+        top = sat((0.684 - z) / 0.04)                       # from the lap's 6 mm curl to the photo's
+        w = MUD_FLAP_HW[0] + (MUD_FLAP_HW[1] - MUD_FLAP_HW[0]) * sat((0.684 - z) / (0.684 - MUD_FLAP_Z1))
+        # (toward the lap, the back follows the mudguard's own convex face across: from its centre line only, the
+        # flap's back cut the face's sides 0.7 mm at 30..45 mm out)
+        lap = sat((z - float(zt[0])) / (0.697 - float(zt[0]))) if z >= float(zt[0]) else 0.0
+        xb = lambda u: x + (_mud_x(u * w, z) + MUD_LAP - x) * lap
+        rings.append(np.array([(xb(u) + (0.006 + (d - 0.006) * top) * curl(u), u * w,
+                                z - 0.008 * (1 - abs(u)) ** 2 * sat((MUD_FLAP_Z1 + 0.012 - z) / 0.012)) for u in U]))
+    return rings
 
 
 def mud_flap():
-    """Mud flap hanging from the airbox in front of the rear tyre. LEFT photo (dark strip, rows 1200..1400, on the
-    centre plane): rear face at x 0.339 (z 0.643), 0.342 (0.611), 0.339 (0.580), 0.333 (0.549), 0.326 (0.518),
-    0.318 (0.486), 22 to 27 mm deep in side view: a sheet whose edges curl forward. Lower end z 0.485. The rear tyre
-    hides it in the rear photo: width (120 mm at the top to 110 mm) EST. Its top 25 mm laps onto the front face of
-    the inner mudguard's lower edge, as one moulding with it (EST: the joint is hidden)."""
-    zt = np.array([0.675, 0.643, 0.611, 0.580, 0.549, 0.518, 0.486])
-    xr = np.array([0.336, 0.339, 0.342, 0.339, 0.333, 0.326, 0.318])
-    z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])      # mudguard's lower edge
-    rings = []
-    for z in (0.735, 0.715, 0.700, 0.688):                  # up to where the mudguard is at its full width
-        # 0.3 mm in front of the mudguard's front face (its plate is 3 mm thick about its mid-surface)
-        rings.append(np.array([(MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(u) * 0.060 / 0.084, 1.0) ** 2) + 0.0018
-                                + 0.007 * abs(u) ** 2.2, u * 0.060, z) for u in np.linspace(-1, 1, 13)]))
-    for z in np.linspace(0.675, 0.485, 20):
-        x = float(np.interp(-z, -zt, xr))
-        w = 0.060 - 0.005 * sat((0.675 - z) / 0.19)
-        rings.append(np.array([(x + 0.023 * abs(u) ** 2.2, u * w, z - 0.006 * (1 - abs(u)) * sat((0.50 - z) / 0.015))
-                               for u in np.linspace(-1, 1, 13)]))
-    return grid(Mesh(), rings, "plastic_black", closed_u=False)
+    """The mud flap's back face (parts.py's 'mud_flap', solidified 3 mm in Blender; detail_plastics.flap builds it
+    with its thickness ahead of this face and replaces it)."""
+    return grid(Mesh(), _mud_flap_rings(), "plastic_black", closed_u=False)
 
 
 def fender_mounts():

@@ -268,3 +268,36 @@ def test_round4_intake_and_airbox_cover():
     ut = L.project(bt[bt[:, 1] > 0])                                                   # the left side cover
     assert not pl.inside(np.array(pl.COVER_TOP_PX)[:, :2], ut).any()
     assert pl.SIDE_COVER_TILE == 2 * 0.009 and abs(dp.SIDE_COVER["pitch"] - 12.0 * pl.MPP * 1000) < 0.1
+
+
+def test_round4_mudguard_and_flap():
+    """Round 4, inner mudguard and mud flap: the face's sides on REAR's columns 1913 / 2094 (4.5 px: the photo's face is 2.5 mm right of
+    the centre line, the model's symmetric), its
+    foot on row 999 (2.5 px); the flanges and tabs stop short of the subframe's rails (MUD_Y_MAX); the flap's back on
+    LEFT's rear edge (MUD_FLAP_PX, 2 px), its foot clear of the tyre (5 mm); the two screws sit on the flap's back
+    (0.5 mm); the thick flap replaces parts.py's single surface."""
+    import parts as P
+    R, L = cams.CAMS["rear"], cams.CAMS["left"]
+    V = np.asarray(pl.inner_mudguard().V)
+    uv = R.project(V[np.abs(V[:, 1]) <= pl.MUD_HW + 0.0005])
+    k = np.abs(uv[:, 1] - 880) < 30
+    assert abs(uv[k, 0].min() - 1913) < 4.5 and abs(uv[k, 0].max() - 2094) < 4.5, (uv[k, 0].min(), uv[k, 0].max())
+    c = np.abs(uv[:, 0] - 2003.5) < 6
+    assert abs(uv[c, 1].max() - 999) < 2.5, uv[c, 1].max()
+    assert np.abs(V[:, 1]).max() < pl.MUD_Y_MAX + 0.003
+    rings = np.array(pl._mud_flap_rings())
+    q = L.project(rings[:, len(rings[0]) // 2])               # the back's centre line
+    for v, uf, ur in pl.MUD_FLAP_PX:
+        i = int(np.argmin(np.abs(q[:, 1] - v)))
+        assert abs(q[i, 0] - ur) < 2.0 and abs(q[i, 1] - v) < 6, (v, q[i], ur)
+    low = rings[-1]
+    tyre = P.AXLE_Z + np.sqrt(np.maximum(0.335 ** 2 - low[:, 0] ** 2, 0.0))
+    assert (low[:, 2] - tyre).min() > 0.005
+    H = np.asarray(dp.mud_hardware().V)
+    for s in (1, -1):
+        h = H[H[:, 1] * s > 0]
+        yc, zc = h[:, 1].mean(), h[:, 2].mean()
+        xb = min(float(np.interp(-zc, -rings[:, 0, 2], [np.interp(yc + dy, r[:, 1], r[:, 0]) for r in rings]))
+                 for dy in np.linspace(-0.00275, 0.00275, 5))          # the back under the head's rim, most rearward
+        assert -0.0001 < xb - h[:, 0].max() < 0.0005, (xb, h[:, 0].max())
+    assert "mud_flap" in dp.REPLACES and "rear_flap" in dp.PARTS

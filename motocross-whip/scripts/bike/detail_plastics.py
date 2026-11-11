@@ -355,6 +355,39 @@ def mudguard_top():
     return m
 
 
+# ---------------------------------------------------------------- the mud flap's foot fasteners (round 4)
+MUD_SCREWS_PX = [(1947.0, 993.0), (2057.0, 993.0)]   # REAR at 3x: two bright round heads, 7 px (5 mm) across, on the
+#                                                     flap's top just under the inner mudguard's lip, y +0.038 / -0.041
+
+
+def mud_hardware():
+    """The two screws that hold the mud flap's top to the inner mudguard's foot (REAR, MUD_SCREWS_PX: built symmetric
+    at their mean, 39.9 mm off the centre line): round heads 5.5 mm across, 2.5 mm tall (EST from their 7 px), on
+    the flap's rear face (plastics.mud_flap's own surface; its 3 mm of plastic is ahead of it)."""
+    R = np.array(plastics._mud_flap_rings())
+    m = Mesh()
+    P = REAR.on_plane(np.array([q[0] for q in MUD_SCREWS_PX]), np.array([q[1] for q in MUD_SCREWS_PX]), "x",
+                      plastics.MUD_X)
+    y0 = REAR.on_plane(np.array([2003.5]), np.array([993.0]), "x", plastics.MUD_X)[0][1]
+    yc, zc = float(np.mean(np.abs(P[:, 1] - y0))), float(P[:, 2].mean())
+    for s in (1.0, -1.0):
+        # the flap's back at (y, z): along each ring at y, then down the rings at z; the head's rim (2.75 mm out)
+        # stands on its most rearward point there
+        xs = []
+        for dy in np.linspace(-0.00275, 0.00275, 5):
+            xr = np.array([np.interp(s * yc + dy, r[:, 1], r[:, 0]) for r in R])
+            xs.append(float(np.interp(-zc, -R[:, 0, 2], xr)))
+        m.add(bolt(np.array([min(xs) - 0.0002, s * yc, zc]), (-1.0, 0.0, 0.0), af=0.0055, head_h=0.0025, kind="cap"))
+    return m
+
+
+def rear_flap():
+    """The mud flap (plastics._mud_flap_rings, its back face) 3 mm thick, the thickness ahead of the back face (built
+    here: as parts.py's single-surface 'mud_flap', solidified in Blender, its 3 mm went where the vertex normals said
+    and cut the mudguard's foot 3.5 mm, audit)."""
+    return plastics._thick(np.array(plastics._mud_flap_rings()), 0.003, "plastic_black")
+
+
 # ---------------------------------------------------------------- number plate: mounts and hose guide
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
@@ -544,10 +577,11 @@ CLASS = {"intake_foam": "black"}                             # dark, as the louv
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
-         "plate_details": plate_details, "mudguard_top": mudguard_top}
-REPLACES = ("fork_guards", "fender_mounts")
+         "plate_details": plate_details, "mudguard_top": mudguard_top, "mud_hardware": mud_hardware,
+         "rear_flap": rear_flap}
+REPLACES = ("fork_guards", "fender_mounts", "mud_flap")
 FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
-SMOOTH = {"fork_guards": 60, "tail_under": 50}
+SMOOTH = {"fork_guards": 60, "tail_under": 50, "rear_flap": 70}
 
 
 if __name__ == "__main__":
