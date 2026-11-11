@@ -35,7 +35,17 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "sprocket": dict(rgb=(150, 152, 156), metal=1.0, rough=0.48),
              # chain (LEFT pair p_spr1, 475832): plain grey steel plates and pins, not the dark grey of before
              "chain": dict(rgb=(128, 129, 133), metal=1.0, rough=0.42),
-             "chain_pin": dict(rgb=(150, 151, 155), metal=1.0, rough=0.35)}
+             "chain_pin": dict(rgb=(150, 151, 155), metal=1.0, rough=0.35),
+             # both discs (RIGHT pair p_disc5, round 3: the photo's disc reads 160..172, as bright as the swingarm;
+             # the base material rendered it at 120)
+             "disc": dict(rgb=(192, 193, 197), metal=1.0, rough=0.30, aniso=0.4),
+             # rear caliper (RIGHT photo: body 56..66, piston housing's end 100..110, swingarm 175, disc 160)
+             "caliper_r": dict(rgb=(86, 87, 91), metal=0.8, rough=0.36),
+             "caliper_face": dict(rgb=(100, 102, 106), metal=1.0, rough=0.38),
+             "bracket_r": dict(rgb=(84, 80, 82), metal=0.8, rough=0.5),      # REAR: the arm darker than the swingarm
+             "brake_pad": dict(rgb=(42, 40, 38), metal=0.3, rough=0.8),      # sintered lining
+             "pad_ear": dict(rgb=(150, 118, 84), metal=1.0, rough=0.4),      # REAR / rr34: bronze ears on the pad pin
+             "brass": dict(rgb=(176, 136, 82), metal=1.0, rough=0.35)}       # banjo sealing washers
 CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
@@ -96,7 +106,6 @@ ROLLER_R = 0.00508                  # SPEC #520 roller 10.16 mm
 SEAT_R = 0.00525                    # roller seat with running clearance
 TIP_H = 0.0042                      # EST tooth tip above the pitch circle
 ARM_FACE = 0.0935                   # REAR cols 1833..1858 at the axle row: the swingarm's inner faces at +-93 to 95 mm
-CAL_ANG = math.radians(65.0)        # RIGHT cols 1050..1120, rows 1480..1517: caliper 65 deg above forward, r 105 mm
 SEG_RIM = 144
 
 
@@ -1051,11 +1060,29 @@ def rear_disc_r(a):
 
 def rear_disc_r_in(a):
     """Inner edge: the braking band's inner edge at r 89.5 between the bolts, and at each of the four bolts an arm
-    down to the bolt's boss (RIGHT unwrap: arms 15 deg wide at r 80, 30 deg where they leave the band; the bosses
-    8 mm round the bolts on r 72)."""
+    down to the bolt's boss (RIGHT unwrap: the boss 8 mm round the bolt on r 72, down to r 63; round 3, the photo
+    unwrapped about the disc's own centre (disc_polar_det_b): each arm runs on 24 deg past its bolt at r 74, carrying
+    the arc slot (DISC_R_SLOT), and 9 deg before it)."""
     d = np.degrees((np.asarray(a, float) - DISC_R_FLAT + math.pi / 4) % (math.pi / 2) - math.pi / 4)
-    w = np.clip((np.abs(d) - 9.0) / 9.0, 0, 1)                  # 0 on the arm, 1 on the band
-    return 0.0630 + (0.0895 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * w))
+    w_b = np.clip((np.abs(d) - 9.0) / 9.0, 0, 1)                # the boss: 0 within 9 deg of the bolt
+    r = 0.0630 + (0.0740 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * np.clip((d - 9.0) / 5.0, 0, 1)))
+    r = np.where(d < 0, 0.0630 + (0.0895 - 0.0630) * (0.5 - 0.5 * np.cos(math.pi * w_b)), r)
+    w_t = np.clip((d - 24.0) / 8.0, 0, 1)                       # past the slot, up to the band
+    return np.where(d > 24.0, 0.0740 + (0.0895 - 0.0740) * (0.5 - 0.5 * np.cos(math.pi * w_t)), r)
+
+
+# Drilled holes, round 3: the RIGHT photo rectified onto the disc's outer face (y -0.072, 0.2 mm a px) about the
+# disc's own centre (the photo's hub, 8.4 mm above parts.RA), unwrapped (disc_polar_grid, disc_polar_det_a/b) and the
+# holes found as dark or bright blobs (det_holes.py) and read by eye where a spoke crosses them. They repeat every
+# 90 deg (the three visible quarters agree hole for hole to 1 deg and 1.5 mm): 17 a quarter, 68 in all, in curved
+# runs rising outward. (angle deg, r mm), the mean of the three quarters, for the quarter 180..270 deg.
+DISC_R_HOLES = ((180.5, 96.8), (187.6, 101.2), (194.3, 103.7), (201.5, 108.5), (201.0, 94.5), (208.8, 110.9),
+                (208.0, 97.7), (215.0, 102.7), (221.7, 110.0), (221.9, 96.6), (229.6, 98.5), (237.1, 102.1),
+                (244.0, 107.0), (250.2, 111.0), (254.9, 100.2), (260.9, 108.6), (262.1, 92.7))
+DISC_R_HOLE_D = 0.0070      # the unwrap: 7.0 mm across radially, 7.7 along the arc (with the chamfers' shading)
+DISC_R_SLOT = (0.0820, 0.00225, 2.0, 19.0)      # arc slot in each arm: r, half width, from / to deg past the bolt
+#                                                 (unwrap: r 80..85 mm, 269..287 deg beside the bolt at 266.7;
+#                                                 overlay disc_overlay3_z: moved 2 mm in and 2 deg back)
 
 
 DISC_R_PETAL0 = 63.5    # deg, the first petal's plateau start (above)
@@ -1065,13 +1092,19 @@ def rear_disc():
     a = np.radians(np.arange(0, 360, 1.25))
     ai = np.radians(np.arange(0, 360, 1.0))
     holes = [_pol(rear_disc_r_in(ai), ai)] + _pilots(DISC_R_BOLT_R, DISC_R_FLAT, 4)
-    for j in range(28):                                          # RIGHT scan: holes at r 94, 103 and 111 mm
-        for r, da in ((0.1115, 0.0), (0.1030, 4.3), (0.0945, 8.6)):
-            ah = DISC_R_FLAT + j * 2 * math.pi / 28 + math.radians(da)
-            if rear_disc_r(ah) - r > 0.0065 and r - rear_disc_r_in(ah) > 0.0065:
-                holes.append(circle(0.003, 12, *_pol(r, ah)))
-    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.007, chamfer=0.0004,
-               chamfered=range(5, len(holes) - 1))               # drilled holes: a small chamfer each face
+    for k in range(4):
+        for ad, rh in DISC_R_HOLES:
+            holes.append(circle(DISC_R_HOLE_D / 2, 16, *_pol(rh / 1000.0, math.radians(ad + 90.0 * k))))
+        rs, hw, a0, a1 = DISC_R_SLOT                             # the arm's arc slot, round ends
+        b = DISC_R_FLAT + k * math.pi / 2
+        ts = np.radians(np.linspace(a0, a1, 14))
+        out_ = [_pol(rs + hw, b + t) for t in ts] + [_pol(rs + hw * np.cos(t), b + np.radians(a1) + hw / rs * np.sin(t))
+                                                     for t in np.linspace(0, math.pi, 9)[1:-1]]
+        out_ += [_pol(rs - hw, b + t) for t in ts[::-1]] + [_pol(rs - hw * np.cos(t), b + np.radians(a0) - hw / rs *
+                                                                 np.sin(t)) for t in np.linspace(0, math.pi, 9)[1:-1]]
+        holes.append(np.array(out_))
+    m = _plate(_pol(rear_disc_r(a), a), holes, DISC_R["y"], DISC_R["t"], "disc", 0.006, chamfer=0.0004,
+               chamfered=range(5, len(holes) - 1))               # drilled holes and slots: a chamfer each face
     for k in range(4):                                           # RIGHT unwrap: round socket heads on the bosses
         x, z = _pol(DISC_R_BOLT_R, DISC_R_FLAT + k * math.pi / 2)
         m.add(bolt((x, DISC_R["y"] - DISC_R["t"] / 2, z), (0, -1, 0), af=0.0125, head_h=0.005, mat="steel",
@@ -1394,10 +1427,11 @@ def front_wheel():
 # Rear hub (LEFT photo, sprocket plane unwrapped and rectified: spr_plan / spr_overlay): a dark grey casting, RGB
 # 96 / 99 / 102 in the photo where the bare aluminium sprocket reads 150 / 153 / 157 (r 40..56 mm, 180..300 deg);
 # its sprocket-side end, seen through the sprocket's bore, carries twelve tear-shaped radial ribs (r 36..54 mm).
-def _hub_ribs(m, y_face, n=12, side=1):
-    """Radial ribs on the hub's sprocket-side end face (plane y = Y_FACE, facing +y), between r 36 and 54 mm."""
+def _hub_ribs(m, y_face, n=12, side=1, a0=None, big=False):
+    """Radial ribs on a hub end face (plane y = Y_FACE, facing SIDE * y), between r 36 and 54 mm, the first at A0
+    (default: half way between two sprocket bolts). BIG: the disc side's fuller teardrops (below)."""
     for k in range(n):
-        a = SPROCKET_BOLT0 + (k + 0.5) * 2 * math.pi / n
+        a = (SPROCKET_BOLT0 + math.pi / n if a0 is None else a0) + k * 2 * math.pi / n
 
         def xf(s, t, z, a=a):
             s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
@@ -1407,7 +1441,13 @@ def _hub_ribs(m, y_face, n=12, side=1):
         # tear-shaped, 8 mm across at the outer end, low and soft: the photo's ribs are subtle bumps of the casting
         # (coordinator's whole-wheel pair: 2.6 mm ribs with crisp edges read as bright marks on a dark disc)
         plan = [(-0.0018, 0.0360), (0.0018, 0.0360), (0.0042, 0.0490), (0.0, 0.0545), (-0.0042, 0.0490)]
-        _knob(m, xf, _fillet(plan, 0.0020), lambda s, t: 0.0013, math.radians(40.0), mat="hub_cast", rnd=0.0010)
+        h = 0.0013
+        if big:     # RIGHT photo rectified on the hub's end (hub_rect_g, round 3): rounder heads 10 mm across at r
+            #         46..50, tails in to r 37, catching the light as bumps 2 mm high
+            plan = [(-0.0020, 0.0368), (0.0020, 0.0368), (0.0050, 0.0470), (0.0030, 0.0530), (0.0, 0.0542),
+                    (-0.0030, 0.0530), (-0.0050, 0.0470)]
+            h = 0.0020
+        _knob(m, xf, _fillet(plan, 0.0020), lambda s, t: h, math.radians(40.0), mat="hub_cast", rnd=0.0010)
 
 
 def rear_wheel():
@@ -1431,6 +1471,8 @@ def rear_wheel():
     mats += ["hub_cast"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
     i_ring = [i for i in range(len(prof) - 1) if prof[i][0] >= 0.0559 and prof[i + 1][0] >= 0.0559 and
               prof[i][1] > back - 0.0005][:2]
+    i_ring += [i for i in range(len(prof) - 1) if prof[i] == (0.058, -0.0745)]     # round 3: the disc side's end
+    #                                                 has the same bright turned lip (hub_rect_g: r 57..61, both photos)
     for i in i_ring:                                            # the turned ring round the end face and the spigot
         mats[i] = "hub_machined"                                # (LEFT: a lighter annulus inside the sprocket bore)
     m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
@@ -1439,7 +1481,9 @@ def rear_wheel():
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub_cast",
                  0.008))
     _hub_ribs(m, 0.5 * (y_end - 0.003 + y_end - 0.004))
-    _hub_ribs(m, -0.0765, side=-1)                              # RIGHT pair p_disc1: the disc side has them too
+    # RIGHT pair p_disc1: the disc side has them too; round 3 (hub_rect_g): twelve at 15 + 30 k deg (the photo's at
+    # 75, 105, 135, 165, 195 deg about its own hub), fuller than the sprocket side's
+    _hub_ribs(m, -0.0765, side=-1, a0=math.radians(15.0), big=True)
     m.add(rear_sprocket(chain_path()[1]))
     for k in range(6):
         x, z = _pol(SPROCKET_BOLT_R, SPROCKET_BOLT0 + k * math.pi / 3)
@@ -1453,73 +1497,334 @@ def rear_wheel():
 
 
 # ---------------------------------------------------------------- rear brake
+# Nissin single-piston floating caliper, its bracket on the axle, guard and hose (fiche K95CF1700: bracket 7 with the
+# pad retainer 4, caliper 6, pads 1, pad pin 8 under its plug, bleed screw 11 and cap 12, slide pin 5 with the boot 16
+# in the bracket, the bracket's pin in the boot 15, guard 10 on two bolts 17).
+# Places: RIGHT photo, 7x crop 1044..1192 x 1462..1560 (gz_r2) and its neighbours; each pixel cast on the plane of
+# its feature (y from the REAR photo, 1.435 px a mm about the disc, which reads u 2100.7..2106.4 for y -0.068..-0.072)
+# and carried from the photo's hub to the model's: the RIGHT disc bolt circle puts the photo's hub 8.4 mm above
+# parts.RA (ledger 10), and the parts turn about the swingarm pivot onto RA as the swingarm does in detail_chassis.
+# Shapes the photos do not show (the bracket behind the swingarm, the inboard finger) are EST, kept clear of the
+# swingarm (detail_chassis), the disc and the hub.
+CAL_PX = dict(                      # RIGHT (u, v), plane y
+    piston=((1115.0, 1519.0), -0.1100),     # housing end: lower arc (1097, 1540) .. (1115, 1545.5) .. (1133, 1537): r 26.6 px
+    pin_a=((1160.8, 1524.2), -0.1180),      # slide pin 5: black socket head in a 23 mm round end (30 px)
+    pin_b=((1086.7, 1550.0), -0.1180),      # bracket pin and boot 15: 17 px round; REAR u 2141..2180 (y -0.096..-0.123)
+    pad_pin=((1105.0, 1484.0), -0.1060),    # plug 8's hex (11 px); REAR: the pin across the top, v 1360..1369, u 2081..2161
+    bleed0=((1128.0, 1483.0), -0.0990),     # bleed screw 11 at its boss ...
+    bleed1=((1136.0, 1472.0), -0.1060),     # ... and the end of its cap 12 (the dark block 1127..1142 x 1468..1480)
+    banjo=((1155.0, 1497.0), -0.1070),      # banjo eye under the guard's lower bar, the hose leaving it forward
+    g_top=((1176.7, 1475.8), -0.1220),      # guard bolts 17: top-right boss (21 px round) ...
+    g_low=((1063.3, 1530.8), -0.1220),      # ... and the lower-left one (18 px)
+)
+# guard 10 (black): a slim triangular frame over the piston (RIGHT pair p_cal1: the hook at the front end, the top
+# bar, the boss of the top bolt, the lower bar down to the bottom corner; bars 5 to 7 px), a lug out to its lower
+# bolt; two windows either side of a strut (rr34 crop 1290..1440 x 1410..1540: the piston behind the left one, the
+# body behind the right one). rr34 also shows its front end folding in toward the wheel round the banjo to the top
+# bolt (GUARD_FOLD)
+GUARD_PX = [(1051.0, 1495.0), (1056.0, 1489.5), (1072.5, 1488.6), (1101.4, 1490.3), (1113.5, 1490.0), (1135.0, 1484.0),
+            (1154.6, 1477.0), (1166.0, 1468.0), (1176.0, 1464.5), (1185.0, 1467.0), (1189.0, 1475.0), (1186.0, 1484.5),
+            (1169.0, 1494.6), (1154.6, 1503.0), (1135.0, 1514.0), (1113.5, 1528.5), (1101.4, 1535.7), (1095.0, 1538.5),
+            (1086.0, 1537.5), (1075.0, 1537.0), (1066.0, 1540.0), (1057.0, 1537.0), (1054.0, 1529.0), (1058.0, 1522.5),
+            (1065.0, 1518.0), (1060.4, 1506.7)]
+GUARD_WIN_PX = [[(1059.5, 1498.5), (1076.0, 1497.5), (1078.0, 1504.0), (1071.0, 1515.0), (1066.0, 1511.0)],
+                [(1086.0, 1497.5), (1113.0, 1497.5), (1135.0, 1492.5), (1151.0, 1487.5), (1153.0, 1489.5), (1125.0, 1512.0),
+                 (1103.0, 1527.0), (1096.0, 1527.0), (1088.0, 1512.0)]]
+GUARD_FOLD = (0.112, 0.126, 0.0060)  # x about RA where the fold starts and ends, how far in (EST from rr34)
+GUARD_Y = (-0.1310, -0.1180)        # REAR pair p_calb3: a black box from the body out to u 2195 (y -0.133): a deep
+                                    # frame (rr34: its bars show deep side walls), 13 mm from the banjo bolt out
+# the hose: RIGHT 6x crop 1170..1340 x 1460..1520 (gz_hose2): the black sleeve u 1185..1210 (11 mm across), then the
+# 9 mm hose rising onto the swingarm's top (gz_hose: 2.4x crop 1150..1620 x 1330..1530); plane y -0.110
+HOSE_PX = [(1210.0, 1497.5), (1250.0, 1494.0), (1300.0, 1488.0), (1330.0, 1484.0), (1360.0, 1481.0), (1460.0, 1452.0)]
+HOSE_R = 0.0045                     # RIGHT: 11 px across at u 1250 (8.6 mm)
 HOSE_END = (0.452, -0.100, 0.505)   # meets the brake_pedal part's hose (detail_chassis.py) on its bend, not
                                     # beside it (audit: the two ends overlapped 2.8 mm)
+PHOTO_HUB = (-0.0004, 0.0084)       # RIGHT: the disc's bolt circle about parts.RA (ledger 10)
+# swingarm top under the hose (detail_chassis's arm, ray cast on the built part at y -0.100..-0.125, flat across):
+# z above the axle line at x; the hose keeps its radius + 1 mm over it
+ARM_TOP = ((0.05, 0.07, 0.10, 0.14, 0.18, 0.20, 0.23, 0.26, 0.30, 0.34, 0.38, 0.42, 0.45),
+           (0.0444, 0.0506, 0.0596, 0.0723, 0.0850, 0.0911, 0.0998, 0.1083, 0.1194, 0.1309, 0.1423, 0.1532, 0.1599))
 
 
-def rear_brake():
-    """Rear caliper (single piston, floating; RIGHT and REAR photos for its place, shapes EST), its bracket on the
-    axle between the hub collar and the swingarm, pads, slide pins, bleed nipple, banjo and hose."""
+def _cal_px(u, v, y):
+    """RIGHT pixel cast on the plane y -> (x, z) about parts.RA: the photo's hub carried onto the model's by a turn
+    about the swingarm pivot (and the small rest as a shift)."""
+    import cams
+    from parts import PIVOT
+    P = np.asarray(cams.CAMS["right"].on_plane(np.array([u], float), np.array([v], float), "y", np.array([y], float)))[0]
+    pv = np.array([PIVOT[0], PIVOT[2]])
+    a0 = np.array([RA[0], RA[2]])
+    ap = a0 + np.array(PHOTO_HUB)
+    th = math.atan2(*(a0 - pv)[::-1]) - math.atan2(*(ap - pv)[::-1])
+    Rm = np.array([[math.cos(th), -math.sin(th)], [math.sin(th), math.cos(th)]])
+    fw = lambda q: pv + Rm @ (q - pv)
+    return fw(np.array([P[0], P[2]])) + (a0 - fw(ap)) - a0
+
+
+@functools.lru_cache(maxsize=None)
+def caliper_points():
+    """The caliper's measured places, (x, z) about RA (CAL_PX)."""
+    return {k: tuple(_cal_px(u, v, y)) for k, ((u, v), y) in CAL_PX.items()}
+
+
+def _slab(outline, y0, y1, r, mat, step=0.003, holes=(), origin=(0.0, 0.0), n=3):
+    """Cast or moulded plate between the planes y0 < y1 with every edge rounded to R (quarter rounds of N steps):
+    OUTLINE and HOLES are (x, z) loops about ORIGIN (resampled and smoothed here)."""
+    loops = [_ccw(_round(outline, 0.0012, 2))] + [_ccw(_round(h, 0.0010, 2))[::-1] for h in holes]   # holes cw
     m = Mesh()
-    er = np.array([math.cos(CAL_ANG), 0.0, math.sin(CAL_ANG)])
-    et = np.array([-math.sin(CAL_ANG), 0.0, math.cos(CAL_ANG)])
-    R = np.column_stack([et, [0.0, 1.0, 0.0], er])               # local axes: along the disc, y, radial
-
-    def P(t, y, r):
-        return RA + t * et + r * er + np.array([0.0, y, 0.0])
-
-    yb0, yb1 = -ARM_FACE, -0.0858                                # bracket: one plate on the axle, 7.7 mm, with a
-    tips = [sg * 0.043 * et + 0.121 * er for sg in (-1, 1)]      # window for the piston housing
-    win = 0.106 * er
-    m.add(_plate(_hull([(0.0, 0.0, 0.026)] + [(t[0], t[2], 0.012) for t in tips], 24),
-                 [circle(0.0135, 20), circle(0.022, 24, win[0], win[2])], (yb0 + yb1) / 2, yb1 - yb0, "alu_cast",
-                 0.010, (RA[0], RA[2])))
-    for sg in (-1, 1):
-        m.add(tube([P(sg * 0.043, yb1, 0.121), P(sg * 0.043, -0.066, 0.121)], 0.005, 10, "steel"))        # slide pin
-        m.add(tube([P(sg * 0.043, yb1 + 0.0002, 0.121), P(sg * 0.043, -0.079, 0.121)], 0.0075, 12, "rubber_black",
-                   cap0=False))
-        m.add(bolt(P(sg * 0.043, yb0, 0.121), (0, -1, 0), af=0.012, head_h=0.005, mat="steel"))
-    m.add(box(P(0, -0.070, 0.128), (0.100, 0.024, 0.009), "caliper", R))             # bridge over the disc's edge
-    m.add(tube([P(0, -0.080, 0.104), P(0, -0.112, 0.104)], 0.0175, 20, "caliper"))   # piston housing (outboard)
-    m.add(box(P(0, -0.092, 0.1175), (0.032, 0.026, 0.012), "caliper", R))
-    m.add(box(P(0, -0.0575, 0.111), (0.040, 0.005, 0.034), "caliper", R))            # inboard finger
-    for y0, y1, mat in ((-0.0768, -0.0723, "anod_black"), (-0.0798, -0.0768, "steel"),
-                        (-0.0677, -0.0632, "anod_black"), (-0.0632, -0.0602, "steel")):      # pads, 0.3 mm off the disc
-        m.add(box(P(0, (y0 + y1) / 2, 0.108), (0.044, abs(y1 - y0), 0.022), mat, R))
-    d = 0.87 * er - 0.5 * et                                     # bleed nipple with its cap
-    b0 = P(-0.008, -0.100, 0.119)
-    m.add(tube([b0, b0 + 0.014 * d], 0.003, 8, "steel"))
-    m.add(tube([b0 + 0.012 * d, b0 + 0.019 * d], 0.0042, 8, "rubber_black"))
-    m.add(tube([P(0, -0.112, 0.104), P(0, -0.1175, 0.104)], 0.008, 12, "steel"))     # banjo
-    m.add(bolt(P(0, -0.1175, 0.104), (0, -1, 0), af=0.012, head_h=0.005, mat="steel"))
-    from scipy.interpolate import CubicSpline
-    s0 = P(0, -0.115, 0.104)                                     # hose: RIGHT rows 1490..1500, level above the arm
-    way = np.array([s0, s0 + (0.030, -0.002, 0.008), (0.140, -0.116, 0.436), (0.220, -0.110, 0.440),
-                    (0.360, -0.098, 0.470), (0.425, -0.098, 0.488), HOSE_END])                     # onward EST
-    m.add(tube(CubicSpline(np.arange(len(way)), way)(np.linspace(0, len(way) - 1, 40)), 0.0042, 8, "cable"))
-    _caliper_guard(m)
+    ox, oz = origin
+    rings = []
+    for L in loops:
+        hole = L is not loops[0]
+        prof = [(r * (1 - math.sin(t)), y1 - r * (1 - math.cos(t))) for t in np.linspace(0, math.pi / 2, n + 1)]
+        prof += [(r * (1 - math.cos(t)), y0 + r - r * math.sin(t)) for t in np.linspace(0, math.pi / 2, n + 1)]
+        rs = []
+        for ins, y in prof:                                      # INS: inset from the outline into the material
+            if ins <= 0:                                          # _mitre offsets a ccw loop, + outward
+                P = L
+            else:
+                P = _mitre(L[::-1], ins)[::-1] if hole else _mitre(L, -ins)
+            rs.append(m.verts(np.stack([P[:, 0] + ox, np.full(len(P), y), P[:, 1] + oz], axis=1)))
+        for a_, b_ in zip(rs, rs[1:]):
+            for i in range(len(L)):
+                j = (i + 1) % len(L)
+                m.face((a_ + i, a_ + j, b_ + j, b_ + i), mat)
+        rings.append(rs)
+    # caps on the inset loops
+    from scipy.spatial import Delaunay, cKDTree
+    out_in = np.array([[m.V[rings[0][0] + i][0] - ox, m.V[rings[0][0] + i][2] - oz] for i in range(len(loops[0]))])
+    hol_in = [np.array([[m.V[rs[0] + i][0] - ox, m.V[rs[0] + i][2] - oz] for i in range(len(L))])
+              for rs, L in zip(rings[1:], loops[1:])]
+    B = np.vstack([out_in] + hol_in)
+    lo, hi = out_in.min(axis=0), out_in.max(axis=0)
+    gx, gz = np.meshgrid(np.arange(lo[0] + step / 2, hi[0], step), np.arange(lo[1] + step / 2, hi[1], step))
+    G = np.stack([gx.ravel(), gz.ravel()], axis=1)
+    ok = inside(out_in, G)
+    for h in hol_in:
+        ok &= ~inside(h, G)
+    G = G[ok]
+    if len(G):
+        G = G[cKDTree(B).query(G)[0] > 0.6 * step]
+    P = np.vstack([B, G])
+    tri = Delaunay(_off_hull(P)).simplices
+    c = P[tri].mean(axis=1)
+    keep = inside(out_in, c)
+    for h in hol_in:
+        keep &= ~inside(h, c)
+    tri = tri[keep]
+    a, b, cc = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = (b[:, 0] - a[:, 0]) * (cc[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (cc[:, 0] - a[:, 0])
+    tri, area = tri[abs(area) > 1e-13], area[abs(area) > 1e-13]
+    tri[area < 0] = tri[area < 0][:, ::-1]                      # ccw in (x, z): faces -y
+    nb = len(B)
+    ends = [rs[0] for rs in rings], [rs[-1] for rs in rings]     # first rings: y1 face, last rings: y0 face
+    for face_y, starts, flip in ((y1, ends[0], True), (y0, ends[1], False)):
+        idx = np.concatenate([np.arange(len(L)) + s for L, s in zip(loops, starts)])
+        g0 = m.verts(np.stack([G[:, 0] + ox, np.full(len(G), face_y), G[:, 1] + oz], axis=1)) if len(G) else 0
+        vid = np.concatenate([idx, g0 + np.arange(len(G))]) if len(G) else idx
+        for t in tri:
+            f = tuple(int(vid[k]) for k in t)
+            m.face(f[::-1] if flip else f, mat)
+    assert nb == len(idx)
     return m
 
 
-# The stock caliper guard (RIGHT photo cols 1020..1220 rows 1440..1580, rr34 cols 1230..1450 rows 1370..1530): a black
-# skeletal triangle over the caliper's outer face, a big triangular window showing the piston housing, two black
-# socket bolts (top and bottom corners), a hooked arm reaching back toward the axle. Corners cast on the plane
-# y -0.112 and moved down by the photo's 8.4 mm hub offset (the disc's bolt circle, see rear_disc_r): x, z from the
-# axle: top 125.6, 114.5; bottom 111.9, 75.0; hook end 31.1, 100.1 mm; the window inside them. 4 mm thick (EST).
-GUARD = dict(outer=[(0.0311, 0.1001), (0.1256, 0.1145), (0.1119, 0.0750)], win=[(0.0620, 0.0980), (0.1010, 0.1040),
-                                                                               (0.0920, 0.0815)], y=-0.1160, t=0.004)
+def _off_hull(P):
+    """Points for Delaunay: those lying ON an edge of the convex hull (straight runs of an outline) moved 2 microns
+    inward, so that Qhull joins them to the inside instead of leaving a flat triangle along the edge (a hole in the
+    cap once it is dropped)."""
+    from scipy.spatial import ConvexHull
+    h = ConvexHull(P)
+    Q = P.copy()
+    c = P.mean(axis=0)
+    for eq in h.equations:                                       # n . p + d = 0 on the hull's edge lines
+        d = P @ eq[:2] + eq[2]
+        on = (abs(d) < 1e-9)
+        on[h.vertices] = False
+        Q[on] -= 2e-6 * eq[:2]                                   # inward
+    return Q
 
 
-def _caliper_guard(m):
-    g = GUARD
-    outer = _fillet(_ccw(np.array(g["outer"])), (0.006, 0.008, 0.008), 4)
-    win = _fillet(_ccw(np.array(g["win"])), 0.004, 4)
-    pl = _plate(resample(np.vstack([outer, outer[:1]]), 0.003)[:-1], [resample(np.vstack([win, win[:1]]), 0.003)[:-1]],
-                g["y"], g["t"], "plastic_black", 0.004, (RA[0], RA[2]))
-    m.add(pl)
-    for (x, z) in (g["outer"][1], g["outer"][2]):                 # its two bolts, black socket heads
-        c = np.array([RA[0] + x * 0.93 + 0.0, g["y"] - g["t"] / 2, RA[2] + z * 0.97])
-        m.add(bolt(c, (0, -1, 0), af=0.011, head_h=0.006, mat="anod_black", kind="cap"))
+def _arc_band(r0, r1, a0, a1, rc=0.004):
+    """(x, z) outline of a band between radii r0 < r1 from angle a0 to a1 (rad), corners rounded RC."""
+    n = max(4, int(abs(a1 - a0) * r1 / 0.003))
+    a = np.linspace(a0, a1, n)
+    P = np.vstack([_pol(r1, a), _pol(r0, a[::-1])])
+    return _round_corners(P, rc)
+
+
+def _round_corners(P, rc):
+    """Light corner rounding of a fine outline: a smoothed resample (corners of about RC)."""
+    return smooth_poly(resample(P, rc / 3), 3)
+
+
+def _turned(c, axis, prof, seg, mat):
+    """Closed solid of revolution about point C along AXIS: PROF (radius > 0, distance along AXIS), both ends capped,
+    faces turned outward."""
+    a = np.asarray(axis, float) / np.linalg.norm(axis)
+    hlp = np.array([0.0, 1.0, 0.0]) if abs(a[1]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(a, hlp)
+    u /= np.linalg.norm(u)
+    v = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, seg, endpoint=False)
+    c = np.asarray(c, float)
+    rings = [np.array([c + a * z + r * (math.cos(t) * u + math.sin(t) * v) for t in ang]) for r, z in prof]
+    m = grid(Mesh(), rings, mat, cap0=True, cap1=True)
+    V = np.asarray(m.V)
+    vol = sum(np.dot(V[f[0]], np.cross(V[f[1]], V[f[2]])) + (np.dot(V[f[0]], np.cross(V[f[2]], V[f[3]]))
+                                                             if len(f) == 4 else 0.0) for f in m.F)
+    if vol < 0:
+        m.F = [tuple(f[::-1]) for f in m.F]
+    return m
+
+
+def _ribbed(m, c, axis, r, r_rib, y0, y1, n_rib, mat):
+    """Rubber boot along AXIS from distance y0 to y1 off C: N_RIB rounded ribs."""
+    zs = np.linspace(y0, y1, 4 * n_rib + 1)
+    rad = [r + (r_rib - r) * 0.5 * (1 - math.cos(2 * math.pi * k / 4)) for k in range(len(zs))]
+    m.add(_turned(c, axis, list(zip(rad, zs)), 20, mat))
+
+
+def rear_brake():
+    """Rear caliper, bracket, pads, pins, bleeder, banjo, hose and guard (see CAL_PX)."""
+    m = Mesh()
+    C = {k: np.array(v) for k, v in caliper_points().items()}
+    o = (RA[0], RA[2])
+    Y = np.array([0.0, 1.0, 0.0])
+    P3 = lambda q, y: np.array([RA[0] + q[0], y, RA[2] + q[1]])
+    pc, pa, pb, pp = C["piston"], C["pin_a"], C["pin_b"], C["pad_pin"]
+    bj, g_t, g_l = C["banjo"], C["g_top"], C["g_low"]
+    ang_p = math.atan2(pc[1], pc[0])                             # the piston's angle about the axle (47 deg)
+    # --- pads (1): steel backing with an ear on the pad pin (REAR: bronze ears above the caliper at u 2085..2089 and
+    #     2114..2119), sintered lining 0.5 mm off the disc's faces; 46 mm long, r 97..119.5 (EST, inside the band)
+    ac = ang_p + math.radians(1.5)
+    band = _arc_band(0.0970, 0.1195, ac - math.radians(12.5), ac + math.radians(12.5), 0.004)
+    yd0, yd1 = DISC_R["y"] - DISC_R["t"] / 2, DISC_R["y"] + DISC_R["t"] / 2
+    for s, (yl0, yl1, yb0, yb1) in ((1, (yd1 + 0.0005, yd1 + 0.0060, yd1 + 0.0060, yd1 + 0.0100)),
+                                     (-1, (yd0 - 0.0060, yd0 - 0.0005, yd0 - 0.0100, yd0 - 0.0060))):
+        m.add(_slab(_mitre(band, -0.0010), min(yl0, yl1), max(yl0, yl1), 0.0006, "brake_pad", origin=o))
+        m.add(_slab(band, yb0, yb1, 0.0005, "steel", origin=o))
+        m.add(_slab(_hull([(pp[0], pp[1], 0.0055), (pp[0] - 0.006, pp[1] - 0.011, 0.004),
+                           (pp[0] + 0.008, pp[1] - 0.009, 0.004)], 24), yb0 + 0.0003, yb1 - 0.0003, 0.0005,
+                    "pad_ear", origin=o))
+    # --- caliper body (6), dark cast aluminium (RIGHT: 56..66 where the swingarm reads 175)
+    yo0 = yd0 - 0.0100 - 0.0002                                  # its inner face behind the outboard pad's backing
+    main = _hull([(pc[0], pc[1], 0.0215), (pp[0], pp[1], 0.0070), (C["bleed0"][0], C["bleed0"][1], 0.0070),
+                  (bj[0], bj[1], 0.0090)], 24)
+    m.add(_slab(main, -0.1040, yo0, 0.0020, "caliper_r", origin=o))
+    wing = _hull([(pc[0], pc[1], 0.0205), (pa[0], pa[1], 0.0115), (pb[0], pb[1], 0.0080), (g_l[0], g_l[1], 0.0065)], 24)
+    m.add(_slab(wing, -0.1060, -0.0955, 0.0015, "caliper_r", origin=o))
+    m.add(_slab(_hull([(bj[0], bj[1], 0.0080), (g_t[0], g_t[1], 0.0065)], 20), -0.1040, -0.0960, 0.0015, "caliper_r",
+                origin=o))                                       # lug for the guard's top bolt
+    # bridge over the disc's edge, ahead of the pad pin (rr34: the pin lies open across the top behind it)
+    br = _arc_band(0.1215, 0.1350, math.radians(33.0), math.atan2(pp[1], pp[0]) - math.radians(4.8), 0.004)
+    m.add(_slab(br, yo0 + 0.0010, yd1 + 0.0195, 0.0020, "caliper_r", origin=o))
+    # inboard finger (EST shape): behind the inboard pad, up to an ear on the pad pin
+    fin = _hull([(q[0], q[1], 0.0) for q in _arc_band(0.0960, 0.1220, ac - math.radians(14.0), ac + math.radians(14.0))]
+                + [(pp[0], pp[1], 0.0065)], 40)
+    m.add(_slab(fin, yd1 + 0.0145, yd1 + 0.0198, 0.0015, "caliper_r", origin=o))
+    # piston housing: round, its end face turned (RIGHT: the face reads 100..110, the body 56..66)
+    m.add(_turned(P3(pc, 0.0), Y, [(0.0205, -0.1100), (0.0205, yo0 + 0.0005)], 40, "caliper_r"))
+    m.add(_turned(P3(pc, 0.0), Y, [(0.0170, -0.1124), (0.0195, -0.1117), (0.0204, -0.1101)], 40, "caliper_face"))
+    # --- bracket (7): a slim cast arm from the axle (between the hub's collar and the swingarm's inner face) up behind
+    #     the swingarm to the bracket pin and the slide pin's bore (REAR: a darker arm at u 2116..2136 between the disc
+    #     and the arm, v 1430..1514); 7.7 mm plate, its outline EST round the measured pins
+    yb = (-0.0935, -0.0858)
+    bo = [(0.0, -0.021), (0.015, -0.0145), (0.021, -0.003), (0.034, 0.018), (0.055, 0.036), (0.075, 0.042),
+          (0.093, 0.048), (pa[0] - 0.0076, pa[1] - 0.0157), (pa[0], pa[1] - 0.0100), (pa[0] + 0.0094, pa[1] - 0.0057),
+          (pa[0] + 0.0099, pa[1] + 0.0053), (pa[0] + 0.0014, pa[1] + 0.0100), (pa[0] - 0.0076, pa[1] + 0.0053),
+          (pa[0] - 0.0136, pa[1] - 0.0057), (0.088, 0.061), (0.075, 0.0555), (pb[0] + 0.0090, pb[1] - 0.0047),
+          (pb[0] + 0.0050, pb[1] + 0.0073), (pb[0] - 0.0020, pb[1] + 0.0085), (pb[0] - 0.0085, pb[1] - 0.0030),
+          (0.038, 0.044), (0.022, 0.026), (0.010, 0.0195), (-0.006, 0.020), (-0.019, 0.009), (-0.021, -0.006),
+          (-0.013, -0.017)]
+    m.add(_slab(np.array(bo), yb[0], yb[1], 0.0015, "bracket_r", holes=[circle(0.0135, 40)], origin=o))
+    # REAR pair p_calb3: away from the axle the arm is deeper, its inboard face at u 2115 (y -0.079): a rib inboard
+    # of the plate from 32 mm out (clear of the hub's collar; 2 mm off the disc bolts' heads at y -0.077)
+    rib = [q for q in bo if np.hypot(*q) > 0.032]
+    m.add(_slab(_fillet(_ccw(np.array(rib)), 0.004, 4), -0.0860, -0.0790, 0.0015, "bracket_r", origin=o))
+    # pad retainer (4) is inside the caliper: not seen. Slide pin (5): screwed into the body's front boss, its boot
+    # (16) between body and bracket; the bracket's pin in the rear boss under its ribbed boot (15)
+    m.add(_turned(P3(pa, 0.0), Y, [(0.0115, -0.0955), (0.0115, -0.1110), (0.0100, -0.1125)], 32, "caliper_r"))
+    m.add(bolt(P3(pa, -0.1125), (0, -1, 0), af=0.0135, head_h=0.0055, mat="anod_black", kind="cap"))
+    _ribbed(m, P3(pa, 0.0), -Y, 0.0075, 0.0088, 0.0937, 0.0953, 1, "rubber_black")
+    m.add(tube([P3(pb, yb[0] + 0.0002), P3(pb, -0.1150)], 0.0042, 16, "steel"))
+    m.add(_turned(P3(pb, 0.0), Y, [(0.0080, -0.0956), (0.0080, -0.1140)], 28,
+                   "caliper_r"))
+    _ribbed(m, P3(pb, 0.0), -Y, 0.0068, 0.0076, 0.1140, 0.1222, 3, "rubber_black")
+    # --- pad pin (8) across the top, from the finger's ear to the outboard boss, under its hex plug
+    m.add(tube([P3(pp, yd1 + 0.0150), P3(pp, -0.1000)], 0.0025, 16, "steel"))
+    m.add(_turned(P3(pp, 0.0), Y, [(0.0032, yd1 + 0.0150), (0.0032, yd1 + 0.0128)], 16, "steel"))
+    m.add(bolt(P3(pp, -0.1040), (0, -1, 0), af=0.010, head_h=0.0050, flange_d=0.0125, mat="steel"))
+    # --- bleed screw (11) and its rubber cap (12), up and outward from the body's top
+    b0 = P3(C["bleed0"], -0.0990)
+    b1 = P3(C["bleed1"], -0.1060)
+    db = (b1 - b0) / np.linalg.norm(b1 - b0)
+    m.add(bolt(b0, db, af=0.008, head_h=0.0045, flange_d=0.0095, mat="steel"))
+    m.add(tube([b0 + 0.004 * db, b0 + 0.0075 * db], 0.0026, 12, "steel"))
+    m.add(_turned(b0, db, [(0.0036, 0.0068), (0.0042, 0.0080), (0.0042, 0.0140), (0.0034, 0.0152)], 16, "rubber_black"))
+    # --- banjo on the body's face, its bolt along y, two sealing washers; the hose leaves it forward
+    yf = -0.1040
+    for y0_, y1_, r_, mat in ((yf, yf - 0.0012, 0.0072, "brass"), (yf - 0.0012, yf - 0.0102, 0.0078, "steel"),
+                              (yf - 0.0102, yf - 0.0114, 0.0072, "brass")):
+        m.add(_turned(P3(bj, 0.0), Y, [(r_, y0_), (r_, y1_)], 24, mat))
+    m.add(bolt(P3(bj, yf - 0.0114), (0, -1, 0), af=0.012, head_h=0.0024, flange_d=0.0140, mat="steel"))
+    yh = yf - 0.0057
+    e = np.array([1.0, 0.0, 0.0])
+    s0 = P3(bj, yh) + 0.0070 * e
+    m.add(tube([s0, s0 + 0.0040 * e], 0.0042, 14, "steel"))                       # neck of the banjo
+    # RIGHT gz_hose2: a black clamp ring on the banjo's neck (u 1160..1172), then the black crimped sleeve to u 1210
+    m.add(tube([s0 + 0.0030 * e, s0 + 0.0040 * e, s0 + 0.0110 * e, s0 + 0.0120 * e], [0.0050, 0.0058, 0.0058, 0.0050],
+               20, "anod_black"))
+    sl = [s0 + 0.0120 * e, s0 + 0.0130 * e, s0 + 0.0200 * e, s0 + 0.0210 * e, s0 + 0.0220 * e, s0 + 0.0300 * e,
+          s0 + 0.0370 * e, s0 + 0.0390 * e]                                       # sleeve, two grooves
+    m.add(tube(sl, [0.0048, 0.0054, 0.0054, 0.0049, 0.0054, 0.0054, 0.0054, 0.0047], 20, "rubber_black"))
+    from scipy.interpolate import CubicSpline
+    hp_ = [_cal_px(u, v, -0.110) for u, v in HOSE_PX]
+    way = [s0 + 0.0380 * e]
+    for q in hp_:
+        z_min = float(np.interp(q[0], *ARM_TOP)) + HOSE_R + 0.0010
+        way.append(np.array([RA[0] + q[0], -0.110, RA[2] + max(q[1], z_min)]))
+    for x in (0.385,):                                          # onward along the arm's top, EST
+        way.append(np.array([x, -0.104, RA[2] + float(np.interp(x, *ARM_TOP)) + HOSE_R + 0.0025]))
+    # into the pedal part's hose at its bend (round 2's joint): that hose comes down from the master cylinder's
+    # banjo to HOSE_END and runs on 20 mm forward past it (detail_chassis), so the two overlap there (reported)
+    way += [np.array([0.425, -0.098, 0.488]), np.array(HOSE_END)]
+    way = np.array(way)
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(way, axis=0), axis=1))])
+    t = np.linspace(0, s[-1], 70)
+    path = CubicSpline(s, way)(t)
+    on_arm = (path[:, 0] > RA[0] + 0.15) & (path[:, 0] < 0.43)     # lying on the arm: never into it (spline sag)
+    z_arm = RA[2] + np.interp(path[:, 0] - RA[0], *ARM_TOP) + HOSE_R + 0.0012
+    path[on_arm, 2] = np.maximum(path[on_arm, 2], z_arm[on_arm])
+    rad = HOSE_R - (HOSE_R - 0.0042) * np.clip((t - (s[-1] - 0.07)) / 0.05, 0, 1)   # the pedal part's 4.2 mm hose
+    m.add(tube(path, rad, 12, "cable"))
+    _caliper_guard(m, C)
+    return m
+
+
+def _caliper_guard(m, C):
+    """Guard 10 over the caliper's outer face (GUARD_PX cast on its plane), black, two windows, its front end folded
+    in toward the wheel (GUARD_FOLD), on two black socket bolts (17) whose bosses stand off the body."""
+    yg = 0.5 * (GUARD_Y[0] + GUARD_Y[1])
+    outer = np.array([_cal_px(u, v, yg) for u, v in GUARD_PX])
+    wins = [np.array([_cal_px(u, v, yg) for u, v in w]) for w in GUARD_WIN_PX]
+    wins = [_fillet(_ccw(w), 0.0015, 3) for w in wins]
+    g = _slab(_fillet(_ccw(outer), 0.0010, 2), GUARD_Y[0], GUARD_Y[1], 0.0008, "plastic_black", holes=wins,
+              origin=(RA[0], RA[2]), step=0.002)
+    x0, x1, dy = GUARD_FOLD
+    fold = lambda x: dy * (0.5 - 0.5 * np.cos(math.pi * np.clip((x - RA[0] - x0) / (x1 - x0), 0, 1)))
+    V = np.asarray(g.V)
+    V[:, 1] += fold(V[:, 0])
+    g.V = [tuple(v) for v in V]
+    m.add(g)
+    for k, y_in in (("g_top", -0.1040), ("g_low", -0.1060)):
+        q = C[k]
+        c = np.array([RA[0] + q[0], 0.0, RA[2] + q[1]])
+        f = float(fold(c[0]))
+        m.add(_turned(c, (0, 1, 0), [(0.0068, GUARD_Y[0] + f + 0.0004), (0.0075, GUARD_Y[0] + f + 0.0012),
+                                     (0.0075, y_in - 0.0002)], 28, "plastic_black"))
+        m.add(bolt(c + np.array([0.0, GUARD_Y[0] + f, 0.0]), (0, -1, 0), af=0.0100, head_h=0.0050, mat="anod_black",
+                   kind="cap"))
 
 
 def _hull(circles, n=20):
