@@ -301,3 +301,22 @@ def test_round4_mudguard_and_flap():
                  for dy in np.linspace(-0.00275, 0.00275, 5))          # the back under the head's rim, most rearward
         assert -0.0001 < xb - h[:, 0].max() < 0.0005, (xb, h[:, 0].max())
     assert "mud_flap" in dp.REPLACES and "rear_flap" in dp.PARTS
+
+
+def test_round4_seats():
+    """Round 4, seats instead of cuts: the shroud decks start DECK_SEAT inside the skin's top edge (on its 3 mm shell;
+    audit 1.5 mm before); the panel bolt's pocket floor is flat and square to the bolt with a hole its shank passes
+    through (audit 1.8 mm before)."""
+    for side in (1, -1):
+        edge = pl._shroud_shells(side)[1]
+        rows = pl._deck(side)
+        for p, r in zip(edge[::7], rows[::7]):
+            assert abs(abs(p[1]) - abs(r[0, 1]) - pl.DECK_SEAT) < 1e-9 and abs(r[0, 2] - p[2]) < 1e-9
+    B = np.asarray(dp.panel_bolts().V)
+    assert pl.POCKET_HOLE > 0.0029 + 0.0002
+    for side in (1, -1):
+        u, v = dp._px(side, *pl.PANEL_BOLT_PX)
+        seat = pl.panel_point(side, u, v, inset=0.006 + pl.POCKET_D)
+        b = B[B[:, 1] * side > 0]
+        inner = b[(b[:, 1] - seat[1]) * side < -0.0003]                 # the shank, behind the floor
+        assert len(inner) and np.hypot(inner[:, 0] - seat[0], inner[:, 2] - seat[2]).max() < pl.POCKET_HOLE

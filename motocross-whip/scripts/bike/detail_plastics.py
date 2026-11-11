@@ -19,7 +19,7 @@ from PIL import Image
 import cams
 import plastics
 import parts as P
-from geom import Mesh, bolt, box, grid, inside, lathe, rounded_rect, smooth_poly, tube
+from geom import Mesh, bolt, grid, inside, lathe, rounded_rect, smooth_poly, tube
 
 LEFT, FRONT, REAR, TOP = (cams.CAMS[k] for k in ("left", "front", "rear", "top"))
 _UP2 = np.array([P.UP[0], P.UP[2]])
@@ -114,26 +114,17 @@ def fork_guards():
 
 
 def guard_hardware():
-    """LEFT: two bolt heads at each guard's lower end (grey blobs centred on px (1094, 1555) and (1132, 1578)); on
-    the left guard, at its top, the brake hose clamp (grey block u 1218..1262, v 1144..1188, a second bolt head at
-    (1235, 1189)) with the loop the hose runs through (EST). The right guard's bolts are the left one's mirrored."""
+    """LEFT: two bolt heads at each guard's lower end (grey blobs centred on px (1094, 1555) and (1132, 1578)). The
+    right guard's bolts are the left one's mirrored. (The brake hose clamp at the left guard's top is detail_front's
+    hose guide.)"""
     m = Mesh()
     for side in (1, -1):
         for u, v in ((1094.0, 1555.0), (1132.0, 1578.0)):
             c = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
             c[1] = side * (GUARD_OUT + 0.0033)
             m.add(bolt(c, (0, side, 0), af=0.008, head_h=0.005, flange_d=0.013))
-    c = LEFT.on_plane(np.array([1238.0]), np.array([1166.0]), "y", GUARD_OUT)[0]
-    R = np.column_stack([-P.BACK, [0.0, 1.0, 0.0], P.UP])
-    m.add(box(c + np.array([0, 0.0073, 0]), (0.026, 0.008, 0.032), "alu_machined", R=R))
-    for u, v in ((1237.0, 1160.0), (1235.0, 1189.0)):
-        b = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
-        b[1] = GUARD_OUT + 0.0113
-        m.add(bolt(b, (0, 1, 0), af=0.007, head_h=0.004, kind="cap"))
-    ring = lathe([(0.008 + 0.0025 * math.cos(q), 0.0025 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
-                 20, "alu_machined", closed=True)
-    ring.transform(np.column_stack([-P.BACK, P.UP, [0.0, -1.0, 0.0]]), c - P.BACK * 0.020 + np.array([0, 0.0073, 0]))
-    m.add(ring)
+    # (round 4: the brake hose clamp on the left guard's top, LEFT u 1218..1262, v 1144..1188, is now the cockpit's
+    # hose guide in detail_front, which holds the hose: this module's copy of it is gone)
     return m
 
 
@@ -322,6 +313,8 @@ def panel_bolts():
         a = np.array([0.0, float(side), 0.0])
         m.add(tube([c + a * 0.0002, c + a * 0.0015], 0.0085, 20, "steel"))          # washer on the floor
         m.add(bolt(c + a * 0.0015, a, af=0.008, head_h=0.005, flange_d=0.013))
+        m.add(tube([c + a * 0.0001, c - a * 0.012], 0.0029, 12, "steel"))           # its shank through the floor's
+        #                                                                            hole (POCKET_HOLE) into the airbox
     return m
 
 

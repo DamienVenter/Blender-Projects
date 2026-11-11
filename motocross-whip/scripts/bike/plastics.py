@@ -630,6 +630,8 @@ DECK_END_U = 1950.0  # LEFT column where the plate ends under the seat's nose (x
 #                      the red strip the top photo shows beside the seat's nose, it ran 3 to 4 mm into the side panels'
 #                      noses and the shrouds' skins and cost the rear view 1.6 points of red: left as it was)
 DECK_DROP = 0.003    # the plate's inner edge lies this much lower than its outer edge (EST)
+DECK_SEAT = 0.0032   # the plate's outer edge starts this far in from the skin's top edge, on the skin's 3 mm shell (at
+#                      the edge itself, the plate's 3 mm under it cut that shell 1.5 mm, audit; now a 0.5 mm seat)
 
 
 @functools.lru_cache(maxsize=None)
@@ -830,10 +832,10 @@ def _deck(side):
     edge = _shroud_shells(side)[1]
     rows = []
     for p in edge:
-        y_in = min(float(np.interp(p[0], DECK_X, DECK_Y)), abs(p[1]) - 0.004)
+        y0 = abs(p[1]) - DECK_SEAT
+        y_in = min(float(np.interp(p[0], DECK_X, DECK_Y)), y0 - 0.004)
         k = np.linspace(0.0, 1.0, 9)
-        rows.append(np.stack([np.full(9, p[0]), side * (abs(p[1]) + (y_in - abs(p[1])) * k), p[2] - DECK_DROP * k * k],
-                             axis=1))
+        rows.append(np.stack([np.full(9, p[0]), side * (y0 + (y_in - y0) * k), p[2] - DECK_DROP * k * k], axis=1))
     return rows
 
 
@@ -1494,11 +1496,20 @@ def side_panels():
                     lp.M[fi] = "plastic_black"
         rim = np.array([_on_surface(cam, u, v, lsurf(u, v), side * 0.15) for u, v in hole])
         rings = [rim]
+        # the floor is flat and square to the bolt (y), at the bolt's seat (detail_plastics.panel_bolts: POCKET_D under
+        # the black face at the pocket's centre), with the bolt's hole in it (POCKET_HOLE: an M6 shank, 0.3 mm clear).
+        # (Rounds 1 to 3: the rim moved POCKET_D in, so the floor followed the panel's slope across the pocket, and a
+        # fan closed it: the washer, square to y, cut the tilted floor 1.8 mm, audit)
+        seat = panel_point(side, *bc, inset=0.006 + POCKET_D)
         for k_ in (0.3, 0.7, 1.0):                         # the wall, rounded into the floor
-            rr = rim - np.array([0.0, side * POCKET_D * k_, 0.0])
+            rr = rim + np.array([0.0, 1.0, 0.0]) * ((seat[1] - rim[:, 1]) * k_)[:, None]
             cen = rr.mean(axis=0)
             rings.append(cen + (rr - cen) * (1.0 - 0.12 * k_ ** 4))
-        pk = grid(Mesh(), rings, "plastic_black", closed_u=True, cap1=True)
+        ex, ez = np.array([-float(side), 0.0, 0.0]), np.array([0.0, 0.0, -1.0])     # the photo's +u and +v
+        for r_ in (0.0085, POCKET_HOLE):
+            rings.append(np.array([seat + r_ * (math.cos(a_) * ex + math.sin(a_) * ez) for a_ in ang]))
+        rings.append(rings[-1] - np.array([0.0, side * 0.003, 0.0]))     # the hole's bore through the 3 mm floor
+        pk = grid(Mesh(), rings, "plastic_black", closed_u=True)
         if side < 0:
             pk.F = [f[::-1] for f in pk.F]
         m.add(pk)
@@ -1513,6 +1524,7 @@ def side_panels():
 SIDE_COVER_TILE = 0.018   # the ribbed texture's tile: two lattice steps of 9.0 mm (detail_plastics.SIDE_COVER)
 PANEL_BOLT_PX = (2426.0, 1136.0)   # LEFT: the side panel's bolt in its black lower part (detail_plastics.panel_bolts)
 POCKET_R, POCKET_D = 0.015, 0.008  # its pocket's radius and depth
+POCKET_HOLE = 0.0032               # the bolt's hole in the pocket's floor (an M6 shank, 6 mm: 0.2 mm clear; SPEC 8 mm head)
 
 
 # ---------------------------------------------------------------- lofted parts: seat, fenders

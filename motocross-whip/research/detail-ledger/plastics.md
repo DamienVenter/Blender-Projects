@@ -543,3 +543,24 @@ mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.
   wall and the can (the panel's tail and the can's position: rounds 3, detail_chassis).
 - The viewer's plastics toggle (viewer/bike-v0.html, PLASTICS) lists `mud_flap`, now `rear_flap` (and lacks
   `mudguard_top`, `mud_hardware`): a shared file.
+
+## R4.3 Shroud small items (partly done: the two seats; bolts, collars and louvre edges not started)
+
+### Done
+- Shroud decks on the shrouds (audit: 1.5 mm cut). The plate's outer row was the skin's own top edge, and Blender's 3 mm
+  under the plate (THIN) cut the skin's 3 mm shell along it. `DECK_SEAT` 3.2 mm: the plate now starts on the shell's
+  inner face (2.5 mm: worse, 3.0 mm at the plate's rear end; 3.2 mm: no clash). TOP pair `s1_top.jpg`: no slit shows.
+- Side panel bolt in its pocket (audit: 1.8 mm cut). The pocket's floor was the rim moved 8 mm in, so it followed the
+  panel's slope across the 30 mm pocket and a fan closed it; the washer, square to y, cut it. Now the floor is flat
+  and square to the bolt at its seat (POCKET_D under the black face at the centre) with the bolt's hole in it
+  (POCKET_HOLE 3.2 mm: an M6 shank, 0.3 mm clear), and the bolt carries its shank (2.9 mm, 12 mm long) through it.
+- `guard_hardware`: its brake hose clamp at the left guard's top is gone (the coordinator's request: detail_front's
+  hose guide holds the hose there now); the guards' bolts stay.
+- Audit after both: no clash of the plastics parts but rear_fender on the seat 0.9 mm (a seat, round 2). 12 clashes in
+  all (other modules').
+
+### Not started (seen in `s1_top.jpg`, TOP)
+- The roof slots (louvre edges) in each shroud's top beside the deck: dark slits about 62 x 6 px, TOP u 1854..1916,
+  rows 1011..1020 and 1227..1236; the deck's pointed front end with its gusset; the shroud bolts' hex flange heads
+  (the model's read as round caps). The right side cover's own layout (open window, pocket, bolt at RIGHT (1585, 1076),
+  not the left's mirror (1573, 1136)) and the right red panel's bolt at RIGHT (1320, 921).
