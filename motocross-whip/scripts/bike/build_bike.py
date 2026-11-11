@@ -5,6 +5,7 @@ blender -b --factory-startup --python-exit-code 1 --python build_bike.py -- PART
         [stock|livery] [NAME]
   views: comma list of camera names ('all' for every one, 'none' to skip rendering); stock = plain Honda colours
   cameras: honda_left, honda_right, honda_front, honda_rear, honda_top (Honda's studio cameras, cams.py),
+           honda_lf34, honda_lr34, honda_rf34, honda_rr34 (three-quarter photos, fit34.py),
            profile_left, left_34_hero, right_rear_34, dv01_front_left, dv02_left_front, dv04_cockpit
 Writes OUT_DIR/NAME.blend, OUT_DIR/NAME.glb and OUT_DIR/render_<view>.png.
 """
@@ -32,6 +33,9 @@ META = json.loads(str(_npz["meta"])) if "meta" in _npz.files else {}       # fro
 _up = _npz["steer_axis"][1]
 RAKE = math.atan2(-float(_up[0]), float(_up[2]))       # fork axis in the axle-line frame (parts.py, from the photo)
 STUDIO_CAMS = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-cameras.json")))   # cams.py
+_C34 = os.path.join(HERE, "..", "..", "research", "bike-cameras-34.json")         # fit34.py: three-quarter photos
+if os.path.exists(_C34):
+    STUDIO_CAMS.update({k: v for k, v in json.load(open(_C34)).items()})
 
 
 def srgb(c):
@@ -44,7 +48,18 @@ def lin(rgb):
 
 
 # ---------------------------------------------------------------- materials
-def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso=0.0, bump=0.0, spec=0.5):
+def _tex_path(image):
+    """A texture: absolute, in this livery's folder (TEX), or under motocross-whip/textures (e.g. "stock/grip_n.png")."""
+    for p in (image, os.path.join(TEX, image), os.path.join(HERE, "..", "..", "textures", image)):
+        if os.path.isabs(p) and os.path.exists(p) or os.path.exists(p):
+            return os.path.abspath(p)
+    raise FileNotFoundError(image)
+
+
+def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso=0.0, bump=0.0, spec=0.5,
+               normal=None, normal_strength=1.0, sheen=0.0):
+    """normal: a tangent-space normal map (OpenGL convention, +Y up) laid on the part's UVs (Mesh.uv, or uv_for);
+    it is exported to glTF too, so the viewer shows grip patterns, seat covers and tyre lettering."""
     m = bpy.data.materials.new(name)
     nt = m.node_tree
     p = nt.nodes["Principled BSDF"]
@@ -57,10 +72,21 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
     p.inputs["Specular IOR Level"].default_value = spec
     if image:
         tex = nt.nodes.new("ShaderNodeTexImage")
-        tex.image = bpy.data.images.load(os.path.join(TEX, image))
+        tex.image = bpy.data.images.load(_tex_path(image))
         tex.interpolation = "Cubic"
         nt.links.new(tex.outputs["Color"], p.inputs["Base Color"])
-    if bump > 0:
+    if sheen > 0:
+        p.inputs["Sheen Weight"].default_value = sheen
+    if normal:
+        nt_img = nt.nodes.new("ShaderNodeTexImage")
+        nt_img.image = bpy.data.images.load(_tex_path(normal))
+        nt_img.image.colorspace_settings.name = "Non-Color"
+        nt_img.interpolation = "Cubic"
+        nm = nt.nodes.new("ShaderNodeNormalMap")
+        nm.inputs["Strength"].default_value = normal_strength
+        nt.links.new(nt_img.outputs["Color"], nm.inputs["Color"])
+        nt.links.new(nm.outputs["Normal"], p.inputs["Normal"])
+    if bump > 0 and not normal:
         noise = nt.nodes.new("ShaderNodeTexNoise")
         noise.inputs["Scale"].default_value = 900.0
         noise.inputs["Detail"].default_value = 2.0
@@ -231,10 +257,18 @@ def build_parts():
         remap = {mi: i for i, mi in enumerate(used)}
         me.polygons.foreach_set("material_index", [remap[int(v)] for v in M[:len(me.polygons)]])
         uvl = me.uv_layers.new(name="UVMap")
+        UV = data[f"{name}__UV"] if f"{name}__UV" in data.files else None       # the part's own UVs (Mesh.uv)
+        if UV is not None and len(UV) != len(me.loops):           # validate() dropped a bad face: corners no longer line up
+            print("WARNING: %s: %d UV corners for %d loops (a degenerate face was removed): UVs ignored"
+                  % (name, len(UV), len(me.loops)), flush=True)
+            UV = None
         for poly in me.polygons:
             mname = mats[used[poly.material_index]]
             nrm = tuple(poly.normal)
             for li in poly.loop_indices:
+                if UV is not None and not np.isnan(UV[li, 0]):
+                    uvl.data[li].uv = (float(UV[li, 0]), float(UV[li, 1]))
+                    continue
                 co = me.vertices[me.loops[li].vertex_index].co
                 uvl.data[li].uv = uv_for(mname, (co.x, co.y, co.z), nrm)
         me.shade_smooth()
@@ -371,7 +405,7 @@ def cameras(root=None):
     cams = []
     if root is not None:
         cams += [studio_camera(v, root, res=tuple(int(q) for q in os.environ.get("BIKE_STUDIO_RES", "2000,1125").split(",")))
-                 for v in ("left", "right", "front", "rear", "top")]
+                 for v in ("left", "right", "front", "rear", "top", "lf34", "lr34", "rf34", "rr34") if v in STUDIO_CAMS]
     # Honda's left profile, reproduced: orthographic, same scale and framing as the 4000x2250 studio photo
     s = BP["mm_per_px"] / 1000.0
     fa, ra = np.array(BP["front_axle_px"]), np.array(BP["rear_axle_px"])
@@ -427,6 +461,13 @@ def render(cams):
                 lo.data.energy = lo["base_energy"] * (STUDIO[1] if honda else 1.0)
         sc.render.resolution_x, sc.render.resolution_y = co["res"]
         sc.render.resolution_percentage = 100
+        # BIKE_BORDER="u0,v0,u1,v1": only that box of a honda_* view, in the 4000x2250 photo's pixels (pair.py)
+        border = os.environ.get("BIKE_BORDER") if honda else None
+        sc.render.use_border = sc.render.use_crop_to_border = bool(border)
+        if border:
+            u0, v0, u1, v1 = (float(q) for q in border.split(","))
+            sc.render.border_min_x, sc.render.border_max_x = u0 / 4000.0, u1 / 4000.0
+            sc.render.border_min_y, sc.render.border_max_y = 1.0 - v1 / 2250.0, 1.0 - v0 / 2250.0
         sc.render.filepath = os.path.join(OUT, f"render_{co.name}.png")
         bpy.ops.render.render(write_still=True)
         print("RENDERED", sc.render.filepath, flush=True)

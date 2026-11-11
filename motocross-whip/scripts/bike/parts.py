@@ -791,10 +791,11 @@ def plugins():
     import importlib
     want = os.environ.get("BIKE_PLUGINS", "all")
     mods = []
-    for name in PLUGINS:
+    extra = [n for n in os.environ.get("BIKE_EXTRA_PLUGINS", "").split(",") if n]    # tests and experiments
+    for name in list(PLUGINS) + extra:
         if want == "none" or (want != "all" and name not in want.split(",")):
             continue
-        if os.path.exists(os.path.join(HERE, name + ".py")):
+        if name in extra or os.path.exists(os.path.join(HERE, name + ".py")):
             mods.append(importlib.import_module(name))
     return mods
 
@@ -843,6 +844,12 @@ def save(parts, path):
         data[f"{name}__S"] = sizes
         data[f"{name}__F"] = flat
         data[f"{name}__M"] = np.array([mats.index(mm) for mm in p.M], np.int16)
+        if p.uv:                                   # per-corner UVs of the faces that carry them (Mesh.uv), NaN elsewhere
+            uv = np.full((len(flat), 2), np.nan, np.float32)
+            start = np.concatenate([[0], np.cumsum(sizes)[:-1]])
+            for fi, corners in p.uv.items():
+                uv[start[fi]:start[fi] + sizes[fi]] = np.asarray(corners, np.float32)
+            data[f"{name}__UV"] = uv
     data["meta"] = np.array(json.dumps(getattr(build, "meta", {"front_end": sorted(FRONT_END)})))
     data["steer_axis"] = np.vstack([STEER0, UP])
     data["ground"] = np.array([RA[0], RA[1], RA[2], GROUND_PITCH, GROUND_DROP])

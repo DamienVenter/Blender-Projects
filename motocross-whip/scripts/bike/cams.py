@@ -171,11 +171,31 @@ def build():
 
 
 CAMS = build()
+
+
+def _load34():
+    """Cameras of the four three-quarter photos, fitted to the model by fit34.py (research/bike-cameras-34.json)."""
+    p = os.path.join(RES, "bike-cameras-34.json")
+    if not os.path.exists(p):
+        return {}
+    out = {}
+    for k, c in json.load(open(p)).items():
+        cam = Cam(c["C"], c["F"], (0, 0, 1.0), c["f"])
+        cam.R, cam.U, cam.F = (np.asarray(c[q], float) for q in ("R", "U", "F"))
+        out[k] = cam
+    return out
+
+
+CAMS.update(_load34())
 FILES = {"left": "studio_left-profile_honda-eu-25ym-475600_4000x2250.jpg",
          "right": "studio_right-profile_honda-eu-25ym-475596_4000x2250.jpg",
          "front": "studio_front_honda-eu-25ym-475602_4000x2250.jpg",
          "rear": "studio_rear_honda-eu-25ym-475598_4000x2250.jpg",
-         "top": "studio_top_honda-eu-25ym-475594_4000x2250.jpg"}
+         "top": "studio_top_honda-eu-25ym-475594_4000x2250.jpg",
+         "lf34": "studio_left-front-34_honda-eu-25ym-475601_4000x2250.jpg",
+         "lr34": "studio_left-rear-34_honda-eu-25ym-475599_4000x2250.jpg",
+         "rf34": "studio_right-front-34_honda-eu-25ym-475595_4000x2250.jpg",
+         "rr34": "studio_right-rear-34_honda-eu-25ym-475597_4000x2250.jpg"}
 
 
 def linear_to_px(view, x_mm, z_mm):
