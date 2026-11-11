@@ -177,7 +177,7 @@ def test_seat_height_against_the_spec_sheet(npz):
     """955 mm in the spec; the seat of the studio photos, which the model follows, is 20 mm higher."""
     d = np.load(npz)
     V = d["seat__V"].astype(float)
-    xs = np.round(V[:, 0], 4)
+    xs = np.round(V[:, 0] / 0.005)          # 5 mm bins: the seat is no longer a loft with stations (2026-11-11)
     top = np.array([V[xs == x][np.argmax(V[xs == x][:, 2])] for x in np.unique(xs)])
     zg = parts.to_ground(top)[:, 2]
     m = (top[:, 0] > 0.25) & (top[:, 0] < 0.70)
