@@ -19,7 +19,7 @@ from PIL import Image
 import cams
 import plastics
 import parts as P
-from geom import Mesh, bolt, box, grid, inside, lathe, rounded_rect, smooth_poly, tube
+from geom import Mesh, bolt, grid, inside, rounded_rect, smooth_poly, tube
 
 LEFT, FRONT, REAR, TOP = (cams.CAMS[k] for k in ("left", "front", "rear", "top"))
 _UP2 = np.array([P.UP[0], P.UP[2]])
@@ -114,26 +114,17 @@ def fork_guards():
 
 
 def guard_hardware():
-    """LEFT: two bolt heads at each guard's lower end (grey blobs centred on px (1094, 1555) and (1132, 1578)); on
-    the left guard, at its top, the brake hose clamp (grey block u 1218..1262, v 1144..1188, a second bolt head at
-    (1235, 1189)) with the loop the hose runs through (EST). The right guard's bolts are the left one's mirrored."""
+    """LEFT: two bolt heads at each guard's lower end (grey blobs centred on px (1094, 1555) and (1132, 1578)). The
+    right guard's bolts are the left one's mirrored. (The brake hose clamp at the left guard's top is detail_front's
+    hose guide.)"""
     m = Mesh()
     for side in (1, -1):
         for u, v in ((1094.0, 1555.0), (1132.0, 1578.0)):
             c = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
             c[1] = side * (GUARD_OUT + 0.0033)
             m.add(bolt(c, (0, side, 0), af=0.008, head_h=0.005, flange_d=0.013))
-    c = LEFT.on_plane(np.array([1238.0]), np.array([1166.0]), "y", GUARD_OUT)[0]
-    R = np.column_stack([-P.BACK, [0.0, 1.0, 0.0], P.UP])
-    m.add(box(c + np.array([0, 0.0073, 0]), (0.026, 0.008, 0.032), "alu_machined", R=R))
-    for u, v in ((1237.0, 1160.0), (1235.0, 1189.0)):
-        b = LEFT.on_plane(np.array([u]), np.array([v]), "y", GUARD_OUT)[0]
-        b[1] = GUARD_OUT + 0.0113
-        m.add(bolt(b, (0, 1, 0), af=0.007, head_h=0.004, kind="cap"))
-    ring = lathe([(0.008 + 0.0025 * math.cos(q), 0.0025 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
-                 20, "alu_machined", closed=True)
-    ring.transform(np.column_stack([-P.BACK, P.UP, [0.0, -1.0, 0.0]]), c - P.BACK * 0.020 + np.array([0, 0.0073, 0]))
-    m.add(ring)
+    # (round 4: the brake hose clamp on the left guard's top, LEFT u 1218..1262, v 1144..1188, is now the cockpit's
+    # hose guide in detail_front, which holds the hose: this module's copy of it is gone)
     return m
 
 
@@ -322,6 +313,8 @@ def panel_bolts():
         a = np.array([0.0, float(side), 0.0])
         m.add(tube([c + a * 0.0002, c + a * 0.0015], 0.0085, 20, "steel"))          # washer on the floor
         m.add(bolt(c + a * 0.0015, a, af=0.008, head_h=0.005, flange_d=0.013))
+        m.add(tube([c + a * 0.0001, c - a * 0.012], 0.0029, 12, "steel"))           # its shank through the floor's
+        #                                                                            hole (POCKET_HOLE) into the airbox
     return m
 
 
@@ -355,13 +348,44 @@ def mudguard_top():
     return m
 
 
+# ---------------------------------------------------------------- the mud flap's foot fasteners (round 4)
+MUD_SCREWS_PX = [(1947.0, 993.0), (2057.0, 993.0)]   # REAR at 3x: two bright round heads, 7 px (5 mm) across, on the
+#                                                     flap's top just under the inner mudguard's lip, y +0.038 / -0.041
+
+
+def mud_hardware():
+    """The two screws that hold the mud flap's top to the inner mudguard's foot (REAR, MUD_SCREWS_PX: built symmetric
+    at their mean, 39.9 mm off the centre line): round heads 5.5 mm across, 2.5 mm tall (EST from their 7 px), on
+    the flap's rear face (plastics.mud_flap's own surface; its 3 mm of plastic is ahead of it)."""
+    R = np.array(plastics._mud_flap_rings())
+    m = Mesh()
+    P = REAR.on_plane(np.array([q[0] for q in MUD_SCREWS_PX]), np.array([q[1] for q in MUD_SCREWS_PX]), "x",
+                      plastics.MUD_X)
+    y0 = REAR.on_plane(np.array([2003.5]), np.array([993.0]), "x", plastics.MUD_X)[0][1]
+    yc, zc = float(np.mean(np.abs(P[:, 1] - y0))), float(P[:, 2].mean())
+    for s in (1.0, -1.0):
+        # the flap's back at (y, z): along each ring at y, then down the rings at z; the head's rim (2.75 mm out)
+        # stands on its most rearward point there
+        xs = []
+        for dy in np.linspace(-0.00275, 0.00275, 5):
+            xr = np.array([np.interp(s * yc + dy, r[:, 1], r[:, 0]) for r in R])
+            xs.append(float(np.interp(-zc, -R[:, 0, 2], xr)))
+        m.add(bolt(np.array([min(xs) - 0.0002, s * yc, zc]), (-1.0, 0.0, 0.0), af=0.0055, head_h=0.0025, kind="cap"))
+    return m
+
+
+def rear_flap():
+    """The mud flap (plastics._mud_flap_rings, its back face) 3 mm thick, the thickness ahead of the back face (built
+    here: as parts.py's single-surface 'mud_flap', solidified in Blender, its 3 mm went where the vertex normals said
+    and cut the mudguard's foot 3.5 mm, audit)."""
+    return plastics._thick(np.array(plastics._mud_flap_rings()), 0.003, "plastic_black")
+
+
 # ---------------------------------------------------------------- number plate: mounts and hose guide
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
     on the lower clamp's front face, 0.3 mm short of it (both EST: hidden behind the plate; the clamps are
-    detail_front's). Hose guide:
-    FRONT rows 600..640, a black loop u 2081..2143 beside the plate's lower edge on the bike's left, which the brake
-    hose runs through (loop 22 mm across; its tab to the plate EST)."""
+    detail_front's). The hose guide under the plate's lower edge is detail_front's (round 4)."""
     Pl = plastics._plate()
     m = Mesh()
     uc, vc = plastics.PLATE_POCKET[:2]
@@ -379,14 +403,9 @@ def plate_details():
     for u in (1970.0, 2030.0):                             # on the flat centre panel (its edge is 47 px out here:
         p = Pl.hit(u, 598.0, 0.0035)                       # further out the folded wing cut the peg's end)
         m.add(stub(p, low(p[1]), 10))
-    c = Pl.hit(2120.0, 626.0, 0.007)
-    e = Pl.hit(2074.0, 600.0, 0.007)
-    ring = lathe([(0.011 + 0.003 * math.cos(q), 0.003 * math.sin(q)) for q in np.linspace(0, 2 * math.pi, 9)[:-1]],
-                 20, "plastic_black", closed=True)
-    ring.transform(np.column_stack([np.cross(Pl.up, [0.0, 1.0, 0.0]), Pl.up, [0.0, 1.0, 0.0]]), c)
-    m.add(ring)
-    d = (c - e) / np.linalg.norm(c - e)
-    m.add(tube([e, c - d * 0.011], 0.003, 8, "plastic_black"))
+    # (round 4: the hose guide under the plate's lower edge, FRONT rows 600..640, u 2081..2143, is now detail_front's
+    # guide under the lower clamp with its grommet round the hose; this module's loop, 12 mm off the hose's axis, cut
+    # it and the hose, audit 20.6 mm: gone)
     return m
 
 
@@ -431,15 +450,22 @@ def _worley(size, cells, rng):
     return F1, F2, np.take_along_axis(idx, o[:1], 0)[0]
 
 
-SIDE_COVER = dict(pitch=17.1, arm=9.0, rib_w=1.3, rib_h=0.40, arms_deg=(115.0, -5.0, 235.0), stipple=0.05,
-                  size=(1024, 886))
+SIDE_COVER = dict(pitch=plastics.SIDE_COVER_TILE * 500.0, arm=4.2, rib_w=1.0, rib_h=0.25,
+                  arms_deg=(115.0, -5.0, 235.0), stipple=0.04, size=(1024, 886))
 # The black lower part of the side panel (the airbox's side): raised Y-shaped ribs, three arms 120 deg apart, all the
-# same way round, on a hexagonal lattice, over a fine stipple. Detail 475833 at 2.4x (u 1500..2000, v 1450..1800),
-# its scale from the panel bolt in the same frame (hex 43 px for 8 mm: 0.186 mm/px): Y centres 92 px (17.1 mm)
-# apart along a row, the next row offset by half a pitch and 83 px (15.4 mm) across it (hexagonal: 14.8); arms 42 to
-# 52 px (8 to 10 mm) from the centre, 7 px (1.3 mm) wide, round ends, lit edges and a shadow on the far side
-# (raised); arms at about 117, -14 and 233 deg in the photo (its own tilt and perspective not removed: laid on the
-# panel at 115, -5, 235 deg, EST). Rib height 0.4 mm and stipple 0.05 mm: EST.
+# same way round, on a hexagonal lattice, over a fine stipple. Scale (round 4): the LEFT photo's ribbed area (u
+# 2400..2520, rows 1040..1110), autocorrelated: a hexagonal lattice, rows along the bike, neighbours 12.0 / 12.1 /
+# 12.2 px apart, 9.0 mm at the panels' 0.746 mm/px (plastics.SIDE_COVER_TILE: two steps). Rounds 1 to 3 had 17.1 mm,
+# from detail 475833's scale taken off the panel bolt's hex as 43 px for 8 mm; the hex there is about 70 px, and the
+# bolt's pocket, 42 px (31 mm) in LEFT, is 257 px in 475833 (0.12 mm/px): Y centres 87 px apart there, 10.4 mm, and
+# the ratio of the Ys' spacing to the pocket's width is 0.30 in LEFT and 0.34 in 475833. Proportions from 475833 at
+# 2.4x (u 1450..2150, v 1600..2300, `ycmp.jpg`): arms 0.47 of the pitch from the centre (4.2 mm), 0.08 of it wide
+# (0.75 mm; 1.0 mm built: in LEFT the dark arms are 2 px, 1.5 mm, with their shadow side), round ends, lit edges and a shadow on the far side (raised); arms at about 117, -14 and 233 deg in the
+# photo (its own tilt not removed: laid on the panel at 115, -5, 235 deg, EST). Rib height 0.25 mm and stipple
+# 0.04 mm: EST.
+
+
+SIDE_COVER_RGB = ((26, 26, 28), (7, 7, 8))       # ground, ribs (sRGB; LEFT, see make_textures)
 
 
 def _tristar_height():
@@ -488,27 +514,33 @@ def make_textures():
     st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
     h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
     _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
-    h, mm = _intake_height()
-    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_mesh_n.png"))
+    # and its colour: in the studio photos the ribs read near black on the satin ground (LEFT, u 2400..2520, rows
+    # 1040..1110: 10th percentile (5, 6, 6), median (23, 24, 26); the smooth part beside it (25, 26, 28)): glossy ribs
+    # mirroring the dark studio (475833, in the sun: lit edges)
+    h, sx, sy = _tristar_height()
+    k = np.clip(gaussian_filter(h, 1.5, mode="wrap") / (0.5 * SIDE_COVER["rib_h"]), 0.0, 1.0)[..., None]
+    col = np.array(SIDE_COVER_RGB[0], float) * (1.0 - k) + np.array(SIDE_COVER_RGB[1], float) * k
+    Image.fromarray(np.round(col).astype(np.uint8)).save(os.path.join(TEXTURES, "side_cover_c.png"), optimize=True)
+    h, mm = _foam_height()
+    _normal_png(gaussian_filter(h, 1.0, mode="wrap"), mm, os.path.join(TEXTURES, "intake_foam_n.png"))
 
 
-INTAKE_MESH = dict(pitch=2.0, strand=0.45, height=0.25, size=512)
-# The air intake's screen (detail 475833 at 4x, u 2350..2650, v 600..800; 0.186 mm/px from the panel bolt's hex):
-# strands on two diagonals about 11 px (2 mm) apart, small bright specks where they cross. Strand width and height
-# EST. One 16 mm tile (8 cells each way) per texture.
+INTAKE_FOAM = dict(pitch=1.2, strut=0.22, depth=0.35, tile=16.0, size=512, seed=11)
+# The air filter's foam seen through the intake (round 4; round 2 read it as a diamond mesh). Detail 475833 at 4x
+# (u 1750..3500, v 500..1150, `d833_edges.jpg`): an even speckle of light points on dark green, the pores' rims
+# catching the light, points 2 to 3 px (0.4 to 0.6 mm) across and 5 to 10 px (1 to 2 mm) apart; Dirt Rider's air
+# filter photo (04): the stock filter is green open-cell foam. Cells 1.2 mm (EST, within the speckle's spacing), struts
+# 0.22 mm, pores 0.35 mm deep (EST). One 16 mm tile.
 
 
-def _intake_height():
-    g = INTAKE_MESH
-    n = g["size"]
-    t = (np.arange(n) + 0.5) / n * 16.0
-    X, Y = np.meshgrid(t, t)
-    h = np.zeros((n, n))
-    step = g["pitch"] / math.sqrt(2.0)                       # strands at +-45 deg, 2 mm apart along x and y
-    for sgn in (1.0, -1.0):
-        d = np.abs(((X + sgn * Y) / math.sqrt(2.0)) % step - step / 2)
-        h = np.maximum(h, g["height"] * np.clip(1.0 - (d / (g["strand"] / 2)) ** 2, 0.0, 1.0) ** 0.5)
-    return h, 16.0 / n
+def _foam_height():
+    g = INTAKE_FOAM
+    rng = np.random.default_rng(g["seed"])
+    n = int(round(g["tile"] / g["pitch"]))
+    F1, F2, cell = _worley(g["size"], n, rng)
+    edge = (F2 - F1) * g["pitch"] / 2.0                       # mm from the cell's border (about)
+    h = g["depth"] * (1.0 - np.exp(-(edge / g["strut"]) ** 2))   # struts on the borders, pores sunk between them
+    return -h, g["tile"] / g["size"]
 
 
 MATERIALS = {
@@ -520,18 +552,22 @@ MATERIALS = {
     "seat": dict(rgb=(202, 22, 30), rough=0.72, sheen=0.6, normal="stock/seat_grain_n.png", normal_strength=1.6),
     # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
     # (plastics.side_panels, x and z over the tile)
-    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
-    # the intake's screen: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow), satin
-    "intake_mesh": dict(rgb=(10, 58, 2), rough=0.5, normal="stock/intake_mesh_n.png", normal_strength=1.0),
+    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, image="stock/side_cover_c.png", normal="stock/side_cover_n.png",
+                          normal_strength=1.0),
+    # the filter's foam: dark green (detail 475833: (18, 63, 5) lit, (8, 35, 2) in the shadow; LEFT (26..44, 41..65,
+    # 5..11) at its lit lower front: (10, 58, 2) rendered (55, 75, 50) there, round 4), matte. (No channel at 1:
+    # build_bike.srgb reads a value of 1 as 1.0, full, not 1/255: (5, 32, 1) rendered bright blue.)
+    "intake_foam": dict(rgb=(8, 46, 3), rough=0.9, normal="stock/intake_foam_n.png", normal_strength=1.0),
 }
-CLASS = {"intake_mesh": "black"}                             # dark, as the louvre panel it replaces
+CLASS = {"intake_foam": "black"}                             # dark, as the louvre panel it replaces
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
-         "plate_details": plate_details, "mudguard_top": mudguard_top}
-REPLACES = ("fork_guards", "fender_mounts")
+         "plate_details": plate_details, "mudguard_top": mudguard_top, "mud_hardware": mud_hardware,
+         "rear_flap": rear_flap}
+REPLACES = ("fork_guards", "fender_mounts", "mud_flap")
 FRONT_END = ("fork_guards", "guard_hardware", "plate_details")
-SMOOTH = {"fork_guards": 60, "tail_under": 50}
+SMOOTH = {"fork_guards": 60, "tail_under": 50, "rear_flap": 70}
 
 
 if __name__ == "__main__":

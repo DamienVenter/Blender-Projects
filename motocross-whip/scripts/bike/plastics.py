@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 import cams
-from geom import Mesh, bolt, grid, inside, plate2d, resample, rounded_rect, smooth_poly
+from geom import Mesh, bolt, grid, inside, plate2d, resample, rounded_rect, smooth_poly, tube
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "..", "..", "research")
@@ -630,6 +630,8 @@ DECK_END_U = 1950.0  # LEFT column where the plate ends under the seat's nose (x
 #                      the red strip the top photo shows beside the seat's nose, it ran 3 to 4 mm into the side panels'
 #                      noses and the shrouds' skins and cost the rear view 1.6 points of red: left as it was)
 DECK_DROP = 0.003    # the plate's inner edge lies this much lower than its outer edge (EST)
+DECK_SEAT = 0.0032   # the plate's outer edge starts this far in from the skin's top edge, on the skin's 3 mm shell (at
+#                      the edge itself, the plate's 3 mm under it cut that shell 1.5 mm, audit; now a 0.5 mm seat)
 
 
 @functools.lru_cache(maxsize=None)
@@ -830,10 +832,10 @@ def _deck(side):
     edge = _shroud_shells(side)[1]
     rows = []
     for p in edge:
-        y_in = min(float(np.interp(p[0], DECK_X, DECK_Y)), abs(p[1]) - 0.004)
+        y0 = abs(p[1]) - DECK_SEAT
+        y_in = min(float(np.interp(p[0], DECK_X, DECK_Y)), y0 - 0.004)
         k = np.linspace(0.0, 1.0, 9)
-        rows.append(np.stack([np.full(9, p[0]), side * (abs(p[1]) + (y_in - abs(p[1])) * k), p[2] - DECK_DROP * k * k],
-                             axis=1))
+        rows.append(np.stack([np.full(9, p[0]), side * (y0 + (y_in - y0) * k), p[2] - DECK_DROP * k * k], axis=1))
     return rows
 
 
@@ -1156,6 +1158,10 @@ def _panel(side):
             if x < 0.125 and (v > F or wt < 1.0):          # never inside the fender: clear of its face by the
                 y = max(y, fender_outer_y(x, z) + 0.0035)  # panel's 3 mm shell and 0.5 mm
             return side * y
+        if side > 0:                                       # the intake's scoop (left panel only)
+            dd = scoop_depth(u, v)
+            if dd > 0.0:
+                return lambda x, z, f=f, dd=dd: f(x, z) - dd
         return f
     # extra rows of vertices through the tail, where four lines meet within a few px and the face turns 40 mm in 20
     # px: between the crease and the fold, under the fold, and along the lower edge (on a 9 px mesh it came out
@@ -1170,6 +1176,205 @@ def _panel(side):
                            ridge=_mpx(view, rg))
 
 
+# ---------------------------------------------------------------- the left panel's air intake (round 4)
+# The opening (LEFT: the dark run's edge, the red channel's contour at 120 after a 0.6 px blur, every 4 px round the
+# corners and 16 px along the straight edges; detail 475833: the same quadrilateral, its front tip sharp, its rear end
+# round). Front tip (2385.8, 938.4); the top edge straight, rising 0.164 px a px to the rear end (2585.3, 902.3),
+# rounded over 5 px; the lower-rear edge falling 0.59 px a px to the lowest corner (2471.7, 978.3), rounded over 8 px;
+# the lower-front edge rising 0.44 px a px back to the tip, rounded over 4 px. The round 2 opening came from the
+# segmented photo's dark class, eroded, closed and smoothed over 7 px: it bulged at its lower front and rounded off
+# the tip. The RIGHT photo's panel has no intake (plain red, one bolt): the left panel only.
+INTAKE_PX = [(2389.2, 931.6), (2386.5, 934.5), (2385.8, 938.4), (2387.8, 941.8), (2390.8, 944.3), (2394.3, 946.3),
+             (2397.8, 948.1), (2412.6, 954.3), (2427.3, 960.5), (2442.0, 966.8), (2456.7, 973.2), (2460.4, 974.8),
+             (2464.0, 976.3), (2467.8, 977.7), (2471.7, 978.3), (2475.7, 978.0), (2479.6, 976.9), (2483.2, 975.4),
+             (2486.7, 973.4), (2500.4, 965.2), (2514.2, 956.9), (2527.8, 948.7), (2541.5, 940.4), (2555.3, 932.3),
+             (2565.6, 926.1), (2569.0, 924.0), (2572.3, 921.8), (2575.5, 919.3), (2578.3, 916.5), (2580.6, 913.2),
+             (2582.6, 909.8), (2584.4, 906.2), (2585.3, 902.3), (2582.8, 899.6), (2578.8, 899.5), (2574.8, 899.8),
+             (2558.2, 902.2), (2542.4, 904.6), (2526.6, 907.0), (2510.8, 909.6), (2495.0, 912.0), (2479.2, 914.5),
+             (2463.4, 917.0), (2447.6, 919.5), (2431.8, 922.0), (2416.0, 924.5), (2404.2, 926.5), (2400.3, 927.3),
+             (2396.4, 928.3), (2392.6, 929.6)]
+# The scoop round it: the panel's face is pushed in round the opening. LEFT, per column every 8 px, runs of lighter
+# pixels on the red (g > 55; `runs.py`), and detail 475833 at 1.7x: over the top edge a lit facet 4 to 7 px tall facing
+# up, a crisp crease at its top (the scoop's upper edge), which runs on 50 px ahead of the opening's tip to a point at
+# (2334, 937); under the lower-rear edge a bright band 4 to 9 px out (the face rolling into the opening); under the
+# lower-front edge one thin light line 3 to 4 px out (the scoop's edge there); the lower lines meet in a V under the
+# lowest corner (2467, 988); at the rear the crease hooks down round the opening's end (u 2594..2599, rows 892..914)
+# into the lower band. The scoop's outline, clockwise from the front point (the crease's top row, the lower band's
+# last row, the lower-front line's row plus half a pixel):
+SCOOP_PX = [(2334, 937.0), (2346, 929.5), (2354, 928.0), (2370, 926.0), (2386, 924.0), (2402, 922.0), (2418, 919.0),
+            (2434, 917.0), (2450, 914.0), (2466, 912.0), (2482, 910.5), (2498, 907.0), (2514, 905.0), (2530, 902.0),
+            (2546, 899.0), (2558, 897.0), (2570, 895.0), (2582, 893.0), (2594, 892.5), (2599, 897.0), (2599, 906.0),
+            (2596, 914.0), (2590, 920.5), (2586, 923.5), (2578, 928.5), (2570, 933.5), (2562, 937.5), (2554, 942.5),
+            (2546, 947.5), (2538, 952.5), (2530, 956.5), (2522, 961.5), (2514, 966.5), (2506, 970.5), (2498, 975.5),
+            (2490, 980.5), (2482, 984.5), (2474, 989.0), (2467, 988.0), (2458, 977.5), (2450, 974.5), (2442, 970.5),
+            (2434, 967.5), (2426, 963.5), (2418, 960.5), (2402, 953.5), (2394, 950.0), (2388, 945.0), (2378, 941.5),
+            (2362, 940.0), (2346, 939.0), (2338, 938.5)]
+# The line between the upper facet and the lower lip: the front point, the opening's tip and rear end, the hook.
+SCOOP_SPLIT_PX = [(2290.0, 937.0), (2334.0, 937.0), (2385.8, 938.4), (2585.3, 902.3), (2599.0, 901.5), (2640.0, 895.0)]
+SCOOP_D = (0.005, 0.008)  # the face's depth at the opening's edge under the upper facet and at the lower lip (EST: in
+#                           LEFT the facet is 4 to 7 px tall and the lip 3 to 9 px, in detail 475833, seen from ahead
+#                           and below, about 6 and 15 to 17 mm: both surfaces steep, the lip a ramp into the duct)
+INTAKE_FOAM_D = 0.010     # the filter's foam behind the opening's edge (EST: LEFT col 2500, the foam is near black for
+#                           23 px under the top edge, the shadow of the facet and the duct's top wall; 475833 shows the
+#                           duct's wall at the rear end, 10 px, 2 mm, as a black band)
+INTAKE_FRAME_PX = 1.5     # the duct's black rim laps over the foam's edge (LEFT: a black line 1 to 2 px at the rear end)
+
+
+@functools.lru_cache(maxsize=None)
+def _scoop():
+    from scipy.spatial import cKDTree
+    from scipy.ndimage import gaussian_filter1d
+    o = np.array(INTAKE_PX, float)
+    # the scoop's outline, read to a pixel every 8 to 16 px: resampled every 2 px and smoothed over 3 px (the
+    # crease is a function of the distance to it: its readings' kinks came out as dents along it at 6x)
+    s = resample(np.array(SCOOP_PX, float), 2.0)
+    s = np.stack([gaussian_filter1d(s[:, 0], 1.5, mode="wrap"), gaussian_filter1d(s[:, 1], 1.5, mode="wrap")], 1)
+    return o, s, cKDTree(_dense(o, 16, closed=True)), cKDTree(_dense(s, 4, closed=True)), np.array(SCOOP_SPLIT_PX)
+
+
+def scoop_depth(u, v):
+    """How far the left panel's face is pushed in (m) at LEFT pixel (u, v) by the intake's scoop: zero on the scoop's
+    outline, SCOOP_D at the opening's edge; above SCOOP_SPLIT_PX a straight facet from the crease (the crease stays
+    crisp), under it a lip that rolls in (flat at the scoop's edge, steepest at the opening)."""
+    o, s, to, ts, sp = _scoop()
+    if not (s[:, 0].min() < u < s[:, 0].max() and s[:, 1].min() < v < s[:, 1].max()):
+        return 0.0
+    q = np.array([[u, v]], float)
+    if not inside(s, q)[0]:
+        return 0.0
+    do = 0.0 if inside(o, q)[0] else float(to.query(q[0])[0])
+    ds = float(ts.query(q[0])[0])
+    t = ds / max(ds + do, 1e-9)
+    wu = smoothstep((float(np.interp(u, sp[:, 0], sp[:, 1])) - v) / 3.0 + 0.5)
+    return wu * SCOOP_D[0] * t + (1.0 - wu) * SCOOP_D[1] * t * t
+
+
+# ---------------------------------------------------------------- the left side cover's window and the airbox cover
+# Fiche K95CF2300 item 10 (the black side cover: a frame with a window at its front) and K95CF2500 item 2 (the airbox's
+# side cover: a plate with a raised panel). LEFT at 4x, grey level per row and column (`g_cover4x.jpg`,
+# `g_topbar4x.jpg`), and detail 475833: in the window a smooth satin plateau, a broad bevel round it falling to the
+# cover's edge, a dark gap, then the frame: its smooth top bar (a double line along its lower edge, the window's top)
+# and its textured part behind the window (its inner edge lit, rows 1090 / 1130 at u 2376..2391 / 2355..2372). Under
+# and ahead of the cover the photo shows a dark gap and the main frame's spar: no bar of the side cover there.
+# Corners (u, v, fillet radius px), top-left, top-right, bottom-right, bottom-left:
+COVER_OUT_PX = [(2205.0, 973.5, 4.0), (2379.6, 1078.0, 8.0), (2327.0, 1174.0, 6.0), (2209.0, 1094.0, 8.0)]
+# (the top edge: the double line, rows 994.5 / 1026 / 1054.5 at u 2240 / 2290 / 2340; the right edge: the gap before
+# the frame's lit wall, u 2373 / 2351 at rows 1090 / 1130; the bottom: the bevel's last row, 1111.5 / 1147.5 at u 2240
+# / 2290; the left: the bevel's first column, 2205 / 2207 at rows 1010 / 1050)
+COVER_TOP_PX = [(2223.0, 999.5, 6.0), (2363.0, 1089.0, 6.0), (2330.0, 1146.0, 6.0), (2230.0, 1077.0, 8.0)]
+# (the plateau, darkest: its top edge at rows 1010 / 1043 / 1074 at u 2240 / 2290 / 2340, its left edge u 2223 / 2226
+# at rows 1010 / 1050, its bottom row 1083 / 1119 at u 2240 / 2290 and its right edge u 2371 / 2341 at rows 1090 /
+# 1130, read from the contour of the grey level 28)
+COVER_SET = 0.012         # the cover's edge lies this far inside the frame's face (EST: hidden by the frame's edge)
+COVER_RISE = 0.009        # the plateau stands this far above the cover's edge (EST: the bevel, 10 to 28 px wide, is lit as
+#                           a steep face in LEFT: its left side (95), its lower side (57) against the plateau (21))
+WINDOW_GAP = 2.5          # px between the cover's edge and the frame's (the double line, 6 px with the edges' rounds)
+WINDOW_ROLL = (12.0, 0.006)  # the frame's edge rolls into the window over 12 px and 6 mm, its 3 mm shell under it (LEFT:
+#                             its lit band, 18 px over the top edge at u 2290 and 15 to 17 px by the right edge; depth EST)
+# The frame's smooth top bar ends where the ribbed part begins: a line from the red panel's edge at (2318, 995) to the
+# window's top-right corner (LEFT, 4x)
+TOPBAR_END_PX = [(2318.0, 990.0), (2384.0, 1078.0)]
+# The mud flap's top, traced with the side cover (OUT2): cut along the cover's lower edge (LEFT: (2380, 1242) to
+# (2580, 1185); under it the flap, component 2)
+COVER_LOW_PX = [(2380.0, 1242.0), (2580.0, 1185.0)]
+
+
+def _round_quad(corners, step=2.0):
+    """A closed outline through four corners (u, v, r) with each corner filleted (radius r px), sampled every STEP
+    px; each side's samples are spaced evenly, so two such outlines can be paired point by point side by side."""
+    P = np.array([c[:2] for c in corners], float)
+    out = []
+    for i in range(4):
+        a, b, c = P[i - 1], P[i], P[(i + 1) % 4]
+        r = corners[i][2]
+        e1, e2 = (a - b) / np.linalg.norm(a - b), (c - b) / np.linalg.norm(c - b)
+        th = math.acos(float(np.clip(e1 @ e2, -1.0, 1.0)))
+        k = r / math.tan(th / 2)
+        t1, t2 = b + e1 * k, b + e2 * k
+        cen = b + (e1 + e2) / np.linalg.norm(e1 + e2) * r / math.sin(th / 2)
+        a1, a2 = math.atan2(*(t1 - cen)[::-1]), math.atan2(*(t2 - cen)[::-1])
+        da = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        out.append([cen + r * np.array([math.cos(a1 + da * s), math.sin(a1 + da * s)]) for s in np.linspace(0, 1, 7)])
+    pts = []
+    for i in range(4):
+        arc, nxt = out[i], out[(i + 1) % 4]
+        pts += arc
+        p, q = arc[-1], nxt[0]
+        n = max(int(np.linalg.norm(q - p) / step), 1)
+        pts += [p + (q - p) * s for s in np.linspace(0, 1, n + 1)[1:-1]]
+    return np.array(pts)
+
+
+def _quad_pair(outer, inner, n_side=24):
+    """The two outlines of _round_quad sampled with the same count per side (arcs 7, sides n_side): paired rings."""
+    def one(c):
+        P = np.array([q[:2] for q in c], float)
+        full = _round_quad(c, step=1e6)                      # arcs only (7 points each, sides as one segment)
+        pts = []
+        for i in range(4):
+            arc = full[i * 7:(i + 1) * 7]
+            nxt = full[((i + 1) % 4) * 7]
+            pts += list(arc) + [arc[-1] + (nxt - arc[-1]) * s for s in np.linspace(0, 1, n_side + 1)[1:-1]]
+        return np.array(pts)
+    return one(outer), one(inner)
+
+
+def _window_top():
+    """The frame's edge over the cover's top edge (LEFT px): the cover's top edge moved WINDOW_GAP out, as two points."""
+    P = np.array([c[:2] for c in COVER_OUT_PX], float)
+    d = P[1] - P[0]
+    n = np.array([d[1], -d[0]]) / np.linalg.norm(d)            # up, away from the cover
+    return P[0] + n * WINDOW_GAP, P[1] + n * WINDOW_GAP
+
+
+@functools.lru_cache(maxsize=None)
+def _window_left():
+    """The region cut out of the left side cover's traced outline (LEFT px, closed), and the distance (px) from a
+    pixel to the frame's edge round it. Its top: the cover's top edge WINDOW_GAP out, from u 2150 (the top bar runs on
+    over it to its front end); its right: the cover's right edge WINDOW_GAP out, carried on down past the cover's
+    corner to row 1235 (LEFT: the frame's edge runs on to its lower corner at about (2330, 1205)); then round under
+    and ahead of the cover, outside the trace."""
+    from scipy.spatial import cKDTree
+    P = np.array([c[:2] for c in COVER_OUT_PX], float)
+    tl, tr = _window_top()
+    d = P[2] - P[1]
+    n = np.array([d[1], -d[0]]) / np.linalg.norm(d)
+    if n[0] < 0:
+        n = -n
+    r1, r2 = P[1] + n * WINDOW_GAP, P[2] + n * WINDOW_GAP
+    # the corner where the two moved edges meet
+    A = np.array([tr - tl, -(r2 - r1)]).T
+    s = np.linalg.solve(A, r1 - tl)[0]
+    tr_ = tl + (tr - tl) * s
+    a = tl + (tr - tl) * ((2150.0 - tl[0]) / (tr[0] - tl[0]))
+    c = r1 + (r2 - r1) * ((1235.0 - r1[1]) / (r2[1] - r1[1]))
+    W = _round_quad([(a[0], a[1], 0.5), (tr_[0], tr_[1], COVER_OUT_PX[1][2] + WINDOW_GAP), (c[0], c[1], 0.5),
+                     (2150.0, 1300.0, 0.5)], step=1.0)
+    edge = np.array([q for q in _dense(W, 4, closed=True) if q[0] > 2152.0 and q[1] < 1236.0])   # the frame's side
+    tree = cKDTree(edge)
+    return W, (lambda u, v: float(tree.query([u, v])[0]))
+
+
+def _airbox_cover(Pn, cam):
+    """The airbox's side cover in the left side cover's window (COVER_OUT_PX, COVER_TOP_PX): its edge COVER_SET inside
+    the frame's face, a bevel rising COVER_RISE to a flat plateau (both ends of the bevel rounded), a skirt under the
+    frame's edge and over the dark gap round it, satin black (no ribs)."""
+    out, top = _quad_pair(COVER_OUT_PX, COVER_TOP_PX)
+    face = lambda x: Pn.width(x) - 0.006                       # the frame's face (side_panels: lsurf)
+
+    def ring(px, dy):
+        return np.array([_on_surface(cam, u, v, (lambda x, z: face(x) - dy), 0.15) for u, v in px])
+    rings = [ring(_offset_loop(out, -3.0), COVER_SET + 0.002)]      # the skirt
+    for a in (0.0, 0.06, 0.15, 0.3, 0.5, 0.7, 0.85, 0.94, 1.0):
+        p = a - math.sin(2 * math.pi * a) / (2 * math.pi)            # rounded into the edge and into the plateau
+        rings.append(ring(out + (top - out) * a, COVER_SET - COVER_RISE * p))
+    c = top.mean(axis=0)
+    for k in (0.75, 0.5, 0.25):
+        rings.append(ring(c + (top - c) * k, COVER_SET - COVER_RISE))
+    m = grid(Mesh(), rings, "plastic_black", closed_u=True, cap1=True)
+    return m
+
+
 def panel_point(side, u, v, inset=0.0):
     """3D point of a side panel's face (or of a surface INSET inside its envelope) at a pixel of its photo."""
     Pn = _panel(side)
@@ -1182,10 +1387,32 @@ def side_panels():
     for side, low in ((1, "lower_panel"), (-1, "lower_panel_R")):
         Pn = _panel(side)
         view, cam = Pn.view, cams.CAMS[Pn.view]
-        name = "side_panel" if side > 0 else "side_panel_R"
-        holes = [clean_outline(view, h, sigma=7.0) for h in _vent_holes(view, name, min_area=200)]
+        holes, slines = [], []
+        if side > 0:
+            # the intake (INTAKE_PX) in its scoop: rows of vertices on the scoop's outline (the crease), 2.5 and 5.5
+            # px outside the opening's edge and on the split between the facet and the lip
+            o = np.array(INTAKE_PX, float)
+            holes = [o]
+            sc, tsc = _scoop()[1], _scoop()[3]
+            slines = [np.vstack([sc, sc[:1]])]
+            for d_ in (2.5, 5.5):
+                # only inside the scoop and clear of its outline (a row 0 to 2 px from the crease, thinned against
+                # it point by point, left long thin triangles across the crease: dents along it)
+                q = _offset_loop(resample(o, 2.0), -d_)
+                ok = inside(sc, q) & (tsc.query(q)[0] > 1.8)
+                i = 0
+                while i < len(q):
+                    if ok[i]:
+                        j = i
+                        while j < len(q) and ok[j]:
+                            j += 1
+                        if j - i >= 3:
+                            slines.append(q[i:j])
+                        i = j
+                    else:
+                        i += 1
         m.add(photo_panel(view, Pn.px, Pn.surf, 0.003, "plastic_red", holes_px=holes, step=9.0, rings=(2.5, 5.0),
-                          lines=[Pn.crease, Pn.ridge] + Pn.tail_lines, line_step=5.0))
+                          lines=[Pn.crease, Pn.ridge] + Pn.tail_lines + slines, line_step=4.0))
         for piece in Pn.extra:
             # the red triangle under the seat's nose, between the seat and the shroud's traced top edge: outlines.py
             # hands it to the side panel (its hand-drawn seam), but it is the shroud's roof running on under the
@@ -1201,23 +1428,31 @@ def side_panels():
                 if len(part) >= 8:
                     m.add(photo_panel(view, part, shroud_roof(side, 0.006), 0.003, "plastic_red", step=9.0))
         for h in holes:
-            # air intake: the opening's edge turns in 16 mm (LEFT, zoomed: a lighter lip 8 px wide above the
-            # opening; depth EST) onto a dark panel (the photo shows the filter's dark green behind it)
-            c = h.mean(axis=0)
-            hin = c + (h - c) * 0.92
-            back = lambda u, v, q=side: (lambda x, z, f=Pn.surf(u, v): f(x, z) - q * 0.016)
-            hr = resample(h, 4.5)                          # the panel's own vertices round the opening (step / 2)
-            r0 = np.array([_on_surface(cam, u, v, Pn.surf(u, v), side * 0.15) for u, v in hr])
-            r1 = np.array([_on_surface(cam, u, v, back(u, v), side * 0.15) for u, v in c + (hr - c) * 0.92])
-            m.add(grid(Mesh(), [r0, r1], "plastic_red", closed_u=True))
-            # the filter's screen behind it: a dark green diamond mesh (detail 475833, u 2350..2650, v 600..800 at 4x:
-            # strands on two diagonals about 11 px, 2 mm, apart, lit (18, 63, 5), in the shadow (8, 35, 2)),
-            # detail_plastics.INTAKE_MESH, laid on x and z
-            sc = photo_panel(view, hin, back, 0.002, "intake_mesh", step=9.0)
-            V = np.asarray(sc.V)
-            for fi, f in enumerate(sc.F):
-                sc.uv[fi] = [(float(-side * V[i, 0] / 0.016), float(V[i, 2] / 0.016)) for i in f]
-            m.add(sc)
+            # the duct behind the opening: the panel's red moulding from its 3 mm shell straight in, then the airbox's
+            # black rim round the filter (the "screen's frame"), its last 2.5 mm, lapping INTAKE_FRAME_PX over the
+            # foam's edge (detail 475833: a black band inside the rear end; LEFT: a black line 1 to 2 px there). The
+            # foam lies INTAKE_FOAM_D behind the opening's edge. (All black, the top and rear cameras saw down and
+            # forward into the duct where their photos show red: TOP shows the opening as a dark line 2 to 3 px tall
+            # under the lit facet, u 2387..2430, row 1237)
+            sf = lambda u, v, dy: (lambda x, z, f=Pn.surf(u, v): f(x, z) - side * dy)
+            hr = resample(h, 3.0)
+            ring = lambda P, dy: np.array([_on_surface(cam, u, v, sf(u, v, dy), side * 0.15) for u, v in P])
+            h1 = _offset_loop(hr, 0.3)
+            h2 = _offset_loop(hr, 0.9)
+            h3 = _offset_loop(hr, 0.9 + INTAKE_FRAME_PX)
+            duct = grid(Mesh(), [ring(h1, 0.0028), ring(h2, INTAKE_FOAM_D - 0.0025), ring(h2, INTAKE_FOAM_D - 0.0012),
+                                 ring(h2, INTAKE_FOAM_D - 0.0004), ring(h3, INTAKE_FOAM_D - 0.0004)], "plastic_black",
+                        closed_u=True, mats=["plastic_red", "plastic_black", "plastic_black", "plastic_black"])
+            m.add(duct)
+            # the filter's foam behind it: dark green open-cell foam (detail 475833 at 4x: speckled pores; Dirt
+            # Rider's air filter photo: the stock filter is green foam; LEFT: lit (26..44, 41..65, 5..11) low in
+            # the opening, near black under its top edge), detail_plastics.INTAKE_FOAM, laid on x and z
+            hin = _offset_loop(hr, 0.9 + INTAKE_FRAME_PX - 1.0)
+            fm = photo_panel(view, hin, lambda u, v: sf(u, v, INTAKE_FOAM_D), 0.002, "intake_foam", step=6.0)
+            V = np.asarray(fm.V)
+            for fi, f in enumerate(fm.F):
+                fm.uv[fi] = [(float(-side * V[i, 0] / 0.016), float(V[i, 2] / 0.016)) for i in f]
+            m.add(fm)
         # black textured lower panel (airbox side): its own exact outline, 6 mm inside the red panel's envelope.
         # Its moulded Y ribs are a normal map (detail_plastics.SIDE_COVER) laid on x and z, the tile 34.2 x 29.6 mm
         # (two lattice steps each way), u running backward on the left and forward on the right
@@ -1228,28 +1463,68 @@ def side_panels():
         pr = POCKET_R / MPP
         ang = np.linspace(0.0, 2 * math.pi, 33)[:-1]
         hole = np.stack([bc[0] + pr * np.cos(ang), bc[1] + pr * np.sin(ang)], axis=1)
-        lp = photo_panel(view, clean_outline(view, OUT2[low], sigma=4.0), lsurf, 0.003, "black_texture",
-                         holes_px=[hole])
+        louter, llines = clean_outline(view, OUT2[low], sigma=4.0), []
+        if side > 0:
+            # the window (_window_left): cut out of the traced outline (with the gap and the main frame's dark side
+            # under and ahead of the cover, which the trace took in, and the mud flap's top under the cover's lower
+            # edge); the frame's edge rolls into it; the airbox cover sits in it
+            Wp, wdist = _window_left()
+            lo_ = np.array(COVER_LOW_PX)
+            keep = lambda uu, vv: (~inside(Wp, np.stack([uu.ravel(), vv.ravel()], 1)).reshape(uu.shape)
+                                   & ~((uu > 2440) & (uu < 2600)
+                                       & (vv > np.interp(uu, lo_[:, 0], lo_[:, 1]) + 2.0)))
+            louter = _cut(louter, keep)
+            rs, rd = WINDOW_ROLL
+            lsurf = lambda u, v, q=side: (lambda x, z, dd=rd * (1.0 - sat(wdist(u, v) / rs)) ** 2:
+                                          q * (Pn.width(x) - 0.006 - dd))
+            for d_ in (1.5, 4.0, 7.5, rs):
+                q_ = _offset_loop(resample(Wp, 2.0), -d_)
+                llines.append(np.vstack([q_, q_[:1]]))
+            llines.append(np.array(TOPBAR_END_PX))
+            m.add(_airbox_cover(Pn, cam))
+        lp = photo_panel(view, louter, lsurf, 0.003, "black_texture", holes_px=[hole], lines=llines, line_step=3.0)
+        if side > 0:
+            # the frame's smooth top bar (no ribs): over the window's top edge and ahead of TOPBAR_END_PX
+            uvp = cam.project(np.asarray(lp.V))
+            t0, t1 = np.array(TOPBAR_END_PX)
+            tl, tr = _window_top()
+            for fi, f in enumerate(lp.F):
+                cu, cv = uvp[list(f)].mean(axis=0)
+                above = cv < tl[1] + (tr[1] - tl[1]) * (cu - tl[0]) / (tr[0] - tl[0]) + 3.0
+                ahead = (t1[0] - t0[0]) * (cv - t0[1]) - (t1[1] - t0[1]) * (cu - t0[0]) > 0.0
+                if above and ahead:
+                    lp.M[fi] = "plastic_black"
         rim = np.array([_on_surface(cam, u, v, lsurf(u, v), side * 0.15) for u, v in hole])
         rings = [rim]
+        # the floor is flat and square to the bolt (y), at the bolt's seat (detail_plastics.panel_bolts: POCKET_D under
+        # the black face at the pocket's centre), with the bolt's hole in it (POCKET_HOLE: an M6 shank, 0.3 mm clear).
+        # (Rounds 1 to 3: the rim moved POCKET_D in, so the floor followed the panel's slope across the pocket, and a
+        # fan closed it: the washer, square to y, cut the tilted floor 1.8 mm, audit)
+        seat = panel_point(side, *bc, inset=0.006 + POCKET_D)
         for k_ in (0.3, 0.7, 1.0):                         # the wall, rounded into the floor
-            rr = rim - np.array([0.0, side * POCKET_D * k_, 0.0])
+            rr = rim + np.array([0.0, 1.0, 0.0]) * ((seat[1] - rim[:, 1]) * k_)[:, None]
             cen = rr.mean(axis=0)
             rings.append(cen + (rr - cen) * (1.0 - 0.12 * k_ ** 4))
-        pk = grid(Mesh(), rings, "plastic_black", closed_u=True, cap1=True)
+        ex, ez = np.array([-float(side), 0.0, 0.0]), np.array([0.0, 0.0, -1.0])     # the photo's +u and +v
+        for r_ in (0.0085, POCKET_HOLE):
+            rings.append(np.array([seat + r_ * (math.cos(a_) * ex + math.sin(a_) * ez) for a_ in ang]))
+        rings.append(rings[-1] - np.array([0.0, side * 0.003, 0.0]))     # the hole's bore through the 3 mm floor
+        pk = grid(Mesh(), rings, "plastic_black", closed_u=True)
         if side < 0:
             pk.F = [f[::-1] for f in pk.F]
         m.add(pk)
         V = np.asarray(lp.V)
-        tw, th = 0.0342, 0.0342 * math.sqrt(3) / 2
+        tw, th = SIDE_COVER_TILE, SIDE_COVER_TILE * math.sqrt(3) / 2
         for fi, f in enumerate(lp.F):
             lp.uv[fi] = [(float(-side * V[i, 0] / tw), float(V[i, 2] / th)) for i in f]     # (u, v, n) right-handed
         m.add(lp)
     return m
 
 
+SIDE_COVER_TILE = 0.018   # the ribbed texture's tile: two lattice steps of 9.0 mm (detail_plastics.SIDE_COVER)
 PANEL_BOLT_PX = (2426.0, 1136.0)   # LEFT: the side panel's bolt in its black lower part (detail_plastics.panel_bolts)
 POCKET_R, POCKET_D = 0.015, 0.008  # its pocket's radius and depth
+POCKET_HOLE = 0.0032               # the bolt's hole in the pocket's floor (an M6 shank, 6 mm: 0.2 mm clear; SPEC 8 mm head)
 
 
 # ---------------------------------------------------------------- lofted parts: seat, fenders
@@ -1851,13 +2126,22 @@ PLATE_ROWS = [320, 335, 350, 365, 380, 395, 410, 425, 440, 455, 470, 485, 500, 5
 PLATE_HALF = [110, 103, 96, 89, 83, 76, 72, 67, 64, 61, 59, 57, 55, 53, 51, 49, 47]
 PLATE_POCKET = (2000.0, 346.0, 13.0, 8.0)   # FRONT: dark oval u 1987..2013, v 338..354: the recessed mounting bolt
 PLATE_SLOT = (1963.0, 2038.0, 572.0, 586.0)  # FRONT: dark slot under the centre panel
+# How far the wings fold back at their outer edges, along the plate's normal (round 4). LEFT, the plate's red run per
+# row (r > 140, r - g > 70, r - b > 60): 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 / 740
+# (its rear edge u 1595 / 1588 / 1564 / 1532 / 1502 / 1481), 36 mm across a row at 0.78 mm/px, which is the fold over
+# cos 27 deg: 32 mm. TOP wants them deeper: at 29 mm the wings' outer front corners stood 3 to 5 px (half scale) ahead
+# of its red and its red overlap fell to 0.8549 (floor 0.855; 45 mm: 0.8562). Built at 36 mm: TOP 0.8558, LEFT rear edge
+# 1584 / 1566 / 1564 / 1542 at rows 550 / 585 / 620 / 655 against the photo's 1585 / 1566 / 1548 / 1530 (the pinch
+# bolts, rows 554..575 at u 1579..1589, show beside it as in the photo). Rounds 1 to 3 had 45 mm (read at row z 1.00 as 50 mm deep): the wings' rear edge stood 14 to 17 px
+# behind the photo's and covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view.
+PLATE_WING_D = 0.036
 
 
 @functools.lru_cache(maxsize=None)
 def _plate():
     """The plate's surface: a centre panel parallel to the fork through the plate's front edge in the left photo
-    (OUT 'number_plate', centre plane), wings folded back from the measured crease lines to 45 mm at +-0.141 m (left
-    photo row z 1.00: the plate is 50 mm deep in side view), a pocket for the mounting bolt and a slot (depths EST)."""
+    (OUT 'number_plate', centre plane), wings folded back from the measured crease lines to PLATE_WING_D at +-0.141 m,
+    a pocket for the mounting bolt and a slot (depths EST)."""
     from types import SimpleNamespace
     side = np.asarray(_true_outline("left", OUT["number_plate"], 0.0))
     front = []
@@ -1878,7 +2162,7 @@ def _plate():
     def depth(y, u, v):
         wc = float(np.interp(v, PLATE_ROWS, PLATE_HALF)) * mpp
         s = sat((abs(y) - wc) / (0.141 - wc))
-        t = 0.045 * (0.75 * s + 0.25 * s * s)
+        t = PLATE_WING_D * (0.75 * s + 0.25 * s * s)
         uc, vc, a, b = PLATE_POCKET
         e = math.hypot((u - uc) / a, (v - vc) / b)
         if e < 1.0:
@@ -1948,50 +2232,163 @@ def number_plate():
 
 
 MUD_X = 0.335        # LEFT: the mud flap's rear face is at x 0.339 where it leaves the airbox (z 0.643)
+# Inner mudguard (round 4). REAR at 3x (`g_rear_mud.jpg`), cast at MUD_X (0.727 mm/px): its face's sides at u 1913 /
+# 2094 from the wall's arch down to row 940 (y +0.0629 / -0.0680: built symmetric, 65.5 mm; rounds 1 to 3 had 117 px,
+# 85 mm, the outer edge of its side flange); a bright upright highlight at u 1950..1975 (the face is convex across);
+# its lower edge (the left half, mirrored; the right agrees within 4 px):
+MUD_HW = 0.0655
+MUD_LOW_PX = [(1913.0, 940.0), (1922.0, 955.0), (1935.0, 966.0), (1950.0, 974.0), (1970.0, 990.0), (1986.0, 997.0),
+              (2003.5, 999.0)]
+# its side flange: a wall from the face's side forward and out, lit, u 1880..1913 at rows 790..950 (to y 0.087), carrying
+# two tabs with holes (REAR: holes at (1903, 841) and (1892, 930), tabs 23 x 25 px, 17 x 18 mm, holes 7 px, 5 mm): the
+# mudguard's mounts on the subframe's lower rails, whose inner faces are at y 0.083..0.086 there (detail_chassis): the
+# flange and tabs stop 4 mm short of them (MUD_Y_MAX; at the photo's 87 mm they cut the rails 17 mm, audit). Forward
+# 12 mm (EST). The right one is behind the can (built as the left's mirror).
+MUD_Y_MAX = 0.079
+MUD_FLANGE = (MUD_Y_MAX - 0.0645, 0.012)
+MUD_FLANGE_ROWS = (790.0, 950.0)
+MUD_TABS_PX = [(1903.0, 841.0), (1892.0, 930.0)]
+MUD_LIP_R = 0.0015   # REAR: a dark lip 3 to 4 px along the face's lower edge (rolled, radius EST)
+# Mud flap, LEFT (dark run per row, cast on the centre plane: its front edge is the curled sides' front, its rear edge
+# the face's back; a light line 6 to 8 px inside the rear edge all down it: the fold where the sides start to curl):
+# (row, front u, rear u). It runs on behind the chain (rows 1395..1430) toward the tyre: the dark runs at rows 1440 /
+# 1450 reach z 0.447 at x 0.312, where the model's tyre is (axle frame; the photo's rear axle sits about 8 mm higher):
+# they are the knobs as much as the flap. It ends 7 mm over the model's tyre, straight on from row 1390 (rounds 1 to 3
+# ended it at the chain, z 0.485).
+MUD_FLAP_PX = [(1220, 2499, 2531), (1240, 2499, 2532), (1260, 2499, 2533), (1280, 2501, 2535), (1300, 2504, 2537),
+               (1320, 2508, 2540), (1340, 2512, 2545), (1360, 2516, 2549), (1380, 2519, 2553), (1390, 2520, 2554)]
+MUD_FLAP_Z1 = 0.447
+MUD_FLAP_HW = (0.055, 0.050)   # REAR: its top 1928..2079 under the mudguard's lip (y +0.052 / -0.057: 55 mm); the
+#                                tyre hides the rest (50 mm at the foot EST)
+MUD_LAP = 0.0022               # its back 0.7 mm ahead of the mudguard's front face where it laps behind it
+MUD_FLAP_FOLD = (0.78, 0.22)   # the fold at 78 % of its half-width, where the side has come 22 % of the curl forward
+#                                (LEFT: the light line 6 to 8 px in front of the rear edge in a 32 to 35 px curl)
+
+
+def _mud_x(y, z):
+    """The inner mudguard's face (its mid-surface): leaning forward 0.15 m a metre up (EST), convex across, 10 mm
+    proud on the centre line (EST: REAR, the upright highlight)."""
+    z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])
+    return MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(y) / MUD_HW, 1.0) ** 2)
+
+
+def _mud_low():
+    """The face's lower edge, y and z (left half, from the side's foot to the centre line)."""
+    P = np.array(MUD_LOW_PX)
+    Q = REAR.on_plane(P[:, 0], P[:, 1], "x", MUD_X)
+    y = np.abs(Q[:, 1] - REAR.on_plane(np.array([2003.5]), np.array([999.0]), "x", MUD_X)[0][1])
+    y[0] = MUD_HW
+    return y, Q[:, 2]
+
+
+def _thick(rings, t, mat):
+    """A sheet t thick from a grid of points (its back face moved t along the grid's normals), edges closed."""
+    R = np.asarray(rings, float)
+    du = np.gradient(R, axis=1)
+    dv = np.gradient(R, axis=0)
+    n = np.cross(du, dv)
+    n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-12)
+    B = R - n * t
+    m = grid(Mesh(), list(R), mat, closed_u=False)
+    back = grid(Mesh(), [r[::-1] for r in B], mat, closed_u=False)
+    m.add(back)
+    for edge in (lambda X: X[:, 0], lambda X: X[:, -1], lambda X: X[0], lambda X: X[-1]):
+        m.add(grid(Mesh(), [edge(R), edge(B)], mat, closed_u=False))
+    return m
 
 
 def inner_mudguard():
-    """Black panel behind the airbox, above the rear tyre (the black arch under the fender in the rear photo).
-    REAR (refitted camera, dark region on the centre line): arched top at row 726, then 117 px either side of the
-    centre line from row 800 to 985 and a rounded lower edge at row 1000. Cast at x 0.335, where the left photo
-    shows the mud flap leaving the airbox: +-84 mm wide, z 0.867 down to 0.669. Above row 800 its corners are hidden
-    by the red walls under the fender (fender_mounts), so it is drawn full width there. Lean (top 30 mm further
-    forward) and the 10 mm bulge toward the tyre are EST."""
-    rows = np.array([726, 734, 748, 770, 800, 850, 950, 985, 1000])
-    half = np.array([0, 60, 95, 117, 117, 117, 117, 108, 78])
-    P = REAR.on_plane(np.full(len(rows), 2000.0), rows.astype(float), "x", MUD_X)
-    zs = P[:, 2]
-    hw = half * ((MUD_X - REAR.C[0]) / REAR.f)
-    outer = np.array([(w, z) for w, z in zip(hw, zs)] + [(-w, z) for w, z in zip(hw[::-1], zs[::-1])][:-1])
-    outer = smooth_poly(outer, 2)
-    z0 = float(zs.min())
+    """Black panel behind the airbox, above the rear tyre (round 4: REAR at 3x). The face: MUD_HW either side of the
+    centre line from the wall's arch (rows 726..800; above row 800 the red wall hides it but through its arch, where
+    detail_plastics.mudguard_top shows) down to row 940, then the rounded lower edge MUD_LOW_PX to row 999 on the
+    centre line; a rolled lip along that edge. Either side a flange from the face's side forward and out with two
+    tabs with holes (MUD_TABS_PX). 3 mm thick (EST)."""
+    rows = np.array([726.0, 734.0, 748.0, 770.0, 800.0])
+    half = np.array([0.0, 0.62, 0.90, 1.0, 1.0])                  # the arch (hidden but in the wall's arch)
+    zt = REAR.on_plane(np.full(5, 2000.0), rows, "x", MUD_X)[:, 2]
+    yl, zl = _mud_low()
+    left = [(h * MUD_HW, z) for h, z in zip(half, zt)] + list(zip(yl, zl))
+    outer = np.array(left + [(-y, z) for y, z in left[::-1]][1:-1])
+    outer = smooth_poly(resample(outer, 0.004), 1)
 
     def to3d(y, z, w):
-        x = MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(y) / 0.084, 1.0) ** 2)
-        return (x - w, y, z)
-    return plate2d(outer, [], 0.003, "plastic_black", to3d, step=0.012)
+        return (_mud_x(y, z) - w, y, z)
+    m = plate2d(outer, [], 0.003, "plastic_black", to3d, step=0.010)
+    # the lip: a roll along the lower edge, on the face's front side
+    low = outer[outer[:, 1] < float(zl[0]) + 0.004]
+    low = low[np.argsort(low[:, 0])]
+    m.add(tube(np.array([(_mud_x(y, z) + 0.0002, y, z + MUD_LIP_R * 0.6) for y, z in low]), MUD_LIP_R, 8,
+               "plastic_black", cap0=True, cap1=True))
+    # flanges and tabs (the left as measured, the right its mirror)
+    z0, z1 = REAR.on_plane(np.full(2, 2000.0), np.array(MUD_FLANGE_ROWS), "x", MUD_X)[:, 2]
+    zs = np.linspace(z1 + 0.004, z0, 14)
+    for sgn in (1.0, -1.0):
+        rings = []
+        for z in zs:
+            xf = _mud_x(MUD_HW, z)
+            rings.append(np.array([(xf + MUD_FLANGE[1] * a, sgn * (MUD_HW - 0.001 + MUD_FLANGE[0] * a ** 1.5), z)
+                                   for a in np.linspace(0.0, 1.0, 6)]))
+        f = _thick(rings, 0.0025 * sgn, "plastic_black")
+        m.add(f)
+        for u, v in MUD_TABS_PX:
+            c = REAR.on_plane(np.array([u]), np.array([v]), "x", MUD_X)[0]
+            yc = abs(c[1] - REAR.on_plane(np.array([2003.5]), np.array([v]), "x", MUD_X)[0][1])
+            xt = _mud_x(MUD_HW, c[2]) + 0.006
+            yc = min(yc, MUD_Y_MAX - 0.0045)
+            hole = np.array([(yc + 0.0025 * math.cos(q), c[2] + 0.0025 * math.sin(q))
+                             for q in np.linspace(0, 2 * math.pi, 17)[:-1]])
+            tab = np.asarray(rounded_rect(MUD_Y_MAX - MUD_HW + 0.0005, 0.018, 0.003, 4), float)
+            tab = tab + np.array([(MUD_Y_MAX + MUD_HW - 0.0005) / 2, c[2]])
+            t = plate2d(tab, [hole], 0.0025, "plastic_black", lambda y, z, w, s=sgn, x0=xt: (x0 - w, s * y, z),
+                        step=0.006)
+            if sgn < 0:
+                t.F = [f_[::-1] for f_ in t.F]
+            m.add(t)
+    return m
+
+
+def _mud_flap_rings():
+    """Mud flap hanging from the inner mudguard's foot in front of the rear tyre (round 4). Side profile from LEFT
+    (MUD_FLAP_PX: rear face and the curled sides' front per row, cast on the centre plane) down to MUD_FLAP_Z1; width
+    from REAR under the mudguard's lip (MUD_FLAP_HW). Section: a nearly flat back, a fold (MUD_FLAP_FOLD), then the
+    sides curling forward to the photo's front edge, their edges rounded. Its top laps 0.3 mm in front of the
+    mudguard's foot (the two screws at its foot: detail_plastics.mud_hardware). Its back face, as rings."""
+    T = np.array(MUD_FLAP_PX, float)
+    zr = LEFT.on_plane(T[:, 2], T[:, 0], "y", 0.0)
+    zf = LEFT.on_plane(T[:, 1], T[:, 0], "y", 0.0)
+    zt, xr, xd = zr[:, 2], zr[:, 0], zf[:, 0] - zr[:, 0]
+    a0, c0 = MUD_FLAP_FOLD
+
+    def curl(a):
+        a = abs(a)
+        if a <= a0:
+            return c0 * (a / a0) ** 2
+        return c0 + (1.0 - c0) * ((a - a0) / (1.0 - a0)) ** 1.6
+    U = np.concatenate([-np.linspace(1, 0, 9)[:-1] ** 0.7, np.linspace(0, 1, 9) ** 0.7])
+    U = np.sign(U) * np.abs(U)
+    yl, zl = _mud_low()
+    rings = []
+    for z in (0.735, 0.722, 0.709, 0.697):                  # the lap behind the mudguard's foot
+        rings.append(np.array([(_mud_x(u * MUD_FLAP_HW[0], z) + MUD_LAP + 0.006 * curl(u), u * MUD_FLAP_HW[0], z)
+                               for u in U]))
+    for z in np.linspace(0.684, MUD_FLAP_Z1, 26):
+        x = float(np.interp(-z, -zt, xr))
+        d = float(np.interp(-z, -zt, xd))
+        top = sat((0.684 - z) / 0.04)                       # from the lap's 6 mm curl to the photo's
+        w = MUD_FLAP_HW[0] + (MUD_FLAP_HW[1] - MUD_FLAP_HW[0]) * sat((0.684 - z) / (0.684 - MUD_FLAP_Z1))
+        # (toward the lap, the back follows the mudguard's own convex face across: from its centre line only, the
+        # flap's back cut the face's sides 0.7 mm at 30..45 mm out)
+        lap = sat((z - float(zt[0])) / (0.697 - float(zt[0]))) if z >= float(zt[0]) else 0.0
+        xb = lambda u: x + (_mud_x(u * w, z) + MUD_LAP - x) * lap
+        rings.append(np.array([(xb(u) + (0.006 + (d - 0.006) * top) * curl(u), u * w,
+                                z - 0.008 * (1 - abs(u)) ** 2 * sat((MUD_FLAP_Z1 + 0.012 - z) / 0.012)) for u in U]))
+    return rings
 
 
 def mud_flap():
-    """Mud flap hanging from the airbox in front of the rear tyre. LEFT photo (dark strip, rows 1200..1400, on the
-    centre plane): rear face at x 0.339 (z 0.643), 0.342 (0.611), 0.339 (0.580), 0.333 (0.549), 0.326 (0.518),
-    0.318 (0.486), 22 to 27 mm deep in side view: a sheet whose edges curl forward. Lower end z 0.485. The rear tyre
-    hides it in the rear photo: width (120 mm at the top to 110 mm) EST. Its top 25 mm laps onto the front face of
-    the inner mudguard's lower edge, as one moulding with it (EST: the joint is hidden)."""
-    zt = np.array([0.675, 0.643, 0.611, 0.580, 0.549, 0.518, 0.486])
-    xr = np.array([0.336, 0.339, 0.342, 0.339, 0.333, 0.326, 0.318])
-    z0 = float(REAR.on_plane(np.array([2000.0]), np.array([1000.0]), "x", MUD_X)[0][2])      # mudguard's lower edge
-    rings = []
-    for z in (0.735, 0.715, 0.700, 0.688):                  # up to where the mudguard is at its full width
-        # 0.3 mm in front of the mudguard's front face (its plate is 3 mm thick about its mid-surface)
-        rings.append(np.array([(MUD_X + 0.15 * (z - z0) - 0.010 * (1.0 - min(abs(u) * 0.060 / 0.084, 1.0) ** 2) + 0.0018
-                                + 0.007 * abs(u) ** 2.2, u * 0.060, z) for u in np.linspace(-1, 1, 13)]))
-    for z in np.linspace(0.675, 0.485, 20):
-        x = float(np.interp(-z, -zt, xr))
-        w = 0.060 - 0.005 * sat((0.675 - z) / 0.19)
-        rings.append(np.array([(x + 0.023 * abs(u) ** 2.2, u * w, z - 0.006 * (1 - abs(u)) * sat((0.50 - z) / 0.015))
-                               for u in np.linspace(-1, 1, 13)]))
-    return grid(Mesh(), rings, "plastic_black", closed_u=False)
+    """The mud flap's back face (parts.py's 'mud_flap', solidified 3 mm in Blender; detail_plastics.flap builds it
+    with its thickness ahead of this face and replaces it)."""
+    return grid(Mesh(), _mud_flap_rings(), "plastic_black", closed_u=False)
 
 
 def fender_mounts():

@@ -404,3 +404,190 @@ into the fender's root: fixed as above).
 ## R3.3 Side panels, rest (intake's exact shape, raised airbox cover): not started
 ## R3.4 Mud flap and inner mudguard, rest: not started
 ## R3.5 Shroud small items: not started
+
+# Round 4 (2026-11-11, PLASTICS4 brief)
+
+Check images in `/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/plastics4`
+(`p*_` pair sheets, photo left; `g_*` gridded crops of the photos; `cu*/` close-ups; `cmp*` close-ups beside 475833;
+`tools/` the measuring scripts: `intake_contour.py`, `runs.py`, `cover_contour.py`).
+
+## R4.1 Side panels, rest: the intake, its scoop and screen, the airbox cover, the side cover's window (done)
+
+### Anatomy (LEFT, detail 475833, Dirt Rider 04, fiche K95CF2300 / K95CF2500, at 30 cm)
+- Intake: a quadrilateral opening, its front tip sharp (4 px round), a long straight top edge, the rear end round
+  (5 px), a lower-rear edge to a round lowest corner (8 px), a lower-front edge back to the tip. It sits in a scoop:
+  over the top edge a facet facing up under one crisp crease (the scoop's top edge), which runs on 50 px ahead of the
+  tip to a point; under the lower-rear edge the face rolls in (a bright band); under the lower-front edge one thin
+  light line; a V under the lowest corner; at the rear the crease hooks down round the opening's end.
+- Behind the opening: the panel's red moulding turns in, then a black rim (the airbox's) round the filter, the
+  filter itself green open-cell foam (speckled pores in 475833; Dirt Rider 04 shows the stock filter, green foam).
+  Rounds 1 to 3 read it as a diamond mesh.
+- The black side cover (fiche 10) is a frame with a window at its front: a smooth top bar (a double line along its
+  lower edge), the ribbed part behind the window (its inner edge rolled and lit). In the window the airbox's side cover
+  (fiche K95CF2500 item 2): a flat satin plateau, a broad bevel round it, a dark gap; under and ahead of it the main
+  frame's spar, no bar of the side cover.
+- The ribs: Y shapes on a hexagonal lattice; in the studio light they read near black on the satin ground.
+- RIGHT photo: no intake (plain red with a bolt at (1320, 921)), and its black cover's window is open (the shock's top
+  mount shows), a triangular pocket at its foot, its bolt at (1585, 1076), not the left's mirror: not built this round.
+
+### References
+- LEFT u 2300..2640, v 860..1010 at 5x (`g_left_intake.jpg`), runs per column every 8 px (`runs.py`, 2322..2602);
+  LEFT u 2080..2560, v 940..1260 (`g_left_black.jpg`), u 2170..2420, v 950..1210 and u 2130..2430, v 915..1095 at 4x,
+  contrast stretched (`g_cover4x.jpg`, `g_topbar4x.jpg`); u 2380..2680, v 1150..1450 (`leg.jpg`).
+- 475833: u 300..1800, v 250..2050 (`d833_cover.jpg`), u 1050..3550, v 350..1350 (`d833_intake.jpg`), edges at 2x
+  (`d833_edges.jpg`), the ribs beside the bolt u 1450..2150, v 1600..2300 (`ycmp.jpg`). Dirt Rider 04 (filter).
+- TOP u 2280..2640, v 1180..1300 (`top_intake.jpg`): the intake from above, a dark line 2 to 3 px under a lit facet.
+
+### Numbers and sources (plastics.py, next to each table)
+- INTAKE_PX: the red channel's contour at 120 (0.6 px blur): tip (2385.8, 938.4), rear end (2585.3, 902.3), lowest
+  (2471.7, 978.3); top edge rising 0.164 px a px, lower-rear edge 0.59, lower-front 0.44. The round 2 opening
+  (segmented, eroded, smoothed over 7 px) bulged at its lower front and lost the tip.
+- SCOOP_PX: the crease's row (930 at u 2346 to 893 at 2582), the hook (2594..2599, 892..914), the lower band's last row
+  (920.5 at 2590 to 989 at 2474), the V (2467, 988), the lower-front line (977.5 at 2458 to 938.5 at 2338), the front
+  point (2334, 937). Facet 4 to 7 px, lower band 4 to 9 px, lower-front line 3 to 4 px outside the edge.
+- SCOOP_D 5 / 8 mm (facet / lip; EST: steep in LEFT, 6 and 15 to 17 mm wide in 475833 seen from ahead and below);
+  INTAKE_FOAM_D 10 mm behind the edge (EST: the foam is near black 23 px under the top edge in LEFT, the facet's
+  shadow); the black rim 2.5 mm deep, lapping 1.5 px over the foam.
+- COVER_OUT_PX (the cover's edge: the double line, rows 994.5 / 1026 / 1054.5 at u 2240 / 2290 / 2340; the gap before
+  the frame's lit wall, u 2373 / 2351 at rows 1090 / 1130; the bevel's last row 1111.5 / 1147.5 at u 2240 / 2290; its
+  first column 2205 / 2207 at rows 1010 / 1050), COVER_TOP_PX (the plateau: grey contour at 28 and the rows and
+  columns where it ends). COVER_SET 12 mm, COVER_RISE 9 mm (EST: the bevel is lit as a steep face, its left side 95,
+  its lower side 57 against the plateau's 21). WINDOW_GAP 2.5 px, WINDOW_ROLL 12 px and 6 mm (its lit band 15 to 18
+  px; depth EST). TOPBAR_END_PX (2318, 990)..(2384, 1078); COVER_LOW_PX (the mud flap's top cut from the trace).
+- Ribs, scale corrected: LEFT u 2400..2520, rows 1040..1110 autocorrelated: hexagonal, neighbours 12.0 / 12.1 / 12.2 px
+  apart = 9.0 mm (SIDE_COVER_TILE 18 mm, two steps). Rounds 1 to 3 had 17.1 mm from 475833 with its scale taken off
+  the bolt's hex as 43 px for 8 mm; the hex there is about 70 px, the pocket 257 px (31 mm, 42 px in LEFT): 0.12 mm/px,
+  so the Ys are 10.4 mm apart there; the spacing-to-pocket ratio is 0.30 in LEFT and 0.34 in 475833. Arms 4.2 mm,
+  1.0 mm wide (0.75 mm in 475833; 2 px dark in LEFT with their shadow), 0.25 mm high (EST). Colour map
+  `side_cover_c.png`: ground (26, 26, 28), ribs (7, 7, 8) (LEFT: median (23, 24, 26), 10th percentile (5, 6, 6)).
+- Foam: INTAKE_FOAM cells 1.2 mm, struts 0.22 mm, pores 0.35 mm (475833: speckles 0.4 to 0.6 mm, 1 to 2 mm apart;
+  EST), `intake_foam_n.png`; colour (8, 46, 3) (LEFT lit low front (26..44, 41..65, 5..11)).
+
+### Built
+`plastics.INTAKE_PX` as the panel's hole (left only); `scoop_depth(u, v)` pushes the face in round it (a straight facet
+from the crease above SCOOP_SPLIT_PX, a lip rolling in under it, t^2), with rows of vertices on the scoop's outline
+(smoothed over 3 px) and 2.5 / 5.5 px outside the opening; the duct (red, then the black rim) and the foam
+(`intake_foam`, UVs). `_window_left` cuts the window, the gap and the mud flap's top out of the traced side cover; the
+frame's edge rolls into the window (lsurf); its top bar is `plastic_black` (smooth), the rest `black_texture`
+(normal and colour maps). `_airbox_cover`: paired rounded quads (`_round_quad`, `_quad_pair`), skirt, bevel rings
+(rounded both ends), plateau rings, cap. side_panels 14,792 vertices (was 11,294).
+
+### Checks
+`p1_left.jpg`, `p3_left.jpg`, `p5_left.jpg` (the cover, the ribs, the window), `p6_intake.jpg`, `p8_intake.jpg` (6x on the
+intake), `cmp_cover1.jpg`, `cmp2.jpg` (close-ups beside 475833). Scores (b8 against b0, the round's start): left red
+0.8921 (0.8953: the score counts the traced outline red all over, intake included, and the opening is now the
+photo's full size), top red 0.8557 (0.8562), rear red 0.6427 (0.6438): the scoop's opening seen from above and behind
+(TOP shows it as a dark line 2 to 3 px; with an all-black duct the top fell to 0.8547, so the duct's first part is the
+panel's red). Audit: no clash of the cover, duct or foam. Also found: build_bike.srgb reads a channel value of 1 as
+1.0 (the foam at (5, 32, 1) rendered bright blue): keep channels at 0 or 2 and up.
+
+### Still different
+- The photo's crease and lower lip read as crisp light lines; the model's as softer shading, with a jog in the
+  reflection near u 2440..2470. The photo's crease may run further ahead faintly (475833); LEFT shows it to u 2334.
+- The cover's bevels and the frame's rolled edge do not light as in the photo (left bevel 95, frame wall 130 there):
+  the depths are EST and the studio lights differ.
+- The red face round the intake and toward the tail still undulates softly (rounds 2 and 3).
+- The right side cover (open window, pocket, bolt positions) and the right red panel's bolt: not built (see anatomy).
+
+## R4.2 Mud flap and inner mudguard (done)
+
+### Anatomy (REAR, LEFT, lr34, rr34, fiche K95CF3400)
+- Inner mudguard, seen from behind: a shield 131 mm wide between the wall's arch and a rounded foot (lowest on the
+  centre line), convex across (an upright highlight left of centre), a dark rolled lip along its foot; either side a
+  flange running forward and out (lit in REAR on the left, the right one behind the can), carrying two tabs with
+  holes (its mounts on the subframe's lower rails). Rounds 1 to 3 had it 170 mm wide (the flange's outer edge taken as
+  the face's) and flat-sided.
+- Two small round-head screws hold the flap's top to the mudguard's foot, just under the lip.
+- Mud flap: hangs from the foot, an S-curve in side view (back leaning back down to the chain, then upright), its
+  sides curled forward 24 to 26 mm, a fold (LEFT: a light line 6 to 8 px inside the rear edge) where the curl starts,
+  smooth satin back (lr34, rr34: no ribs on its back; the fold and the curled edges are its ribs), running on behind
+  the chain toward the tyre.
+
+### References
+- REAR u 1860..2140, v 780..1090 at 3x, contrast stretched (`g_rear_mud.jpg`); pairs `m0_rear.jpg`, `m1_rear.jpg`.
+- LEFT u 2420..2640, v 1150..1500 (`m0_left.jpg`, `leg.jpg`), dark runs per row every 10 px (rows 1200..1460).
+- lr34 u 2254..2588, v 782..1492 and rr34 u 1405..1742, v 785..1497 at 2x (`lr34_flap.jpg`, `rr34_flap.jpg`).
+
+### Numbers and sources (plastics.py)
+- MUD_HW 65.5 mm (REAR u 1913 / 2094 at rows to 940, cast at x 0.335, 0.727 mm/px: y +0.0629 / -0.0680; built
+  symmetric, the photo's face is 2.5 mm right of the centre line). MUD_LOW_PX: the foot (1913, 940) .. (1950, 974) ..
+  (2003.5, 999), mirrored (the right half within 4 px). Face lean 0.15 and convexity 10 mm: EST (as rounds 1 to 3).
+- Flange: REAR u 1880..1913, rows 790..950 (out to y 0.087); built to MUD_Y_MAX 0.079, forward 12 mm (EST): the
+  subframe's lower rails' inner faces are at y 0.083..0.086 there (at the photo's 87 mm the flange cut them 17 mm,
+  audit). Tabs: holes at REAR (1903, 841) and (1892, 930) (y 0.070 / 0.078, z 0.778 / 0.713), 17 x 18 mm, holes 5 mm
+  (7 px), held inside MUD_Y_MAX. Lip radius 1.5 mm (REAR: a dark line 3 to 4 px; EST).
+- Screws: REAR (1947, 993), (2057, 993): y +0.038 / -0.041 (built at +-0.040), z 0.667; heads 5.5 mm (7 px), 2.5 mm
+  tall (EST).
+- Flap (MUD_FLAP_PX): rear / front u per row from LEFT, 2531 / 2499 at row 1220 to 2554 / 2520 at row 1390 (x 0.339 to
+  0.318 at its back). Rows 1440 / 1450 reach z 0.447 at x 0.312, where the model's tyre is (the photo's axle sits
+  about 8 mm higher): knobs as much as flap; the flap ends at MUD_FLAP_Z1 0.447, 7 mm over the model's tyre (rounds 1
+  to 3: 0.485, at the chain). Width 55 mm a side at the top (REAR u 1928..2079 under the lip), 50 at the foot (EST).
+  Fold at 78 % of the half-width, 22 % of the curl (the light line).
+
+### Built
+`plastics.inner_mudguard` (face, lip, flanges with `_thick`, tabs with holes), `_mud_flap_rings` (the back face) with
+the lap behind the mudguard's foot following its convex face across (`MUD_LAP` 0.7 mm clear), `detail_plastics.rear_flap`
+(the flap 3 mm thick ahead of its back; it replaces parts.py's single-surface `mud_flap`, whose Blender solidify is
+set by vertex normals), `mud_hardware` (the two screws, seated on the back under their rims). rear_inner 1,568,
+rear_flap 1,208, mud_hardware 124 vertices.
+
+### Checks
+`m1_rear.jpg`, `m1_left.jpg`, `m2_lr34.jpg`. Audit: no clash of these parts (on the way: the flange into the rails 17.3
+mm, the flap's lap into the mudguard's sides 3.5 mm, the screws into the flap 1.0 mm: all fixed). Scores (b13): left
+0.8809 / 0.8931, right 0.8689 / 0.8974, front 0.88 / 0.793, rear 0.9034 / 0.6427, top 0.879 / 0.8557.
+
+### Still different
+- REAR: the photo's left flange reads lit grey and wider (to y 0.087); the model's stops at 0.079 for the rails.
+- The flap reads lighter than the photo's (in the photo it is in the mudguard's shadow, with red reflections).
+- lr34: the model shows the mudguard's lower part beside the flap's top where the photo has the side cover's inner
+  wall and the can (the panel's tail and the can's position: rounds 3, detail_chassis).
+- The viewer's plastics toggle (viewer/bike-v0.html, PLASTICS) lists `mud_flap`, now `rear_flap` (and lacks
+  `mudguard_top`, `mud_hardware`): a shared file.
+
+## R4.3 Shroud small items (partly done: the two seats; bolts, collars and louvre edges not started)
+
+### Done
+- Shroud decks on the shrouds (audit: 1.5 mm cut). The plate's outer row was the skin's own top edge, and Blender's 3 mm
+  under the plate (THIN) cut the skin's 3 mm shell along it. `DECK_SEAT` 3.2 mm: the plate now starts on the shell's
+  inner face (2.5 mm: worse, 3.0 mm at the plate's rear end; 3.2 mm: no clash). TOP pair `s1_top.jpg`: no slit shows.
+- Side panel bolt in its pocket (audit: 1.8 mm cut). The pocket's floor was the rim moved 8 mm in, so it followed the
+  panel's slope across the 30 mm pocket and a fan closed it; the washer, square to y, cut it. Now the floor is flat
+  and square to the bolt at its seat (POCKET_D under the black face at the centre) with the bolt's hole in it
+  (POCKET_HOLE 3.2 mm: an M6 shank, 0.3 mm clear), and the bolt carries its shank (2.9 mm, 12 mm long) through it.
+- `guard_hardware`: its brake hose clamp at the left guard's top is gone (the coordinator's request: detail_front's
+  hose guide holds the hose there now); the guards' bolts stay.
+- Audit after both: no clash of the plastics parts but rear_fender on the seat 0.9 mm (a seat, round 2). 12 clashes in
+  all (other modules').
+
+### Not started (seen in `s1_top.jpg`, TOP)
+- The roof slots (louvre edges) in each shroud's top beside the deck: dark slits about 62 x 6 px, TOP u 1854..1916,
+  rows 1011..1020 and 1227..1236; the deck's pointed front end with its gusset; the shroud bolts' hex flange heads
+  (the model's read as round caps). The right side cover's own layout (open window, pocket, bolt at RIGHT (1585, 1076),
+  not the left's mirror (1573, 1136)) and the right red panel's bolt at RIGHT (1320, 921).
+
+## R4.4 Front fender and number plate small items (partly: the plate's wings; the rest not started)
+
+### Done (the coordinator's two items, after the cockpit round 3 merge)
+- The plate's wings covered the top clamp's pinch bolts and the fork caps, which LEFT shows in plain view. LEFT (and
+  RIGHT, mirrored), the plate's red run per row: 33 / 44 / 47 / 47 / 45 / 38 px deep at rows 515 / 545 / 590 / 650 / 710 /
+  740; the model's was 58 / 64 / 64 / 62 / 56 / 42 (its rear edge 14 to 17 px behind). Across a row the depth is the
+  wings' fold over cos 27 deg: 32 mm (was 45). TOP disagrees: at 29 mm the wings' outer front corners stood 3 to 5 px
+  (half scale) ahead of its red and the top red overlap fell to 0.8549 (floor 0.855). `PLATE_WING_D` 36 mm: TOP 0.8558;
+  LEFT rear edge 1584 / 1566 / 1564 / 1542 at rows 550 / 585 / 620 / 655 against the photo's 1585 / 1566 / 1548 / 1530;
+  the pinch bolts and the cap show beside it as in the photo (`n0_left.jpg` before, `n1_left.jpg` at 29 mm).
+- Duplicates of the cockpit's parts removed: the fork guard's brake hose clamp (guard_hardware), and the plate's hose
+  guide loop (plate_details): detail_front now has its own guide under the lower clamp with a grommet round the hose
+  at the same place; this module's loop sat 12 mm off the hose's axis and cut it (audit 20.6 mm; centred on the hose,
+  it still cut detail_front's guide).
+
+### Still different / not started
+- The plate's top: LEFT shows a red sliver running up from the wing's top corner to row 441 beside the bar (FRONT: the
+  red above the plate's top edge beside the bar pad, measure.py 'front_plate_rt', not built since round 1); TOP, lf34
+  and rf34 not checked.
+- Not started: the plate's and the fender's bolts, the fender's underside ribs.
+
+## Round 4 totals
+Vertices (both modules' parts): 73,868 (budget 160k). Audit: no clash of these parts but rear_fender on the seat 0.9 mm
+(a seat). Scores (b21, main merged): left 0.8807 / 0.8965, right 0.8693 / 0.899, front 0.8841 / 0.7932, rear 0.9041 /
+0.6415, top 0.8823 / 0.8558 (silhouette / red). Tests: all pass (the full run at 29 mm failed only the top red floor,
+0.8549; at 36 mm the overlap and plastics tests pass).

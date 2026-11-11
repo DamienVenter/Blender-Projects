@@ -148,7 +148,7 @@ def test_rear_fender_profile_on_the_left_photo(fender):
 
 def test_side_cover_ribs():
     """The side panels' black lower part carries UVs on every face (the Y-rib normal map), right-handed on the outer
-    faces (or the ribs read as grooves); the map's rib lattice is the measured 17.1 mm pitch."""
+    faces (or the ribs read as grooves); the map's rib lattice is the measured 9.0 mm pitch (LEFT: 12 px)."""
     m = pl.side_panels()
     V = np.asarray(m.V)
     faces = [i for i, q in enumerate(m.M) if q == "black_texture"]
@@ -173,7 +173,7 @@ def test_side_cover_ribs():
 
 def test_round2_plastics():
     """The panel's lower edge over the can is each photo's red edge (round 3: PANEL_LOW_PX, within 2 px; the right
-    one the RIGHT photo's red-to-silver edge, 20 to 27 px over round 2's); the intake carries the green mesh with UVs;
+    one the RIGHT photo's red-to-silver edge, 20 to 27 px over round 2's); the intake carries the green foam with UVs;
     the panel bolt sits at its pocket's floor; the mudguard's top fills the wall's arch ahead of the wall."""
     assert np.interp(2800, *np.array(pl.PANEL_LOW_PX[-1]).T) == 936.5          # RIGHT, the red-to-silver edge
     for side in (1, -1):
@@ -184,9 +184,9 @@ def test_round2_plastics():
             k = np.abs(Pn.px[:, 0] - uu) < 2.0
             assert abs(Pn.px[k, 1].max() - v) < 2.0, (side, u, Pn.px[k, 1].max(), v)
     m = pl.side_panels()
-    mesh = [i for i, q in enumerate(m.M) if q == "intake_mesh"]
+    mesh = [i for i, q in enumerate(m.M) if q == "intake_foam"]
     assert mesh and all(i in m.uv for i in mesh)
-    assert "intake_mesh" in dp.MATERIALS and dp.CLASS["intake_mesh"] == "black"
+    assert "intake_foam" in dp.MATERIALS and dp.CLASS["intake_foam"] == "black"
     b = np.asarray(dp.panel_bolts().V)
     u, v = dp._px(1, *pl.PANEL_BOLT_PX)
     face = pl.panel_point(1, u, v, inset=0.006)
@@ -232,3 +232,91 @@ def test_round3_tunnel_wall():
     assert abs(V[k, 0].max() - (X0 + 0.002 + dp.DOME_D)) < 0.0015, V[k, 0].max()
     k = (V[:, 0] < X0 - 0.0025) & (V[:, 2] > 0.86) & (V[:, 2] < 0.93)              # the rib blocks' faces
     assert k.any() and np.abs(V[k, 1]).max() < 0.0715
+
+
+def test_round4_intake_and_airbox_cover():
+    """Round 4, the left panel's intake: the opening is the photo's (red mesh edge vertices on INTAKE_PX within 1 px,
+    nothing red across it); the scoop is 0 on its outline and SCOOP_D at the opening (facet above, lip below); the
+    foam sits INTAKE_FOAM_D behind the edge. The airbox cover: its plateau stands COVER_RISE over its edge, and the
+    ribbed side cover is cut away round it; the ribs' lattice is 9.0 mm, 12 px in LEFT. The right panel has no
+    intake."""
+    L = cams.CAMS["left"]
+    o = np.array(pl.INTAKE_PX)
+    for u, v in pl.SCOOP_PX[::4]:
+        assert pl.scoop_depth(u, v) < 0.0002, (u, v)
+    assert abs(pl.scoop_depth(2480.0, 914.7) - pl.SCOOP_D[0]) < 0.0006               # under the top edge
+    assert abs(pl.scoop_depth(2500.0, 965.6) - pl.SCOOP_D[1]) < 0.001                # over the lower-rear edge
+    m = pl.side_panels()
+    V = np.asarray(m.V)
+    mat_v = lambda name: np.unique([i for fi, q in enumerate(m.M) if q == name for i in m.F[fi]])
+    foam, red = mat_v("intake_foam"), mat_v("plastic_red")
+    assert (V[foam, 1] > 0).all()                                                    # left only
+    near = L.project(V[red])
+    near = near[(np.abs(near[:, 0] - 2485) < 105) & (np.abs(near[:, 1] - 940) < 45)]
+    d = np.array([np.hypot(*(o - p).T).min() for p in near])
+    assert (d < 1.0).sum() > 60                                                       # the opening's own edge
+    edge = pl.panel_point(1, 2480.0, 914.7)
+    fv = V[foam]
+    k = np.hypot(*(L.project(fv) - [2480.0, 925.0]).T) < 6.0
+    assert k.any() and abs(fv[k, 1].mean() - (edge[1] - pl.INTAKE_FOAM_D)) < 0.0015
+    Pn = pl._panel(1)
+    C = np.asarray(pl._airbox_cover(Pn, L).V)
+    k = np.hypot(*(L.project(C) - [2290.0, 1080.0]).T) < 15.0                       # the plateau's middle
+    top = np.array([Pn.width(x) for x in C[k, 0]]) - 0.006 - pl.COVER_SET + pl.COVER_RISE
+    assert k.any() and np.abs(C[k, 1] - top).max() < 0.0003
+    bt = V[mat_v("black_texture")]
+    ut = L.project(bt[bt[:, 1] > 0])                                                   # the left side cover
+    assert not pl.inside(np.array(pl.COVER_TOP_PX)[:, :2], ut).any()
+    assert pl.SIDE_COVER_TILE == 2 * 0.009 and abs(dp.SIDE_COVER["pitch"] - 12.0 * pl.MPP * 1000) < 0.1
+
+
+def test_round4_mudguard_and_flap():
+    """Round 4, inner mudguard and mud flap: the face's sides on REAR's columns 1913 / 2094 (4.5 px: the photo's face is 2.5 mm right of
+    the centre line, the model's symmetric), its
+    foot on row 999 (2.5 px); the flanges and tabs stop short of the subframe's rails (MUD_Y_MAX); the flap's back on
+    LEFT's rear edge (MUD_FLAP_PX, 2 px), its foot clear of the tyre (5 mm); the two screws sit on the flap's back
+    (0.5 mm); the thick flap replaces parts.py's single surface."""
+    import parts as P
+    R, L = cams.CAMS["rear"], cams.CAMS["left"]
+    V = np.asarray(pl.inner_mudguard().V)
+    uv = R.project(V[np.abs(V[:, 1]) <= pl.MUD_HW + 0.0005])
+    k = np.abs(uv[:, 1] - 880) < 30
+    assert abs(uv[k, 0].min() - 1913) < 4.5 and abs(uv[k, 0].max() - 2094) < 4.5, (uv[k, 0].min(), uv[k, 0].max())
+    c = np.abs(uv[:, 0] - 2003.5) < 6
+    assert abs(uv[c, 1].max() - 999) < 2.5, uv[c, 1].max()
+    assert np.abs(V[:, 1]).max() < pl.MUD_Y_MAX + 0.003
+    rings = np.array(pl._mud_flap_rings())
+    q = L.project(rings[:, len(rings[0]) // 2])               # the back's centre line
+    for v, uf, ur in pl.MUD_FLAP_PX:
+        i = int(np.argmin(np.abs(q[:, 1] - v)))
+        assert abs(q[i, 0] - ur) < 2.0 and abs(q[i, 1] - v) < 6, (v, q[i], ur)
+    low = rings[-1]
+    tyre = P.AXLE_Z + np.sqrt(np.maximum(0.335 ** 2 - low[:, 0] ** 2, 0.0))
+    assert (low[:, 2] - tyre).min() > 0.005
+    H = np.asarray(dp.mud_hardware().V)
+    for s in (1, -1):
+        h = H[H[:, 1] * s > 0]
+        yc, zc = h[:, 1].mean(), h[:, 2].mean()
+        xb = min(float(np.interp(-zc, -rings[:, 0, 2], [np.interp(yc + dy, r[:, 1], r[:, 0]) for r in rings]))
+                 for dy in np.linspace(-0.00275, 0.00275, 5))          # the back under the head's rim, most rearward
+        assert -0.0001 < xb - h[:, 0].max() < 0.0005, (xb, h[:, 0].max())
+    assert "mud_flap" in dp.REPLACES and "rear_flap" in dp.PARTS
+
+
+def test_round4_seats():
+    """Round 4, seats instead of cuts: the shroud decks start DECK_SEAT inside the skin's top edge (on its 3 mm shell;
+    audit 1.5 mm before); the panel bolt's pocket floor is flat and square to the bolt with a hole its shank passes
+    through (audit 1.8 mm before)."""
+    for side in (1, -1):
+        edge = pl._shroud_shells(side)[1]
+        rows = pl._deck(side)
+        for p, r in zip(edge[::7], rows[::7]):
+            assert abs(abs(p[1]) - abs(r[0, 1]) - pl.DECK_SEAT) < 1e-9 and abs(r[0, 2] - p[2]) < 1e-9
+    B = np.asarray(dp.panel_bolts().V)
+    assert pl.POCKET_HOLE > 0.0029 + 0.0002
+    for side in (1, -1):
+        u, v = dp._px(side, *pl.PANEL_BOLT_PX)
+        seat = pl.panel_point(side, u, v, inset=0.006 + pl.POCKET_D)
+        b = B[B[:, 1] * side > 0]
+        inner = b[(b[:, 1] - seat[1]) * side < -0.0003]                 # the shank, behind the floor
+        assert len(inner) and np.hypot(inner[:, 0] - seat[0], inner[:, 2] - seat[2]).max() < pl.POCKET_HOLE
