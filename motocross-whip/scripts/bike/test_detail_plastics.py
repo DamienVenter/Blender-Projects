@@ -172,12 +172,17 @@ def test_side_cover_ribs():
 
 
 def test_round2_plastics():
-    """The panel's tail reaches the photo's red edge (fit34 rule) at u 2830..2870; the intake carries the green mesh
-    with UVs; the panel bolt sits at its pocket's floor; the mudguard's top fills the wall's arch ahead of the wall."""
-    Pn = pl._panel(1)
-    for u, v in ((2830, 916), (2850, 904), (2870, 897)):
-        k = np.abs(Pn.px[:, 0] - u) < 3.0
-        assert Pn.px[k, 1].max() >= v - 2.0, (u, Pn.px[k, 1].max(), v)
+    """The panel's lower edge over the can is each photo's red edge (round 3: PANEL_LOW_PX, within 2 px; the right
+    one the RIGHT photo's red-to-silver edge, 20 to 27 px over round 2's); the intake carries the green mesh with UVs;
+    the panel bolt sits at its pocket's floor; the mudguard's top fills the wall's arch ahead of the wall."""
+    assert np.interp(2800, *np.array(pl.PANEL_LOW_PX[-1]).T) == 936.5          # RIGHT, the red-to-silver edge
+    for side in (1, -1):
+        Pn = pl._panel(side)
+        for u in (2760, 2800, 2830, 2850, 2870):
+            v = float(np.interp(u, *np.array(pl.PANEL_LOW_PX[side]).T))
+            uu = u if side > 0 else 3999.0 - u
+            k = np.abs(Pn.px[:, 0] - uu) < 2.0
+            assert abs(Pn.px[k, 1].max() - v) < 2.0, (side, u, Pn.px[k, 1].max(), v)
     m = pl.side_panels()
     mesh = [i for i, q in enumerate(m.M) if q == "intake_mesh"]
     assert mesh and all(i in m.uv for i in mesh)
@@ -188,3 +193,42 @@ def test_round2_plastics():
     assert b[b[:, 1] > 0][:, 1].min() < face[1] - pl.POCKET_D + 0.001      # the bolt starts at the floor
     t = np.asarray(dp.mudguard_top().V)
     assert t[:, 0].min() > dp._wall_x() + 0.002 and t[:, 0].max() < 0.204   # ahead of the wall, behind the member
+
+
+def test_round3_panel_tail():
+    """The panel's tail (round 3): it ends in the photo's point (no upright rear edge standing proud of the fender: the
+    lr34 "wedge"), its rear edge is D's seam with the fender's flank (within 2 px) and lies on that flank (the 3 mm
+    shell plus 0.5 mm, within 1 mm), its crease is at TOP's half-width (within 3 mm), and its top is smooth (second
+    differences along its rows under 1.5 mm at 3 px steps: the round 2 wrinkle at x 0.085..0.125 was 20 mm)."""
+    for side in (1, -1):
+        Pn = pl._panel(side)
+        ul = Pn.px[:, 0] if side > 0 else 3999.0 - Pn.px[:, 0]
+        assert ul.max() < pl.PANEL_TIP_PX[0] + 2.0
+        for u, v in pl.PANEL_SEAM_TAIL_PX[:-1]:
+            i = int(np.argmin(np.hypot(ul - u, Pn.px[:, 1] - v)))
+            assert np.hypot(ul[i] - u, Pn.px[i, 1] - v) < 2.0, (side, u, v)
+            P = pl.panel_point(side, *Pn.px[i])               # the outline's own point: a boundary vertex
+            assert abs(abs(P[1]) - pl.fender_outer_y(P[0], P[2]) - 0.0035) < 0.0015, (side, u, P)
+        for u, v in pl.PANEL_CREASE_PX[3::3]:
+            uu = u if side > 0 else 3999.0 - u
+            P = pl.panel_point(side, uu, v)
+            want = np.interp(P[0], *np.array(pl.PANEL_CREASE_Y).T)
+            assert abs(abs(P[1]) - want) < 0.003, (side, u, P, want)
+    Pn = pl._panel(1)
+    for v in (796, 800, 806):
+        ys = np.array([pl.panel_point(1, float(u), float(v))[1] for u in range(2850, 2936, 3)
+                       if pl.inside(Pn.px, np.array([[u, v]], float))[0]])
+        assert len(ys) > 20 and np.abs(np.diff(ys, 2)).max() < 0.0015, v
+
+
+def test_round3_tunnel_wall():
+    """The wall under the tail (round 3): its upper part is the dome, DOME_D deep at the ledge's centre; the rib
+    blocks stand proud behind it but stay inside the fender's root (its flanks at 75.5 mm, 3 mm shell)."""
+    V = np.asarray(dp.tail_under().V)
+    X0 = dp._wall_x()
+    uc, vc, a, b = dp.WALL_DOME
+    zc = cams.CAMS["rear"].on_plane(np.array([uc]), np.array([vc - 8.0]), "x", X0)[0][2]
+    k = (np.abs(V[:, 1]) < 0.02) & (np.abs(V[:, 2] - zc) < 0.004)
+    assert abs(V[k, 0].max() - (X0 + 0.002 + dp.DOME_D)) < 0.0015, V[k, 0].max()
+    k = (V[:, 0] < X0 - 0.0025) & (V[:, 2] > 0.86) & (V[:, 2] < 0.93)              # the rib blocks' faces
+    assert k.any() and np.abs(V[k, 1]).max() < 0.0715
