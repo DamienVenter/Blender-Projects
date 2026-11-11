@@ -140,7 +140,8 @@ def test_rims(built):
         seat = prof[np.isclose(prof[:, 0], spec["rb"])]
         assert len(seat) == 2 and abs(abs(seat[:, 1]).max() * 2 - w_in * IN) < 1e-6
         r, _ = _radii(built[name], c, "rim")
-        assert abs(r.min() - spec["r_in"]) < 0.0005 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
+        # the inner face at r_in (the nipples' eyelets stand 0.6 mm proud of it)
+        assert abs(r.min() - (spec["r_in"] - 0.0006)) < 0.0003 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
 
 
 def test_rim_print(built):
@@ -167,14 +168,18 @@ def test_rim_print(built):
 
 
 def test_spokes():
-    for spec, rh, yl, yr in ((dw.FRONT, dw.FRONT_HUB_R, 0.0305, -0.0365), (dw.REAR, dw.REAR_HUB_R, 0.046, -0.040)):
-        sp = dw.spoke_lines(spec, rh, yl, yr)
-        assert len(sp) == 36
+    # front 36 (SPEC, counted), rear 32 (counted round the rim in both side photos), three-cross, rim holes where
+    # the photos' nipples are: front 8.3 deg mod 10, rear 9.0 mod 11.25
+    for spec, rh, yl, yr, n, ph in ((dw.FRONT, dw.FRONT_HUB_R, 0.0305, -0.0365, 36, 8.3),
+                                    (dw.REAR, dw.REAR_HUB_R, 0.046, -0.040, 32, 9.0)):
+        sp = dw.spoke_lines(spec, rh, yl, yr, phase=dw.FRONT_SPOKE0 if spec is dw.FRONT else dw.REAR_SPOKE0)
+        assert len(sp) == n
         rim = sorted(round(math.degrees(math.atan2(p1[2], p1[0])) % 360, 3) for _, p1, _, _ in sp)
-        assert np.allclose(np.diff(rim), 10.0, atol=1e-3)                 # one nipple every 10 deg
+        assert np.allclose(np.diff(rim), 360 / n, atol=1e-3)              # one nipple every 360 / n deg
+        assert abs((rim[0] - ph + 180 / n) % (360 / n) - 180 / n) < 0.6
         assert all(abs(np.hypot(p0[0], p0[2]) - rh) < 1e-9 and abs(np.hypot(p1[0], p1[2]) - spec["r_in"]) < 1e-9
                    for p0, p1, _, _ in sp)
-        assert sum(1 for p0, _, _, _ in sp if p0[1] > 0) == 18
+        assert sum(1 for p0, _, _, _ in sp if p0[1] > 0) == n // 2
 
 
 def test_discs(built):

@@ -23,9 +23,10 @@ MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos:
              "tyre_spew": dict(rgb=(15, 15, 16), rough=0.72),
              # black anodised aluminium: the anodic film is a dielectric, so its gloss is plain (not metallic) and
              # the printed strip and the bare rim look alike except for the print
-             "rim": dict(rgb=(12, 12, 13), metal=0.0, rough=0.32),
-             "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.32),
-             "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.32)}   # the tyre's own rubber
+             "rim": dict(rgb=(12, 12, 13), metal=0.0, rough=0.40),
+             "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.40),
+             "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.40),
+             "nipple": dict(rgb=(198, 198, 202), metal=1.0, rough=0.22)}           # DR13: bright plated nipples
 CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
@@ -63,9 +64,13 @@ FRONT_PHASE, REAR_PHASE = 3.35 / (360 / 41), 4.9 / (360 / 46)
 # on r 41 mm, first hole at 18.5 deg (residual 0.9 deg rms in both photos); rear first hole at 10.5..11 deg (fit
 # poor, 2.7 deg rms: the rear's hole circle stays EST)
 FRONT_HUB_R, FRONT_SPOKE0 = 0.041, math.radians(18.5)
-REAR_HUB_R, REAR_SPOKE0 = 0.046, math.radians(10.75)
+REAR_HUB_R, REAR_SPOKE0 = 0.046, math.radians(9.0)
+# 2026-11-11: the rims' inner ring unwrapped in both side photos (unwrap.py, r_in - 9..20 mm, plane y 0): the
+# front's nipples fit a 36 comb (phase 8.3 deg, rms 1.5 deg), the rear's do NOT (36: vector strength 0.16 and 0.04)
+# but a 32 comb does (0.58 and 0.43; 17 nipples over 179 deg in the clear arc of the LEFT photo, 19 over 200 in the
+# RIGHT): the rear wheel has 32 spokes, its rim holes at 9.0 deg + k 11.25 (both photos)
 
-SPOKES = 36                         # SPEC front 36 (RevZilla listing); rear 36 EST, as every 19 in MX rim of this size
+SPOKES = {"front": 36, "rear": 32}  # front SPEC 36 (RevZilla listing) and counted; rear counted (above)
 SPOKE_R = 0.0019                    # EST 3.8 mm spokes
 DISC_F = dict(r=0.130, y=0.062, t=0.003)    # SPEC 260 mm; y EST (FRONT cols 2078..2108: guard and disc, y 53..74 mm)
 DISC_R = dict(r=0.120, y=-0.070, t=0.004)   # SPEC 240 mm; REAR cols 2102..2107, rows 1450..1700: y -68..-72 mm
@@ -851,14 +856,17 @@ def rim_texture(which, out):
 
 
 def spoke_lines(spec, r_hub, y_left, y_right, flange_t=0.006, phase=0.0):
-    """36 spokes laced three-cross: 18 per flange, alternately on the outer and the inner face of the flange, each to
-    the rim hole 60 deg on (leading) or back (trailing). Returns (hub point, rim point, flange y, face sign)."""
+    """Spokes laced three-cross: SPOKES[wheel] / 2 per flange, alternately on the outer and the inner face of the
+    flange, each to the rim hole 3 x 720 / n deg on (leading) or back (trailing). Returns (hub point, rim point,
+    flange y, face sign)."""
+    n = SPOKES["rear" if spec is REAR else "front"]
+    per = n // 2
+    cross = 3 * 4 * math.pi / n
     out = []
-    per = SPOKES // 2
     for s, yf in ((1, y_left), (-1, y_right)):
         for i in range(per):
             ah = phase + 2 * math.pi * (i + (0.0 if s > 0 else 0.5)) / per
-            ar = ah + (1 if i % 2 == 0 else -1) * math.pi / 3
+            ar = ah + (1 if i % 2 == 0 else -1) * cross
             e = s * (1 if i % 2 == 0 else -1)                    # which face of the flange the spoke lies on
             p0 = np.array([r_hub * math.cos(ah), yf + e * (flange_t / 2 + SPOKE_R), r_hub * math.sin(ah)])
             p1 = np.array([spec["r_in"] * math.cos(ar), s * 0.004, spec["r_in"] * math.sin(ar)])
@@ -911,28 +919,68 @@ def _hub(m, prof, mats, phase, seg=72):
     return off
 
 
+# Nipples (DR13: silver, about 13 mm showing below the rim's inner face, a round shank then hex flats with a
+# chamfered end where the spoke goes in; each sits in a small raised eyelet on the rim's inner face; a few mm of
+# rolled thread show on the spoke beyond it). Sizes EST from DR13 against the 6 mm flats.
+NIPPLE = dict(shank_r=0.0028, shank=0.0040, hex_af=0.0060, hex=0.0085, thread=0.0030, eyelet_r=0.0042)
+# (DR13 close-up beside the model's: the round collar is a third of the nipple, the hex flats the rest)
+
+
 def _spokes(m, spec, r_hub, y_left, y_right, phase, flange_t=0.006):
-    """Each spoke is one piece: head, elbow through the flange, spoke, nipple (flats, then the seat 3 mm into the
-    rim's wall)."""
+    """Each spoke: its head on the far face of the flange, a rounded J-bend through the flange, the spoke, a few mm
+    of rolled thread; then the nipple (round shank, hex flats, chamfer) with its eyelet on the rim."""
+    q = NIPPLE
     for p0, p1, yf, e in spoke_lines(spec, r_hub, y_left, y_right, flange_t, phase):
         dn = (p1 - p0) / np.linalg.norm(p1 - p0)
         ey = np.array([0.0, e, 0.0])
-        q = np.array([p0[0], yf - e * flange_t / 2, p0[2]])
-        path = [q - 0.0018 * ey, q - 0.00005 * ey, q, p0, p1 - dn * 0.0151, p1 - dn * 0.0150, p1 - dn * 0.0050,
-                p1 - dn * 0.0049, p1 + dn * 0.003]
-        m.add(tube(path, [0.0034, 0.0034, SPOKE_R, SPOKE_R, SPOKE_R, 0.0031, 0.0031, 0.0040, 0.0040], 6, "spoke"))
+        h = np.array([p0[0], yf - e * flange_t / 2, p0[2]])      # under the head
+        bend = (ey + dn) / np.linalg.norm(ey + dn)
+        tip = p1 - dn * (q["shank"] + q["hex"] + 0.0010)          # where the spoke enters the nipple
+        path = [h - 0.0019 * ey, h - 0.0018 * ey, h - 0.0002 * ey, h, p0 - 0.0012 * ey, p0 + 0.0016 * bend,
+                p0 + 0.0045 * dn, tip - dn * (q["thread"] + 0.0002)]
+        rad = [0.0026, 0.0033, 0.0033, SPOKE_R, SPOKE_R, SPOKE_R, SPOKE_R, SPOKE_R]
+        m.add(tube(path, rad, 8, "spoke"))
+        th = [tip - dn * (q["thread"] + 0.0002 - k * 0.0004) for k in range(9)]   # rolled thread, 0.8 mm pitch
+        m.add(tube(th, [SPOKE_R * (1.04 if k % 2 else 0.97) for k in range(9)], 8, "spoke", cap0=False))
+        hx = q["hex_af"] / 2 / math.cos(math.pi / 6)
+        m.add(tube([tip + dn * 0.0002, tip + dn * 0.0010, tip + dn * (0.0010 + q["hex"]),
+                    tip + dn * (0.0012 + q["hex"])], [0.0024, hx * 0.92, hx, hx * 0.94], 6, "nipple"))
+        m.add(tube([tip + dn * (0.0010 + q["hex"]), p1 + dn * 0.003], q["shank_r"], 12, "nipple"))
+        er = np.array([p1[0], 0.0, p1[2]]) / np.hypot(p1[0], p1[2])  # the rim's radial direction at the hole
+        m.add(lathe_at(p1, -er, [(0.0029, -0.0006), (0.0029, 0.0006), (q["eyelet_r"], 0.0006),
+                                 (q["eyelet_r"] + 0.0006, 0.0), (q["eyelet_r"] + 0.0008, -0.0006)], 12, "rim"))
+
+
+def lathe_at(c, axis, prof, seg, mat):
+    """A small solid of revolution: PROF (radius, height along AXIS) about point C."""
+    a = np.asarray(axis, float) / np.linalg.norm(axis)
+    hlp = np.array([0.0, 1.0, 0.0]) if abs(a[1]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(a, hlp)
+    u /= np.linalg.norm(u)
+    v = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, seg, endpoint=False)
+    rings = [np.array([c + a * z + r * (math.cos(t) * u + math.sin(t) * v) for t in ang]) for r, z in prof]
+    return grid(Mesh(), rings, mat)
 
 
 def _stem(m, spec, ang, lock):
-    """Valve stem with its nut and cap, or a rim lock's stud with washer and nut, through the rim well toward the hub."""
+    """Valve (LEFT / RIGHT unwraps of the rims' inner ring: a black stem with a domed cap) or rim lock (a grey
+    threaded stud; DR13: hex nut on a washer, the thread showing past the nut), through the rim toward the hub."""
     e = np.array([math.cos(ang), 0.0, math.sin(ang)])
-    if lock:
-        d = [0.003, 0.0005, 0.00045, -0.002, -0.00205, -0.009, -0.00905, -0.017]
-        rad = [0.004, 0.004, 0.011, 0.011, 0.0075, 0.0075, 0.004, 0.004]
-    else:
-        d = [0.003, 0.0005, 0.00045, -0.004, -0.00405, -0.024, -0.02405, -0.034]
-        rad = [0.0042, 0.0042, 0.007, 0.007, 0.0042, 0.0042, 0.0048, 0.0048]
-    m.add(tube([e * (spec["r_in"] + x) for x in d], rad, 8, "steel"))
+    r0 = spec["r_in"]
+    P = lambda d: e * (r0 + d)
+    if lock:                                                     # M8 stud, washer 16 mm, 12 mm hex nut, EST
+        m.add(tube([P(0.003), P(-0.0012)], 0.008, 16, "steel"))                         # washer
+        m.add(bolt(P(-0.0012), -e, af=0.012, head_h=0.0065, flange_d=0.0150, mat="steel"))
+        th = [P(-0.0070 - k * 0.000625) for k in range(17)]                             # 10 mm of M8 x 1.25 thread
+        m.add(tube(th, [0.0040 if k % 2 == 0 else 0.0035 for k in range(17)], 10, "steel", cap0=False))
+        m.add(tube([P(-0.0070 - 16 * 0.000625), P(-0.0175)], [0.0035, 0.0028], 10, "steel"))
+    else:                                                        # TR4 valve: knurled nut, stem, black cap, EST
+        m.add(tube([P(0.003), P(-0.0005)], 0.0042, 10, "steel"))
+        m.add(tube([P(-0.0005), P(-0.0045)], 0.0058, 18, "steel"))                      # nut
+        m.add(tube([P(-0.0045), P(-0.0100)], 0.0039, 12, "steel"))                      # threaded stem
+        cap = [P(-0.0100), P(-0.0102), P(-0.0190), P(-0.0205), P(-0.0212)]
+        m.add(tube(cap, [0.0040, 0.0044, 0.0044, 0.0036, 0.0020], 14, "rubber_black"))
 
 
 # ---------------------------------------------------------------- discs
@@ -1233,7 +1281,7 @@ def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems,
     """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
     m, na, a0, n_t = tyre_fn()
     _rim(m, spec, na, a0, n_t, "rear" if spec is REAR else "front")
-    _hub(m, prof, mats, spoke0)
+    _hub(m, prof, mats, spoke0, 2 * SPOKES["rear" if spec is REAR else "front"])
     _spokes(m, spec, rh, yl, yr, spoke0)
     for ang, lock in stems:
         _stem(m, spec, math.radians(ang), lock)
@@ -1253,7 +1301,7 @@ def front_wheel():
     mats = ["steel", "steel", "rubber_black", "rubber_black"] + ["hub"] * (len(prof) - 9) + [
         "rubber_black", "rubber_black", "steel", "steel"]
     m = _wheel(FRONT, FRONT_SECTION, None, FRONT_PHASE, prof, mats, rh, yl, yr, FRONT_SPOKE0,
-               ((245.0, False), (65.0, True)), front_tyre)
+               ((53.8, False), (252.5, True)), front_tyre)       # valve, rim lock: unwraps (above)
     b0 = DISC_F_DEEP + math.pi / 6
     m.add(_plate(_lobes(6, 0.040, 0.063, 20.0, b0), [circle(0.0255, 48)] + _pilots(DISC_F_BOLT_R, b0, 6), yc + 0.003,
                  0.006, "hub", 0.008))
@@ -1281,7 +1329,7 @@ def rear_wheel():
     mats += ["rubber_black", "rubber_black"]
     mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
     m = _wheel(REAR, REAR_SECTION, None, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
-               ((115.0, False), (295.0, True)), rear_tyre)
+               ((84.8, False), (308.2, True)), rear_tyre)        # valve, rim lock: unwraps (above)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
     m.add(rear_sprocket(chain_path()[1]))

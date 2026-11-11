@@ -205,3 +205,50 @@ the `rim` material overridden to a plain satin black (no other module uses it).
 ### Still different, and why
 - The rim joint (a weld line across the band) is not visible in any photo: not modelled.
 - D.I.D's own letter shapes are approximated with DejaVu Serif Bold, squeezed.
+
+## 5. Spokes and nipples
+
+### Anatomy
+- Count and lacing per wheel; each spoke: round head on the far face of the hub flange, J-bend through the flange
+  (rounded), straight spoke, a few mm of rolled thread, then the nipple: hex flats with a chamfered end, a round
+  collar, a raised eyelet round the hole on the rim's inner face.
+
+### References and numbers
+- Both side photos, the rims' inner ring unwrapped (r_in - 9..20 mm, plane y 0; `SCRATCH/uw_stems.png`), nipples
+  found as dark comb teeth on white and fitted with a comb of n teeth (vector strength):
+  - front: n 36 fits (0.67 / 0.71), phase 8.3 deg mod 10, rms 1.4..1.6 deg. The model's rim holes (hub holes at
+    18.5 + k 20, three-cross 60 deg) land at 8.5 mod 10: unchanged.
+  - rear: n 36 does not fit (0.16 / 0.04); n 32 does (0.58 / 0.43); 17 nipples over 179 deg in the LEFT photo's clear
+    arc, 19 over 200 deg in the RIGHT: the rear wheel has 32 spokes (it was 36, EST). Rim holes at 9.0 + k 11.25
+    deg, three-cross = 3 x 720 / 32 = 67.5 deg. The uneven gaps (about 10 and 13.5 deg) come from the nipples
+    leaning along their spokes (leading and trailing alternate).
+- Nipple: 6 mm across the flats, 8.5 mm of hex, 4 mm round collar, chamfered end; eyelet 8.4 mm across, 0.6 mm
+  proud; 3 mm of thread at 0.8 mm pitch beyond the nipple: EST from DR13 (nipple flats against the rim and spokes).
+- Spoke 3.8 mm (unchanged, EST), head 6.6 mm across, 1.8 mm thick (EST).
+
+### Checks
+- `SCRATCH/uw_sp1.png`: LEFT photo inner ring (30..330 deg) above the model's: every nipple within about 0.6 deg,
+  valve and rim lock in place.
+- `SCRATCH/r14/render_cu_nip.png` beside DR13 (`SCRATCH/r14.jpg`): nipple proportions corrected after this look
+  (collar a third, hex two thirds).
+
+### Still different
+- The spokes are straight-gauge 3.8 mm (real ones may be butted, thicker at the hub end: not measurable here).
+- A small dark lump sits on the rear rim's inner face at 172 deg in the LEFT photo (8 mm); not identified, not
+  modelled.
+
+## 6. Rim locks and valves
+
+### References and numbers
+- Same unwraps: rear valve (black stem with a domed cap) at 84.8 deg, rear rim lock (grey threaded stud) at 308.2
+  deg; front valve 53.8 deg, front rim lock 252.5 deg (both photos agree). The model had them at 115 / 295 (rear)
+  and 245 / 65 (front: valve and lock swapped).
+- DR13: rim lock = washer, hex nut on a flange, the stud's thread showing past the nut.
+- Built: M8 stud with 10 mm of 1.25 mm-pitch thread (rings), 16 mm washer, 12 mm flange nut; TR4 valve: knurled
+  nut 11.6 mm, stem 7.8 mm, black cap with a domed end (sizes EST, standard parts).
+
+### Checks
+- `SCRATCH/uw_sp1.png` (places), `SCRATCH/r14/render_cu_lock.png` beside DR13.
+
+### Still different
+- The valve's own thread and the cap's knurling are not modelled (too fine to see in any photo).
