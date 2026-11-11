@@ -268,3 +268,139 @@ mm outside the fender's flank), `_seat_under` / `seat_under_z`.
 ## 6. Shroud small items (not started)
 - Also: the red strip beside the seat's nose in the top photo (u 1960..2160, between the hem and the shroud) is not
   red in the model (component 1).
+
+# Round 3 (2026-11-11, PLASTICS3 brief)
+
+Check images in `/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/plastics3`
+(`s*_` stacked pair sheets, photo above; `z*_` zoomed pairs with a pixel grid; `id*` part maps: which part is in front
+at each pixel of a photo's camera, `*_ov.png` the parts' borders drawn on the photo; `cu*/` close-ups).
+
+## R3.1 Side panel rear: the tail, the crease, the lower edge over the can (done)
+
+### Anatomy (LEFT, RIGHT, TOP, lr34, at 30 cm)
+- The panel's tail is a pointed wing, not a box: under the seat's hem, then under the fender's dark crease line, a
+  light facet (A, the bead's continuation) runs out to one crisp crease (a dark line with a light line 2 to 4 px
+  under it: lr34's "crease and highlight line"); under it the face leans out (B, then a light band C) to the fold,
+  the panel's widest line, where it turns in (D, dark) to its edge. A, the crease, C and D converge on one point at
+  LEFT (2949, 805), x 0.037, on the fender's lip. Behind D's edge (u 2895..2945) the fender's flank shows, medium red
+  as it is behind the panel. From u 2895 on, D's edge is the seam with that flank; ahead of it, the panel's free
+  lower edge over the can.
+- The fender's flank is never covered by an upright rear edge: the round 1-2 trace ran the tail on over the flank to
+  an upright edge at u 2946, 35 to 55 mm out from it (the "bulky wedge" of `s_r16_lr34.jpg`).
+- Over the can the lower edge is a rounded edge (a light line 1 to 2 px) on the red's last rows; under it, the can
+  (pink-grey (180, 116, 118) on the left: its top reflects the panel).
+
+### References
+- LEFT u 2700..3020, v 760..1010 (`left_tail5x.jpg`, contrast stretched at 5x; `bands.py` runs per column every 5 px,
+  green channel: dark g < 45, light g > 88); RIGHT mirrored, the same (`bands.py right ... m`).
+- TOP u 2550..2950, v 940..1310 (`top_tail.jpg`, runs per column every 10 px).
+- lr34 u 2540..2900, v 670..880 (`lr34_grid.jpg`, runs per row every 6 px); REAR u 1700..1920, v 540..820
+  (`rear_ltail4x.jpg`).
+- Fiche K95CF2300 (`fiche_side_l.png`): side covers 8 and 10, an inner black piece 9, a slender piece 4.
+
+### Numbers and sources (plastics.py, next to each table)
+- PANEL_TAIL_TOP_PX (A's top, rows 790.3 / 784.5 / 797.5 at u 2852 / 2890 / 2940), PANEL_TIP_PX (2949, 805),
+  PANEL_CREASE_PX (836 at u 2780 to 810 at 2940), PANEL_FOLD_PX (C's lower edge, 916 at u 2760, 884.5 at 2850,
+  834.5 at 2900, 813.5 at 2940; ahead of 2760 the round 2 ridge's two EST points), PANEL_SEAM_TAIL_PX (D's edge on the
+  flank, 862 at u 2900 to 818.5 at 2940; RIGHT 843.5 / 832.5 / 821.5 at 2920..2940, the left's within 3 px).
+- PANEL_LOW_PX, each side from its own photo (last row with r > 200 and r - g > 110): left 956.5 / 933.5 at u 2760 /
+  2800; right 958.5 / 936.5 / 908.5 / 894.5 at u 2760 / 2800 / 2850 / 2870. The trace ran 10 px (left) and 25 px
+  (right) under that: the coordinator's RIGHT check (box 960,860..1560,1280: the panel covered the can's top). The
+  render's red-to-silver edge now lies on the photo's within 0..3 px at RIGHT u 1150..1290 (`z4_right.jpg`).
+- Left, behind u 2840: the red ends at 904.5 (u 2850) and 891.5 (2870), but round 2 (the coordinator's see-through
+  check) ran the tail on into the pink-grey under it, read as plastic seen through the far side's can, to 912 / 903
+  at u 2850 / 2900. Kept for that check (the traced 'rear_fender' outline takes the pink as red: 4.6 cm2 of
+  background without it), its corner now rounded up into D's seam (911 / 906 / 899 / 887 at u 2860 / 2880 / 2888 /
+  2894). Against it: the far side's can shows its bolt head at (2853, 915), inside that strip, and nothing on the
+  near side can be in front of it; to my reading the pink is the can's top reflecting the panel.
+- test_bike's see-through check fails on the RIGHT: 3.5 cm2 of background at RIGHT u 1222..1252, rows 958..982,
+  inside the traced 'side_panel_R' outline, which runs 20 to 25 px under the photo's red there (the photo shows the
+  can). The panel follows the coordinator's request (the red-to-silver edge); the outline (outlines.py) or the
+  check (test_bike.py) is a shared file.
+- In plan (TOP, light facet A's outer edge): the crease at half-width 0.105..0.114 (PANEL_CREASE_Y); the panel's top
+  edge at 0.095..0.101 (PANEL_SEAM_Y; used as an upper bound, the edge sits 0.8 mm clear of the fender's lip); the
+  fold at the plan envelope (TOP's dark band's outer edge 0.1535 / 0.1454 / 0.1347 / 0.1222 / 0.1168 at x 0.128 /
+  0.083 / 0.066 / 0.048 / 0.039, within 3 mm of width(x)). Cross-checks in lr34: the crease cast at 0.11 from its LEFT
+  rows lands on the photo's highlight line ((2594, 747), (2631, 739)); the fold cast at the envelope on the photo's
+  light-to-dark edge ((2600, 767), (2558, 810)).
+- D's tuck at the free edge PANEL_TUCK 10 mm (EST: D is dark, 15 to 40 px tall).
+
+### Built
+`plastics._panel`: the trace is cut at PANEL_LOW_PX and ends at u 2836; the tail polygon (hem, A's top, tip, D's
+seam, the lower edge) joins it. Section behind u 2790 (in full from 2830): facet A straight from the top edge to the
+crease, the face convex out to the fold at the envelope, then D turning in (s^1.5) to the edge: on the fender's flank
+(its face plus the 3 mm shell plus 0.5 mm) from u 2890, 10 mm inside the fold at the free edge. D's turn-in starts at
+u 2730 on the main panel too (the photo's C band begins at 2750). Measured lines are smoothing splines (sigma 0.4 to
+0.8 px): straight-line interpolation put a kink in the face's lean at every reading. Mesh rows along the crease and
+the fold. The top edge is now a function of x only (on the fender's lip, under the seat's hem ahead): the round 2
+wrinkle at x 0.085..0.125 (each vertex's own height over the lip's roll, three blends) is gone: second differences
+along the top rows under 0.7 mm at 3 px (were 20 mm). Five extra rows of vertices through the tail (between the
+crease and the fold, under the fold, between the fold and the edge, along the edge, in facet A): on the 9 px mesh
+alone the tail came out jagged. side_panels: 11,294 vertices (was 11,162).
+
+### Stray pieces under the tail in lr34 (each found with `idmap.py`)
+- The C-shaped red piece (`s_r16_lr34.jpg` x 480..560, y 1150..1180): the RIGHT panel's tail, run on behind the can
+  in round 2. Gone with the new outline (both sides).
+- Red beside the can, under the fender: the right panel's inner face (as in the photo, where its lower edge meets the
+  can's top at lr34 (2660, 830)..(2860, 768)).
+- Red with two bolts and a black dome under the left panel: detail_plastics.tail_under (the wall under the tail) and
+  mudguard_top. The photo shows a red face there too (2530..2600, 840..940): cast on the left panel's face it lands on
+  the can in LEFT, so it is not the panel; it is the wall (or the right panel's inner face) seen under the panel's
+  edge, beside the can's bracket. The photo hides the rest behind its can, which sits higher than the model's in lr34
+  (detail_chassis: its ledger lists the lr34 evidence as not resolved). The left panel's own edge there lies on the
+  photo's within 5 px in lr34 and on the red's last row in LEFT.
+- Grey rails: detail_chassis 'subframe'.
+
+### Checks
+`s4_lr34.jpg`, `z3_lr34.jpg`, `z4_left.jpg`, `z4_right.jpg`, `ol1_left.jpg`, `ol2_left.jpg`, `ol2_right.jpg`,
+`cu13/render_cu_taillr.png`, `cu13/render_cu_tails.png` (before: `cu1/render_cu_taillr.png`), `z8_left.jpg`,
+`z8_lr34.jpg`.
+Scores (b13): left 0.8814 / red 0.8956, right 0.8674 / 0.8948, front 0.8744 / 0.796, rear 0.8958 / 0.6411, top
+0.8744 / 0.857 (floors held). Audit: no new clash of these parts (rear_fender on the seat 0.9 mm at x 0.11..0.13: a
+seat; the fender's root now runs at its full width there). See-through (compare.intruders): left 1.6 cm2, right 3.5
+cm2 (over 2: test_bike fails, above).
+
+### Still different
+- In the close-ups the tail reads as a pointed beak standing out from the fender, where the photo's glossy bands make
+  it read flush; its size follows TOP's outer edge and the lr34 fold. The tip's last 10 px are coarse (four lines meet
+  within 5 px on a 9 px mesh).
+- The main panel's face between the intake and the tail still undulates softly in close-ups (from round 2: its lean
+  follows the panel's height per column).
+- The photo's crease is a crisp dark-and-light line pair; the model's is a change of angle only.
+
+## R3.2 Rear fender, rest: the tunnel under its root, the upper bolts (partly)
+
+### Anatomy (REAR at 3.5x, `rear_tunnel.jpg`; fiche K95CF3400)
+- Seen from behind, under the blade: the tunnel's side walls (the fender's flanks, a bright highlight on their inner
+  edges), then the wall under the tail (the fender's front leg): in its upper part a dome, its rim an arch from (1890,
+  650) up to (2000, 600) and down to (2110, 650), dark in its outer corners; it stands on a ledge (a light line, rows
+  652..656); under the ledge two upright channels in shadow (u 1890..1925 and 2075..2110, rows 657..688), each with a
+  rib block under it (a lit top edge at rows 688..692, a dark face to 712); lower, the arch over the black mudguard
+  and the two lower bolts on their bosses with 20 mm washers (rounds 1-2).
+- Fiche: 2 upper bolts (item 3) with collars (4) through tabs at the legs' upper front corners, sideways into the
+  subframe; 2 lower bolts (2) with washers (5). No tail light (stock).
+
+### Numbers (detail_plastics.py)
+WALL_DOME (2000, 652, 110, 52): centre column, the ledge's row, half-width, height; DOME_D 12 mm (EST, shading only:
+nothing ahead of it until x 0.226, the seat's base above, the subframe's cross member below row 672); WALL_CHANNELS
+(rows 657..688, 4 mm, as rounds 1-2's grooves, which ran at rows 612..686 across the dome); WALL_RIBS (u 1902..1922
+and 2078..2098, rows 689..712, 3 mm proud, EST: their outer 12 px and 2 mm of height would be inside the fender's
+root, whose flanks are pinned at 75.5 mm between the panels' top edges there: at 5 mm and full width they cut 7 mm in).
+
+### Built
+`detail_plastics.tail_under`: the depth map now holds the dome (rim rows of vertices at 1.0 / 0.8 / 0.5 of it), the
+ledge (a 2.5 px step), the channels and the rib blocks; mesh 8 px with 3.5 px rows on the features. 2,352 vertices.
+
+### Checks
+`z6_rear.jpg` (rear pair), `cu13/render_cu_tunnel.png`. Audit: clean for the wall (the first rib blocks cut 7.3 mm
+into the fender's root: fixed as above).
+
+### Still different / not done
+- The photo's dome reads deeper and rounder, with dark outer corners; the model's is EST in depth.
+- The tunnel's side walls are the fender's plain flanks; the photo's have a rolled inner edge with a bright highlight.
+- The upper bolts and collars are not modelled: hidden in every photo, and their tabs would sit on detail_chassis's
+  subframe rails, which are sparse tubes at x 0.20..0.24 (rail outer face 0.068..0.097 there): no measured place.
+
+## R3.3 Side panels, rest (intake's exact shape, raised airbox cover): not started
+## R3.4 Mud flap and inner mudguard, rest: not started
+## R3.5 Shroud small items: not started

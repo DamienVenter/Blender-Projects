@@ -165,8 +165,11 @@ def test_overall_dimensions_against_the_spec_sheet(npz):
     assert abs(allv[:, 2].min()) < 0.002                                   # both tyres stand on the ground
     # length 2179: wheelbase + both tyre radii at the knob tips (2176)
     assert abs(np.ptp(allv[:, 0]) - 2.179) < 0.006
-    # height 1262 to the top of the bars (cable loops stand higher in the photo and in the model)
-    assert abs(G["bars"][:, 2].max() - 1.262) < 0.006
+    # height 1262. The bar's own top (1.256) sits on the front photo's bar edge (test below); the throttle hood and
+    # the brake reservoir stand higher in the photos (1.274, 1.271), as the photo bike stands high elsewhere (seat +20,
+    # belly +15). Accept the spec within -8 / +15 mm (2026-11-11)
+    top = max(G[n][:, 2].max() for n in ("bars", "hand_controls") if n in G)
+    assert G["bars"][:, 2].max() > 1.262 - 0.008 and top < 1.262 + 0.015
     # ground clearance 330. The belly's lowest outline in both side photos is 333 to 335 if it is on the centre line
     # and 346 to 348 if it is the near cradle rail, as modelled: up to 18 mm over the spec sheet
     low = np.vstack([G[n] for n in ("frame", "engine", "exhaust")])
@@ -201,3 +204,35 @@ def test_a_plugin_cannot_silently_replace_another_plugins_part(monkeypatch):
     monkeypatch.setattr(parts, "plugins", lambda: [a, c])
     with pytest.raises(ValueError, match="material 'm'"):
         parts.build()
+
+
+def test_bar_top_edge_on_the_front_photo(npz):
+    """The bar's upper edge, drawn through the front camera, lies on the photo's where nothing stands above it
+    (measured 2026-11-11: 0.4, 0.0, -0.1, -2.7, -1.1 px; at the other columns the controls and cables stand higher)."""
+    d = np.load(npz)
+    V = d["bars__V"].astype(float)
+    c = cams.CAMS["front"]
+    ref = os.path.join(HERE, "..", "..", "reference", "crf250r-2026")
+    im = np.asarray(Image.open(os.path.join(ref, cams.FILES["front"])).convert("L")).astype(int)
+    uv = c.project(V)
+    u = np.round(uv[:, 0]).astype(int)
+    for yb in (0.18, 0.22, 0.34, -0.30, -0.34):
+        m = np.abs(V[:, 1] - yb) < 0.004
+        uc = int(np.median(u[m]))
+        top = uv[m & (np.abs(u - uc) <= 2), 1].min()
+        col = im[int(top) - 60:int(top) + 40, uc - 1:uc + 2].mean(1)
+        photo = int(top) - 60 + np.where(col < 170)[0].min()
+        assert abs(photo - top) < 4, (yb, photo, top)
+
+
+def test_the_see_through_check_still_sees_a_missing_fender(npz, tmp_path):
+    """The check looks only where the photo shows red (2026-11-11): it must still catch a plastic that is missing."""
+    d = dict(np.load(npz, allow_pickle=True))
+    names = [str(n) for n in d["names"]]
+    out = {k: v for k, v in d.items() if not k.startswith("rear_fender__")}
+    out["names"] = np.array([n for n in names if n != "rear_fender"])
+    p = str(tmp_path / "nofender.npz")
+    np.savez(p, **out)
+    found = compare.intruders(p, min_cm2=2.0)
+    assert found.get(("left", "(hole: background shows)"), 0) > 40
+    assert found.get(("right", "(hole: background shows)"), 0) > 40

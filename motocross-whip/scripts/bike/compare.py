@@ -190,6 +190,18 @@ def score(parts_path, out_prefix):
     return res
 
 
+def photo_red(view, close=3, grow=3):
+    """Half-resolution mask of the red plastic in Honda's photo for VIEW: the red rule of fit34.py, closed over the
+    small highlights and grown a few pixels so a plastic's own edge stays inside."""
+    from scipy import ndimage
+    im = Image.open(os.path.join(HERE, "..", "..", "reference", "crf250r-2026", cams.FILES[view])).convert("RGB")
+    im = np.asarray(im.resize((cams.W // 2, cams.H // 2), Image.BOX)).astype(int)
+    r, g, b = im[..., 0], im[..., 1], im[..., 2]
+    red = (r > 120) & (r - g > 70) & (r - b > 50)
+    red = ndimage.binary_closing(red, iterations=close)
+    return ndimage.binary_dilation(red, iterations=grow)
+
+
 def intruders(parts_path, min_cm2=1.0):
     """Parts that show where the photo has red plastic. In each profile, inside the plastics' extracted outlines,
     the part in front must be a plastic: any other part there is poking through (a hidden rail placed too far out,
@@ -210,6 +222,9 @@ def intruders(parts_path, min_cm2=1.0):
             pd.polygon([(float(x) / 2, float(y) / 2) for x, y in zip(uu, vv)], fill=1)
         from scipy import ndimage
         tgt = ndimage.binary_erosion(np.asarray(pim) > 0, iterations=4)        # stay clear of the outlines' edges
+        # ... and only where the photo itself shows red plastic (closed over highlights): the traces took the can's
+        # pink reflection of the panel for panel on the right side (2026-11-11: 10 % red there, 58 % on the left)
+        tgt &= photo_red(view)
         cls = raster(parts_path, None, view)
         part = raster(parts_path, None, view, by_part=True)
         bad = tgt & (cls != RED)
