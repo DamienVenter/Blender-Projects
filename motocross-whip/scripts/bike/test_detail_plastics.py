@@ -110,3 +110,62 @@ def test_seat_grain_texture():
     pitch_mm = g["tile"] / k
     assert 0.5 < pitch_mm < 2.0, pitch_mm
     assert dp.MATERIALS["seat"]["normal"] == "stock/seat_grain_n.png"
+
+
+@pytest.fixture(scope="module")
+def fender():
+    return pl.rear_fender()
+
+
+def test_rear_fender_plan_and_point(fender):
+    """Half-widths at the top photo's columns within 2 mm; an arrow point (half-width falls 50 mm in the last 50 mm)
+    and not the old round tongue (60 mm there); the tip at the mean of the top and side photos."""
+    V = np.asarray(fender.V)
+    px, phw, T, E = pl._fender_lines()
+    for x in (-0.25, -0.20, -0.14, -0.06):
+        k = np.abs(V[:, 0] - x) < 0.0035
+        half = (V[k, 1].max() - V[k, 1].min()) / 2
+        assert abs(half - np.interp(x, px, phw)) < 0.002, (x, half)
+    assert abs(V[:, 0].min() - (-0.2971)) < 0.002
+    x0 = V[:, 0].min()
+    k = np.abs(V[:, 0] - (x0 + 0.025)) < 0.002
+    assert (V[k, 1].max() - V[k, 1].min()) / 2 < 0.036    # the point: 25 mm from it 32 mm (TOP u 3160: 36 px)
+    assert abs(V[:, 1].max() + V[:, 1].min()) < 0.001
+
+
+def test_rear_fender_profile_on_the_left_photo(fender):
+    """The top line and the near flank's lower edge project onto the photo's rows within 3 px."""
+    V = np.asarray(fender.V)
+    L = cams.CAMS["left"]
+    uv = L.project(V)
+    for (u, v) in pl.FENDER_TOP_PX[3:-2]:
+        k = np.abs(uv[:, 0] - u) < 5.0
+        assert abs(uv[k, 1].min() - v) < 3.0, (u, uv[k, 1].min(), v)
+    for (u, v) in pl.FENDER_LOW_PX[2:-2]:
+        k = np.abs(uv[:, 0] - u) < 5.0
+        assert abs(uv[k, 1].max() - v) < 3.5, (u, uv[k, 1].max(), v)
+
+
+def test_side_cover_ribs():
+    """The side panels' black lower part carries UVs on every face (the Y-rib normal map), right-handed on the outer
+    faces (or the ribs read as grooves); the map's rib lattice is the measured 17.1 mm pitch."""
+    m = pl.side_panels()
+    V = np.asarray(m.V)
+    faces = [i for i, q in enumerate(m.M) if q == "black_texture"]
+    assert faces and all(i in m.uv for i in faces)
+    good = []
+    for i in faces:
+        P, uv = V[list(m.F[i])][:3], np.array(m.uv[i])[:3]
+        A = np.array([uv[1] - uv[0], uv[2] - uv[0]])
+        if abs(np.linalg.det(A)) < 1e-12:
+            continue
+        T, B = np.linalg.solve(A, np.array([P[1] - P[0], P[2] - P[0]]))
+        n = np.cross(P[1] - P[0], P[2] - P[0])
+        if n[1] * P[0, 1] > 0:                                   # outer face
+            good.append(np.dot(np.cross(T, B), n) > 0)
+    assert np.mean(good) > 0.99
+    a = np.asarray(Image.open(os.path.join(dp.TEXTURES, "side_cover_n.png")))
+    assert a.shape[:2] == (dp.SIDE_COVER["size"][1], dp.SIDE_COVER["size"][0])
+    h, sx, sy = dp._tristar_height()
+    assert abs(h.shape[1] * sx - 2 * dp.SIDE_COVER["pitch"]) < 1e-6 and abs(sx / sy - 1.0) < 0.002
+    assert 0.08 < (h > 0.05).mean() < 0.25                     # ribs cover a measured share of the surface

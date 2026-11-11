@@ -76,12 +76,13 @@ follows the same hem (`seat_hem_hw`, SEAM_PX); the panels' red piece under the s
   vertices) 19 % of the cover's faces were under 2 px in the top view, and compare.raster draws those as one pixel:
   the base showed between the dots and the top red score fell 0.8 points. Now 10,408 vertices, 0.3 % such faces.
 - The red strip beside the seat's nose (TOP u 1960..2160, between the hem and the shroud) was covered by the old,
-  too wide seat. It is the shroud's bolt plate running back under the seat: `DECK_END_U` 1950 to 2120 (x 0.665);
-  the plate there lies 3 to 6 mm under the hem and 9 mm under the base. Top red score 0.861 before, 0.874 after.
+  too wide seat. Running the shroud's bolt plate back under the seat to fill it (`DECK_END_U` 1950 to 2120) ran 3 to
+  4 mm into the side panels' noses and the shrouds' skins and cost the rear view 1.6 points of red: undone. That
+  strip is still not red in the model (see component 6).
 
 ### Still different
-- The tail tip is buried in the rear fender's root (fender hump over x 0.064..0.109: audit 4.2 mm), and from
-  behind the seat's base shows under the fender's tip (rear red score 0.627 to 0.597, floor 0.62): component 3.
+- (Fixed in component 3: the tail tip was buried in the old fender's root hump, audit 4.2 mm, and from behind the
+  seat's base showed under the fender's tip.)
 - The rear camera puts the nose's peak 4 mm lower than both side cameras; the model follows the side photos, so the
   dome stands 5 px high in the rear pair.
 
@@ -121,3 +122,110 @@ to cell). The cover's faces carry box-projected UVs (`plastics._box_uv`, SEAT_UV
 ### Still different
 - The photo's cover shows faint wrinkle lines (top photo); not modelled.
 - The livery mode's `seat.png` image is replaced by this material (the stock bike is the target).
+
+## 3. Rear fender (partly done)
+
+### Anatomy
+- Plan: a straight taper from the root (where it meets the side panels' tails in dark seams) to a shoulder, then an
+  arrow point. Profile: a thin blade rising to the point, whose end slants (top corner ahead of the lower one).
+- Section: a lit, slightly crowned deck; a bright crease band; a dark facet; a light strip where the lip rolls over
+  into the flank; the flank down to its lower edge. The bands converge on the point.
+- Root: runs on under the seat's tail (the seat rests on it) between the side panels' tails and top edges, to the
+  red wall under the tail, which is the same moulding's front leg (fiche K95CF3400: one fender, item 1).
+- Fasteners (fiche K95CF3400): 2 upper bolts (item 3) with collars (4) at the front sides, 2 lower bolts (2) with
+  washers (5) at the foot of the legs: the lower ones are detail_plastics.tail_under's two bolts with 20 mm washers
+  (REAR, (1895, 766) and (2113, 775)). The upper pair is hidden under the seat and the panels in every photo.
+- Underside (REAR): a tunnel under the blade, its roof arching up, two lighter ribs down its side walls.
+- Graphics (out): the "IMPORTANT INFORMATION" label and "HONDA" near the point.
+
+### References
+- TOP u 2620..3360, v 950..1300 (`grid_top_froot.jpg`, `grid_top_ftip.jpg`, 3x to 3.5x on 10 px grids), scan of the
+  red per column (`fender_scan.py`).
+- LEFT u 2700..3420, v 690..900 (`grid_left_froot.jpg`, `grid_left_ftip.jpg`, `grid_left_seam.jpg`, 3.5x to 4.5x).
+- REAR u 1820..2180, v 540..820 (`grid_rear_fender.jpg`, 3x). lr34 u 2550..2950, v 600..820 (`grid_lr34_froot.jpg`).
+- Fiche K95CF3400 (`fiche_rear_fender.jpg`).
+
+### Numbers and sources
+- Plan (FENDER_PLAN_PX, TOP, row 1124.5): 103 px at u 2720 (x 0.112, 91.8 mm) to 63 px at the shoulder u 3128
+  (x -0.252, 56 mm), then 57 / 47 / 36 / 25 / 14 / 6 px at u 3140..3186, point at u 3188.5. The old blade was
+  98 mm wide behind x 0 and flared to 0.145..0.168 at the root (the side panels' tails' envelope): the root hump.
+- Tip: TOP x -0.305, LEFT -0.290, RIGHT -0.287 (cast at y 0): the mean (-0.297) is used (the plan's x is stretched
+  by up to 8.3 mm toward the point, FENDER_TIP_SHIFT); the old tip -0.3005 was EST.
+- Top line (FENDER_TOP_PX, LEFT, first non-white row): 774 at u 2880 (6 px under the seat's tip), 763 at 3000,
+  755 at 3100, 748 at 3200, 740.5 at 3340. Lower edge (FENDER_LOW_PX, last non-white row, near flank): 847 at u
+  2960 (where it leaves the muffler), 831 at 3000, 804 at 3100, 782 at 3200, 754 at 3340, 751 at 3353.
+- Section (TOP u 3000, half-width 78.5 px): deck to 30 px, crease band 30..45 px, dark facet to 62 px, light strip
+  to the edge: FENDER_A1 0.50, FENDER_A2 0.80. Crown 3 mm, facet 8 mm, flank flare 8 deg (EST; the flare dies out
+  at the root, where the flank is upright under the panels' tails).
+- Root: x 0.195 (the wall's rear face), 0.5 mm under the seat's underside, 0.5 mm inside the side panels' top
+  edges (they tuck in to 70..80 mm out under the hem).
+- Side panels' tails (PANEL_TAIL_PX, LEFT 4x with the traced outlines drawn on it): the traced outline was cut
+  upright at u 2845 (a hand-drawn seam); the panel carries on 100 px along the fender's flank to a corner at
+  (2947, 811), its upper edge the top of the dark-red graphic band from (2845, 787), its rear edge down to (2897,
+  876), its lower edge along the muffler's top. The fender's plan edges at the root (TOP rows 1022 / 1227) are the
+  seams to these tails; the plan envelope outside them (0.13..0.15) is the tails.
+
+### Built
+`plastics._fender_lines`, `rear_fender` (loft of 100 stations, 4,300 vertices: deck, eased facet, rolled lip,
+flank; the root clamped under the seat and inside the panels), `_union` + PANEL_TAIL_PX (panel tails, lapping 0.5
+mm outside the fender's flank), `_seat_under` / `seat_under_z`.
+
+### Checks
+- `s_16_left.jpg`, `s_16_top.jpg`, `s_16_rear.jpg`, `s_16_lr34.jpg`; scores (red overlap): rear 0.627 before, 0.639
+  after; top 0.861 / 0.858; front unchanged. Audit: no new clash (fender on the seat 0.1 mm, a seat).
+
+### Still different
+- The deck's crease bands read fainter than the photo's (bright band and dark facet); crown and facet are EST.
+- The panels' tails stand out as a flap with a hard rear edge in lr34 and the left pair; in the photo they wrap
+  smoothly onto the fender's flank (their surface still follows the plan envelope out to 0.13..0.15).
+- Underside: the photo's tunnel roof and its two ribs are not modelled; the wall under the tail keeps its flat top
+  and two channels (rear pair).
+- The upper mounting bolts and collars (fiche items 3, 4) are not modelled (hidden in every photo).
+- The model's tip is 8 mm longer than the side photos' and 8 mm shorter than the top photo's (the mean).
+- An exhaust piece of detail_chassis (62 vertices at world (0.084, -0.147, 0.882)) is now 4.7 mm from anything: it
+  touched the old fender's root flare, which was not the fender (it was the panels' tails' envelope).
+- test_bike's intruder test now finds the muffler (left view, 3.4 cm2 at u 2844..2910, v 886..908) inside the traced
+  outline OUT 'rear_fender'. The photo has no red there: per column the last deep-red row (r - g over 150) is 907 /
+  897 / 886 / 883 / 873 at u 2845 / 2860 / 2875 / 2890 / 2905, and under it the muffler, tinted pink by the red
+  (e.g. (186, 120, 124) at (2875, 900)). The trace took the tinted muffler as red (the first pass noted the same
+  tint at the fender's root). The old fender's flank covered it; the panel's tail now stops on the photo's edge.
+  Fix proposed: the trace (outlines.py, shared output) should take the deep red only there.
+
+## 4. Side panels (partly done)
+
+### Anatomy (detail 475833, LEFT, lr34)
+- Red upper panel: glossy, a crease/ridge across its tail, the bead under the seat's hem, the air intake (a
+  rounded trapezoid recessed with a lighter lip, the filter's dark green mesh behind it), its tail along the
+  fender's flank (component 3).
+- Black lower part (the airbox's side): satin black over a fine stipple, raised Y-shaped ribs (three arms 120 deg
+  apart, all the same way round) on a hexagonal lattice; a recessed round pocket with the panel bolt (8 mm flange
+  bolt) at its lower front; a raised smooth rectangular panel (the airbox side cover) ahead of it with a rounded
+  recess.
+- Joint red/black: a crisp diagonal edge.
+
+### Done
+- The black part's Y ribs and stipple: `detail_plastics.SIDE_COVER`, `textures/stock/side_cover_n.png` (1024 x 886,
+  a 34.2 x 29.6 mm tile: two lattice steps each way), material `black_texture` (satin (22, 22, 24), roughness
+  0.55, the map at strength 1). Numbers (475833 at 2.4x, u 1500..2000, v 1450..1800, 0.186 mm/px from the panel
+  bolt's 8 mm hex, 43 px): Y centres 92 px (17.1 mm) apart, rows 83 px (15.4 mm, hexagonal 14.8) apart, arms 42 to
+  52 px (8 to 10 mm) long and 7 px (1.3 mm) wide, round ended; arms laid at 115, -5, 235 deg (EST: the photo's own
+  tilt not removed); rib height 0.4 mm, stipple 0.05 mm (EST). UVs on the black faces (x and z over the tile), u
+  turned so (u, v, normal) is right-handed on the outer faces (mirrored, the ribs read as grooves; the same check
+  turned the seat's box UVs).
+- The panels' tails (component 3) and their top edge along the measured hem (component 1).
+- Checks: `cu18/render_cu_tristar.png`, `cu18/render_cu_sidecover.png` (475833's angle), `tristar_sign.jpg` (the
+  map against its inverse).
+
+### Not done (still different)
+- The intake: the model has a dark triangular hole with a turned edge; the photo's is a rounded trapezoid with a
+  lighter recessed lip and a dark green mesh (the filter) behind it.
+- The red panel's surface is lumpy and its lower edge ragged in the close-ups (`cu10/render_cu_sidecover.png`).
+- The bolt's recessed round pocket in the black part (the bolt is there: detail_plastics.panel_bolts).
+- The raised airbox side cover ahead of the black part, and the crisp red/black joint.
+- The tails' surface: a flap out to the plan envelope where the photo's wraps onto the fender's flank.
+
+## 5. Mud flap and inner mudguard (not started)
+
+## 6. Shroud small items (not started)
+- Also: the red strip beside the seat's nose in the top photo (u 1960..2160, between the hem and the shroud) is not
+  red in the model (component 1).

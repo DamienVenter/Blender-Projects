@@ -365,6 +365,39 @@ def _worley(size, cells, rng):
     return F1, F2, np.take_along_axis(idx, o[:1], 0)[0]
 
 
+SIDE_COVER = dict(pitch=17.1, arm=9.0, rib_w=1.3, rib_h=0.40, arms_deg=(115.0, -5.0, 235.0), stipple=0.05,
+                  size=(1024, 886))
+# The black lower part of the side panel (the airbox's side): raised Y-shaped ribs, three arms 120 deg apart, all the
+# same way round, on a hexagonal lattice, over a fine stipple. Detail 475833 at 2.4x (u 1500..2000, v 1450..1800),
+# its scale from the panel bolt in the same frame (hex 43 px for 8 mm: 0.186 mm/px): Y centres 92 px (17.1 mm)
+# apart along a row, the next row offset by half a pitch and 83 px (15.4 mm) across it (hexagonal: 14.8); arms 42 to
+# 52 px (8 to 10 mm) from the centre, 7 px (1.3 mm) wide, round ends, lit edges and a shadow on the far side
+# (raised); arms at about 117, -14 and 233 deg in the photo (its own tilt and perspective not removed: laid on the
+# panel at 115, -5, 235 deg, EST). Rib height 0.4 mm and stipple 0.05 mm: EST.
+
+
+def _tristar_height():
+    g = SIDE_COVER
+    W, H = g["size"]
+    tw, th = 2 * g["pitch"], 2 * g["pitch"] * math.sqrt(3) / 2         # the tile: two lattice steps each way
+    xs, ys = (np.arange(W) + 0.5) / W * tw, (np.arange(H) + 0.5) / H * th
+    X, Y = np.meshgrid(xs, ys[::-1])                                    # image rows run down, v runs up
+    d = np.full(X.shape, np.inf)
+    centres = [(0.0, 0.0), (g["pitch"], 0.0), (g["pitch"] / 2, th / 2), (1.5 * g["pitch"], th / 2)]
+    for cx, cy in centres:
+        for ox in (-tw, 0.0, tw):
+            for oy in (-th, 0.0, th):
+                ax, ay = cx + ox, cy + oy
+                for a in g["arms_deg"]:
+                    ex, ey = ax + g["arm"] * math.cos(math.radians(a)), ay + g["arm"] * math.sin(math.radians(a))
+                    vx, vy = ex - ax, ey - ay
+                    t = np.clip(((X - ax) * vx + (Y - ay) * vy) / (vx * vx + vy * vy), 0.0, 1.0)
+                    d = np.minimum(d, np.hypot(X - ax - t * vx, Y - ay - t * vy))
+    r = g["rib_w"] / 2
+    h = g["rib_h"] * np.sqrt(np.clip(1.0 - (d / r) ** 2, 0.0, 1.0)) ** 0.6
+    return h, tw / W, th / H
+
+
 def make_textures():
     """Write the normal maps this module's materials use into motocross-whip/textures/stock/."""
     from scipy.ndimage import gaussian_filter
@@ -384,6 +417,11 @@ def make_textures():
             * plastics.smoothstep_arr(edge / (0.35 * pitch))
     h = gaussian_filter(h, 0.8, mode="wrap")
     _normal_png(h, mmpp, os.path.join(TEXTURES, "seat_grain_n.png"))
+    # side cover: the ribs, softened over 1.5 px, and the stipple between them (pixels are square within 0.1 %)
+    h, sx, sy = _tristar_height()
+    st = gaussian_filter(rng.standard_normal(h.shape), 4.0, mode="wrap")
+    h = gaussian_filter(h, 1.5, mode="wrap") + SIDE_COVER["stipple"] * st / st.std()
+    _normal_png(h, 0.5 * (sx + sy), os.path.join(TEXTURES, "side_cover_n.png"))
 
 
 MATERIALS = {
@@ -393,6 +431,9 @@ MATERIALS = {
     # values (pair sheets, same boxes): top (238, 73, 76), skirt (243, 106, 108), roll band (248, 139, 141). Normal
     # strength 1.6: at 1.0 the pebbles read flatter than detail 475833's bright-topped ones (close-up, 0.1 mm/px).
     "seat": dict(rgb=(202, 22, 30), rough=0.72, sheen=0.6, normal="stock/seat_grain_n.png", normal_strength=1.6),
+    # the side panels' black lower part: satin black with the raised Y ribs (SIDE_COVER); UVs on its faces
+    # (plastics.side_panels, x and z over the tile)
+    "black_texture": dict(rgb=(22, 22, 24), rough=0.55, normal="stock/side_cover_n.png", normal_strength=1.0),
 }
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
