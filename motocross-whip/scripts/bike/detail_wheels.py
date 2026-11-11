@@ -227,6 +227,16 @@ class Section:
         r = np.interp(a, self.t, self.P[:, 1]) + h * np.interp(a, self.t, self.N[:, 1])
         return (y if t >= 0 else -y), r
 
+    def lift(self, t, h, lean):
+        """(y, r) arrays: the carcass at arc lengths t (>= 0) lifted h along a direction between the radial one
+        (lean 0: walls in the wheel's radial plane) and the surface normal (lean 1). Knobs are moulded leaning out
+        less than the carcass turns: the shoulder knobs nearly along the normal, the inner ones nearer radial."""
+        t = np.asarray(t, float)
+        ny, nr = np.interp(t, self.t, self.N[:, 0]), np.interp(t, self.t, self.N[:, 1])
+        dy, dr = lean * ny, lean * nr + (1 - lean)
+        k = np.hypot(dy, dr)
+        return (np.interp(t, self.t, self.P[:, 0]) + h * dy / k, np.interp(t, self.t, self.P[:, 1]) + h * dr / k)
+
 
 def tyre(spec, ctrl, rows, phase0=0.0, per=8):
     """Knobby tyre as one mesh. The carcass is a grid: PER columns per knob pitch round the wheel, and section
@@ -296,6 +306,140 @@ def tyre(spec, ctrl, rows, phase0=0.0, per=8):
                 f = f[::-1]
             m.face(f, "rubber")
     return m, na, a0, len(T)
+
+
+# ---------------------------------------------------------------- tread blocks (shaped knobs on a whole carcass)
+# A knob is built in its own plan coordinates: s along the tread in the direction of travel (+ = the leading edge,
+# the one that meets the ground first), t across = arc length of the carcass section from the crown centre line
+# (always >= 0 in the plan; the -y side is mirrored), z = height above the carcass. Walls have a moulding draft,
+# the plan's corners are rounded, the top edge has a quarter-round, the foot a small flare (the fillet at the
+# root) sunk 0.8 mm into the carcass, which is a whole grid under every knob (nothing hangs, nothing has holes).
+def _fillet(poly, r, n=3):
+    """Round the corners of a closed polygon with radius about R (quadratic arcs, N points each)."""
+    P = np.asarray(poly, float)
+    out = []
+    for i in range(len(P)):
+        a, b, c = P[i - 1], P[i], P[(i + 1) % len(P)]
+        u, v = a - b, c - b
+        lu, lv = np.linalg.norm(u), np.linalg.norm(v)
+        u, v = u / lu, v / lv
+        ang = math.acos(float(np.clip(u @ v, -1, 1)))
+        d = min(r / max(math.tan(ang / 2), 1e-3), 0.45 * lu, 0.45 * lv)
+        p0, p1 = b + u * d, b + v * d
+        for w in np.linspace(0, 1, n):
+            out.append((1 - w) ** 2 * p0 + 2 * (1 - w) * w * b + w ** 2 * p1)
+    return np.array(out)
+
+
+def _mitre(poly, d):
+    """Offset a closed counter-clockwise polygon by D (scalar or per vertex; > 0 outward), mitred corners."""
+    P = np.asarray(poly, float)
+    e = np.roll(P, -1, 0) - P
+    e /= np.linalg.norm(e, axis=1, keepdims=True)
+    n = np.stack([e[:, 1], -e[:, 0]], axis=1)                    # outward normal of the edge i -> i + 1
+    m = n + np.roll(n, 1, 0)
+    m /= np.linalg.norm(m, axis=1, keepdims=True)
+    k = 1.0 / np.clip((m * n).sum(axis=1), 0.45, None)
+    return P + np.asarray(d, float).reshape(-1, 1) * m * k[:, None]
+
+
+def _cap(loop, step):
+    """Triangles over a simple closed loop (its points first) with an interior grid, for knob tops."""
+    from scipy.spatial import Delaunay, cKDTree
+    loop = np.asarray(loop, float)
+    lo, hi = loop.min(axis=0), loop.max(axis=0)
+    gx, gz = np.meshgrid(np.arange(lo[0] + step / 2, hi[0], step), np.arange(lo[1] + step / 2, hi[1], step))
+    G = np.stack([gx.ravel(), gz.ravel()], axis=1)
+    G = G[inside(loop, G)] if len(G) else G
+    if len(G):
+        G = G[cKDTree(loop).query(G)[0] > 0.55 * step]
+    P = np.vstack([loop, G])
+    tri = Delaunay(P).simplices
+    tri = tri[inside(loop, P[tri].mean(axis=1))]
+    a, b, c = P[tri[:, 0]], P[tri[:, 1]], P[tri[:, 2]]
+    area = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
+    tri = tri[abs(area) > 1e-12]
+    area = area[abs(area) > 1e-12]
+    tri[area < 0] = tri[area < 0][:, ::-1]
+    return P, tri
+
+
+class Knob:
+    """Maps a knob's plan (s, t, z) to the wheel frame: centred at wheel angle A, on side SIDE (+1: +y), leaning
+    LEAN (Section.lift). The wheel turns forward: seen from +y the top moves to +x, so the leading edge is at the
+    smaller angle."""
+
+    def __init__(self, sec, a, side, lean):
+        self.sec, self.a, self.side, self.lean = sec, a, side, lean
+
+    def __call__(self, s, t, z):
+        s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+        y, r = self.sec.lift(t, z, self.lean)
+        rc = np.interp(t, self.sec.t, self.sec.P[:, 1])
+        ang = self.a - s / rc
+        return np.stack([r * np.cos(ang), self.side * y, r * np.sin(ang)], axis=-1)
+
+
+ROUND = 0.0009          # EST top edge quarter-round of a moulded knob (0.5 to 1 mm, MICRO.md)
+FLARE = 0.0010          # EST root fillet seen as a flare at the foot
+
+
+def _knob(m, xf, plan, h_of, draft, mat="rubber", base=None, top=True, wall_mat=None, top_mat=None, step=0.0032):
+    """One knob: PLAN (s, t) counter-clockwise at the root; H_OF(s, t) its height. BASE: start the walls at this
+    height (no root flare; a knob stacked on another one); TOP False: a flat top without the round (a floor seen
+    only in a slit). WALL_MAT(i): material of the wall from plan vertex i to i + 1 (below the round). Returns the
+    top's boundary in 3D and in plan (for spews)."""
+    plan = _ccw(plan)
+    h = np.array([h_of(s, t) for s, t in plan])
+    td = math.tan(draft)
+    if base is None:
+        lv = [(np.full(len(h), -0.0008), FLARE), (np.zeros(len(h)), 0.5 * FLARE), (np.full(len(h), 0.0015), None)]
+    else:
+        lv = [(np.full(len(h), base), None)]
+    if top:
+        lv += [(h - ROUND, None), (h - 0.293 * ROUND, -0.293 * ROUND), (h, -ROUND)]
+    else:
+        lv += [(h, None)]
+    rings = []
+    for z, extra in lv:
+        off = -np.maximum(z, 0.0) * td + (0.0 if extra is None else extra)
+        Q = _mitre(plan, off)
+        rings.append((Q, z))
+    o = len(m.V)
+    for Q, z in rings:
+        m.verts(xf(Q[:, 0], Q[:, 1], z))
+    n = len(plan)
+    faces = []
+    for k in range(len(rings) - 1):
+        for i in range(n):
+            j = (i + 1) % n
+            mat_i = wall_mat(i) if (wall_mat and k < len(rings) - (3 if top else 1)) else mat
+            faces.append(((o + k * n + i, o + k * n + j, o + (k + 1) * n + j, o + (k + 1) * n + i), mat_i))
+    Qt, zt = rings[-1]
+    P2, tri = _cap(Qt, step)
+    extra_pts = P2[n:]
+    ot = o + (len(rings) - 1) * n
+    oe = m.verts(xf(extra_pts[:, 0], extra_pts[:, 1], [h_of(s, t) for s, t in extra_pts])) if len(extra_pts) else 0
+    for tr in tri:
+        faces.append((tuple(ot + i if i < n else oe + i - n for i in tr), top_mat or mat))
+    # winding: the top faces the way the knob stands (from the carcass out)
+    tr0 = faces[-1][0]
+    A, B, C = (np.asarray(m.V[i]) for i in tr0)
+    s0, t0 = P2[tri[-1]].mean(axis=0)
+    up = xf(s0, t0, float(h_of(s0, t0)) + 0.001) - xf(s0, t0, float(h_of(s0, t0)))
+    flip = np.cross(B - A, C - A) @ up < 0
+    for f, mt in faces:
+        m.face(f[::-1] if flip else f, mt)
+    return xf(Qt[:, 0], Qt[:, 1], zt), Qt
+
+
+def _spew(m, p, d, length, rng):
+    """A mould vent hair: rubber whisker 0.45 mm thick, LENGTH long, from P along D, slightly bent."""
+    d = d / np.linalg.norm(d)
+    side = np.cross(d, rng.normal(size=3))
+    side /= np.linalg.norm(side)
+    path = [p - d * 0.0004, p + d * length * 0.5 + side * length * 0.06, p + d * length]
+    m.add(tube(path, [0.00024, 0.00022, 0.00016], 3, "tyre_spew"))
 
 
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
