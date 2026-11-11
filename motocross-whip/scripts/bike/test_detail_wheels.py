@@ -18,10 +18,14 @@ def built():
     return {name: fn() for name, fn in dw.PARTS.items()}
 
 
+TYRE = ("tyre", "rubber")             # the tyre's moulded rubber (vent hairs are "tyre_spew")
+
+
 def _radii(mesh, centre, mat=None):
     V = np.asarray(mesh.V)
     if mat is not None:
-        idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m == mat for i in f})
+        mats = (mat,) if isinstance(mat, str) else mat
+        idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m in mats for i in f})
         V = V[idx]
     return np.hypot(V[:, 0] - centre[0], V[:, 2] - centre[2]), V
 
@@ -29,7 +33,7 @@ def _radii(mesh, centre, mat=None):
 def test_parts_and_budget(built):
     assert set(built) == {"front_wheel", "rear_wheel", "drive", "rear_brake"}
     assert set(dw.REPLACES) == {"front_wheel", "rear_wheel", "drive"} and dw.FRONT_END == {"front_wheel"}
-    assert sum(len(m.V) for m in built.values()) <= 130000
+    assert sum(len(m.V) for m in built.values()) <= 450000             # the micro-detail brief's budget
     for m in built.values():
         assert all(0 <= i < len(m.V) for f in m.F for i in f) and len(m.F) == len(m.M)
 
@@ -38,7 +42,7 @@ def test_tyre_diameters(built):
     # knob tips on the shared radii (LEFT / RIGHT circle fits). The front stands 3.6 % over its size code's nominal
     # 693.4 mm in Honda's photos, the rear 0.9 % over 662.6 mm.
     for name, c, R, nominal in (("front_wheel", parts.FA, parts.R_FRONT, 0.6934), ("rear_wheel", parts.RA, parts.R_REAR, 0.6626)):
-        r, _ = _radii(built[name], c, "rubber")
+        r, _ = _radii(built[name], c, TYRE)
         assert abs(r.max() - R) < 0.0008, name
         assert abs(2 * r.max() / nominal - 1) < 0.04, name
     # the carcass between the knobs is where the photos show the groove floor (it did not move with the tips)
@@ -49,9 +53,83 @@ def test_tyre_diameters(built):
 def test_tyre_widths(built):
     # FRONT rows 1900..2000: 137 px; REAR rows 1750..1975: 139 px (88 to 92 mm through the cameras)
     for name, spec in (("front_wheel", dw.FRONT), ("rear_wheel", dw.REAR)):
-        _, V = _radii(built[name], (0, 0, 0), "rubber")
+        _, V = _radii(built[name], (0, 0, 0), TYRE)
         assert abs((V[:, 1].max() - V[:, 1].min()) - spec["width"]) < 0.003, name
         assert abs(V[:, 1].max() + V[:, 1].min()) < 0.001, name
+
+
+def test_rear_sidewall_marks():
+    """Raised marks where the LEFT and RIGHT photos show them (unwrapped about the rear axle)."""
+    lay = dw.REAR_WALL
+    left = {(txt or kind): (lay["emblem"][0] + d0, lay["emblem"][0] + (d1 if d1 is not None else d0), r, cap)
+            for kind, txt, d0, d1, r, cap in lay["items"]}
+    a0, a1, r, cap = left["SCORPION  MX32"]
+    assert abs(a0 - 84) < 2 and abs(a1 - 160) < 2 and abs(r - 0.2665) < 0.001 and abs(cap - 0.016) < 0.001
+    a0, a1, r, cap = left["100/90-19  57M  NHS"]
+    assert abs(a0 - 272) < 2 and abs(a1 - 337.5) < 2 and abs(cap - 0.0115) < 0.001
+    assert lay["emblem"][1] - 2 < 97 < lay["emblem"][1] + 2                # RIGHT: the emblem before SCORPION
+    polys, w = dw._text_polys("SCORPION", 0.016)
+    V = np.vstack(polys)
+    assert abs(V[:, 1].max() - 0.016) < 0.0006                            # cap height (O overshoots a little)
+    # the marks stand MARK_H proud of the sidewall and stay below the shoulder knobs' roots (r 294)
+    assert all(r + cap * (0.6 if kind == "emblem" else 1.3) < 0.290 for kind, txt, d0, d1, r, cap in lay["items"])
+    assert 0.0005 <= dw.MARK_H <= 0.0012
+
+
+def test_front_tread_and_wall():
+    """The front MX32 pattern: 41 rows (side scans, 8.78 deg), every pitch alike, tips at R_FRONT; the size code
+    80/100-21 M/C 51M MST (SPEC) where the LEFT photo shows it (267..340 deg)."""
+    assert dw.FRONT["pitches"] == 41
+    sec = dw.Section(dw.FRONT, dw.FRONT_SECTION)
+    m, na, a0, n_t = dw.carcass(sec, 41, dw.FRONT_PHASE, 8, 0.050)
+    nf = len(m.F)
+    dw.front_tread(m, sec, 41, a0, dw.FRONT)
+    V = np.asarray(m.V)
+    knob = np.array(sorted({i for f, mt in zip(m.F[nf:], m.M[nf:]) if mt == "tyre" for i in f}))
+    assert abs(np.hypot(V[knob, 0], V[knob, 2]).max() - dw.FRONT["R"]) < 1e-4
+    assert len(knob) % 41 == 0
+    P = V[knob].reshape(41, -1, 3)
+    turn = 2 * math.pi / 41
+    rot = np.array([[math.cos(turn), 0, -math.sin(turn)], [0, 1, 0], [math.sin(turn), 0, math.cos(turn)]])
+    assert np.allclose(P[0] @ rot.T, P[1], atol=1e-6)
+    lay = {txt: (d0, d1) for kind, txt, d0, d1, r, cap in dw.FRONT_WALL["items"] if kind == "text"}
+    d0, d1 = lay["80/100-21  M/C  51M  MST"]
+    e = dw.FRONT_WALL["emblem"][0]
+    assert abs(e + d0 - 267) < 2 and abs(e + d1 - 340) < 2
+
+
+def test_rear_tread():
+    """The rear MX32 pattern (REAR_TREAD): 46 rows, each a slit centre knob, two intermediates, two shoulders half
+    a pitch on, a pad; the outline the LEFT photo shows; vent hairs on the knobs."""
+    q = dw.REAR_TREAD
+    assert dw.REAR["pitches"] == 46                                       # LEFT / RIGHT scans: 7.83 deg a row
+    sec = dw.Section(dw.REAR, dw.REAR_SECTION)
+    m, na, a0, n_t = dw.carcass(sec, 46, dw.REAR_PHASE, 8, 0.054)
+    nv, nf = len(m.V), len(m.F)
+    dw.rear_tread(m, sec, 46, a0, dw.REAR)
+    knob_f = [f for f, mt in zip(m.F[nf:], m.M[nf:]) if mt == "tyre"]
+    spews = sum(1 for mt in m.M[nf:] if mt == "tyre_spew") // 12            # 12 faces a hair (3 sides, 3 rings)
+    assert 46 * 4 < spews < 46 * 22
+    V = np.asarray(m.V)
+    knob = np.array(sorted({i for f in knob_f for i in f}))
+    rk = np.hypot(V[knob, 0], V[knob, 2])
+    assert abs(rk.max() - dw.REAR["R"]) < 1e-4                             # the centre knobs' tops: the tip radius
+    # the centre knob's slit: at the top the halves stand 3.5 to 6 mm apart, the floor 1 to 2.5 mm wide
+    c = q["centre"]
+    top_gap = 2 * (c["slit_t"] + c["slit_z"] * math.tan(math.radians(c["draft"])) +
+                   (dw.REAR["knob"] - c["slit_z"]) * math.tan(math.radians(c["slit_draft"])))
+    assert 0.0035 < top_gap + 2 * dw.ROUND < 0.006 and 0.001 < 2 * (c["slit_t"] + c["slit_z"] * math.tan(
+        math.radians(c["draft"]))) < 0.0025
+    # knobs of one pitch do not touch: intermediate and shoulder half a pitch apart leave a gap at their roots
+    rc = sec.at(q["shoulder"]["t0"])[1]
+    gap = math.pi * rc / 46 - q["inter"]["s"] - q["shoulder"]["s"] - 2 * dw.FLARE
+    assert gap > 0.0005
+    # every pitch alike: the knob vertices come in 46 equal sets, one 7.83 deg turn apart
+    assert len(knob) % 46 == 0
+    P = V[knob].reshape(46, -1, 3)
+    turn = 2 * math.pi / 46
+    rot = np.array([[math.cos(turn), 0, -math.sin(turn)], [0, 1, 0], [math.sin(turn), 0, math.cos(turn)]])
+    assert np.allclose(P[0] @ rot.T, P[1], atol=1e-6)
 
 
 def test_rims(built):
@@ -62,18 +140,64 @@ def test_rims(built):
         seat = prof[np.isclose(prof[:, 0], spec["rb"])]
         assert len(seat) == 2 and abs(abs(seat[:, 1]).max() * 2 - w_in * IN) < 1e-6
         r, _ = _radii(built[name], c, "rim")
-        assert abs(r.min() - spec["r_in"]) < 0.0005 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
+        # the inner face at r_in (the nipples' eyelets stand 0.6 mm proud of it)
+        assert abs(r.min() - (spec["r_in"] - 0.0006)) < 0.0003 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
+
+
+def test_rear_sprocket():
+    """50 teeth on the #520 pitch circle, six bolts on the 153 mm circle, twelve windows (six A between the bolts,
+    six B above them) where the LEFT photo shows them, and teeth chamfered to 55 % at the tip."""
+    m = dw.rear_sprocket(0.3)
+    V = np.asarray(m.V)
+    r = np.hypot(V[:, 0], V[:, 2])
+    tip = r > r.max() - 0.0002
+    assert abs(r.max() - (parts.sprocket_r(50) + dw.TIP_H)) < 0.0003
+    assert np.ptp(V[tip, 1]) < 0.6 * dw.SPROCKET_T and np.ptp(V[r < 0.11, 1]) > 0.99 * dw.SPROCKET_T
+    # window material shows at r 80 between the bolts (A) and at r 100 over the bolts (B): no plate vertex there
+    for rr, a0 in ((0.082, dw.SPROCKET_BOLT0 + math.pi / 6), (0.100, dw.SPROCKET_BOLT0)):
+        for k in range(6):
+            a = a0 + k * math.pi / 3
+            d = np.hypot(V[:, 0] - rr * math.cos(a), V[:, 2] - rr * math.sin(a))
+            assert d.min() > 0.004
+    assert abs(dw.SPROCKET_BOLT_R - 0.0765) < 1e-9
+
+
+def test_rim_print(built):
+    """The decal strip lies on the side bands only, once a side, where the side photos show it, with UVs inside
+    the texture; the textures exist (python3 detail_wheels.py paints them)."""
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name, which, c in (("rear_wheel", "rear", parts.RA), ("front_wheel", "front", parts.FA)):
+        assert os.path.exists(os.path.join(here, "..", "..", "textures", "stock", "rim_%s.png" % which))
+        m = built[name]
+        mat = "rim_print_" + which[0]
+        fi = [i for i, mt in enumerate(m.M) if mt == mat]
+        assert fi and all(i in m.uv for i in fi)
+        uv = np.array([q for i in fi for q in m.uv[i]])
+        assert uv[:, 0].min() > -0.01 and uv[:, 0].max() < 1.0 and 0.0 < uv[:, 1].min() and uv[:, 1].max() < 1.0
+        V = np.asarray(m.V)
+        P = V[[m.F[i][0] for i in fi]] - c
+        ang = np.degrees(np.arctan2(P[:, 2], P[:, 0])) % 360
+        dec = (ang < dw.RIM_DECAL[which] + 30) & (ang > dw.RIM_DECAL[which] - 3)
+        assert dec.sum() > 0.25 * len(fi)                                  # the decals at 258..288 deg
+        assert set(np.sign(P[:, 1])) == {-1.0, 1.0}                         # both sides
+        prof = np.array(dw.rim_profile(dw.REAR if which == "rear" else dw.FRONT))
+        assert abs(prof[3, 1] - prof[4, 1]) < 0.0005                        # the band is flat (decals lie flat)
 
 
 def test_spokes():
-    for spec, rh, yl, yr in ((dw.FRONT, dw.FRONT_HUB_R, 0.0305, -0.0365), (dw.REAR, dw.REAR_HUB_R, 0.046, -0.040)):
-        sp = dw.spoke_lines(spec, rh, yl, yr)
-        assert len(sp) == 36
+    # front 36 (SPEC, counted), rear 32 (counted round the rim in both side photos), three-cross, rim holes where
+    # the photos' nipples are: front 8.3 deg mod 10, rear 9.0 mod 11.25
+    for spec, rh, yl, yr, n, ph in ((dw.FRONT, dw.FRONT_HUB_R, 0.0305, -0.0365, 36, 8.3),
+                                    (dw.REAR, dw.REAR_HUB_R, 0.046, -0.040, 32, 9.0)):
+        sp = dw.spoke_lines(spec, rh, yl, yr, phase=dw.FRONT_SPOKE0 if spec is dw.FRONT else dw.REAR_SPOKE0)
+        assert len(sp) == n
         rim = sorted(round(math.degrees(math.atan2(p1[2], p1[0])) % 360, 3) for _, p1, _, _ in sp)
-        assert np.allclose(np.diff(rim), 10.0, atol=1e-3)                 # one nipple every 10 deg
+        assert np.allclose(np.diff(rim), 360 / n, atol=1e-3)              # one nipple every 360 / n deg
+        assert abs((rim[0] - ph + 180 / n) % (360 / n) - 180 / n) < 0.6
         assert all(abs(np.hypot(p0[0], p0[2]) - rh) < 1e-9 and abs(np.hypot(p1[0], p1[2]) - spec["r_in"]) < 1e-9
                    for p0, p1, _, _ in sp)
-        assert sum(1 for p0, _, _, _ in sp if p0[1] > 0) == 18
+        assert sum(1 for p0, _, _, _ in sp if p0[1] > 0) == n // 2
 
 
 def test_discs(built):
@@ -127,7 +251,7 @@ def test_sprockets_and_chain():
 def test_wheelbase_and_ground(built):
     assert abs((parts.FA[0] - parts.RA[0]) - 1.483) < 1e-9                  # SPEC wheelbase
     for name, c in (("front_wheel", parts.FA), ("rear_wheel", parts.RA)):
-        r, V = _radii(built[name], c, "hub")
+        r, V = _radii(built[name], c, ("hub", "hub_cast"))
         assert abs(V[:, 0].mean() - c[0]) < 0.002 and abs(V[:, 2].mean() - c[2]) < 0.002
     # on the ground (parts.to_ground: nose-up by GROUND_PITCH, the ground GROUND_DROP under the frame's z = 0)
     for name in ("front_wheel", "rear_wheel"):
