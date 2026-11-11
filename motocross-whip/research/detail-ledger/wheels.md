@@ -166,3 +166,42 @@ raised from a surface: Delaunay top, walls facing out), `_arc_map` (text on an a
   question as the rear (section 1), reported.
 - 475831 shows the size code on another part of the wall: the wheel turns between photos; the studio photos place
   the marks.
+
+## 4. Rims (D.I.D DirtStar, black anodised, 21 x 1.60 and 19 x 1.85)
+
+### Anatomy
+- Section: flat inner face (the spoke bed, nipples come through it), rounded corner, flat side band (the decals'
+  ground), rounded flange lip, bead seats on the WM contour with a small hump, drop-centre well (hidden by the tyre).
+- Decals once on each side of each rim: white "D.I.D" (bold slab-serif block letters) and "DirtStar" (outlined
+  italic small caps, a star in the A), tops toward the tyre, reading clockwise seen from that side.
+- Dark print "D.I.D JAPAN 76-08 10" and the size (475831: black on the black band).
+- Finish: black anodised aluminium (satin; a dielectric film, so a plain, not metallic, gloss).
+
+### References
+- DR13 (decals, lip, band, nipple seats); 475831 (dark print); LEFT / RIGHT unwraps (decal places, both rims);
+  LEFT pairs `SCRATCH/p_rim4.jpg`, `p_rim6.jpg`, RIGHT `p_rim5.jpg`.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Bead seat diameter, width | 21 x 1.60 in, 19 x 1.85 in | SPEC (test_rims) |
+| Inner face radius | 256 front, 229 rear | LEFT / RIGHT radial scans (unchanged) |
+| Flange top | rb + 11 / 10.5 mm | SPEC WM contour (unchanged) |
+| Flange thickness, band plane | 3.5 mm: rim 54 mm over the bands (rear), 48 (front) | EST |
+| Decal place | 258..286 deg rear, 260..288 front, both sides (right side reads back down) | LEFT / RIGHT unwraps |
+| Decal size | letters 12 mm (D.I.D squeezed to 2.7 : 1), DirtStar caps 11 / 8.5 mm, 117 mm end to end | LEFT pair: letters 70 % of the band; DR13 |
+| Texture | strip 400 x 25 mm, 4096 x 256 px (10 px a mm) | painted by `rim_texture()` (`python3 detail_wheels.py`) |
+
+### What was built
+`rim_profile` (new section), `_rim` (band faces inside the decal strip get `rim_print_r` / `rim_print_f` and their
+own UVs), `rim_texture` (PIL, fonts bundled with matplotlib) -> `textures/stock/rim_rear.png`, `rim_front.png`;
+the `rim` material overridden to a plain satin black (no other module uses it).
+
+### Checks
+- `SCRATCH/p_rim6.jpg`: LEFT pair at the rear decal (upside down at the bottom, DirtStar left of D.I.D, as the
+  photo). `SCRATCH/r13/render_cu_dec.png`: close-up (decal and the tyre's size code both upside down there).
+  (One wrong turn on the way: a v flip from a misread thumbnail mirrored the letters; the close-up settled it.)
+
+### Still different, and why
+- The rim joint (a weld line across the band) is not visible in any photo: not modelled.
+- D.I.D's own letter shapes are approximated with DejaVu Serif Bold, squeezed.

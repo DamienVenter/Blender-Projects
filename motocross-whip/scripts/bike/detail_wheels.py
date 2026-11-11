@@ -20,8 +20,13 @@ REPLACES = ["front_wheel", "rear_wheel", "drive"]
 FRONT_END = {"front_wheel"}
 SMOOTH = {"front_wheel": 32, "rear_wheel": 32, "drive": 32, "rear_brake": 35}
 MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos: lit knob faces show a dull sheen
-             "tyre_spew": dict(rgb=(15, 15, 16), rough=0.72)}   # the tyre's own rubber
-CLASS = {"tyre": "black", "tyre_spew": "black"}
+             "tyre_spew": dict(rgb=(15, 15, 16), rough=0.72),
+             # black anodised aluminium: the anodic film is a dielectric, so its gloss is plain (not metallic) and
+             # the printed strip and the bare rim look alike except for the print
+             "rim": dict(rgb=(12, 12, 13), metal=0.0, rough=0.32),
+             "rim_print_r": dict(image="stock/rim_rear.png", metal=0.0, rough=0.32),
+             "rim_print_f": dict(image="stock/rim_front.png", metal=0.0, rough=0.32)}   # the tyre's own rubber
+CLASS = {"tyre": "black", "tyre_spew": "black", "rim_print_r": "black", "rim_print_f": "black"}
 IN = 0.0254
 
 # ---------------------------------------------------------------- measured and specified dimensions
@@ -783,14 +788,66 @@ FRONT_WALL = dict(emblem=(64.0, 105.0), items=[
 
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
 def rim_profile(spec):
-    """Closed section (r, y) of the rim: well, bead seats, flanges with rolled lips (D.I.D DirtStar, WM contour)."""
+    """Closed section (r, y) of the rim (D.I.D DirtStar): a flat inner face carrying the nipples, a flat side band
+    (where the decals are) 3.5 mm outside the bead seats, a rounded flange lip, the bead seats on the WM contour and
+    the drop-centre well. Points 3 -> 4 are the +y side band, 22 -> 23 the -y one; 9 and 17 the bead seats."""
     rb, hw, hf, ri = spec["rb"], spec["hw"], spec["hf"], spec["r_in"]
-    lip = 0.0045                                                 # EST flange lip thickness
-    half = [(ri, 0.0), (ri, 0.45 * hw), (ri + 0.0035, 0.80 * hw), (rb - 0.004, hw + lip - 0.0012),
-            (rb + hf - 0.0025, hw + lip), (rb + hf - 0.0006, hw + lip - 0.0008), (rb + hf, hw + lip / 2),
-            (rb + hf - 0.0008, hw + 0.0006), (rb + hf - 0.003, hw), (rb, hw), (rb - 0.0006, 0.60 * hw),
-            (ri + 0.0050, 0.40 * hw), (ri + 0.0035, 0.20 * hw)]
-    return half + [(ri + 0.0035, 0.0)] + [(r, -y) for r, y in half[:0:-1]]
+    ys = hw + RIM_FLANGE_T                                       # the side band's plane
+    half = [(ri, 0.0), (ri, ys - 0.0025), (ri + 0.0007, ys - 0.0007), (ri + 0.0025, ys),
+            (rb + hf - 0.0035, ys + 0.0003), (rb + hf - 0.0012, ys + 0.0001), (rb + hf, ys - 0.0018),
+            (rb + hf - 0.0010, ys - 0.0034), (rb + hf - 0.0030, hw + 0.0002), (rb, hw), (rb - 0.0006, 0.60 * hw),
+            (ri + 0.0060, 0.40 * hw), (ri + 0.0045, 0.20 * hw)]
+    return half + [(ri + 0.0045, 0.0)] + [(r, -y) for r, y in half[:0:-1]]
+
+
+RIM_FLANGE_T = 0.0035   # EST flange 3.5 mm thick: the rim 54 mm wide over the bands at the rear (19 x 1.85), 48 front
+# Decals (DR13, studio unwraps of both side photos): white "D.I.D" and "DirtStar" once on each side of each rim,
+# reading clockwise seen from that side, tops toward the tyre, at 258..282 deg (rear) and 260..282 (front) in both
+# side photos; letters 10 mm (DR13: the D.I.D letters 45 px against nipples 27 px across 6 mm flats), D.I.D 29 mm
+# long, DirtStar 73 mm. The dark print "D.I.D JAPAN 76-08 10" and the size (475831: black on black, beside the
+# spoke holes) EST 95 deg further on.
+RIM_DECAL = {"rear": 258.0, "front": 260.0}
+RIM_TEX = dict(L=0.400, H=0.025)                 # texture strip: 400 x 25 mm, 4096 x 256 px (10.24 px a mm)
+RIM_DECAL_LEN = 0.117                            # D.I.D and DirtStar end to end on the strip
+
+
+def rim_texture(which, out):
+    """Paint the rim strip texture (stock/rim_<which>.png): the rim's black, white decals, dark print."""
+    import os
+    import matplotlib
+    from PIL import Image, ImageDraw, ImageFont
+    W, H = 4096, 256
+    k = W / (RIM_TEX["L"] * 1000)                                # px a mm
+    ttf = os.path.join(matplotlib.get_data_path(), "fonts", "ttf")
+    serif = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSerif-Bold.ttf"), int(mm * k / 0.73))
+    obl = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSans-BoldOblique.ttf"), int(mm * k / 0.73))
+    sans = lambda mm: ImageFont.truetype(os.path.join(ttf, "DejaVuSans-Bold.ttf"), int(mm * k / 0.73))
+    im = Image.new("RGB", (W, H), (12, 12, 13))
+    d = ImageDraw.Draw(im)
+    base = H / 2 + 6 * k                         # letters 12 mm, centred on the band (LEFT pair: 70 % of the band)
+    x = 4 * k
+    # D.I.D: compact block letters (LEFT pair p_rim1: 2.7 times as long as tall): drawn, then squeezed to 78 %
+    w0 = int(d.textlength("D.I.D", font=serif(12))) + 4
+    tile = Image.new("RGB", (w0, H), (12, 12, 13))
+    ImageDraw.Draw(tile).text((2, base), "D.I.D", font=serif(12), fill=(236, 236, 232), anchor="ls")
+    tile = tile.resize((int(w0 * 0.78), H), Image.LANCZOS)
+    im.paste(tile, (int(x), 0))
+    x += tile.width + 9 * k
+    for ch, mm in (("D", 11), ("I", 8.5), ("R", 8.5), ("T", 8.5), ("S", 11), ("T", 8.5), ("A", 8.5), ("R", 8.5)):
+        f = obl(mm)
+        d.text((x, base), ch, font=f, fill=(12, 12, 13), anchor="ls", stroke_width=max(2, int(0.45 * k)),
+               stroke_fill=(236, 236, 232))
+        if ch == "A":                                            # the star in the A of STAR
+            cx, cy, rr = x + 0.42 * d.textlength("A", font=f), base - 2.6 * k, 1.6 * k
+            pts = [(cx + (rr if i % 2 == 0 else 0.42 * rr) * math.sin(i * math.pi / 5),
+                    cy - (rr if i % 2 == 0 else 0.42 * rr) * math.cos(i * math.pi / 5)) for i in range(10)]
+            d.polygon(pts, fill=(236, 236, 232))
+        x += d.textlength(ch, font=f) + 0.4 * k
+    size = "19X1.85" if which == "rear" else "21X1.60"
+    d.text((200 * k, H / 2 + 2.5 * k), "D.I.D  JAPAN     76 - 08  10 -       %s" % size, font=sans(5),
+           fill=(44, 44, 47), anchor="ls")
+    im.save(out)
+    return out
 
 
 def spoke_lines(spec, r_hub, y_left, y_right, flange_t=0.006, phase=0.0):
@@ -809,23 +866,40 @@ def spoke_lines(spec, r_hub, y_left, y_right, flange_t=0.006, phase=0.0):
     return out
 
 
-def _rim(m, spec, na, a0, n_t):
+def _rim(m, spec, na, a0, n_t, which):
     """Rim on the tyre's own columns (M holds the tyre, its bead rings first and last): the beads are joined to the
-    rim's seats by a hidden strip, so tyre and rim are one mesh. Returns the rim's first vertex."""
+    rim's seats by a hidden strip, so tyre and rim are one mesh. The side bands carry the printed strip (rim_print_*
+    material, its own UVs) where the decals are. Returns the rim's first vertex."""
     prof = rim_profile(spec)
     ang = a0 + 2 * math.pi * np.arange(na) / na
     off = len(m.V)
     for r, y in prof:
         m.verts(np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1))
+    L, Ht = RIM_TEX["L"], RIM_TEX["H"]
+    rm = 0.5 * (prof[3][0] + prof[4][0])                         # the band's middle radius
+    a_dec = math.radians(RIM_DECAL[which])
     for p in range(len(prof)):
         p2 = (p + 1) % len(prof)
+        band = {3: 1, 22: -1}.get(p)
         for i in range(na):
             i2 = (i + 1) % na
-            m.face((off + p * na + i, off + p * na + i2, off + p2 * na + i2, off + p2 * na + i), "rim")
+            f = (off + p * na + i, off + p * na + i2, off + p2 * na + i2, off + p2 * na + i)
+            mat = "rim"
+            if band:
+                # arc length along the reading direction (clockwise seen from the band's side) from the decal start
+                a_s = a_dec if band > 0 else a_dec + RIM_DECAL_LEN / rm       # the right side reads back down
+                aa = [ang[i], ang[i] + 2 * math.pi / na]
+                s = [band * (((aa[q] - a_s + math.pi) % (2 * math.pi)) - math.pi) * rm for q in (0, 1, 1, 0)]
+                if -0.002 < min(s) and max(s) < L - 0.002 and max(s) - min(s) < 0.02:
+                    mat = "rim_print_" + which[0]
+                    rr = [prof[p][0], prof[p][0], prof[p2][0], prof[p2][0]]
+                    # v grows outward: the letters' tops face the tyre (LEFT pair: upside down at the bottom)
+                    m.uv[len(m.F)] = [(sj / L, 0.5 + (rj - rm) / Ht) for sj, rj in zip(s, rr)]
+            m.face(f, mat)
     for ring_t, ring_r in ((0, 9), (n_t - 1, 17)):               # profile points 9 and 17: the two bead seats
         for i in range(na):
             i2 = (i + 1) % na
-            m.face((ring_t * na + i, ring_t * na + i2, off + ring_r * na + i2, off + ring_r * na + i), "rubber")
+            m.face((ring_t * na + i, ring_t * na + i2, off + ring_r * na + i2, off + ring_r * na + i), "tyre")
     return off
 
 
@@ -1158,7 +1232,7 @@ def rear_tyre():
 def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems, tyre_fn):
     """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
     m, na, a0, n_t = tyre_fn()
-    _rim(m, spec, na, a0, n_t)
+    _rim(m, spec, na, a0, n_t, "rear" if spec is REAR else "front")
     _hub(m, prof, mats, spoke0)
     _spokes(m, spec, rh, yl, yr, spoke0)
     for ang, lock in stems:
@@ -1273,6 +1347,12 @@ def _hull(circles, n=20):
     pts = np.vstack([np.stack([x + r * np.cos(a), z + r * np.sin(a)], axis=1) for x, z, r in circles])
     return pts[ConvexHull(pts).vertices]
 
+
+if __name__ == "__main__":                       # python3 detail_wheels.py: repaint the rim strips
+    import os
+    for w in ("rear", "front"):
+        print(rim_texture(w, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "stock",
+                                          "rim_%s.png" % w)))
 
 PARTS = {name: (lambda fn=fn: _compact(fn())) for name, fn in
          (("front_wheel", front_wheel), ("rear_wheel", rear_wheel), ("drive", drive), ("rear_brake", rear_brake))}

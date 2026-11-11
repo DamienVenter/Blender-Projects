@@ -143,6 +143,29 @@ def test_rims(built):
         assert abs(r.min() - spec["r_in"]) < 0.0005 and abs(r.max() - (spec["rb"] + spec["hf"])) < 0.0005
 
 
+def test_rim_print(built):
+    """The decal strip lies on the side bands only, once a side, where the side photos show it, with UVs inside
+    the texture; the textures exist (python3 detail_wheels.py paints them)."""
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name, which, c in (("rear_wheel", "rear", parts.RA), ("front_wheel", "front", parts.FA)):
+        assert os.path.exists(os.path.join(here, "..", "..", "textures", "stock", "rim_%s.png" % which))
+        m = built[name]
+        mat = "rim_print_" + which[0]
+        fi = [i for i, mt in enumerate(m.M) if mt == mat]
+        assert fi and all(i in m.uv for i in fi)
+        uv = np.array([q for i in fi for q in m.uv[i]])
+        assert uv[:, 0].min() > -0.01 and uv[:, 0].max() < 1.0 and 0.0 < uv[:, 1].min() and uv[:, 1].max() < 1.0
+        V = np.asarray(m.V)
+        P = V[[m.F[i][0] for i in fi]] - c
+        ang = np.degrees(np.arctan2(P[:, 2], P[:, 0])) % 360
+        dec = (ang < dw.RIM_DECAL[which] + 30) & (ang > dw.RIM_DECAL[which] - 3)
+        assert dec.sum() > 0.25 * len(fi)                                  # the decals at 258..288 deg
+        assert set(np.sign(P[:, 1])) == {-1.0, 1.0}                         # both sides
+        prof = np.array(dw.rim_profile(dw.REAR if which == "rear" else dw.FRONT))
+        assert abs(prof[3, 1] - prof[4, 1]) < 0.0005                        # the band is flat (decals lie flat)
+
+
 def test_spokes():
     for spec, rh, yl, yr in ((dw.FRONT, dw.FRONT_HUB_R, 0.0305, -0.0365), (dw.REAR, dw.REAR_HUB_R, 0.046, -0.040)):
         sp = dw.spoke_lines(spec, rh, yl, yr)
