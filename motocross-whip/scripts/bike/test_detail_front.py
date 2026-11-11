@@ -309,3 +309,20 @@ def test_clutch_lever_dog_leg():
     i = int(np.argmin(off))
     assert -0.0215 < off[i] < -0.0185 and 0.25 < np.linalg.norm(line[i] - B) / np.linalg.norm(E - B) < 0.42
     assert abs(df.CP_BALL[0] - 0.055) < 0.002 and abs(df.CP_BALL[1] - 0.092) < 0.002
+
+
+def test_band_ties_hold_the_bar_and_the_lead():
+    """Round 2, component 4: each band's strap stays outside the bar and goes round the lead under it."""
+    for side in (1, -1):
+        m = df._bar_band(side)
+        v = np.asarray(m.V, float)
+        c, ax, rr = df._band_frame(side)
+        q = v - c
+        path = df.spline(df.bar_path() * [1, side, 1], 1200)              # the bar's axis every 0.4 mm
+        near = np.abs(q @ ax) < 0.006                                      # the strap (not the tail)
+        for p in v[near]:                                                  # outside the bar's own surface there
+            dd = np.linalg.norm(path - p, axis=1)
+            j = int(np.argmin(dd))
+            assert dd[j] > float(df.bar_r(path[j, 1])) + 0.0002
+        assert np.abs(q @ ax).max() < 0.040                                # a band, not a sleeve
+        assert (q @ df.Z).min() < -(rr + 0.0092 + 0.0029)                  # it reaches round the lead

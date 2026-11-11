@@ -826,6 +826,9 @@ def bars():
     m.add(grip(_Side(-1), right=True))
     # ---- the switches' leads (the switches themselves are in hand_controls: round 2, component 1)
     m.add(switch_leads())
+    # ---- band ties round the bar and the leads (round 2, component 4)
+    m.add(_bar_band(1))
+    m.add(_bar_band(-1))
     return m
 
 
@@ -1504,6 +1507,61 @@ def switch_left():
     return m
 
 
+BAND_A = {1: 0.2525, -1: 0.2800}     # band ties round the bar and the switch lead under it (fiche 25): TOP, round 1
+#   (the bar thick out to the tie at a 250..255 left, 280 right); DR05 / DR06 inboard of the clutch perch, DET830
+#   inboard of the master cylinder
+BAND = (0.0070, 0.0011, 0.0004, 0.0007)   # width, strap thickness, rib height, rib pitch: DR06 / DET830 ribs about a
+#   tenth of the band's width apart (EST from the photos' proportions: a 7 mm nylon tie)
+
+
+def _band_frame(side):
+    """The bar's axis point, direction and radius where a band tie sits (the bar has left the grip's axis there)."""
+    s = _Side(side)
+    path = bar_path() * [1, side, 1]
+    p0 = s.p(BAND_A[side])
+    j = int(np.argmin(np.abs(path[:, 1] - p0[1])))
+    ax = unit(path[min(j + 1, len(path) - 1)] - path[max(j - 1, 0)])
+    c = path[j] + (p0[1] - path[j, 1]) / ax[1] * ax
+    return c, ax, float(bar_r(c[1]))
+
+
+def _bar_band(side):
+    """A ribbed nylon band tie round the bar and the lead under it: the strap following the two as one loop, ribs
+    across its outside, the buckle under the lead and the cut tail hanging from it (DET830, DR06)."""
+    c, ax, rr = _band_frame(side)
+    e2 = unit(Z - (Z @ ax) * ax)
+    e1 = np.cross(e2, ax)
+    lead = rr + 0.0092                                                  # the lead's centre under the bar (_wire)
+    pts = [(math.cos(t) * (rr + 0.0010), math.sin(t) * (rr + 0.0010)) for t in np.linspace(0, 2 * math.pi, 48, False)]
+    pts += [(math.cos(t) * 0.0029, -lead + math.sin(t) * 0.0029) for t in np.linspace(0, 2 * math.pi, 24, False)]
+    w, th, rib, pitch = BAND
+    loop = _hull_outline(pts, 160, cut=0)
+    L = float(np.sum(np.linalg.norm(np.diff(np.vstack([loop, loop[:1]]), axis=0), axis=1)))
+    n = int(L / (pitch / 2))
+    loop = _hull_outline(pts, n, cut=0)
+    tng = np.roll(loop, -1, axis=0) - np.roll(loop, 1, axis=0)
+    out = np.stack([tng[:, 1], -tng[:, 0]], axis=1)
+    out /= np.linalg.norm(out, axis=1, keepdims=True)
+    if (out * (loop - loop.mean(axis=0))).sum() < 0:
+        out = -out
+    t_ = th + rib * (np.arange(n) % 2)                                  # ribs every PITCH round the outside
+    sec = rounded_rect(2.0, 2.0, 0.4, 2)                                # (across the band, out from the bar)
+    rings = []
+    for q, o, tt in zip(loop, out, t_):                                 # the strap's width along the bar's own axis
+        base = c + q[0] * e1 + q[1] * e2
+        o3 = o[0] * e1 + o[1] * e2
+        rings.append(np.array([base + (tt / 2 + y_ * tt / 2) * o3 + x_ * w / 2 * ax for x_, y_ in sec]))
+    m = _outward(grid(Mesh(), rings + rings[:1], "tie_band"))
+    # buckle under the lead and the tail hanging from it, angled a little forward (DET830)
+    bc = c + (-lead - 0.0029 - 0.0026) * e2
+    R = np.column_stack([ax, e1, e2])
+    m.add(box(bc, (w + 0.0012, 0.0062, 0.0048), "tie_band", R))
+    tail = [bc - 0.0020 * e2, bc - 0.0080 * e2 + 0.0015 * e1, bc - 0.0280 * e2 + 0.0060 * e1]   # DET830: about 4
+    m.add(tube(np.array(tail), np.array([[w / 2 * 0.9, th / 2]] * 3), 8, "tie_band",             # band widths long
+               section=rounded_rect(2.0, 2.0, 0.4, 2)))
+    return m
+
+
 def switch_leads():
     """The two switches' leads (in the bars' part: they run under the bar into the bar pad): the left one from its
     grommet's front over the bar's front and down into the run under the bar, the start switch's from its box's
@@ -1878,10 +1936,11 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
                               normal="stock/sw_start_n.png"),
              "led_lens": dict(rgb=(40, 52, 66), rough=0.05, spec=1.0),    # smoky lens: REAR (studio) blue-grey 90 117
              #   142 from the reflection, DR06 dark, DET829 clear over a light diffuser
-             "sw_body": dict(rgb=(26, 26, 28), rough=0.62, bump=0.08)}    # textured matte switch housing (DR06)
+             "sw_body": dict(rgb=(26, 26, 28), rough=0.62, bump=0.08),    # textured matte switch housing (DR06)
+             "tie_band": dict(rgb=(22, 22, 24), rough=0.55)}             # black nylon band ties (DR06, DET830)
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
-         "led_lens": "black", "sw_body": "black"}
+         "led_lens": "black", "sw_body": "black", "tie_band": "black"}
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "hand_controls": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],

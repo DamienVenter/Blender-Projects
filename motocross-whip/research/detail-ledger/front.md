@@ -496,3 +496,59 @@ built .blend), `patch.py`.
 - DR05 shows the left switch's top from the front as a taller block than the model's (as LEFT and lf34 do; REAR
   does not): see component 1.
 - The blade's thickness tapers in DR05 more sharply just past the dog-leg; the model's section changes linearly.
+
+## R2-4. Cables and hose routing - partly (band ties built; the routing itself not reworked)
+
+### Anatomy
+- Two black nylon band ties on the bar (fiche 25): a ribbed strap round the bar and what runs under it, a buckle
+  under the bundle, the cut tail hanging from the buckle (DET830: about four band widths long, ribs across it).
+  Left: inboard of the clutch perch round the bar and the switch lead (DR05, DR06). Right: inboard of the master
+  cylinder round the bar and the brake hose (DET830).
+- Cable ends and boots: the throttle cables' spouts and adjuster, the clutch adjuster, the leads' grommets (round 1
+  and components 1..3 above).
+
+### References
+- DR06 1000..1440 x 100..600 (left band), DR05 (left band), DET830 100..500 x 300..950 of `ref/d830_mc.jpg` (right
+  band and its tail), round 1's TOP crops for their positions.
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Positions | left a 252.5, right a 280 | TOP (round 1: the bar thick out to the tie at a 250..255 left, 280 right) |
+| Strap | 7 mm wide, 1.1 mm thick, ribs 0.4 mm every 0.7 mm, 1 mm clear of the bar | EST (a 7 mm tie; DR06 / DET830 ribs about a tenth of its width apart) |
+| Buckle, tail | 8.2 x 6.2 x 4.8 mm; tail 28 mm, angled a little forward | DET830 proportions |
+
+### What was built
+- `_band_frame()`, `_bar_band()` (in `bars`): the strap's loop is the hull of the bar and the lead under it, built
+  ring by ring in the bar's own frame (the right tie sits where the bar rises 24 deg: `tube()`'s world-up frame had
+  tilted the strap 2 mm into the bar there), ribs as alternate thicker rings, buckle and tail. Material `tie_band`.
+- Test `test_band_ties_hold_the_bar_and_the_lead` (the strap outside the bar's own surface everywhere, round the lead).
+
+### Checks
+- Close-ups `chk/b13.jpg` beside DR06 and DET830 (before the frame fix and the longer tail).
+- Audit (front parts and neighbours, `a_s14`): no cable through any part; seats only: switch leads 0.5 mm into their
+  grommet and box, throttle cables 0.7 mm into their spouts, holder bush 0.0.
+
+### Still different / not done
+- The right tie should hold the brake hose: in DET830 the hose runs from the banjo along under the bar through the
+  tie; the model's hose leaves the banjo forward and crosses over the number plate (round 1's FRONT "hose" scan), so
+  the tie holds only the start switch's lead. The hose's route at the bar, the clutch cable's run inboard of its
+  adjuster and the throttle cables passing in front of the reservoir's top in REAR are not reworked.
+- `fork_guards` / `front_brake` 1.5 mm at (1.327, 0.099, 0.698): the hose guide's grommet under the lower clamp
+  against the plastics' fork guard (that part changed in main since round 1): a shared issue, left for component 6.
+
+## Round 2 lessons (for the bike-modelling skill)
+- A feature behind or ahead of a ruler's plane reads at the wrong a in an end photo: with the bar swept 16 deg, 25 mm
+  of depth moves it 7 mm along the bar. Pick it in two calibrated photos and triangulate (`tri.py`).
+- `geom.tube()` orients its section from the world's up: a flat strap round a tilted axis comes out twisted into it.
+  Build such rings in the object's own frame.
+- Relief lettering on a face: for someone facing the bike's front, their right is the bike's left; check one letter
+  in a close-up before trusting a map.
+- A part's UVs are all dropped by build_bike.py if Blender removes one degenerate face of it: keep UV-mapped pieces
+  (buttons, decals, knurl) free of zero-area faces.
+
+## Round 2 status
+- Components 5 (fork tops), 6 (fork feet and caliper), 7 (front disc), 8 (front hub), 9 (front spoke lacing): not
+  started.
+- Module vertices: 82,528 (fork 3,920, clamps 5,000, bars 40,830, hand_controls 19,008, front_brake 4,206,
+  disc_guard 3,102, cables 6,462); budget 220,000.
