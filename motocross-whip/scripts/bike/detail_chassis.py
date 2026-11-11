@@ -587,7 +587,9 @@ class _Cast:
         self.leg_sd = None
         if s < 0:                                                    # the tabs' edges: 1.2 mm (r_mc: crisp lugs)
             self.leg_sd = _poly_sdist(_frame_outline(), 0.0003)
-            self.edge_r = np.where(self.leg_sd(fine) > 0.0015, 0.0012, self.edge_r)
+            self.tab_sd = _poly_sdist(_cast_px("right", TAB_PX, -Y_MID), 0.0003)   # only the tabs: not the lower
+            fs = (self.leg_sd(fine) > 0.0015) & (self.tab_sd(fine) < 0.002)       # section (audit: it was thin)
+            self.edge_r = np.where(fs, 0.0012, self.edge_r)
         self.piv = np.array([PIVOT[0], PIVOT[2]])
         if s > 0:
             a = np.radians(np.arange(0, 360, 60))                     # corners fore and aft
@@ -681,7 +683,7 @@ class _Cast:
         yi = base - T_SPAR + ki - wrap
         if self.leg_sd is not None:
             # the master cylinder's tabs are lugs 5 mm thick behind the leg (the cylinder's own lugs sit inboard of them)
-            tf = _smoothstep((self.leg_sd(P) - 0.0005) / 0.003)
+            tf = _smoothstep((self.leg_sd(P) - 0.0005) / 0.003) * _smoothstep((0.002 - self.tab_sd(P)) / 0.002)
             yi = (1 - tf) * yi + tf * (base - TAB_T + ki)
         return yi
 
