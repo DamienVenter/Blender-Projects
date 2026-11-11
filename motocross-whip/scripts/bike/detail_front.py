@@ -419,15 +419,15 @@ AH_BOLT = (0.0170, (0.0975, 0.0790))    # pinch bolts: x ahead of the axle (betw
 AH_HEX = 0.017                # axle's hex socket, right end: RIGHT 19.8 mm corner to corner (17.1 across flats)
 
 
-def _ah_outline():
+def _ah_outline(front=0.029):
     """The clamp boss in the world (x ahead of the axle, z up, metres), from RIGHT cast on y -0.107: top z +22
     (bolt seats, RIGHT 19.3..20.7), front x +29 (RIGHT 28.3..29.1 at the slit and below it), bottom z -28 (RIGHT
     -30.2 behind, -25 at the rounded front), front corners r 7 (top) and 14 (bottom: RIGHT bot_front (23, -25)); the
     rear runs into the socket 24 mm ahead of the tube axis (parallel to it)."""
     rear = lambda z: -0.0286 + (0.022 - z) * 0.504
     zb = AH_BOTTOM
-    top = [(rear(0.022), 0.022)] + list(_arc((0.022, 0.015), 0.007, 90, 0, 6)) + \
-        list(_arc((0.020, zb + 0.009), 0.009, 0, -90, 7)) + [(rear(zb), zb)]
+    top = [(rear(0.022), 0.022)] + list(_arc((front - 0.007, 0.015), 0.007, 90, 0, 6)) + \
+        list(_arc((front - 0.009, zb + 0.009), 0.009, 0, -90, 7)) + [(rear(zb), zb)]
     return np.array(top[::-1]), rear
 
 
@@ -493,14 +493,12 @@ def axle_holder(side):
             m.add(fastener(p, Z, "flange", af=0.010, h=0.0058, flange_d=0.0135, mat="bolt"))
             m.add(cyl(p - 0.0503 * Z, p - 0.0497 * Z, 0.0030, "bolt_black", 12))
     else:
-        out, _ = _ah_outline()
+        out, _ = _ah_outline(DG_AH_FRONT)            # round 4: front inside the disc guard's mount (hidden by it)
         m.add(_rplate(out, [circle(0.0101, 40)], AH_Y[0], AH_Y[1], 0.0024, lug, to3d, step=0.0011))
-        # lug for the disc guard's upper bolt, ahead of the socket over the clamp (DG_BOLTS[0]), EST shape
-        p = DG_BOLTS[0]
-        q = np.array([(p[0] - TUBE0[0] + FA[0]) * FWD[0] + (p[1] - TUBE0[2] + FA[2]) * FWD[2],
-                      (p[0] - TUBE0[0] + FA[0]) * UP[0] + (p[1] - TUBE0[2] + FA[2]) * UP[2]])
-        lugo = _hull_circles([((q[0], q[1]), 0.0080), ((0.018, q[1] - 0.004), 0.0095)], 24)
-        m.add(_rplate(lugo, [], 0.086, DG_LUG_Y, 0.0020, lug, lambda f, t, w: fk(f, w, t), step=0.0012))
+        # lug for the disc guard's upper bolt, ahead of the socket over the clamp (DG_BOLTS[0]), EST shape; round 4:
+        # under the guard's long boss (FRONT: a black cylinder from y 86 to 122)
+        m.add(_rplate(_dg_lug_outline(), [], DG_LUG_Y[0], DG_LUG_Y[1], 0.0020, lug,
+                      lambda x, z, w: FA + np.array([x, w, z]), step=0.0012))
         # caliper bracket arm (LEFT, DET831: one grey casting with the socket, fiche 14 bolted to it): two branches
         # from the socket's rear to the bolts, a pocket in the upper one
         bolts = [FA + np.array([dx, 0.0, dz]) for dx, dz in CAL_BOLTS]
@@ -691,6 +689,42 @@ def _bridge(front, rear, r_mid):
     return loop_from_half(front + notch + rear)
 
 
+TC_FRONT = (0.0460, 0.0880, 0.8870)   # top clamp's front face: f, how far out it runs straight (|y|), its bottom (t).
+#   TOP cols 1638..1640 from row 1010 to 1230 (both tube axes) on the clamp's top plane: f 45..47 (10.3 px a cm); the
+#   front corner turns back round each boss to the pinch lug; LEFT: the front face at the boss side from t 0.881 to
+#   0.919 (cols 1600..1620, rows 547..615). Round 3's bridge front (f 17, EST) left the tubes' fronts bare.
+TC_SLOT = 0.0075              # half width of a slot through the clamp's front at the centre, from f 14 to the front
+#   face: the number plate's upper tab (plastics' plate_details: y +-6, f 17..61 at t 0.893..0.926) passes there. TOP
+#   shows a 10 x 28 mm rectangle with a light rim at f 27..37 there (cols 1648..1658, rows 1113..1145): where the tab
+#   meets the clamp; its exact form is left to the plate's owner (a shared issue)
+TC_GROOVE = 0.9200            # a turned groove round each boss 8 mm under its top (DET835: the line round the bosses)
+
+
+def _tc_outlines():
+    """Top clamp's top casting (f, y) and its front block under the bridge (ahead of the head tube)."""
+    rm = (0.0259 + R_BOSS_UP) / 2
+    f0, yf, _ = TC_FRONT
+    rc = 0.016
+    half = [(0.0140, 0.0), (0.0140, TC_SLOT), (f0, TC_SLOT), (f0, yf)] + \
+        [(f0 - rc + rc * math.cos(a), yf + rc * math.sin(a)) for a in np.radians([20, 40, 60, 80])]
+    half += [(rm * math.cos(a), FORK_HALF + rm * math.sin(a)) for a in np.radians([30, 10, -10, -30, -50, -70, -90,
+                                                                                    -110, -130, -150])]
+    half += [(-0.036, 0.066), (-0.054, 0.048), (-0.062, 0.020), (-0.063, 0.0)]
+    top = _ccw(loop_from_half(half))
+    fh = np.array([(0.016, TC_SLOT), (f0, TC_SLOT), (f0, 0.070), (0.020, 0.070), (0.016, 0.040)])
+    front = [_ccw(fh * [1, s]) for s in (1, -1)]
+    return top, front
+
+
+def _tc_boss(side, mat):
+    """Top clamp boss round the tube with a turned groove 8 mm under its top (DET835)."""
+    r, r_in, (t0, t1), ch = R_BOSS_UP, 0.0259, T_UP, 0.002
+    g = TC_GROOVE
+    prof = [(r_in, t0), (r - ch, t0), (r, t0 + ch), (r, g - 0.0006), (r - 0.0005, g - 0.0003),
+            (r - 0.0005, g + 0.0003), (r, g + 0.0006), (r, t1 - ch), (r - ch, t1), (r_in, t1)]
+    return rev(fk(0, side * FORK_HALF, 0), UP, prof, mat, 48, solid=True)
+
+
 def clamps():
     """Lower clamp (cast, with the fender bosses and the fender nose), top clamp (machined, stem nut), steering
     stem."""
@@ -723,13 +757,17 @@ def clamps():
         m.add(tube([fk(0.016, yb, 0.670), fk(0.050, yb, 0.670), a, e + 0.007 * unit(e - a)], 0.0075, len(sec), cast,
                    section=sec))
         m.add(cyl(e - 0.003 * Z, [xb, yb, zb], 0.0075, cast, 16, 0.001))
-    # ---- top clamp: LEFT / RIGHT axis silver t 0.884..0.928
+    # ---- top clamp: LEFT / RIGHT axis silver t 0.884..0.928; round 4: the casting rebuilt (TC_FRONT, below)
+    tcast = "tc_cast"
     for side in (-1, 1):
-        m.add(_boss(side, T_UP, R_BOSS_UP, 0.0259, cast))
-    top = _bridge([(0.017, 0.0), (0.017, 0.045), (0.016, 0.066)],
-                  [(-0.036, 0.066), (-0.054, 0.048), (-0.062, 0.020), (-0.063, 0.0)], (0.0259 + R_BOSS_UP) / 2)
-    m.add(slab(top, FACE_UP, T_UP[1] - 0.0005, cast, fk, ch=0.002))
-    _pinch_front(m, T_UP[0], T_UP[1], cast)
+        m.add(_tc_boss(side, tcast))
+    top, front = _tc_outlines()
+    to = lambda f, y, t: fk(f, y, t)
+    m.add(_rplate(top, [], FACE_UP, T_UP[1] - 0.0008, 0.0025, tcast, lambda f, y, w: fk(f, y, w), step=0.0018))
+    for blk in front:
+        m.add(_rplate(blk, [], TC_FRONT[2], FACE_UP + 0.002, 0.0025, tcast, lambda f, y, w: fk(f, y, w),
+                      step=0.0018))
+    _pinch_front(m, T_UP[0], T_UP[1], tcast)
     # ---- stem: the only part between the two faces within the head tube's radius; nut and washer (EST 30 mm)
     m.add(cyl(fk(F_STEER, 0, T_LO[0] - 0.0055), fk(F_STEER, 0, T_UP[1] + 0.011), STEM_R, "steel", 24, 0.001))
     # steering stem nut (fiche K95CF0900): a bright hex flange nut on a washer, the stem's threaded end inside it
@@ -2044,8 +2082,8 @@ def _cal_outline():
     rear block over the disc's rim with the bleed screw and the banjo, the slotted plug's boss on the front edge."""
     c = [((-0.002, w), r) for w, r, _ in CAL_LOBES]
     c += [((CAL_TOP[0], CAL_TOP[1]), 0.0090), ((0.017, 0.034), 0.010), ((0.019, -0.030), 0.010), ((0.022, 0.002), 0.010),
-          ((CAL_FOOT[0], CAL_FOOT[1]), 0.0085), ((CAL_SLOT[0], CAL_SLOT[1]), 0.0085)]
-    return _cal_notch(_hull_circles(c, 28))
+          ((CAL_FOOT[0], CAL_FOOT[1] + 0.0025), 0.0060), ((CAL_SLOT[0], CAL_SLOT[1]), 0.0085)]
+    return _cal_notch(_hull_circles(c, 28))           # round 4: the foot's boss ends at the bolt's seat (LEFT)
 
 
 def _cal_notch(L):
@@ -2107,7 +2145,9 @@ def caliper():
         m.add(slab(half, 0.0, 0.0012, "anod_black", lambda u, v, h: p0 + (0.0075 + h) * Y + u * E_W + v * E_Q,
                    ch=0.0002))
     # hex bolt under the foot, along the arc (DET831: its head points down and forward)
-    m.add(fastener(cal(CAL_FOOT[0], CAL_FOOT[1] - 0.0080, 0.084), -E_W, "flange", af=0.010, h=0.0055,
+    # round 4: LEFT's pixel is the head itself (its centre 2.75 mm out from the seat), not 8 mm under it: the head
+    # had hung 5 mm under the photo's into the disc guard's fin
+    m.add(fastener(cal(CAL_FOOT[0], CAL_FOOT[1] - 0.0028, 0.084), -E_W, "flange", af=0.010, h=0.0055,
                    flange_d=0.0125, mat="steel"))
     # bleed screw (fiche 3) and its black rubber cap (4), leaning back, up and out (DET831, LEFT)
     nb = unit(0.55 * E_Q + 0.65 * E_W + 0.45 * Y)
@@ -2197,58 +2237,569 @@ def front_brake():
     return m
 
 
-# ================================================================ disc cover
-def disc_guard():
-    """Black plastic cover outside the front disc (DET 475831, LEFT u 960..1110, v 1440..1600): a plate just outside
-    the disc with a honeycomb window in its upper front, solid below, a fin towards the rear under the caliper, a
-    hub that steps out over the axle lug to the axle nut. Open where the fork leg and the caliper are. Outline in
-    axle-centred fork coordinates (g ahead, t up the fork); radii and the window's extent are EST."""
+# ================================================================ disc guard (round 4)
+# Honda's front disc guard, black plastic: a dish over the disc's outer face with a deep skirt round its edge, a
+# honeycomb window in the upper front, a strut at axle height with two slots under it, a lower face with a crease, a
+# shallow trough inside the outer band and a V pocket, a keel running back under the caliper to a pointed fin, and a
+# black mount over the left axle holder (a raised ring round the axle nut, the two bolts' bosses).
+# Measured in the LEFT photo rectified on the guard's face plane about the photo's own axle (rect.py, 0.2 mm a px):
+# the side camera's offset at the axle grows with y (+13.7 / -10.3 px at the nut, y 0.128), (+7.9 / -5.9) on the face;
+# with it the guard's outer edge is a circle of r 140.5 mm about the axle within 1 px all round (rimfit.py: 93 edge
+# points from 66 to 300 deg). Mount features were read on their own plane (y 0.12..0.13). y extents from FRONT
+# (1.455 px a mm across); shapes from DET 475831, DR12, lf34.
+DG_Y0 = 0.0735        # outer face: FRONT, the guard's front edge end-on spans cols 2075..2108 at rows 1340..1730
+DG_SKIRT = 0.0500     # skirt's inner edge (the same band's inboard side): the dish wraps the disc's rim (y 60.5..63.5)
+DG_R = 0.1405         # outer edge: LEFT rimfit 181.7 px about (1056.1, 1594.8), 1.294 px a mm on the face plane
+DG_BEZEL = 0.0095     # outer band, LEFT: from its crest at r 131 to the edge all round and along the fin's lower edge
+DG_BAND_DROP = 0.0050   # it falls 5 mm to the edge (a 28 deg cone): light at the top and front, dark at the bottom
+DG_WIN_R = 0.1135     # honeycomb window's outer arc: LEFT rect, the cells start on r 113.5 from the strut to the frame
+DG_WIN_D = 0.0030     # honeycomb 3 mm under the face, EST: lf34 shows the surround sloping in to it; the disc's bolt
+#                       heads stand to y 68 under it (detail_wheels), the mesh 0.3 mm clear of them
+DG_T = 0.0025         # wall thickness, EST
+DG_HEX = (0.0115, 0.0105, 0.00695, 0.0039, 0.0035, 0.06555, 0.00715)   # honeycomb: column pitch along x, row pitch
+#   along z (columns offset half a row), each hole's half width tip to tip, half height, half flat, and one hole's
+#   centre (x0, z0): LEFT rect at 0.1 mm a px, 22 holes found as light blobs (holes.png), the 7 whole ones 13.1 x 6.9
+#   mm (+0.8 / +0.9 for the webs' depth seen 10 deg from square), columns 10.4..10.9 apart down a column, half a row
+#   between columns; the flats 7 mm long so that the slanted webs are 1.6 mm and the level ones 2.7 (ov_hex2: every
+#   whole hole of the photo inside one of the model's)
+DG_FRAME_F = (0.047, 0.061)   # black frame bar along the fork guard's front: fork-frame f of its rear and front edges
+#   (LEFT rect: the honeycomb ends on f 61 from dz 38 to 111, the red fork guard starts on f 47); FRONT cols 2105..2130
+DG_FRAME_Y = (0.0725, 0.0890)
+DG_STRUT = (0.0015, -0.0095, -0.0080)   # window's lower edge (dz), the strut's lower edge at the front and at the mount
+DG_SLOTS = ((0.120, 0.068), (0.064, 0.039))   # slot A and B (dx from, to), dz -9.5..-20.5: LEFT rect (profiles at dz
+#   -12, -15, -18); DET831: one long slot and a short one, a narrow web between them, rounded corners
+DG_SLOT_Z = (-0.0095, -0.0205)
+DG_CREASE = ((0.129, -0.026), (0.1025, -0.0285), (0.0775, -0.0319), (0.0525, -0.0385), (0.0338, -0.0463),
+             (0.020, -0.056), (0.012, -0.073))   # the lower face's crease from the front band to the V's point:
+#   LEFT rect, the upper edge of the dark band (the face falls away below it: DR12, DET831)
+DG_KEEL = ((0.012, -0.073), (-0.030, -0.050), (-0.1215, -0.0995))   # keel crest: from the V's point up to the
+#   mount and back to the fin's point (LEFT rect: the lit edge; the tip 0.15 mm under r 158)
+DG_KEEL_H = (0.004, 0.034, 0.0)    # crest above the face: FRONT, the mount and keel stand out to y 0.113 at dz -52,
+#   0.086 at dz -80, 0.075 at dz -90 (rows 1600..1655), flush at the point
+DG_FIN_LOW = ((-0.068, -0.123), (-0.086, -0.115), (-0.100, -0.1085), (-0.116, -0.1025), (-0.1215, -0.0995))
+#   fin's lower edge from the outer circle to the point (LEFT rect)
+DG_MOUNT = ((0.0040, -0.0390), (0.0100, -0.0330), (0.0200, -0.0220), (0.0256, -0.0050), (0.0256, 0.0200),
+            (0.0200, 0.0330), (0.0185, 0.0410), (0.0060, 0.0440))   # mount over the left axle holder, front and
+#   bottom (LEFT rect on y 0.125: shield's front edge dx 25.6, its point under the axle (3.75, -38.5), the top corner
+#   (20, 32.5)); over the shield's top corner a block up to the upper bolt with a level top (lf34; FRONT rows
+#   1455..1475: a black block from y 86 to 122 at dz 34..48, lr_m: its lit top edge at dz 40)
+DG_MOUNT_REAR = ((-0.0346, 0.0152), (-0.0516, -0.0048), (-0.0620, -0.0200))   # its rear edge on the fork foot
+DG_MOUNT_LOW = ((-0.040, -0.0440), (-0.020, -0.0410))                       # its bottom, rear to front
+DG_SHIELD = ((0.0040, -0.0390), (0.0100, -0.0330), (0.0200, -0.0220), (0.0256, -0.0050), (0.0256, 0.0200),
+             (0.0200, 0.0330), (0.0050, 0.0300), (-0.0060, 0.0240), (-0.0138, 0.0100), (-0.0163, -0.0025),
+             (-0.0125, -0.0170), (-0.0050, -0.0300))   # the thick shield round the axle nut: LEFT rect on y 0.125,
+#   the thin light ridge round it (lr_d); FRONT: out to y 0.130 at dz +31..-31 (cols 2185..2190)
+DG_POCKET = ((0.0188, 0.0270), (0.0060, 0.0262), (0.0188, 0.0170))          # triangular pocket in its top corner
+DG_COVER_Y = (0.1180, 0.1295)   # mount's outer face, FRONT: at dz -35..-45 the outermost black is y 0.113..0.117
+#   (the lower bolt's tab), round the axle y 0.127..0.130 (the shield)
+DG_RING = (0.0180, 0.0230, 0.1360)    # raised lip round the axle nut: bore, outside, face; FRONT col 2198 at rows
+#   1490..1515 (y 0.136); LEFT rect on y 0.13: rings at r 17, 20, 22..24, the nut deep inside (DET831, DR12)
+DG_BOLTS = ((-0.0080, 0.0388), (-0.0549, -0.0331))   # bolts (world dx, dz from the axle): upper LEFT (1060, 1556) and
+#   rect on y 0.125 (-7.5, 38.75); lower LEFT (1121, 1650) and rect on y 0.117 (-54.4, -33.75)
+DG_UB_Y = (0.0885, 0.1210, 0.0075)   # upper boss: a black cylinder from the frame bar out to the bolt head, FRONT rows
+#   1455..1475 (13.8 mm) cols 2125..2177 (y 86..122), the bright head to col 2182 (y 0.125)
+DG_LB_Y = (0.1012, 0.1170, 0.0080)   # lower boss on the caliper bracket's lower branch, face y 0.117 (FRONT: the
+#   head's bright edge at cols 2165..2170)
+DG_LUG_Y = (0.0760, 0.0885)   # the holder's lug for the upper bolt, under the guard's boss (hidden, EST)
+
+
+def _seg_dist(Pt, A, B):
+    """Distance from points Pt (n, 2) to the segment A-B, and the side (+1 left of A->B, -1 right)."""
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    d = B - A
+    t = np.clip(((Pt - A) @ d) / max(d @ d, 1e-18), 0.0, 1.0)
+    q = A + t[:, None] * d
+    side = np.sign(d[0] * (Pt[:, 1] - A[1]) - d[1] * (Pt[:, 0] - A[0]))
+    return np.linalg.norm(Pt - q, axis=1), side
+
+
+def _pl_dist(Pt, L, closed=False):
+    """Distance from points to a polyline (closed: a loop), and the index of the nearest segment."""
+    L = np.asarray(L, float)
+    segs = list(zip(L[:-1], L[1:])) + ([(L[-1], L[0])] if closed else [])
+    D = np.array([_seg_dist(Pt, a, b)[0] for a, b in segs])
+    return D.min(axis=0), D.argmin(axis=0)
+
+
+def _offset_rows(L, ds, closed=True, step=0.001):
+    """Rows of points at distances DS from a polyline along its normals (left of the direction of travel for d > 0),
+    resampled about every STEP: vertices that make a crease, a bevel or a step crisp in a heightfield."""
+    from geom import resample
+    L = np.asarray(L, float)
+    if closed:
+        Q = resample(L, step)
+        t = np.roll(Q, -1, axis=0) - np.roll(Q, 1, axis=0)
+    else:
+        s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(L, axis=0), axis=1))])
+        u = np.linspace(0, s[-1], max(3, int(s[-1] / step)))
+        Q = np.stack([np.interp(u, s, L[:, 0]), np.interp(u, s, L[:, 1])], axis=1)
+        t = np.gradient(Q, axis=0)
+    n = np.stack([-t[:, 1], t[:, 0]], axis=1)
+    n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
+    return np.vstack([Q + d * n for d in ds])
+
+
+def _hfield(outer, holes, ytop, ybot, mat, step=0.003, extra=None, bstep=0.0012, topmat=None):
+    """Closed solid over the (dx, dz) plane about the front axle (world, metres): top surface y = ytop(P) and bottom
+    y = ybot(P) for points P (n, 2), side walls round the outline and every hole. Vertices: the loops (every BSTEP),
+    EXTRA rows (creases, bevels, steps) and a grid every STEP, Delaunay, kept inside the outline and out of the
+    holes. The guard and its mount are built this way: a moulded surface whose relief is a function of position."""
+    from scipy.spatial import Delaunay, cKDTree
+    from geom import inside
+    loops = [_resample(outer, bstep)] + [_resample(h, bstep * 0.8)[::-1] for h in holes]
+    B = np.vstack(loops)
+    lo, hi = B.min(axis=0), B.max(axis=0)
+    gx, gz = np.meshgrid(np.arange(lo[0] + step / 2, hi[0], step), np.arange(lo[1] + step / 2, hi[1], step))
+    cand = [np.stack([gx.ravel(), gz.ravel()], axis=1)]
+    if extra is not None and len(extra):
+        cand.insert(0, np.asarray(extra, float))
+    Q = np.vstack(cand)
+    ok = inside(loops[0], Q)
+    for h in loops[1:]:
+        ok &= ~inside(h, Q)
+    Q = Q[ok]
+    Q = Q[cKDTree(B).query(Q)[0] > 0.45 * bstep]                    # off the walls
+    drop = np.zeros(len(Q), bool)                                    # thin out crowded points (first ones win)
+    for i, j in sorted(cKDTree(Q).query_pairs(0.42 * bstep)):
+        if not drop[i] and not drop[j]:
+            drop[j] = True
+    Q = Q[~drop]
+    Pts = np.vstack([B, Q])
+    tri = Delaunay(Pts).simplices
+    c = Pts[tri].mean(axis=1)
+    k = inside(loops[0], c)
+    for h in loops[1:]:
+        k &= ~inside(h, c)
+    tri = tri[k]
+    yt, yb = np.asarray(ytop(Pts), float), np.asarray(ybot(Pts), float)
+    yb = np.minimum(yb, yt - 0.0005)
     m = Mesh()
-    yp, r0, rh = 0.0865, 0.143, 0.060
-    a_top = math.atan2(math.sqrt(r0 ** 2 - 0.006 ** 2), 0.006)       # edge 6 mm ahead of the fork guard's front
-    a_fin = math.radians(-161.75)                                    # 135 deg below the horizontal, behind
-    out = [(r0 * math.cos(a), r0 * math.sin(a)) for a in np.linspace(a_top, a_fin + math.radians(16), 64)]
-    out.append((0.160 * math.cos(a_fin + math.radians(5)), 0.160 * math.sin(a_fin + math.radians(5))))   # fin tip
-    out.append((0.096 * math.cos(a_fin), 0.096 * math.sin(a_fin)))
-    a_in = math.atan2(-0.030, -math.sqrt(rh ** 2 - 0.030 ** 2))      # inner edge 8 mm under the lug's socket
-    out += [(rh * math.cos(a), rh * math.sin(a)) for a in np.linspace(a_in, math.radians(80), 40)]
+    top = m.verts(FA + np.stack([Pts[:, 0], yt, Pts[:, 1]], axis=1))
+    bot = m.verts(FA + np.stack([Pts[:, 0], yb, Pts[:, 1]], axis=1))
+    e1, e2 = Pts[tri[:, 1]] - Pts[tri[:, 0]], Pts[tri[:, 2]] - Pts[tri[:, 0]]
+    ccw = e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0] > 0               # counter-clockwise in (dx, dz): faces -y
+    tri[ccw] = tri[ccw][:, [0, 2, 1]]
+    tm = [mat] * len(tri) if topmat is None else [str(t) for t in topmat(Pts[tri].mean(axis=1))]
+    for (a, b, cc), mt in zip(tri, tm):
+        m.face((top + a, top + b, top + cc), mt)                      # top faces +y (outboard)
+        m.face((bot + a, bot + cc, bot + b), mat)
+    o = 0
+    for L in loops:
+        n = len(L)
+        for i in range(n):
+            j = (i + 1) % n
+            m.face((top + o + i, top + o + j, bot + o + j, bot + o + i), mat)
+        o += n
+    return _outward(m)
+
+
+def _fpt(f, dz):
+    """World (dx, dz) about the axle of the point at fork-frame distance F ahead of the tubes' plane, height DZ."""
+    g = f - P.AXLE_LEAD
+    return np.array([(g - FWD[2] * dz) / FWD[0], dz])
+
+
+def _dg_window():
+    """Honeycomb window: the arc r 113.5 from the strut round to the frame bar's front edge, down the frame bar to the
+    mount's top corner and round it to the strut (LEFT rect)."""
+    g = DG_FRAME_F[1] + 0.0005 - P.AXLE_LEAD
+    s = math.sqrt(DG_WIN_R ** 2 - g ** 2)
+    top = g * np.array([FWD[0], FWD[2]]) + s * np.array([UP[0], UP[2]])          # the arc meets the frame bar
+    a0 = math.degrees(math.asin(DG_STRUT[0] / DG_WIN_R))
+    a1 = math.degrees(math.atan2(top[1], top[0]))
+    L = list(_arc((0, 0), DG_WIN_R, a0, a1, 64)) + [_fpt(DG_FRAME_F[1] + 0.0005, 0.040), (0.022, 0.030),
+                                                     (0.033, 0.018), (0.035, DG_STRUT[0])]
+    return _ccw(np.array(L))
+
+
+def _dg_slots():
+    out = []
+    for x0, x1 in DG_SLOTS:
+        w, h = x0 - x1, DG_SLOT_Z[0] - DG_SLOT_Z[1]
+        out.append(rounded_rect(w, h, 0.002, 3) + [(x0 + x1) / 2, (DG_SLOT_Z[0] + DG_SLOT_Z[1]) / 2])
+    return [_ccw(s) for s in out]
+
+
+def _dg_outline():
+    """The dish's outline (counter-clockwise in dx, dz): the outer circle (inside the skirt) from the fin round the
+    front to the top, down under the fork guard (f 40 mm), round the mount's foot, down the keel to the fin's point
+    and back along the fin's lower edge."""
+    r = DG_R - 0.0013
+    j0 = math.degrees(math.atan2(DG_FIN_LOW[0][1], DG_FIN_LOW[0][0]))
+    g = 0.040 - P.AXLE_LEAD
+    s = math.sqrt(r ** 2 - g ** 2)
+    top = g * np.array([FWD[0], FWD[2]]) + s * np.array([UP[0], UP[2]])
+    a1 = math.degrees(math.atan2(top[1], top[0]))
+    L = list(_arc((0, 0), r, j0, a1, 200))
+    L += [_fpt(0.040, 0.036), (-0.004, 0.040), (0.016, 0.031), (0.0247, 0.019), (0.0247, -0.007), (0.0228, -0.020),
+          (0.015, -0.027), (0.007, -0.033), (0.002, -0.036), (-0.020, -0.039), (-0.040, -0.042), (-0.052, -0.044)]
+    k1, k2 = np.array(DG_KEEL[1]), np.array(DG_KEEL[2])
+    d = unit(k2 - k1)
+    up = np.array([-d[1], d[0]])
+    up = up if up[1] > 0 else -up
+    for s_ in np.linspace(0.12, 0.97, 12):
+        L.append(tuple(k1 + s_ * (k2 - k1) + 0.0080 * up * (1 - s_) ** 0.5))
+    L += [DG_KEEL[2]] + list(DG_FIN_LOW[::-1][1:])
+    return _ccw(np.array(L))
+
+
+def _smooth01(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
+
+
+def _dg_height(Pt):
+    """Relief of the dish's outer face (y above DG_Y0, metres) at points (dx, dz). LEFT's grey levels read along rays
+    from the photo's axle (studio light from above: faces turned up read light, turned down dark) give the section:
+    the outer band a cone falling 5 mm outwards from its crest at r 131 (light 130 at the top and front, dark 22..49
+    at the bottom); inside it, round the lower half, a trough (r 104..116 dark 28..36: its inner wall turns down; r
+    120..128 at 42: the outer wall back up to the crest); the field 50..57 falling gently towards it; under the crease
+    a fall of 2.5 mm (300 deg: 28 for 6 mm under it, back to 52); the upper face, strut and ledge flat (79..87). The
+    window's surround slopes from the crest down to the honeycomb. Never deeper than 2.5 mm over the disc's bolts."""
+    from geom import inside
+    Pt = np.asarray(Pt, float)
+    r = np.hypot(Pt[:, 0], Pt[:, 1])
+    d_out = _dg_dout(Pt)
+    h = np.zeros(len(Pt))
+    # strut: its face tilted up to a lip over the slots (LEFT: the lit band dz -1..-9.5)
+    st = (Pt[:, 1] < DG_STRUT[0]) & (Pt[:, 1] > DG_SLOT_Z[0]) & (Pt[:, 0] > 0.036)
+    h = np.where(st, -0.0020 + 0.0032 * np.clip((DG_STRUT[0] - Pt[:, 1]) / (DG_STRUT[0] - DG_SLOT_Z[0]), 0, 1), h)
+    # lower face: below the crease (outside the upper face's polygon U)
+    U = np.array([DG_CREASE[0], (0.135, DG_SLOT_Z[0]), (0.020, DG_SLOT_Z[0]), (0.0247, -0.007), (0.0228, -0.020),
+                  (0.015, -0.027), (0.007, -0.033), (0.002, -0.036)] + list(DG_CREASE[::-1]))
+    low = (~inside(U, Pt)) & (Pt[:, 1] < DG_SLOT_Z[0])
+    c = _pl_dist(Pt, np.array(DG_CREASE + DG_KEEL[1:2]))[0]
+    prof = np.interp(d_out, [DG_BEZEL, 0.0205, 0.0265, 0.0405, 0.0700],
+                     [0.0, -0.0065, -0.0065, -0.0035, -0.0025])
+    prof = np.where((d_out > DG_BEZEL) & (d_out < 0.0265),             # round the trough's floor and the crest
+                    np.minimum(prof, -0.0065 * np.sin(np.clip((d_out - DG_BEZEL) / (0.0205 - DG_BEZEL), 0, 1)
+                                                      * math.pi / 2)), prof)
+    face = prof * _smooth01(c / 0.007)
+    h = np.where(low, face, h)
+    # window surround: down to the honeycomb's level at the window's edge
+    W = _dg_window()
+    dw, iw = _pl_dist(Pt, W, closed=True)
+    arc_seg = iw < 63                                              # the window's first 63 segments are its arc
+    width = np.where(arc_seg, DG_R - DG_BEZEL - DG_WIN_R, 0.0025)
+    hw = -DG_WIN_D * (1.0 - np.clip(dw / width, 0.0, 1.0))
+    h = np.minimum(h, np.where(inside(W, Pt), -DG_WIN_D, hw))
+    # slots: 1.2 mm bevels round their mouths
+    for sl in _dg_slots():
+        ds = _pl_dist(Pt, sl, closed=True)[0]
+        h = np.minimum(h, -0.0012 * (1.0 - np.clip(ds / 0.0015, 0.0, 1.0)))
+    # the outer band: a cone from its crest out to the edge, 5 mm down (30 deg), its crest rounded
+    band = -DG_BAND_DROP * np.clip((DG_BEZEL - d_out) / DG_BEZEL, 0.0, 1.0)
+    band = np.where(d_out > DG_BEZEL - 0.0015, -DG_BAND_DROP * ((DG_BEZEL - d_out).clip(0) ** 2 / (2 * 0.0015 * DG_BEZEL)),
+                    band + DG_BAND_DROP * 0.00075 / DG_BEZEL)
+    h = np.where(d_out < DG_BEZEL, band, h)
+    # the disc's bolt heads (r 54, 4.5 mm high) turn under it: the wall's back stays at y 68.5 or more there
+    lim = -0.0025 - 0.0060 * _smooth01((np.abs(r - 0.054) - 0.010) / 0.004)
+    return np.maximum(h, lim)
+
+
+def _dg_dout(Pt):
+    """Distance in from the dish's outer edge: the circle, and the fin's lower edge behind it."""
+    r = np.hypot(Pt[:, 0], Pt[:, 1])
+    fin = np.asarray(DG_FIN_LOW, float)
+    d = np.minimum(DG_R - r, np.where(Pt[:, 0] < -0.06, _pl_dist(Pt, fin)[0], 9.0))
+    return np.maximum(d, 0.0)
+
+
+def _dg_extra():
+    """Rows of vertices along the dish's relief: the window's edge and slope, the strut's lip, the slots' bevels, the
+    crease and its fall, the band's inner edge and the trough (round the circle and along the fin's lower edge)."""
+    rows = [_offset_rows(_dg_window()[::-1], [0.0006, 0.0015, 0.0025, 0.0045, 0.008, 0.012], True, 0.0012)]
+    for sl in _dg_slots():
+        rows.append(_offset_rows(sl[::-1], [0.0005, 0.001, 0.0016, 0.003], True, 0.0008))
+    for z in (DG_SLOT_Z[0] + 0.0006, DG_SLOT_Z[0] - 0.0006):
+        rows.append(np.stack([np.arange(0.036, 0.131, 0.0012), np.full(80, z)], axis=1))
+    cr = np.array(DG_CREASE + DG_KEEL[1:2])
+    rows.append(_offset_rows(cr, [0.0, 0.0006, 0.002, 0.0035, 0.005, 0.007, 0.010, -0.0008], False, 0.0012))
+    rows.append(_offset_rows(np.array([(0.002, -0.036), DG_CREASE[-1]]), [-0.0005, 0.0005], False, 0.0010))
+    for d in (0.0015, 0.004, 0.007, DG_BEZEL - 0.0015, DG_BEZEL, DG_BEZEL + 0.0015, 0.0140, 0.0175, 0.0205, 0.0265,
+              0.033, 0.0405):
+        a = np.radians(np.arange(-125, 120, 0.6))
+        rows.append(np.stack([(DG_R - d) * np.cos(a), (DG_R - d) * np.sin(a)], axis=1))
+        rows.append(_offset_rows(np.array(DG_FIN_LOW[::-1]), [d], False, 0.0012))
+    return np.vstack(rows)
+
+
+def _dg_honeycomb():
+    """The honeycomb in the window: a moulded mesh 4.5 mm deep with its face DG_WIN_D under the dish's, its outline
+    under the surround, every hole an elongated hexagon (points fore and aft) clipped to the window less 0.9 mm
+    (lf34, DR12: the webs' depth shows from the front); 2 mm deep over the disc's bolt circle, which turns under it."""
+    px, pz, hw, hh, hb, x0, z0 = DG_HEX
+    W = _dg_window()
+    Win = _ccw(_inset_poly(W, 0.0009))
+    hx = np.array([(hw, 0), (hb, hh), (-hb, hh), (-hw, 0), (-hb, -hh), (hb, -hh)])
     holes = []
-    pitch, rhex = 0.0135, 0.0052
-    for i in range(-2, 14):
-        for j in range(0, 14):
-            g, t = i * pitch + (pitch / 2 if j % 2 else 0.0), j * pitch * 0.866
-            if rh + 0.012 < math.hypot(g, t) < r0 - 0.012 and g > 0.026 and t > 0.012:
-                holes.append(circle(rhex, 6, g, t))
-    m.add(_outward(plate2d(np.array(out), holes, 0.003, "plastic_black",
-                  lambda g, t, w: FA + g * FWD + t * UP + (yp + w) * Y, step=0.009)))
-    arc = lambda a0, a1: (-math.radians(a1), -math.radians(a0))      # fork angles to rev's (which runs clockwise)
-    # hub: cone from the plate out over the lug, face round the axle nut (3 mm wall)
-    hub = [(rh, yp + 0.0015), (0.050, 0.127), (0.046, 0.1315), (0.041, 0.1335), (0.0135, 0.1335),
-           (0.0135, 0.1305), (0.0395, 0.1305), (0.0435, 0.129), (0.047, 0.125), (rh - 0.003, yp - 0.0015)]
-    m.add(rev(FA, Y, hub, "plastic_black", 56, ref=FWD, arc=arc(-135, 80), solid=True))
-    # rim lip towards the wheel, rib on the solid part
-    lip = [(r0 - 0.0005, yp + 0.0015), (r0 + 0.0025, yp + 0.0005), (r0 + 0.0025, 0.0765), (r0 + 0.0005, 0.0755),
-           (r0 + 0.0005, yp - 0.0015), (r0 - 0.0005, yp - 0.0015)]
-    m.add(rev(FA, Y, lip, "plastic_black", 72, ref=FWD,
-              arc=arc(math.degrees(a_fin) + 16, math.degrees(a_top)), solid=True))
-    rib = [(0.104, yp + 0.0014), (0.1025, yp + 0.0034), (0.0985, yp + 0.0034), (0.097, yp + 0.0014)]
-    m.add(rev(FA, Y, rib, "plastic_black", 48, ref=FWD, arc=arc(-150, 2)))
-    # its two bolts into the left axle holder (zinc socket flange bolts, DET831), each through a black boss of the
-    # guard's mount: the upper one on the hub's face over the holder's lug, the lower one 8 mm under the foot's
-    # underside, on the caliper bracket's lower branch (LEFT: the black boss beside the grey branch's root)
+    for k in range(-12, 12):
+        for j in range(-4, 14):
+            cx = x0 + k * px
+            cz = z0 + j * pz + (pz / 2 if k % 2 else 0.0)
+            if math.hypot(cx, cz) > DG_WIN_R + 0.012 or cz < -0.006 or cx < -0.040:
+                continue
+            q = _clip_convex(Win, np.array([cx, cz]) + hx)
+            if len(q) >= 3 and abs(_area(q)) > 5e-6 and min(np.ptp(q[:, 0]), np.ptp(q[:, 1])) > 0.0012:
+                holes.append(_ccw(_round_poly(q, 0.0005)))
+    outer = _ccw(_grow_poly(W, 0.002))
+    y1 = DG_Y0 - DG_WIN_D
+
+    def ybot(Pt):
+        r = np.hypot(Pt[:, 0], Pt[:, 1])
+        return y1 - 0.0020 - 0.0025 * _smooth01((np.abs(r - 0.054) - 0.010) / 0.003)
+    return _hfield(outer, holes, lambda Pt: np.full(len(Pt), y1), ybot, "guard_black", step=0.004, bstep=0.0012)
+
+
+def _clip_convex(subject, clip):
+    """Sutherland-Hodgman: SUBJECT polygon (any simple one) clipped by the convex polygon CLIP (both (n, 2))."""
+    clip = _ccw(np.asarray(clip, float))
+    out = [tuple(p) for p in subject]
+    for i in range(len(clip)):
+        A, B = clip[i], clip[(i + 1) % len(clip)]
+        inp, out = out, []
+        if not inp:
+            break
+        side = lambda p: (B[0] - A[0]) * (p[1] - A[1]) - (B[1] - A[1]) * (p[0] - A[0])
+        for j in range(len(inp)):
+            P0, P1 = np.array(inp[j - 1]), np.array(inp[j])
+            s0, s1 = side(P0), side(P1)
+            if s1 >= 0:
+                if s0 < 0:
+                    out.append(tuple(P0 + (P1 - P0) * s0 / (s0 - s1)))
+                out.append(tuple(P1))
+            elif s0 >= 0:
+                out.append(tuple(P0 + (P1 - P0) * s0 / (s0 - s1)))
+    return np.array(out) if out else np.zeros((0, 2))
+
+
+def _inset_convex(L, d):
+    """A convex loop with every edge moved D inwards (corners where the moved edges meet)."""
+    L = _ccw(np.asarray(L, float))
+    n = len(L)
+    lines = []
+    for i in range(n):
+        a_, b_ = L[i], L[(i + 1) % n]
+        t = unit(b_ - a_)
+        lines.append((a_ + d * np.array([-t[1], t[0]]), t))
+    out = []
+    for i in range(n):
+        (p1, t1), (p2, t2) = lines[i - 1], lines[i]
+        A = np.column_stack([t1, -t2])
+        s_ = np.linalg.solve(A, p2 - p1)
+        out.append(p1 + s_[0] * t1)
+    return np.array(out)
+
+
+def _inset_poly(L, d):
+    """A loop moved D inwards along its vertex normals (small D, smooth loop)."""
+    L = _ccw(np.asarray(L, float))
+    return L + d * _inward(L)
+
+
+def _grow_poly(L, d):
+    return _inset_poly(L, -d)
+
+
+def _round_poly(L, r, n=3):
+    """Corners of a convex loop cut on a chord R back each side (a moulded cell's rounded corners)."""
+    L = np.asarray(L, float)
+    out = []
+    for i in range(len(L)):
+        p, a_, b_ = L[i], L[i - 1], L[(i + 1) % len(L)]
+        la, lb = np.linalg.norm(a_ - p), np.linalg.norm(b_ - p)
+        rr = min(r, la * 0.45, lb * 0.45)
+        if rr < 1e-5:
+            out.append(p)
+            continue
+        A, Bq = p + (a_ - p) / la * rr, p + (b_ - p) / lb * rr
+        for t in np.linspace(0, 1, n):
+            out.append((1 - t) ** 2 * A + 2 * t * (1 - t) * p + t ** 2 * Bq)
+    return np.array(out)
+
+
+def _holder_y(Pt, grow=0.0):
+    """Outboard surface (y) of the left axle holder and the caliper bracket's lower branch under points (dx, dz):
+    the clamp boss's face, the socket round the tube (cylinder r AH_SOCKET_R about the tube axis, down to the foot's
+    flat underside) and the inner tube above it; 0 where none is. The guard's mount is moulded over them. GROW
+    widens the boss, lug and branch outlines (the mount's underside steps up before it reaches their edges)."""
+    from geom import inside
+    Pt = np.asarray(Pt, float)
+    y = np.zeros(len(Pt))
+    out, _ = _ah_outline(DG_AH_FRONT)
+    near = lambda L: inside(_ccw(L), Pt) | (_pl_dist(Pt, L, closed=True)[0] < grow)
+    y = np.where(near(out), AH_Y[1], y)
+    y = np.where(near(_dg_lug_outline()), np.maximum(y, DG_LUG_Y[1]), y)
+    g = P.AXLE_LEAD + Pt[:, 0] * FWD[0] + Pt[:, 1] * FWD[2]             # fork-frame f of the points
+    t = (Pt[:, 0] - (TUBE0[0] - FA[0])) * UP[0] + (Pt[:, 1] - (TUBE0[2] - FA[2])) * UP[2]
+    rad = np.where(t < 0.072, AH_SOCKET_R, R_INNER)
+    sock = (np.abs(g) < rad) & (Pt[:, 1] > AH_BOTTOM - grow)
+    y = np.where(sock, np.maximum(y, FORK_HALF + np.sqrt(np.maximum(rad ** 2 - g ** 2, 0.0))), y)
+    y = np.where(near(_cal_branch_lo()), np.maximum(y, CAL_BRK_Y[1] - 0.0015), y)
+    return y
+
+
+def _dg_lug_outline():
+    """The left holder's lug for the guard's upper bolt (world dx, dz): round the bolt and back towards the socket
+    (round 3's shape)."""
+    p = DG_BOLTS[0]
+    tb = (FA + np.array([p[0], 0.0, p[1]]) - TUBE0) @ UP
+    back = fk(0.018, 0.0, tb - 0.004) - FA
+    return _hull_circles([(p, 0.0080), ((back[0], back[2]), 0.0095)], 24)
+
+
+def _cal_branch_lo():
+    root_l = fk(-0.030, 0.0, 0.000)
+    b = FA + np.array([CAL_BOLTS[1][0], 0.0, CAL_BOLTS[1][1]])
+    return _hull_circles([((root_l[0] - FA[0], root_l[2] - FA[2]), 0.0085), ((b[0] - FA[0], b[2] - FA[2]), 0.0095)],
+                         24)
+
+
+DG_AH_FRONT = 0.0235          # the left holder's boss front (x): inside the mount's front wall (the right one keeps
+#   RIGHT's 29 mm; the left one is hidden by the guard's mount in every photo)
+
+
+def _dg_mount_outline():
+    c, r = DG_BOLTS[0], 0.0095
+    L = list(DG_MOUNT) + list(_arc(c, r, 60, 165, 10)) + list(DG_MOUNT_REAR)
+    L += list(_arc(DG_BOLTS[1], 0.0095, 145, 285, 14)) + list(DG_MOUNT_LOW)
+    return _ccw(np.array(L))
+
+
+def _dg_mount():
+    """The mount: one moulding over the holder's boss and the socket's front: a tab out to DG_COVER_Y[0] (over the
+    socket 3.5 mm off it) and the thick shield round the axle nut out to DG_COVER_Y[1], their edges rounded, a bore
+    for the nut, the triangular pocket in the shield's top corner."""
+    from geom import inside
+    L = _dg_mount_outline()
+    sh = _ccw(np.array(DG_SHIELD))
+    pocket = _ccw(np.array(DG_POCKET))
+    bore = circle(DG_RING[0] + 0.0002, 48)
+
+    def ybot(Pt):
+        return np.maximum(DG_Y0 - 0.0010, _holder_y(Pt, 0.0030) + 0.0005)
+
+    def ytop(Pt):
+        tab = np.maximum(np.where(Pt[:, 1] > 0.028, DG_UB_Y[1] - 0.001, DG_COVER_Y[0]), _holder_y(Pt, 0.0030) + 0.0035)
+        d = _pl_dist(Pt, L, closed=True)[0]
+        x = np.clip(1 - d / 0.0030, 0.0, 1.0)
+        yt = tab - 0.0030 * (1 - np.sqrt(np.maximum(1 - x ** 2, 0.0)))
+        ds = _pl_dist(Pt, sh, closed=True)[0]
+        xs = np.clip(1 - ds / 0.0020, 0.0, 1.0)
+        ys = DG_COVER_Y[1] - 0.0020 * (1 - np.sqrt(np.maximum(1 - xs ** 2, 0.0)))
+        yt = np.where(inside(sh, Pt), np.maximum(ys, yt), yt)
+        yt = np.where(inside(pocket, Pt), yt - 0.0040, yt)
+        return np.maximum(yt, ybot(Pt) + 0.0015)
+    extra = np.vstack([_offset_rows(L, [0.0004, 0.001, 0.0018, 0.003], True, 0.0010),
+                       _offset_rows(sh, [-0.0004, 0.0004, 0.001, 0.002], True, 0.0009),
+                       _offset_rows(pocket, [-0.0004, 0.0004], True, 0.0008)])
+    return _hfield(L, [bore], ytop, ybot, "guard_black", step=0.0025, extra=extra, bstep=0.0010)
+
+
+def _dg_keel():
+    """The keel: a wedge standing on the dish along the crest from the V's point up past the mount and back to the
+    fin's point, its upper face sloping 8 mm down to the face (LEFT: the lit band above the crest), its broad outer
+    face falling 14 mm below it (lf34: the fin's big dark face, the point sharp; FRONT: its height)."""
+    K = np.asarray(DG_KEEL, float)
+    H = np.asarray(DG_KEEL_H, float)
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(K, axis=0), axis=1))])
+    d = np.diff(K, axis=0)
+    ups = []
+    for v in d:
+        n = np.array([-v[1], v[0]]) / np.linalg.norm(v)
+        ups.append(n if n[1] > 0 else -n)
+    up_w, dn_w = 0.0080, 0.0140
+    out_up, out_dn = [], []
+    from geom import inside
+    dish = _dg_outline()
+    for u in np.linspace(0, s[-1], 60):
+        i = min(np.searchsorted(s, u, side="right") - 1, len(d) - 1)
+        q = K[i] + (u - s[i]) / (s[i + 1] - s[i]) * d[i]
+        taper = min(1.0, (s[-1] - u) / 0.025) ** 0.6           # the point: both faces close in
+        out_up.append(q + ups[i] * up_w * taper * (1 - 0.55 * u / s[-1]))      # narrower towards the point
+        w = dn_w * taper                                       # inside the dish's outline (the fin's lower edge)
+        while w > 0.0012 and not inside(dish, (q - ups[i] * (w + 0.0006))[None])[0]:
+            w -= 0.0004
+        out_dn.append(q - ups[i] * w)
+    L = _ccw(np.array(out_dn + [tuple(K[-1])] + out_up[::-1]))
+
+    def crest(Pt):
+        dd, side, hh, ss = [], [], [], []
+        for i in range(len(d)):
+            di, si = _seg_dist(Pt, K[i], K[i + 1])
+            t = np.clip(((Pt - K[i]) @ d[i]) / (d[i] @ d[i]), 0, 1)
+            dd.append(di)
+            hh.append(H[i] + t * (H[i + 1] - H[i]))
+            ss.append(s[i] + t * (s[i + 1] - s[i]))
+            side.append(np.sign((Pt - K[i]) @ ups[i]))
+        dd, hh, side, ss = np.array(dd), np.array(hh), np.array(side), np.array(ss)
+        k = dd.argmin(axis=0)
+        j = np.arange(len(Pt))
+        return dd[k, j], hh[k, j], side[k, j], ss[k, j]
+
+    def ytop(Pt):
+        dist, hc, side, sc = crest(Pt)
+        w = np.where(side > 0, up_w * (1 - 0.55 * sc / s[-1]), dn_w)
+        return DG_Y0 + hc * (1 - np.clip(dist / w, 0, 1)) ** 1.15 + 0.0002
+
+    def ybot(Pt):
+        return np.full(len(Pt), DG_Y0 - 0.0012)
+    extra = np.vstack([_offset_rows(K, [0.0, 0.0006, -0.0006, 0.002, 0.004], False, 0.0012)])
+    return _hfield(L, [], ytop, ybot, "guard_black", step=0.0025, extra=extra, bstep=0.0010)
+
+
+def disc_guard():
+    """Black plastic disc guard over the front disc's outer face (DET 475831, DR12, LEFT, FRONT, lf34): the dish
+    (outer band, skirt, honeycomb window, strut and slots, crease, trough, V pocket), the frame bar along the fork
+    guard, the mount over the left axle holder with the raised ring round the axle nut, the keel to the fin's
+    point, the two bolts on their bosses."""
+    m = Mesh()
+    holes = [_dg_window()] + _dg_slots()
+    band = lambda Q: np.where(_dg_dout(Q) < DG_BEZEL - 0.0005, "guard_band", "guard_black")
+    m.add(_hfield(_dg_outline(), holes, lambda Q: DG_Y0 + _dg_height(Q), lambda Q: DG_Y0 + _dg_height(Q) - DG_T,
+                  "guard_black", step=0.0030, extra=_dg_extra(), bstep=0.0012, topmat=band))
+    m.add(_dg_honeycomb())
+    # skirt round the outer edge, from the face in over the disc's rim (FRONT: the band's front face lit, its outer
+    # corner rounded), from the fin's lower edge round the front to under the fork guard
+    j0 = math.degrees(math.atan2(DG_FIN_LOW[0][1], DG_FIN_LOW[0][0]))
+    g = 0.040 - P.AXLE_LEAD
+    top = g * np.array([FWD[0], FWD[2]]) + math.sqrt(DG_R ** 2 - g ** 2) * np.array([UP[0], UP[2]])
+    a1 = math.degrees(math.atan2(top[1], top[0]))
+    yb = DG_Y0 - DG_BAND_DROP                                      # the band's outer edge
+    skirt = [(DG_R - 0.0027, yb + 0.0016), (DG_R - 0.0011, yb + 0.0006), (DG_R - 0.0003, yb - 0.0002),
+             (DG_R, yb - 0.0014), (DG_R, DG_SKIRT + 0.0010), (DG_R - 0.0010, DG_SKIRT),
+             (DG_R - 0.0022, DG_SKIRT + 0.0004), (DG_R - 0.0025, DG_SKIRT + 0.0015), (DG_R - 0.0025, yb - 0.0035),
+             (DG_R - 0.0040, yb - 0.0018)]
+    m.add(rev(FA, Y, skirt, "guard_band", 240, ref=np.array([1.0, 0.0, 0.0]),
+              arc=(-math.radians(a1), -math.radians(j0)), solid=True))
+    # frame bar along the fork guard: f 47..61, from the upper boss to the outer band
+    f0, f1 = DG_FRAME_F
+    rr = DG_R - 0.0020
+    tops = []
+    for f in (f1, f0):
+        gg = f - P.AXLE_LEAD
+        tops.append(gg * np.array([FWD[0], FWD[2]]) + math.sqrt(rr ** 2 - gg ** 2) * np.array([UP[0], UP[2]]))
+    aa = [math.degrees(math.atan2(q[1], q[0])) for q in tops]
+    bar = [tuple(_fpt(f0, DG_BOLTS[0][1] + 0.011)), tuple(_fpt(f1, DG_BOLTS[0][1] + 0.011))] + \
+        list(_arc((0, 0), rr, aa[0], aa[1], 8))
+    m.add(_rplate(_ccw(np.array(bar)), [], DG_FRAME_Y[0], DG_FRAME_Y[1], 0.0020, "guard_black",
+                  lambda x, z, w: FA + np.array([x, w, z]), step=0.0015))
+    m.add(_dg_mount())
+    m.add(_dg_keel())
+    # raised ring round the axle nut, its mouth chamfered (DET831: the nut deep inside)
+    r0, r1, yr = DG_RING
+    ring = [(r0, DG_COVER_Y[1] - 0.002), (r1 - 0.0004, DG_COVER_Y[1] - 0.002), (r1, DG_COVER_Y[1] - 0.0015),
+            (r1, yr - 0.0018), (r1 - 0.0006, yr - 0.0004), (r1 - 0.0018, yr), (r0 + 0.0022, yr),
+            (r0 + 0.0008, yr - 0.0006), (r0, yr - 0.0018), (r0, DG_COVER_Y[1] - 0.001)]
+    m.add(rev(FA, Y, ring, "guard_black", 64, solid=True))
+    # the bolts' bosses and the zinc socket flange bolts (DET831, DR12: hex sockets in bright round heads)
     for k, (dx, dz) in enumerate(DG_BOLTS):
         c = FA + np.array([dx, 0.0, dz])
-        y0, y1 = (DG_LUG_Y, 0.1305) if k == 0 else (CAL_BRK_Y[1] - 0.0018, 0.1195)
-        m.add(cyl(c + y0 * Y, c + y1 * Y, 0.0080, "plastic_black", 24, 0.0008))
-        m.add(fastener(c + (0.1335 if k == 0 else y1) * Y, Y, "socket", af=0.0135, h=0.0032, recess=0.005,
-                       mat="steel"))
+        y0, y1, rb = DG_UB_Y if k == 0 else DG_LB_Y
+        m.add(cyl(c + y0 * Y, c + y1 * Y, rb, "guard_black", 28, 0.0008))
+        m.add(fastener(c + y1 * Y, Y, "socket", af=0.0150, h=0.0040, recess=0.0055, mat="steel"))
     return m
 
-
-DG_BOLTS = ((-0.0087, 0.0388), (-0.0549, -0.0331))   # disc guard bolts (world dx, dz from the axle): LEFT (1060, 1556)
-#   and (1121, 1650) cast on y 0.134 about the photo's axle (r 39.8 at 77 deg, r 64.1 at -31 deg below the rearward
-#   horizontal); lf34 shows the upper one on a black boss reaching inboard
-DG_LUG_Y = 0.1120             # the holder's lug face under the upper boss, EST
 
 
 # ================================================================ cables that run on to the frame
@@ -2292,7 +2843,9 @@ def clutch_path():
     tail = [CLUTCH_JOIN + 0.0025 * w] if arm is None or route is None else [CLUTCH_JOIN] + [tuple(p) for p in route[1:]] + [arm]
     pts = [a0 + 0.0006 * ad, a0 + 0.016 * ad, a0 + 0.034 * ad,            # leaves along the adjuster
            (1.058, 0.118, 1.190), fk(0.041, 0.095, 0.972),
-           fk(0.042, 0.072, 0.968), fk(0.043, 0.060, 0.945), fk(0.040, 0.057, 0.915), fk(0.034, 0.056, 0.880), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),
+           fk(0.046, 0.072, 0.968), fk(0.050, 0.060, 0.945), fk(0.0525, 0.057, 0.915), fk(0.051, 0.056, 0.886),
+           fk(0.040, 0.054, 0.874), fk(0.006, 0.052, 0.858), fk(-0.038, 0.052, 0.853),     # round 4: ahead of the
+           #   top clamp's front face (TC_FRONT, f 46), behind the number plate (f 60)
            fk(-0.054, 0.054, 0.800), fk(-0.056, 0.056, 0.740), (1.030, 0.057, 0.904), (0.991, 0.062, 0.875),
            (0.951, 0.068, 0.849), (0.909, 0.075, 0.824), (0.866, 0.077, 0.801), (0.815, 0.074, 0.795)] + tail
     return spline(pts, 190)
@@ -2403,10 +2956,18 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "cal_spot": dict(rgb=(200, 200, 204), metal=1.0, rough=0.25),     # machined D-flats (DET831)
              "pad_friction": dict(rgb=(52, 46, 40), rough=0.8),
              "pad_shim": dict(rgb=(120, 92, 58), metal=0.6, rough=0.45),       # bronze shims (RIGHT, rf34)
-             "mark_white": dict(rgb=(225, 225, 225), rough=0.5)}               # fork cap index mark (DET835)
+             "mark_white": dict(rgb=(225, 225, 225), rough=0.5),               # fork cap index mark (DET835)
+             # round 4, disc guard: black polypropylene, its faces matte with a fine moulded grain (DR12), the outer
+             # band and skirt smooth (LEFT and lf34 studio: the band reads 110..130 where the faces read 50..80)
+             "guard_black": dict(rgb=(28, 28, 30), rough=0.38, bump=0.06),
+             "guard_band": dict(rgb=(28, 28, 30), rough=0.28),
+             # round 4, top clamp: bead-blasted cast aluminium, satin light grey with a fine grain (DET835)
+             "tc_cast": dict(rgb=(176, 176, 179), metal=1.0, rough=0.48, bump=0.14)}
 CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
          "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
-         "led_lens": "black", "sw_body": "black", "tie_band": "black"}
+         "led_lens": "black", "sw_body": "black", "tie_band": "black", "guard_black": "black",
+         "guard_band": "black"}
+BEVEL = {"clamps": 0.0004}   # round 4: the top clamp's edges are rounded in the mesh; a 3 mm bevel spiked its thin layers
 SMOOTH = {"fork": 40, "clamps": 40, "bars": 40, "hand_controls": 40, "front_brake": 40, "disc_guard": 40, "cables": 60}
 # bar pad's texture: "RENTHAL" on its front and rear faces, each read from its own side (FRONT and REAR photos)
 UV = {"barpad": dict(centre=[float(PAD_C[0]), float(PAD_C[2])], half=list(PAD_HALF), y_half=PAD_Y[1],

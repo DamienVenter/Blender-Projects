@@ -387,3 +387,51 @@ def test_caliper_pads_straddle_the_disc_and_the_body_clears_it(built):
     rb = np.hypot(body[:, 0] - parts.FA[0], body[:, 2] - parts.FA[2])
     across = (body[:, 1] > y0 - 0.0015) & (body[:, 1] < y1 + 0.0015)
     assert np.all(rb[across] > dw.DISC_F["r"] + 0.001)                                    # the bridge passes outside
+
+
+def test_disc_guard_outline_window_and_slots(built):
+    """Round 4, component 1: the dish's edge a circle of r 140.5 about the axle (LEFT rimfit), its face at y 73.5 and
+    skirt in to y 50 (FRONT), the honeycomb's holes on the fitted lattice (11.5 x 10.5 mm, 13.9 x 7.8 mm holes),
+    two slots under the strut, the ring round the axle nut out to y 136, the two bolts where LEFT has them."""
+    g = verts(built["disc_guard"]) - parts.FA
+    r = np.hypot(g[:, 0], g[:, 2])
+    front = g[(g[:, 0] > 0.0) & (np.abs(g[:, 2]) < 0.10)]
+    assert abs(np.hypot(front[:, 0], front[:, 2]).max() - df.DG_R) < 0.0006
+    assert abs(g[:, 1].min() - df.DG_SKIRT) < 0.0005
+    assert abs(g[:, 1].max() - (df.DG_RING[2] + 0.0)) < 0.0005
+    dish = g[(r > 0.050) & (r < df.DG_R - 0.004) & (g[:, 0] > 0.04)]
+    assert dish[:, 1].max() < df.DG_Y0 + 0.0021                                  # the face (and the strut's lip)
+    px, pz, hw, hh, hb, x0, z0 = df.DG_HEX
+    assert (round(px, 4), round(pz, 4), round(2 * hw, 4), round(2 * hh, 4)) == (0.0115, 0.0105, 0.0139, 0.0078)
+    a, b = df.DG_SLOTS
+    assert len(df._dg_slots()) == 2 and a[0] - a[1] > 2 * (b[0] - b[1])           # a long slot and a short one
+    for (dx, dz), ph in zip(df.DG_BOLTS, ((1060, 1556), (1121, 1650))):        # LEFT, about the photo's axle
+        assert np.linalg.norm(_photo_px("left", parts.FA + np.array([dx, 0.128, dz])) - ph) < 4.0
+
+
+def test_top_clamp_front_face_on_the_top_photo(built):
+    """Round 4, component 2: the top clamp's front face runs straight across the tube axes at f 46 mm on its top
+    plane (TOP cols 1638..1640, rows 1010..1230), ahead of the clutch cable's room and behind the number plate."""
+    v = verts(built["clamps"], "tc_cast")
+    rel = v - df.TUBE0
+    f, t = rel @ df.FWD, rel @ df.UP
+    top = (t > df.T_UP[1] - 0.004) & (np.abs(v[:, 1]) < 0.085)
+    assert abs(f[top].max() - df.TC_FRONT[0]) < 0.0005
+    for y in (0.03, -0.06):
+        px = cams.CAMS["top"].project([df.fk(df.TC_FRONT[0], y, df.T_UP[1])])[0]
+        assert 1636 < px[0] < 1642
+    q = df.clutch_path()
+    rq = q - df.TUBE0
+    near = (np.abs(rq @ df.UP - 0.905) < 0.022) & (np.abs(q[:, 1]) < 0.09)
+    assert (rq[near] @ df.FWD).min() > df.TC_FRONT[0] + 0.004                     # the cable passes ahead of it
+
+
+def test_disc_guard_clears_the_disc_and_its_bolts(built):
+    """The dish wraps the disc's rim without touching it: nothing of the guard inside the disc's outer face within
+    its radius, and it stays over the bolt heads (4.5 mm proud of the disc) round the bolt circle."""
+    import detail_wheels as dw
+    g = verts(built["disc_guard"]) - parts.FA
+    r = np.hypot(g[:, 0], g[:, 2])
+    y1 = dw.DISC_F["y"] + dw.DISC_F["t"] / 2
+    assert g[r < dw.DISC_F["r"] + 0.001][:, 1].min() > y1 + 0.0005
+    assert g[np.abs(r - dw.DISC_F_BOLT_R) < 0.008][:, 1].min() > y1 + 0.0045
