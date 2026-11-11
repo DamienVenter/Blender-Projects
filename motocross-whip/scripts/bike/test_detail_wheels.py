@@ -18,10 +18,14 @@ def built():
     return {name: fn() for name, fn in dw.PARTS.items()}
 
 
+TYRE = ("tyre", "rubber")             # the tyre's moulded rubber (vent hairs are "tyre_spew")
+
+
 def _radii(mesh, centre, mat=None):
     V = np.asarray(mesh.V)
     if mat is not None:
-        idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m == mat for i in f})
+        mats = (mat,) if isinstance(mat, str) else mat
+        idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m in mats for i in f})
         V = V[idx]
     return np.hypot(V[:, 0] - centre[0], V[:, 2] - centre[2]), V
 
@@ -29,7 +33,7 @@ def _radii(mesh, centre, mat=None):
 def test_parts_and_budget(built):
     assert set(built) == {"front_wheel", "rear_wheel", "drive", "rear_brake"}
     assert set(dw.REPLACES) == {"front_wheel", "rear_wheel", "drive"} and dw.FRONT_END == {"front_wheel"}
-    assert sum(len(m.V) for m in built.values()) <= 130000
+    assert sum(len(m.V) for m in built.values()) <= 450000             # the micro-detail brief's budget
     for m in built.values():
         assert all(0 <= i < len(m.V) for f in m.F for i in f) and len(m.F) == len(m.M)
 
@@ -38,7 +42,7 @@ def test_tyre_diameters(built):
     # knob tips on the shared radii (LEFT / RIGHT circle fits). The front stands 3.6 % over its size code's nominal
     # 693.4 mm in Honda's photos, the rear 0.9 % over 662.6 mm.
     for name, c, R, nominal in (("front_wheel", parts.FA, parts.R_FRONT, 0.6934), ("rear_wheel", parts.RA, parts.R_REAR, 0.6626)):
-        r, _ = _radii(built[name], c, "rubber")
+        r, _ = _radii(built[name], c, TYRE)
         assert abs(r.max() - R) < 0.0008, name
         assert abs(2 * r.max() / nominal - 1) < 0.04, name
     # the carcass between the knobs is where the photos show the groove floor (it did not move with the tips)
@@ -49,9 +53,43 @@ def test_tyre_diameters(built):
 def test_tyre_widths(built):
     # FRONT rows 1900..2000: 137 px; REAR rows 1750..1975: 139 px (88 to 92 mm through the cameras)
     for name, spec in (("front_wheel", dw.FRONT), ("rear_wheel", dw.REAR)):
-        _, V = _radii(built[name], (0, 0, 0), "rubber")
+        _, V = _radii(built[name], (0, 0, 0), TYRE)
         assert abs((V[:, 1].max() - V[:, 1].min()) - spec["width"]) < 0.003, name
         assert abs(V[:, 1].max() + V[:, 1].min()) < 0.001, name
+
+
+def test_rear_tread():
+    """The rear MX32 pattern (REAR_TREAD): 46 rows, each a slit centre knob, two intermediates, two shoulders half
+    a pitch on, a pad; the outline the LEFT photo shows; vent hairs on the knobs."""
+    q = dw.REAR_TREAD
+    assert dw.REAR["pitches"] == 46                                       # LEFT / RIGHT scans: 7.83 deg a row
+    sec = dw.Section(dw.REAR, dw.REAR_SECTION)
+    m, na, a0, n_t = dw.carcass(sec, 46, dw.REAR_PHASE, 8, 0.054)
+    nv, nf = len(m.V), len(m.F)
+    dw.rear_tread(m, sec, 46, a0, dw.REAR)
+    knob_f = [f for f, mt in zip(m.F[nf:], m.M[nf:]) if mt == "tyre"]
+    spews = sum(1 for mt in m.M[nf:] if mt == "tyre_spew") // 12            # 12 faces a hair (3 sides, 3 rings)
+    assert 46 * 4 < spews < 46 * 22
+    V = np.asarray(m.V)
+    knob = np.array(sorted({i for f in knob_f for i in f}))
+    rk = np.hypot(V[knob, 0], V[knob, 2])
+    assert abs(rk.max() - dw.REAR["R"]) < 1e-4                             # the centre knobs' tops: the tip radius
+    # the centre knob's slit: at the top the halves stand 3.5 to 6 mm apart, the floor 1 to 2.5 mm wide
+    c = q["centre"]
+    top_gap = 2 * (c["slit_t"] + c["slit_z"] * math.tan(math.radians(c["draft"])) +
+                   (dw.REAR["knob"] - c["slit_z"]) * math.tan(math.radians(c["slit_draft"])))
+    assert 0.0035 < top_gap + 2 * dw.ROUND < 0.006 and 0.001 < 2 * (c["slit_t"] + c["slit_z"] * math.tan(
+        math.radians(c["draft"]))) < 0.0025
+    # knobs of one pitch do not touch: intermediate and shoulder half a pitch apart leave a gap at their roots
+    rc = sec.at(q["shoulder"]["t0"])[1]
+    gap = math.pi * rc / 46 - q["inter"]["s"] - q["shoulder"]["s"] - 2 * dw.FLARE
+    assert gap > 0.0005
+    # every pitch alike: the knob vertices come in 46 equal sets, one 7.83 deg turn apart
+    assert len(knob) % 46 == 0
+    P = V[knob].reshape(46, -1, 3)
+    turn = 2 * math.pi / 46
+    rot = np.array([[math.cos(turn), 0, -math.sin(turn)], [0, 1, 0], [math.sin(turn), 0, math.cos(turn)]])
+    assert np.allclose(P[0] @ rot.T, P[1], atol=1e-6)
 
 
 def test_rims(built):

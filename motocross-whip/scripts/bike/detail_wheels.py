@@ -19,6 +19,9 @@ from parts import CHAIN_Y, CS, FA, P520, R_FRONT, R_REAR, RA, chain_top, sprocke
 REPLACES = ["front_wheel", "rear_wheel", "drive"]
 FRONT_END = {"front_wheel"}
 SMOOTH = {"front_wheel": 32, "rear_wheel": 32, "drive": 32, "rear_brake": 35}
+MATERIALS = {"tyre": dict(rgb=(15, 15, 16), rough=0.72),        # studio photos: lit knob faces show a dull sheen
+             "tyre_spew": dict(rgb=(15, 15, 16), rough=0.72)}   # the tyre's own rubber
+CLASS = {"tyre": "black", "tyre_spew": "black"}
 IN = 0.0254
 
 # ---------------------------------------------------------------- measured and specified dimensions
@@ -315,10 +318,13 @@ def tyre(spec, ctrl, rows, phase0=0.0, per=8):
 # the plan's corners are rounded, the top edge has a quarter-round, the foot a small flare (the fillet at the
 # root) sunk 0.8 mm into the carcass, which is a whole grid under every knob (nothing hangs, nothing has holes).
 def _fillet(poly, r, n=3):
-    """Round the corners of a closed polygon with radius about R (quadratic arcs, N points each)."""
+    """Round the corners of a closed polygon with radius about R (one, or one per corner; quadratic arcs, N points
+    each)."""
     P = np.asarray(poly, float)
+    rr = np.broadcast_to(np.asarray(r, float), (len(P),))
     out = []
     for i in range(len(P)):
+        r = rr[i]
         a, b, c = P[i - 1], P[i], P[(i + 1) % len(P)]
         u, v = a - b, c - b
         lu, lv = np.linalg.norm(u), np.linalg.norm(v)
@@ -329,6 +335,11 @@ def _fillet(poly, r, n=3):
         for w in np.linspace(0, 1, n):
             out.append((1 - w) ** 2 * p0 + 2 * (1 - w) * w * b + w ** 2 * p1)
     return np.array(out)
+
+
+def _rect(s0, s1, t0, t1, r, n=3):
+    """Counter-clockwise rectangle in plan with rounded corners, R one radius or four (s0t0, s1t0, s1t1, s0t1)."""
+    return _fillet([(s0, t0), (s1, t0), (s1, t1), (s0, t1)], r, n)
 
 
 def _mitre(poly, d):
@@ -384,25 +395,31 @@ ROUND = 0.0009          # EST top edge quarter-round of a moulded knob (0.5 to 1
 FLARE = 0.0010          # EST root fillet seen as a flare at the foot
 
 
-def _knob(m, xf, plan, h_of, draft, mat="rubber", base=None, top=True, wall_mat=None, top_mat=None, step=0.0032):
-    """One knob: PLAN (s, t) counter-clockwise at the root; H_OF(s, t) its height. BASE: start the walls at this
-    height (no root flare; a knob stacked on another one); TOP False: a flat top without the round (a floor seen
-    only in a slit). WALL_MAT(i): material of the wall from plan vertex i to i + 1 (below the round). Returns the
-    top's boundary in 3D and in plan (for spews)."""
+def _knob(m, xf, plan, h_of, draft, mat="tyre", base=None, top=True, wall_mat=None, top_mat=None, step=0.0032,
+          rnd=ROUND, base_draft=None):
+    """One knob: PLAN (s, t) counter-clockwise at the root; H_OF(s, t) its height; DRAFT one angle or one per plan
+    vertex. BASE: start the walls at this height (no root flare: a knob stacked on another one, whose walls it
+    continues with BASE_DRAFT); TOP False: a flat top without the round (a floor seen only in a slit). WALL_MAT(i):
+    material of the wall from plan vertex i to i + 1 (below the round). RND: radius of the top edge's round.
+    Returns the top's boundary in 3D and in plan (for spews)."""
     plan = _ccw(plan)
     h = np.array([h_of(s, t) for s, t in plan])
-    td = math.tan(draft)
+    td = np.broadcast_to(np.tan(np.asarray(draft, float)), (len(plan),))
+    zb = 0.0 if base is None else base
+    tb = td if base_draft is None else np.full(len(plan), math.tan(base_draft))
     if base is None:
-        lv = [(np.full(len(h), -0.0008), FLARE), (np.zeros(len(h)), 0.5 * FLARE), (np.full(len(h), 0.0015), None)]
+        z3 = np.minimum(0.0015, 0.5 * (h - rnd))
+        lv = [(np.full(len(h), -0.0008), FLARE), (np.zeros(len(h)), 0.5 * FLARE), (z3, None)]
     else:
         lv = [(np.full(len(h), base), None)]
     if top:
-        lv += [(h - ROUND, None), (h - 0.293 * ROUND, -0.293 * ROUND), (h, -ROUND)]
+        lv += [(h - rnd, None), (h - 0.293 * rnd, -0.293 * rnd), (h, -rnd)]
     else:
         lv += [(h, None)]
     rings = []
     for z, extra in lv:
-        off = -np.maximum(z, 0.0) * td + (0.0 if extra is None else extra)
+        zz = np.maximum(z, 0.0)
+        off = -(tb * np.minimum(zz, zb) + td * np.maximum(zz - zb, 0.0)) + (0.0 if extra is None else extra)
         Q = _mitre(plan, off)
         rings.append((Q, z))
     o = len(m.V)
@@ -421,7 +438,8 @@ def _knob(m, xf, plan, h_of, draft, mat="rubber", base=None, top=True, wall_mat=
     ot = o + (len(rings) - 1) * n
     oe = m.verts(xf(extra_pts[:, 0], extra_pts[:, 1], [h_of(s, t) for s, t in extra_pts])) if len(extra_pts) else 0
     for tr in tri:
-        faces.append((tuple(ot + i if i < n else oe + i - n for i in tr), top_mat or mat))
+        tm = top_mat(*P2[tr].mean(axis=0)) if callable(top_mat) else (top_mat or mat)
+        faces.append((tuple(ot + i if i < n else oe + i - n for i in tr), tm))
     # winding: the top faces the way the knob stands (from the carcass out)
     tr0 = faces[-1][0]
     A, B, C = (np.asarray(m.V[i]) for i in tr0)
@@ -433,6 +451,28 @@ def _knob(m, xf, plan, h_of, draft, mat="rubber", base=None, top=True, wall_mat=
     return xf(Qt[:, 0], Qt[:, 1], zt), Qt
 
 
+def carcass(sec, n, phase0, per, t_end):
+    """The carcass as one grid, bead (+y) to bead (-y): PER columns per pitch, section rows every 3 mm over the
+    tread (to T_END), then the sidewall down to the bead. Returns mesh, columns, first angle, rows."""
+    na = per * n
+    ts = set(np.round(np.linspace(0.0, t_end, int(t_end / 0.003) + 1), 5))
+    ts |= set(np.round(np.linspace(t_end, sec.length, 9)[1:], 5))
+    ts = sorted(ts)
+    T = ts[::-1] + [-t for t in ts[1:]]
+    a0 = 2 * math.pi * phase0 / n
+    ang = a0 + 2 * math.pi * np.arange(na) / na
+    m = Mesh()
+    for t in T:
+        y, r = sec.at(t)
+        m.verts(np.stack([r * np.cos(ang), np.full(na, y), r * np.sin(ang)], axis=1))
+    for j in range(len(T) - 1):
+        mat = "tyre"
+        for i in range(na):
+            i2 = (i + 1) % na
+            m.face((j * na + i, j * na + i2, (j + 1) * na + i2, (j + 1) * na + i), mat)
+    return m, na, a0, len(T)
+
+
 def _spew(m, p, d, length, rng):
     """A mould vent hair: rubber whisker 0.45 mm thick, LENGTH long, from P along D, slightly bent."""
     d = d / np.linalg.norm(d)
@@ -440,6 +480,121 @@ def _spew(m, p, d, length, rng):
     side /= np.linalg.norm(side)
     path = [p - d * 0.0004, p + d * length * 0.5 + side * length * 0.06, p + d * length]
     m.add(tube(path, [0.00024, 0.00022, 0.00016], 3, "tyre_spew"))
+
+
+def _spews_at(m, P3, up, idx, rng, p=0.8, lo=0.0025, hi=0.0050):
+    """Spews at the top boundary points IDX of a knob (P3: its top boundary in 3D), leaning out and up."""
+    c = P3.mean(axis=0)
+    for i in idx:
+        if rng.random() > p:
+            continue
+        out = P3[i] - c
+        out -= (out @ up) * up
+        d = 0.75 * out / np.linalg.norm(out) + 0.65 * up + 0.3 * rng.normal(size=3)
+        _spew(m, P3[i] - 0.0002 * up, d, rng.uniform(lo, hi), rng)
+
+
+# Rear: Pirelli Scorpion MX32 Mid Soft 100/90-19 (SPEC), as Honda's studio photos show it. One row per pitch, 46
+# pitches (LEFT / RIGHT polar scans of the outline: tall plateaus every 7.8 deg, 4.2 deg wide at r 334; between them
+# a low plateau at r 321.5 half a pitch on). Per row (REAR rows 1580..1680 cols 1925..2075, LEFT cols 3250..3400
+# rows 1480..1680 zoomed, lr34, DR13 and 475832):
+#   centre knob across the crown, 44 px = 28 mm at the top (REAR), split along the centre line by a V slit that runs
+#     its whole length (REAR: a dark wedge down the leading wall of every centre knob, 5 mm wide at the top, about
+#     1.5 at its floor) but only part way down (475832: the two halves join below it)
+#   an intermediate knob each side in the same row, its outer-leading corner cut off at a slant (REAR: the slanted
+#     edge at the top-outer corner of both; Pirelli's flat view of the tread). Its trailing wall spans y 15..34 mm
+#     (REAR cols 1947..1977); seen side-on (LEFT zoom) its outer face is the lit square inside the outline
+#   half a pitch on: a shoulder knob each side, y 26..45.5 mm (REAR cols 1929..1959); plain tapered block with a vent
+#     hair at each top corner (DR13: no notch or step on the stock tyre's shoulder knobs, unlike Pirelli's renders)
+#   a low pad under each row joining its three in-row knobs: in the REAR photo and in Pirelli's views the floor
+#     shows a faint arc between rows, longest at the centre (EST 1.2 mm high)
+# Heights: the LEFT outline (edge.py: the last dark column per row, photo against model, cols 3200..3420) has flat
+#   plateaus at the centre knobs' tips (r 334.3, y = 0); a knob nearer the camera (y > 0) at the back of the wheel
+#   lands 0.28 px further out per mm of y, 1.28 px per mm of radius. Nothing passes the centre tips, so the
+#   intermediates' tops fall away to R - 9 mm at their outer end (tip envelope ENV), and the low plateau (col 3365:
+#   the shoulders' inner top corner, at y 37) puts that corner at r 317.5.
+# The red centre line of 475832 (an outdoor press bike) is not on the studio bike (REAR, lr34: none): left off.
+# Lengths along the tread: LEFT zoom of one pitch side-on (cols 3300..3400, rows 1500..1620): the in-row knob's lit
+#   outer face is 25 px = 19.5 mm long, the whole row 29 px = 22 mm, the shoulder's face 25 px; the rest EST.
+REAR_TREAD = dict(
+    env=0.0090,                                     # tip envelope: R - env (t / 31.5 mm)^2
+    centre=dict(s=0.0110, t=0.0150, slit_z=0.0090, slit_t=0.0002, draft=4.0, slit_draft=7.5),
+    inter=dict(t0=0.0165, t1=0.0315, s=0.0095, cut=(0.0065, 0.0055), lean=0.3, draft=5.0),
+    shoulder=dict(t0=0.0280, t1=0.0470, s=0.0080, r0=0.3175, h1=0.0120, lean=0.85, draft=5.0),
+    pad=dict(t=0.0300, s0=0.0120, s1=0.0045, h=0.0012, draft=35.0))
+
+
+def _signed(xc):
+    """A Knob map that takes signed t (a knob across the crown centre line)."""
+    def f(s, t, z):
+        s, t, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(t, float), np.asarray(z, float))
+        P = xc(s, abs(t), z)
+        P[..., 1] *= np.where(t < 0, -1.0, 1.0)
+        return P
+    return f
+
+
+def rear_tread(m, sec, n, a0, spec, seed=19):
+    """Every knob of the rear tyre on the carcass grid already in M."""
+    q = REAR_TREAD
+    rng = np.random.default_rng(seed)
+    rc = lambda t: float(np.interp(abs(t), sec.t, sec.P[:, 1]))
+    r_env = lambda t: spec["R"] - q["env"] * (t / 0.0315) ** 2
+
+    def h_to(t, r_top, lean):                       # height along the lean direction that reaches radius R_TOP
+        y0, r0 = sec.lift(abs(t), 0.0, lean)
+        y1, r1 = sec.lift(abs(t), 0.01, lean)
+        return float((r_top - r0) / ((r1 - r0) / 0.01))
+
+    for k in range(n):
+        a = a0 + 2 * math.pi * k / n
+        xc = _signed(Knob(sec, a, 1, 0.0))
+        # row pad: lens-shaped, longest at the centre line
+        p = q["pad"]
+        tt = np.linspace(-p["t"], p["t"], 13)
+        sh = p["s0"] + p["s1"] * (1 - (tt / p["t"]) ** 2)
+        pad = np.vstack([np.stack([-sh, tt], 1)[::-1], np.stack([sh, tt], 1)])
+        _knob(m, xc, _fillet(pad, 0.004, 3), lambda s, t: p["h"], math.radians(p["draft"]), mat="tyre", rnd=0.0006)
+        # centre knob: a body up to the slit's floor, and two halves above it that share its walls' line
+        c = q["centre"]
+        hc = lambda s, t: r_env(t) - rc(t)
+        body = _rect(-c["s"], c["s"], -c["t"], c["t"], 0.0015)
+        _knob(m, xc, body, lambda s, t: c["slit_z"], math.radians(c["draft"]), mat="tyre", top=False, step=0.002)
+        for sg in (1, -1):
+            t0, t1 = sorted((sg * c["slit_t"], sg * c["t"]))
+            r_in, r_out = 0.0003, 0.0015                         # slit corners nearly sharp, outer ones rounded
+            half = _rect(-c["s"], c["s"], t0, t1, (r_in, r_in, r_out, r_out) if sg > 0 else (r_out, r_out, r_in, r_in))
+            dr = np.where(abs(half[:, 1]) < c["slit_t"] + 0.0005, math.radians(c["slit_draft"]), math.radians(c["draft"]))
+            # the slit's walls stand on the body's top edge: start them from the body's own outline there
+            P3, Qt = _knob(m, xc, half, hc, dr, mat="tyre", base=c["slit_z"], base_draft=math.radians(c["draft"]))
+            up = xc(0.0, sg * 0.007, hc(0, 0.007) + 0.001) - xc(0.0, sg * 0.007, hc(0, 0.007))
+            far = [i for i in range(len(Qt)) if abs(Qt[i][1]) > c["t"] - 0.004]
+            _spews_at(m, P3, up / np.linalg.norm(up), far[::2], rng, 0.5)
+        # intermediate and shoulder knobs, both sides
+        for side in (1, -1):
+            g = q["inter"]
+            plan = [(-g["s"], g["t0"]), (g["s"], g["t0"]), (g["s"], g["t1"] - g["cut"][0]),
+                    (g["s"] - g["cut"][1], g["t1"]), (-g["s"], g["t1"])]
+            hf = lambda s, t, g=g: h_to(t, r_env(t), g["lean"])
+            xi = Knob(sec, a, side, g["lean"])
+            P3, Qt = _knob(m, xi, _fillet(plan, 0.0015), hf, math.radians(g["draft"]), mat="tyre")
+            tm = 0.5 * (g["t0"] + g["t1"])
+            up = xi(0.0, tm, hf(0, tm) + 0.001) - xi(0.0, tm, hf(0, tm))
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.55)
+            g = q["shoulder"]
+            h0 = h_to(g["t0"], g["r0"], g["lean"])
+            hf = lambda s, t, g=g, h0=h0: h0 + (g["h1"] - h0) * (t - g["t0"]) / (g["t1"] - g["t0"])
+            xs = Knob(sec, a + math.pi / n, side, g["lean"])
+            plan = _rect(-g["s"], g["s"], g["t0"], g["t1"], 0.0012)
+            P3, Qt = _knob(m, xs, plan, hf, math.radians(g["draft"]), mat="tyre")
+            up = xs(0.0, g["t1"] - 0.004, 0.02) - xs(0.0, g["t1"] - 0.004, 0.0)
+            _spews_at(m, P3, up / np.linalg.norm(up), range(1, len(Qt), 3), rng, 0.8)
+            for s0 in (-0.5 * g["s"], 0.5 * g["s"]):                       # vents on the outer face (475832)
+                if rng.random() < 0.6:
+                    z = 0.6 * hf(s0, g["t1"])
+                    pnt = xs(s0, g["t1"] - z * math.tan(math.radians(g["draft"])) - 0.0002, z)
+                    o = xs(s0, g["t1"] + 0.003, z) - xs(s0, g["t1"], z)
+                    _spew(m, pnt, o / np.linalg.norm(o) + 0.3 * rng.normal(size=3), rng.uniform(0.003, 0.005), rng)
 
 
 # ---------------------------------------------------------------- rims, spokes, valve, rim lock
@@ -806,9 +961,17 @@ def _flange(rh, yf):
             (rh, yf - 0.003), (rh - 0.008, yf - 0.003)]
 
 
-def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems):
+def rear_tyre():
+    """Rear tyre: carcass grid with the red centre line, and the shaped knobs."""
+    sec = Section(REAR, REAR_SECTION)
+    m, na, a0, n_t = carcass(sec, REAR["pitches"], REAR_PHASE, 8, 0.054)
+    rear_tread(m, sec, REAR["pitches"], a0, REAR)
+    return m, na, a0, n_t
+
+
+def _wheel(spec, ctrl, rows, tread_phase, prof, mats, rh, yl, yr, spoke0, stems, tyre_fn=None):
     """Tyre and rim (one mesh: the beads sit on the rim's seats), hub with seals and collars, spokes, valve, rim lock."""
-    m, na, a0, n_t = tyre(spec, ctrl, rows, tread_phase)
+    m, na, a0, n_t = tyre_fn() if tyre_fn else tyre(spec, ctrl, rows, tread_phase)
     _rim(m, spec, na, a0, n_t)
     _hub(m, prof, mats, spoke0)
     _spokes(m, spec, rh, yl, yr, spoke0)
@@ -858,7 +1021,7 @@ def rear_wheel():
     mats += ["rubber_black", "rubber_black"]
     mats += ["hub"] * (len(prof) - 1 - len(mats) - 4) + ["rubber_black", "rubber_black", "steel", "steel"]
     m = _wheel(REAR, REAR_SECTION, REAR_ROWS, REAR_PHASE, prof, mats, rh, yl, yr, REAR_SPOKE0,
-               ((115.0, False), (295.0, True)))
+               ((115.0, False), (295.0, True)), rear_tyre)
     m.add(_plate(_lobes(6, 0.066, 0.0875, 16.0, SPROCKET_BOLT0),
                  [circle(0.059, 72)] + _pilots(SPROCKET_BOLT_R, SPROCKET_BOLT0, 6), back + 0.006, 0.012, "hub", 0.008))
     m.add(rear_sprocket(chain_path()[1]))
