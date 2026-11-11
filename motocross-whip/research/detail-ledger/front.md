@@ -720,3 +720,102 @@ pair.py run on one labelled pixel grid, with a 50/50 overlay and the render shif
 - Lessons: the foot's underside is world-horizontal, not square to the tube (a socket read on the wrong plane came out
   12 mm long); features at |y| 0.1 to 0.13 near the front axle need the side cameras' parallax offset (above); a
   close-up camera for the fork caps must look past the bar pad's end (the pad covers their inboard halves).
+
+# Round 4 (brief FRONT4.md: seven components, each its own build)
+
+Check images and tools: `SCRATCH4/` =
+`/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/front4/`
+(not committed). New tools there: `rect.py` (a calibrated photo rectified onto a plane y = const about the front axle,
+any mm a pixel, with a mm grid, the view's offset applied first), `overlay.py` (polylines in mm drawn on a rect image:
+the model's outlines checked on the photo before any render), `rimfit.py` (a part's outer edge traced along rays and
+fitted with a circle), `mmgrid.py`, `cuw.py` (close-up cameras aimed at an axle-frame point), `hexfit.py`.
+
+## The side cameras' offset grows with y (a finding for every part near the front axle)
+The guard's outer edge in LEFT is a circle within 1 px (93 points from 66 to 300 deg) centred at (1056.1, 1594.8),
+6 px behind and 10 px above the photo's axle nut. The model puts the axle line at y 0 on (1062.3, 1587.2) and at the
+nut (y 0.128) on (1036.3, 1615.3), the photo's nut being at (1050, 1605): offset (+13.7, -10.3). If that offset were
+the same at every y the guard's circle would lie at y 0.09; if it grows in proportion to y (zero on the centre plane,
+round 3's parallax reading) it lies at y 0.055..0.067, which is where FRONT puts the guard's front edge (cols
+2075..2108 = y 50..73.5). So the offset is (+13.7, -10.3) x y / 0.128: (+7.9, -5.9) on the guard's face. With it
+the guard is concentric with the axle (r 140.5) and every outline below was read about the photo's own axle.
+
+## R4-1. Disc guard (Honda, black PP; no fiche shows it)
+
+### Anatomy
+- A dish over the disc's outer face: an outer band (a cone 9.5 mm wide falling outwards from a crest at r 131), the
+  outer edge rounded into a deep skirt that wraps the disc's rim (in to y 50, the disc at 60.5..63.5).
+- Upper front: a honeycomb window from the strut round to the frame bar, its surround sloping in from the crest, the
+  mesh recessed; holes are elongated hexagons with their points fore and aft, level webs thicker than the slanted ones.
+- A black frame bar along the fork guard's front from the outer band down to the upper bolt (FRONT: a dark band).
+- At axle height a strut from the band to the mount, its face tilted up to a lip; under it a long slot and a short
+  one with a narrow web between, rounded corners, bevelled mouths (DET831, DR12).
+- Lower face: a crease from the front band down to a V's point under the mount; the face falls away under it; a
+  trough inside the band round the lower half; a V pocket between the crease's end, the mount and the keel.
+- The mount over the left axle holder: a thick shield round the axle nut (the nut deep in a bore with a raised lip),
+  a triangular pocket in its top corner, a block with a level top up to the upper bolt, a tab over the socket's front
+  down to the lower bolt; the keel from the V's point up past the mount and back under the caliper to the fin's
+  sharp point, its upper face lit, its outer face broad.
+- Two zinc socket flange bolts (hex recess) on black bosses: upper on the block (into the holder's lug), lower on the
+  caliper bracket's lower branch. Finish: matte faces with a fine grain (DR12), the band and skirt smoother.
+
+### References
+- LEFT rectified on y 0.0735 (`ref/lr_full.png`, 0.2 mm a px; zooms `lr_a`, `lr_b`, `lr_c`, `lr_hex3`, `lr_hex4`)
+  and on y 0.125 (`lr_d`, `lr_m`: the mount); FRONT gridded (`front_g1.jpg`, `front_g2.jpg`); lf34 crops
+  (`lf34_guard.jpg`, `lf34_low.png`); DET831 (`d831_guard.jpg`, `d831_mount.jpg`, `d831_slots.png`, `d831_low.png`);
+  DR12 (`dr12.jpg`, `dr12_strut.png`, `dr12_low.png`).
+
+### Numbers and sources
+| Item | Value | Source |
+|---|---|---|
+| Outer edge | r 140.5 about the axle | LEFT rimfit (181.7 px at 1.294 px a mm), the rect overlay all round |
+| Face, skirt | y 73.5, skirt in to y 50 | FRONT cols 2075..2108 at rows 1340..1730 (14.55 px a cm across) |
+| Band | crest r 131, falls 5 mm outwards | LEFT: light r 131..140.5 at the top (130) and front (146), dark at the bottom (22..49): a cone, not a flat |
+| Window | arc r 113.5 from dz +1.5 to the frame bar (f 61), round the mount's corner | LEFT rect (ov2) |
+| Honeycomb | columns 11.5 apart, 10.5 down a column, half a row between; holes 13.9 x 7.8 mm, flats 7 mm; one hole at (65.55, 7.15) | LEFT rect 0.1 mm a px: 22 holes as blobs, the 7 whole ones 13.1 x 6.9 (+ the webs' depth seen 10 deg off square); ov_hex2 |
+| Honeycomb depth | face 3 mm under the dish's, 4.5 mm deep, 2 mm over the disc's bolt circle | EST (lf34 / DR12 show the webs' depth; the bolt heads stand to y 68) |
+| Frame bar | f 47..61, y 72.5..89 | LEFT rect: honeycomb ends on f 61 from dz 38 to 111; FRONT cols 2105..2130 |
+| Strut, slots | strut dz +1.5..-9.5; slot A dx 120..68, slot B 64..39, dz -9.5..-20.5 | LEFT rect profiles at dz -12, -15, -18; DET831 (a long and a short slot, narrow web) |
+| Crease | (129, -26) .. (12, -73), the face 2.5 mm under it 7 mm on | LEFT rect (ov2); grey profile at 300 deg (28 for 6 mm under it) |
+| Trough | floor 6.5 mm down at 20.5..26.5 mm in from the edge | LEFT grey profiles at 270 / 300 deg (dark 28..36 at r 104..116, 42 at r 120..128) |
+| Keel | crest (12, -73), (-30, -50), (-121.5, -99.5); 4, 34, 0 mm proud | LEFT rect (lit band); FRONT rows 1600..1655 (y 0.113 at dz -52, 0.086 at -80, 0.075 at -90) |
+| Fin's lower edge | (-68, -123) .. (-121.5, -99.5) | LEFT rect |
+| Mount | shield front dx 25.6, point (4, -39), top (20, 33); rear edge (-35, 15), (-52, -5), (-62, -20) | LEFT rect on y 0.125 (lr_d, ov_mount) |
+| Shield, ring | shield face y 129.5, lip r 18..23 to y 136 | FRONT cols 2185..2198 (y 130..136) at rows 1480..1530 |
+| Block, upper boss | block to y 120 above dz 28; boss r 7.5, y 88.5..121; head to 125 | FRONT rows 1455..1475, cols 2125..2182; lf34 (a level top) |
+| Bolts | upper (-8, 38.8), lower (-54.9, -33.1); 15 mm socket heads | LEFT rect on y 0.125 (-7.5, 38.75), round 3's LEFT pixels; lr_d head 16 mm |
+
+### What was built
+- `disc_guard()` rebuilt: `_hfield()` (a closed solid over the (dx, dz) plane whose top and bottom are functions of
+  position, rows of extra vertices along every crease and step, Delaunay), the dish (`_dg_outline`, `_dg_height`,
+  `_dg_extra`), `_dg_honeycomb()` (holes clipped to the window: `_clip_convex`), the skirt (revolved), the frame bar
+  (`_rplate`), `_dg_mount()` (moulded over the holder: `_holder_y`, the shield, block and tab), `_dg_keel()`, the ring
+  lip, the bosses and bolts. Materials `guard_black` (satin, fine bump) and `guard_band` (the band and skirt).
+- The left holder's boss front moved in to x 23.5 (`DG_AH_FRONT`, hidden by the mount in every photo; the right one
+  keeps RIGHT's 29), its lug for the upper bolt now under the guard's boss (y 76..88.5).
+- Caliper (round 3): the foot bolt's head sat 8 mm under LEFT's pixel (its seat had been put there); moved up to it,
+  the foot's boss ends at the seat. It had hung into the fin.
+- Tests `test_disc_guard_outline_window_and_slots`, `test_disc_guard_clears_the_disc_and_its_bolts`.
+
+### Checks
+- Overlays on the rectified photo before building: `chk/ov1.png`, `ov2.png` (outline, window, strut, slots, crease,
+  keel, mount), `ov_hex.png`, `ov_hex2.png` (honeycomb), `ov_mount.png`.
+- Pairs (32 samples): LEFT `chk/p1_left.jpg` (first build), `p3_left`, `p4_left`, `p5_left`, `p6_left`; lf34
+  `p3_lf34`, `p5_lf34`, `p6_lf34`; FRONT `p3_front`, `p6_front` (`p3_front_g.jpg`: band at cols 2072..2108 against
+  the photo's 2075..2108). Close-ups `chk/cu2_a.jpg` (DET831 angle), `cu2_b.jpg` (DR12).
+- Fixed after cycle 1: honeycomb (the first lattice put webs through the photo's holes: rebuilt from the holes
+  themselves), the band (flat: LEFT's light-top / dark-bottom says a cone), relief deeper, mount (one flat slab: now a
+  thick shield with a low lip, a block to the upper bolt), material satin. After cycle 2: keel with a broad outer
+  face, honeycomb 4.5 mm deep.
+- Audit (`a_g4`): the mount first cut the bracket's lower branch (13.5 mm: its underside now steps up 3 mm before
+  the holder's edges), the keel the caliper's foot bolt (moved, above), the dish the holder's boss (inner edge moved);
+  left: disc_guard / fork 0.8 mm (bosses seated on the lug and branch). No loose piece.
+
+### Still different
+- Tone: Honda's studio light makes the band 130 and the trough 28; the model's studio is a much softer dome, so the
+  relief that is there (5 mm band, 6.5 mm trough, 2.5 mm crease fall) reads at a third of the photo's contrast. Not
+  changed (shared studio).
+- The mount's faceting between the ring and the lower bolt (two lit sloped facets in `lr_m`) and the V notch in the
+  shield's lower right (lf34) are a single smooth tab in the model; the keel in lf34 stands out further near its root.
+- The honeycomb's columns behind dx 30 sit up to 3 mm off the photo's (the whole holes there fit a 12.7 mm pitch):
+  a regular lattice kept. A faint moulded mark on the mesh's frame (DR12: "H..." letters) is not modelled.
+- The guard's inner side (behind the dish) and how the upper bolt reaches the holder are hidden in every photo (EST).
