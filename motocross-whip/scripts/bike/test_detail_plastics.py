@@ -320,3 +320,39 @@ def test_round4_seats():
         b = B[B[:, 1] * side > 0]
         inner = b[(b[:, 1] - seat[1]) * side < -0.0003]                 # the shank, behind the floor
         assert len(inner) and np.hypot(inner[:, 0] - seat[0], inner[:, 2] - seat[2]).max() < pl.POCKET_HOLE
+
+
+def test_round5_seat_fender_panel_junction():
+    """The junction (round 5): the seat's tail sits on the fender's deck (the deck 1.5 to 7 mm outside the hem within
+    2.5 mm of the hem's lowest point, x 0.085 .. 0.11: no slit (4 to 8 mm before); the audit finds no cut); the
+    fender's root is shallow
+    (the lip's lower edge 3 to 8 mm under the top
+    line at x 0.08 .. 0.10, 17 to 24 mm at x 0.0 .. 0.03: LEFT); both panels' top edges stay under the lip's top behind
+    x 0.11 (the right one stood 3 mm over it in rounds 1 to 4); the tail ends square at PANEL_END_U."""
+    F = np.asarray(pl.rear_fender().V)
+    S = pl._seat_sections()
+    for x in (0.085, 0.09, 0.10, 0.11):
+        for sg in (1, -1):
+            i = int(np.argmin(np.abs(S.B[:, 0] - x) + 10 * (S.B[:, 1] * sg < 0)))
+            p = S.B[i]
+            d = np.hypot(F[:, 0] - p[0], F[:, 1] - p[1])
+            near = F[(d > 0.0015) & (d < 0.007) & (np.abs(F[:, 1]) > abs(p[1]))]
+            gap = (S.zb[i] - pl.HEM_R) - near[:, 2].max()
+            assert len(near) and -0.0005 < gap < 0.0025, (x, sg, gap)
+    top, _ = pl._fender_top_edge()
+    px, phw = pl._fender_lines()[:2]
+    for x, lo, hi in ((0.08, 0.003, 0.008), (0.10, 0.003, 0.008), (0.03, 0.017, 0.024), (0.0, 0.017, 0.024)):
+        h = pl._fender_half(x, float(np.interp(x, px, phw)))
+        depth = top(x) - h[-5, 1]                              # the flank's top: the lip's lower edge
+        assert lo < depth < hi, (x, depth)
+    P = np.asarray(pl.side_panels().V)
+    for sg in (1, -1):
+        for x in (0.05, 0.07, 0.09, 0.11):
+            pp = P[(np.abs(P[:, 0] - x) < 0.003) & (P[:, 1] * sg > 0) & (P[:, 2] > 0.9)]
+            ff = F[(np.abs(F[:, 0] - x) < 0.003) & (np.abs(F[:, 1]) > 0.075)]
+            assert pp[:, 2].max() < ff[:, 2].max() - 0.001, (sg, x, pp[:, 2].max(), ff[:, 2].max())
+    for side in (1, -1):
+        Pn = pl._panel(side)
+        ul = Pn.px[:, 0] if side > 0 else 3999.0 - Pn.px[:, 0]
+        end = Pn.px[ul > pl.PANEL_END_U - 1.5]
+        assert end[:, 1].max() - end[:, 1].min() > 12.0          # an upright end, not a point
