@@ -23,7 +23,7 @@ ground = parts.to_ground
 
 
 def test_vertex_budget(V):
-    assert sum(len(v) for v in V.values()) < 260000          # micro pass round 3 brief: up to 260,000
+    assert sum(len(v) for v in V.values()) < 300000          # micro pass round 5 brief: up to 300,000
 
 
 def test_footpeg_height_is_422_mm(V):
@@ -359,3 +359,118 @@ def test_muffler_top_follows_the_right_photo():
         assert dc._muf(x)[1] > z - 0.001, (x, dc._muf(x)[1])
     for x in np.arange(0.03, 0.30, 0.03):                                   # the bottom edge as before
         assert abs(dc._muf(x)[0] - (0.775 - 0.496 * (x - 0.029))) < 1e-9
+
+
+# ---------------------------------------------------------------- round 5: the exhaust against the photos
+def _hdr_silhouette(view, lo, hi, r_of):
+    """Projected pixels of the header's surface between arc stations LO..HI (rings of 24 points)."""
+    hp, tan, s = dc._hdr_path()
+    C = cams.CAMS[view]
+    P = []
+    for i in range(lo, hi):
+        n1 = np.cross(tan[i], [0.0, 1.0, 0.0])
+        n1 /= np.linalg.norm(n1)
+        n2 = np.cross(tan[i], n1)
+        for a in np.linspace(0, 2 * math.pi, 24, endpoint=False):
+            P.append(hp[i] + r_of(hp[i]) * (math.cos(a) * n1 + math.sin(a) * n2))
+    return C.project(np.array(P))
+
+
+def test_inlet_pipe_hides_under_the_side_panel_as_in_the_photos():
+    """RIGHT: nothing of the pipe shows below the side panel's lower edge between the muffler's nose and the frame
+    (rowscan columns 1510..1640: the panel's edge at v 1224, 1218, 1222, 1223, 1240, 1249); the round-4 line hung 15 to
+    35 mm lower and showed there and through the frame's window."""
+    hp, tan, s = dc._hdr_path()
+    i0 = dc._hdr_index(hp, dc.JOINT)
+    uv = _hdr_silhouette("right", i0, len(hp), lambda p: dc.R_INLET)
+    for u, edge in ((1510, 1224), (1520, 1218), (1540, 1222), (1560, 1223), (1600, 1240), (1640, 1249)):
+        col = uv[np.abs(uv[:, 0] - u) < 1.5]
+        assert len(col) and col[:, 1].max() < edge + 1.5, (u, col[:, 1].max() if len(col) else None)
+
+
+def test_header_front_bend_matches_the_right_photo():
+    """RIGHT: the U's lowest edge at v 1466..1468 (u 2265..2280), its far leg's front edge at u 2283..2290 for v 1320..
+    1390 (round 4: 2305), the long run's centre at u 2000 on v 1260 (photo edges 1236..1284)."""
+    hp, tan, s = dc._hdr_path()
+    iw = dc._hdr_index(hp, dc.WELDS[1])
+    uv = _hdr_silhouette("right", 0, iw, lambda p: dc.R_HDR)
+    assert 1462 < uv[:, 1].max() < 1474, uv[:, 1].max()
+    leg = uv[(uv[:, 1] > 1320) & (uv[:, 1] < 1390)]
+    assert 2280 < leg[:, 0].max() < 2296, leg[:, 0].max()
+    run = uv[np.abs(uv[:, 0] - 2000) < 1.0]
+    assert abs(run[:, 1].min() - 1236) < 4 and abs(run[:, 1].max() - 1284) < 4, (run[:, 1].min(), run[:, 1].max())
+
+
+def test_slip_joint_has_its_socket_and_band():
+    """RIGHT u 1870..1890: the header's socket 47 to 48.6 mm behind its rear ring (edges v 1208..1272); a band clamp
+    with its bolt under it (px (1846, 1290)); no spring hooks on this bike."""
+    m = dc.Mesh()
+    hp, tan, s = dc._exhaust_pipes(m)
+    V = np.asarray(m.V, float)
+    M = np.array(m.M)
+    F = [f for f, mm in zip(m.F, m.M) if mm == "header_heat"]
+    idx = np.unique(np.concatenate([list(f) for f in F]))
+    i = dc._hdr_index(hp, (0.663, -0.115, 0.6228))
+    ring = V[idx][np.abs((V[idx] - hp[i]) @ tan[i]) < 0.001]
+    r = np.linalg.norm(np.cross(ring - hp[i], tan[i]), axis=1)
+    assert abs(r.max() - 0.0235) < 0.0005, r.max()
+    zinc = np.unique(np.concatenate([list(f) for f, mm in zip(m.F, m.M) if mm == "zinc"]))
+    u, v = cams.CAMS["right"].project(V[zinc].mean(axis=0))[0]
+    assert abs(u - 1846) < 8 and abs(v - 1290) < 8, (u, v)
+    assert "header_clamp" in set(M)
+
+
+def test_muffler_seam_weld_rivets_and_mount_from_the_inside():
+    """lr34 and LEFT: the can's seam weld 56 to 60 mm over its lower line on the inner face; three blind rivets on the
+    cap's seam on that side (LEFT px (2850, 928), (2877, 982), (2895, 1027)); the mount plate bolted across the bike at
+    lr34 px (2602, 858), its bolt inside the subframe rail's reach."""
+    E = dc.exhaust()
+    V = np.asarray(E.V, float)
+    M = np.array(E.M)
+    weld = np.unique(np.concatenate([list(f) for f, mm in zip(E.F, E.M) if mm == "alu_weld"]))
+    W = V[weld]
+    seam = W[(W[:, 0] > 0.07) & (W[:, 0] < 0.13) & (W[:, 1] > -0.09)]
+    zl = 0.775 - 0.496 * (seam[:, 0] - 0.029)
+    assert np.all(np.abs(seam[:, 2] - zl - dc.MUF_SEAM) < 0.007)
+    C = cams.CAMS["left"]
+    for u, v in ((2850, 928), (2877, 982), (2895, 1027)):
+        q = C.on_plane(np.array([float(u)]), np.array([float(v)]), "y", -0.081)[0]
+        near = V[(np.linalg.norm(V[:, [0, 2]] - q[[0, 2]], axis=1) < 0.004) & (V[:, 1] > -0.100)]
+        assert len(near) > 10, (u, v)
+    lo, up = dc._sub_rails(-1)
+    i = int(np.argmin(np.abs(lo[:, 0] - dc.MUF_BOLT[0])))
+    assert lo[i, 1] + 0.009 < -0.0826                                     # the rail's inner face outboard of the plate
+
+
+def test_red_chain_guide_is_damiens(V):
+    """Round 5: Damien's bike carries a red aftermarket guide (his 07, 02, 09, 06): its three screws in the stock
+    guide's holes (within 2 mm), its side plate reaching back under the 50T (07: the tip right under the axle) with
+    three windows; Honda's guide stays buildable behind RED_GUIDE."""
+    assert dc.RED_GUIDE
+    B = dc._rg_px(dc.RG_BOLTS)
+    S = dc._photo_px("left", dc.GUIDE_BOLTS, dc.GUIDE_Y[1])
+    d = np.linalg.norm(B[np.argsort(B[:, 0])] - S[np.argsort(S[:, 0])], axis=1)
+    assert d.max() < 0.002, d
+    G = V["chain_guide"]
+    assert G[:, 0].min() < 0.03 and len(dc.RG_WIN) == 3
+    m = dc.chain_guide()
+    assert "anod_red" in set(m.M)
+    dc.RED_GUIDE = False
+    try:
+        assert "anod_red" not in set(dc.chain_guide().M)
+    finally:
+        dc.RED_GUIDE = True
+
+
+def test_brake_pedal_is_the_broad_forged_arm_on_a_socket_bolt():
+    """Round 5 (RIGHT 8x crop): the arm 26.6 mm wide at the top of its arc (u 1751: v 1451..1486), flat faced; the
+    pivot a grey flanged bolt head 21 mm across with an 8 mm hex socket (a black head read as a hole); the arm's centre
+    under the clutch cover at v 1521 (u 1840)."""
+    assert max(dc.PEDAL_W) >= 0.026 and dc.PEDAL_W[2] == max(dc.PEDAL_W)
+    m = dc.rear_brake()
+    assert "steel_dark" in set(m.M)
+    V = np.asarray(m.V, float)
+    dark = np.unique(np.concatenate([list(f) for f, mm in zip(m.F, m.M) if mm == "steel_dark"]))
+    r = np.ptp(V[dark][:, [0, 2]], axis=0)
+    assert 0.019 < r.max() < 0.023, r
+    assert abs(dict(dc.PEDAL_LINE)[1840.0] - 1521.0) < 1e-6

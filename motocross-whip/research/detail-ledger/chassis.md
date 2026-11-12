@@ -551,3 +551,127 @@ plate and swings in behind its edge. Final audit (audit5): chassis lines footpeg
 seated on the pad), exhaust x frame 0.9, frame x shock 0.4, brake_pedal x frame 0.2 (the pedal's boss on the pad),
 engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module 228,641 vertices (budget 260,000). The materials mc_* were renamed rmc_*: the cockpit's
 front master cylinder (detail_front.py) defines mc_cast with other values (parts.build would raise).
+
+
+# Round 5 (2026-11-12, fifth chassis agent; scratch images under `agents/micro/chassis5/`)
+Damien: "Find more inconsistencies, especially with the shape of everything, and fix them. Like the exhaust." His
+photos: `damien-bike-2026-11-10/` 01..05 and `damien-bike-2026-11-12/` 06..10.
+
+## 0. Exhaust, against his photos and Honda's (part `exhaust`)
+Anatomy at 30 cm (fiche K95CF2700; RIGHT, detail 475834, Dirt Rider 02, rf34, rr34, lr34, LEFT, FRONT; Damien 08, 02,
+07): the header (5) from the port down in front of the engine, a U whose far leg rises inboard to the port and whose
+near leg climbs back to a TIG ring, the long run over the clutch cover, a second ring where a 12 mm cone opens it into
+a socket; a band clamp (14, bolt 17, nut 21) over the socket's slotted end: a pressed band with rolled rims, a hinge
+knuckle with its pin on top, two ears under it and an M8 flange bolt across them, head outboard; the muffler's inlet
+pipe (3/11) slides in, with a soft bell just behind the band, turns in behind the frame's leg, rises behind the side
+panel and is welded into the can's nose. No spring hooks on this bike (RIGHT, 475834 and Damien's 08 all show the
+band). The can: flat facets, a long rippled seam weld mid-height on its inner face, a stamped label block above the
+weld and the maker's line under it, the cap riveted (three blind rivets on each side of its seam), a pressed mount
+plate welded along the top of the inner face and bolted across the bike into the subframe's lower rail.
+Finish (Damien): the whole header heat-browned, dark rust at the head and round the U, copper and bronze along the
+run, lighter bronze on the socket and band, dark rust on the inlet pipe (08, 02, 07). Honda's showroom bike is silver.
+References: RIGHT 1380..2340 x 1100..1500 (route crops g_right1..4, r0z, r1z, r2: the tube's projected edges drawn
+over the photo by tools/route.py), FRONT 1720..2000 x 1040..1300, TOP 1880..2160 x 900..1060, rr34, rf34 (e0 sheets),
+lr34 2380..3020 x 700..1060 (lr_can), LEFT 2400..3000 x 820..1260, detail 475834 crop 1850..2500 x 1250..1700
+(d834_joint), Damien 08 crops d08_header, d08_joint, d08_u, 07 d07_can, d07_header.
+Differences found (model before, e0 sheets) and what was done:
+1. Front U: far leg 9 to 15 mm too far forward (RIGHT far leg front edge u 2283..2290 at v 1300..1390, model 2305),
+   bottom 15 mm too far back (RIGHT lowest edge v 1466 at u 2265..2280, front corner (2302, 1440)): points 4..10 moved
+   (the near leg and its outer edge in FRONT, u 1786..1800 from v 1160 to 1240, were right and stay). Test.
+2. Long run 3 to 6 mm low where it turns down (RIGHT u 2100: centre v 1279 against 1283; u 2150: 1301 against 1309):
+   raised; at u 2000 its edges match the photo's (1236..1284, 38 mm). Test.
+3. Joint: one thin EST clamp ring. Now the socket (RIGHT u 1870..1890: edges v 1208..1272 against black, 47 to 48.6
+   mm: R_SOCK 23.5 mm) after a 12 mm cone from the ring (WELDS[1], px (1916, 1242) cast on y -0.124: z 0.6222), the
+   band at RIGHT px (1846, 1240) (x 0.637, z 0.623 on y -0.112), its bolt at px (1846, 1290), knuckle px (1852, 1196);
+   the inlet pipe's bell (RIGHT u 1815..1830, 475834). Test.
+4. Inlet pipe 15 to 35 mm low: it showed under the side panel's lower edge and through the frame's window, where no
+   photo has any of it (RIGHT rowscan cols 1510..1640: nothing below v 1218..1249; rr34, rf34 the same). New line from
+   the nose's end ring (RIGHT col 1490: lit lower part to v 1226, z 0.635: MUF_INLET z 0.6441 -> 0.6565) rising under
+   the panel, then dipping behind the frame's leg under the subframe's lower rail (EST). Test (every column).
+5. Colour: Honda silver -> Damien's heat colours: `heat_maps()` writes textures/stock/header_heat.png (colour along
+   the pipe, u = arc length / 1.32 m, blotches, heat bands) and header_heat_n.png (scale); header_heat, header_weld,
+   header_clamp materials. Photo 08 samples: run lit (150..153, 122..125, 94..98), shade (118, 87, 62); U (64, 48, 36)
+   shade, (110, 72, 44) lit; inlet pipe (92, 61, 35); band (172, 150, 114).
+6. Welds: smooth turned rings -> rippled TIG beads 7.5 mm wide (the first try, 5.5 mm and matte, read as O-rings).
+7. Can, inner face (LEFT, lr34): the seam weld sat on the inner lower corner; lr34 runs it 56 to 60 mm over the lower
+   line, parallel to it (cast (0.324, 0.685) to (0.051, 0.825) on y -0.08), LEFT 67 px: MUF_SEAM 0.058, 8.5 mm wide.
+   The label block moved above the weld (x 0.078..0.146, 66..100 mm over the lower line), HONDA (5 mm) and a second
+   word as strokes under the weld. Three inner cap rivets added (LEFT px (2850, 928), (2877, 982), (2895, 1027): on the
+   outer rivets' plane within 2 mm). Test.
+8. Mount: round 2's EST straps and a tab under the rail -> a pressed plate on the inner face's top, its foot weld,
+   bolt across the bike at lr34 px (2602, 858) (x 0.2365, z 0.835 on y -0.08), rubber grommet, collar, M8 flange
+   bolt head inboard; the subframe's lower rail moved 3 to 9 mm out between x 0.22 and 0.30 (EST, hidden) so the plate
+   bolts to its inner face. Test.
+Checks: e0 -> e2 pair sheets (right, left, rr34, lr34, rf34), close-ups cu1 (cu_hj, cu_hu, cu_h08), cu2 (cu_hj,
+cu_mnt, cu_capi); audit3 (exhaust x subframe 2.2 mm: the plate's rear corner under the rail's tail and the pipe at the
+rail's end, both fixed after: 1.5 mm clear by vertex distance).
+Still different: the can's position in lr34 (fitted to the model) and LEFT is 10 to 18 px off (far-side camera
+offsets, round 3); the photo's mount plate reaches back to x 0.149 (lr34) but the plastics' red wall under the tail
+(tail_under, x 0.185..0.204) stands in its plane, so it starts at x 0.206 (shared); in lr34 the model's side panel
+hangs lower and hides the plate (plastics); the header diameter is 38 mm by the run's edges and the U's ring, but the
+dim upper edge at u 1940 allows up to 44 mm (no clean silhouette against white); the seam weld's ripples are regular.
+
+## 0b. Damien's red chain guide (part `chain_guide`; Honda's behind RED_GUIDE = False)
+Anatomy (his 07 side on, 02 from the front left and below, 09 and 06 from below): an aftermarket red anodised
+machined guide round the lower run: a thick outer side plate whose outline is a slanted parallelogram from the arm's
+tabs down and back to a pointed tip under the 50T, three long slots along its lower edge (deep: the plate is thick),
+a small dark maker's plaque (its lettering is not modelled), three round-headed socket screws near its top edge in the
+stock guide's three holes (two close together at the front, one 50 mm behind), the floor under the run and an inner
+wall, a black wear insert inside; Honda's tabs welded under the arm stay.
+References: 07 (1332 x 888) 8x crop 850..1000 x 690..790 (g07_guide), axles g07_axle and g07_faxle, the arm g07_arm;
+02 crop 470..620 x 1020..1170 (d02_guide).
+Numbers: 07's scale from the wheelbase (axles (948.75, 710.25) and (291, 692): 443.7 px/m, the axle line 1.6 deg),
+the arm's sticker edges at 10.3 deg (rider aboard: 6 deg flatter than the build pose). Taken in the arm's frame and
+carried onto the model's arm, the three screws land 2 to 5 mm from the stock bolts (the same holes, LEFT GUIDE_BOLTS):
+the mean offset (2.5, -5.8) mm is applied (RG_SHIFT), leaving them within 1.5 mm (test). Plate 10 mm (EST, 02), screw
+heads 13 mm (07: 6 px), slots 10 mm wide (07: 4.5 px); 07 colour lit (192, 42, 39), 02 shade (145, 48, 53).
+Built: `_red_chain_guide()` (RG_OUT, RG_BOLTS, RG_WIN, RG_LOGO; anod_red). The floor follows 07's lower edge but is let
+down where it came within 4.5 mm of the model's chain slot (GUIDE_SLOT), up to 4 mm at x 0.10; floor, wall and insert
+stop short of the 50T where the chain wraps it (r 0.145 from the axle); the side plate runs on under the sprocket.
+Checks: cu3 and cu4 close-ups (cu_g07 beside d07_guide: cmp_g07b; cu_g02 beside d02_guide: cmp_g02b), g5_left.
+Tests: `test_red_chain_guide_is_damiens`, the stock slot and tyre tests (still pass).
+Still different: 02 shows a deeper U body with a rounded mouth at the front where the chain enters (the model's front
+is the plate's edge and the floor's end); the tip in 07 is narrower and more pointed; the plaque's lettering; the arm
+pose differs (rider aboard in 07), so side-by-side views differ by that 6 deg.
+
+## 1. Brake pedal (part `brake_pedal`)
+Anatomy (RIGHT 8x crops p_right1 1680..1840 x 1430..1540, p_right2 1820..1990 x 1460..1560; review sheet 04): a broad
+flat forged arm (a lit flat face, a narrow highlight along its rounded edges) leaving a 27 mm boss up into an arc over
+the pivot, then sagging in a swan neck under the clutch cover to the folding serrated tip; the pivot bolt a flanged
+hex-socket bolt with a flat grey head 21 mm across and an 8 mm socket (darker than the pedal); behind the pivot the
+lever to the clevis; the return spring, about eight coils of thick wire, hooked from the lever down to the bracket.
+Numbers: width square to the line 23 mm leaving the boss (u 1726), 26.6 at the arc's top (u 1751: v 1451..1486), 25
+at u 1772, 20 at 1794, 21 to 22 under the cover (u 1836 v 1507..1542, u 1885 v 1521..1548), 17 to 15 at the tip; the
+line 7 to 14 px lower than round 1's from u 1812 to 1926; boss 27 mm (u 1690..1726); head 21 mm (u 1692..1720),
+socket corners u 1700..1713 (9.9 mm: 8 mm across flats); spring coils 9 px across.
+Built: PEDAL_LINE and PEDAL_W re-read; the arm's section a flat rounded rectangle (1 mm edges along the 9 mm
+thickness) instead of the 22 % rounded bar; the head in steel_dark with a dark hex socket; spring r 5 mm, 1.2 mm wire,
+8 turns, hooks 1.2 mm.
+Checks: p7 and p8 pair sheets right 1640..1990 x 1420..1580. Test: `test_brake_pedal_is_the_broad_forged_arm_on_a_
+socket_bolt`.
+Still different: the tip stands about 10 px lower and further forward than the photo's (its pin is round 1's last
+line point) and the photo's tip has a squarer lower body with a cut-out; the arm's thickness (9 mm) is EST (no photo
+shows its edge on); the spring's hooks are plain wire ends.
+
+## 2. Footpegs: not started in round 5.
+## 3. Frame MC tab edge: looked at, not changed (scratch t8_right, RIGHT 1590..1720 x 1270..1440)
+The photo's two lugs are angular (straight edges from the leg down to each boss, the boss a flat spot face with the
+bolt in it, a deep notch with a vertical wall at u 1666 between them, a raised V rib beside each boss); the model's
+lugs are round lobes (the 2 mm boss blended by a smoothstep), its notch shallower and curved, its ribs thin lines.
+Outline read for the next round (sheet t8, 5.3 px per photo px): (1671, 1271), (1665, 1288), (1657, 1309), (1647,
+1322), boss (1643.3, 1337.9) r 10.4 px, (1637, 1348), (1647, 1354), notch (1666, 1361)..(1667, 1377), (1647, 1380),
+(1641, 1390), boss (1650.3, 1400.2), (1645, 1413), (1656, 1418), (1652, 1435).
+## 4. Header details: done in 0 (welds, the joint, the band clamp; no spring hooks on this bike).
+## 5. Subframe: only the lower rails moved out 3 to 10 mm between x 0.22 and 0.30 for the muffler's mount (0); the rest
+not started.
+## 6. Rear hose joint (shared): the joint this module wants from detail_wheels.py: RIGHT shows the hose outboard of the
+master cylinder's web (v 1400..1414, ending at u 1626): cast on y -0.139 (outside the casting's outer face -0.134 plus
+the hose's radius) that is (0.469, -0.139, 0.501), heading (0.97, 0, 0.24); their run now ends at (0.452, -0.100,
+0.505), inboard. Not edited here.
+
+## Round 5 audit and totals
+Audit (audit9, 25 mm, this worktree's build): chassis lines exhaust x subframe 1.2 mm (the mount plate's rear corner
+under the rail's tail: fixed after, the rail 3 to 10 mm out and the plate from x 0.214, by vertex distance 0.6 mm
+clear), footpegs x frame 1.0 (the hinge pin's washer on the pad, as before), frame x shock 0.4, brake_pedal x frame
+0.3, engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module about 255,600 vertices (budget
+300,000): exhaust 52.7k (was 24.5k), chain guide 12.7k.
