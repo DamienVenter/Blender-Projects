@@ -236,3 +236,17 @@ def test_the_see_through_check_still_sees_a_missing_fender(npz, tmp_path):
     found = compare.intruders(p, min_cm2=2.0)
     assert found.get(("left", "(hole: background shows)"), 0) > 40
     assert found.get(("right", "(hole: background shows)"), 0) > 40
+
+
+def test_viewer_split_cuts_a_mesh_too_big_for_one_file():
+    """glb2json: a mesh over the per-file budget is cut by primitives onto child nodes (2026-11-12, rear wheel)."""
+    import glb2json
+    doc = {"nodes": [{"name": "wheel", "mesh": 0}], "meshes": [{"name": "wheel", "primitives": []}],
+           "accessors": [], "bufferViews": []}
+    for k in range(3):                                      # three primitives of 4 MB each
+        doc["bufferViews"].append({"buffer": 0, "byteOffset": 0, "byteLength": 4_000_000})
+        doc["accessors"].append({"bufferView": k, "count": 1, "type": "VEC3", "componentType": 5126})
+        doc["meshes"][0]["primitives"].append({"attributes": {"POSITION": k}})
+    glb2json.split_big_meshes(doc, 9_000_000)
+    assert [len(m["primitives"]) for m in doc["meshes"]] == [2, 1]
+    assert doc["nodes"][0]["children"] == [1] and doc["nodes"][1] == {"name": "wheel_2", "mesh": 1}

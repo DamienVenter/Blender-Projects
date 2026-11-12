@@ -91,7 +91,7 @@ li::marker { color: var(--red); }
 <div class="wrap">
   <header>
     <h1>Damien's CRF250R <span class="num">#114</span></h1>
-    <span class="tag">Model v0.4 · detail pass · stock colours</span>
+    <span class="tag">Model v0.5 · micro-detail pass · stock colours</span>
     <p class="lede">The stock 2026 Honda CRF250R, shape first: no graphics yet. This pass details every assembly: engine, frame, exhaust, fork, bars and controls, wheels, tyres, chain and brakes, with a second pass over the plastics. All of it is measured against Honda's five studio photos. Drag to orbit, scroll or pinch to zoom.</p>
   </header>
 
@@ -254,8 +254,8 @@ li::marker { color: var(--red); }
   document.querySelectorAll("button.view").forEach(b => b.addEventListener("click", () => goTo(b.dataset.view)));
   goTo("photo1", true);
 
-  // steering: the front end turns about the bike's steering axis (28 deg 24 min to the ground, 0.93 deg of it is
-  // the bike's stance), stored as the 'steer' node's local axis
+  // steering: the front end turns about the bike's steering axis, 26.75 deg from vertical in the bike's own frame
+  // (parts.RAKE, measured on the left photo); the stance adds 0.97 deg, 27.7 deg to the ground
   const RAKE_LOCAL = 26.75 * Math.PI / 180;
   const steerAxis = new THREE.Vector3(-Math.sin(RAKE_LOCAL), Math.cos(RAKE_LOCAL), 0).normalize();
   const steerNodes = [];                                 // one per model file: each file holds the whole node tree
@@ -267,7 +267,7 @@ li::marker { color: var(--red); }
   });
 
   const PLASTICS = ["shrouds", "shroud_decks", "side_panels", "seat", "rear_fender", "front_fender", "fender_flap",
-                    "number_plate", "fork_guards", "rear_inner", "mud_flap", "tail_under", "shroud_bolts", "seat_bolts",
+                    "number_plate", "fork_guards", "rear_inner", "mudguard_top", "mud_hardware", "rear_flap", "tail_under", "shroud_bolts", "seat_bolts",
                     "panel_bolts", "plate_details", "guard_hardware"];
   const plasticNodes = [];
   document.getElementById("plastics").addEventListener("change", e => {
@@ -277,7 +277,8 @@ li::marker { color: var(--red); }
   spin.addEventListener("change", () => { controls.autoRotate = spin.checked; controls.autoRotateSpeed = 0.8; });
 
   // the model comes in several files (each under the host's size limit): see scripts/bike/glb2json.py
-  const MODEL_FILES = ["bike_v3.json", "bike_v3_2.json", "bike_v3_3.json"];
+  const MODEL_FILES = ["bike_v4.json", "bike_v4_2.json", "bike_v4_3.json", "bike_v4_4.json", "bike_v4_5.json",
+                       "bike_v4_6.json"];
   const progress = MODEL_FILES.map(() => 0);
   let pending = MODEL_FILES.length;
   MODEL_FILES.forEach((file, i) => new THREE.GLTFLoader().load(file, gltf => {

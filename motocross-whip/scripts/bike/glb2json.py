@@ -147,12 +147,45 @@ def subset(doc, binary, meshes):
     return out
 
 
+def split_big_meshes(doc, budget):
+    """A mesh too big for one file (2026-11-12: the rear wheel, 12 MB) is cut by its primitives (one per material)
+    into meshes under the budget: the first part stays on the object's node, each further part hangs on a new child
+    node named NAME_2, NAME_3 ... at the identity, so it moves with the object (steering included)."""
+    for mi in range(len(doc["meshes"])):
+        prims = doc["meshes"][mi]["primitives"]
+        if len(prims) < 2:
+            continue
+        sizes = []
+        for p in prims:
+            doc["meshes"].append({"primitives": [p]})                       # measure one primitive on its own
+            sizes.append(sum(doc["bufferViews"][v]["byteLength"] for v in mesh_views(doc, len(doc["meshes"]) - 1)["views"]))
+            doc["meshes"].pop()
+        if sum(sizes) < budget:
+            continue
+        groups, cur, tot = [], [], 0
+        for p, s in sorted(zip(prims, sizes), key=lambda t: -t[1]):
+            if tot + s > budget and cur:
+                groups.append(cur)
+                cur, tot = [], 0
+            cur.append(p)
+            tot += s
+        groups.append(cur)
+        name = doc["meshes"][mi].get("name", "mesh%d" % mi)
+        doc["meshes"][mi]["primitives"] = groups[0]
+        owner = next(n for n in doc["nodes"] if n.get("mesh") == mi)
+        for k, g in enumerate(groups[1:], start=2):
+            doc["meshes"].append({"name": "%s_%d" % (name, k), "primitives": g})
+            doc["nodes"].append({"name": "%s_%d" % (owner.get("name", name), k), "mesh": len(doc["meshes"]) - 1})
+            owner.setdefault("children", []).append(len(doc["nodes"]) - 1)
+
+
 def split(doc, binary, max_mb):
     """Groups of meshes, each of whose files stays under max_mb (base64 grows the bytes by a third)."""
+    budget = max_mb * 1e6 * 0.74 - 0.3e6                     # leave room for the JSON itself
+    split_big_meshes(doc, budget)
     size = {}
     for mi in range(len(doc["meshes"])):
         size[mi] = sum(doc["bufferViews"][v]["byteLength"] for v in mesh_views(doc, mi)["views"])
-    budget = max_mb * 1e6 * 0.74 - 0.3e6                     # leave room for the JSON itself
     groups, cur, tot = [], [], 0
     for mi in sorted(size, key=lambda m: -size[m]):
         assert size[mi] < budget, "one mesh alone is over the limit: %s" % doc["meshes"][mi].get("name")
