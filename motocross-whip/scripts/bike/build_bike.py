@@ -224,6 +224,10 @@ if "front_end" in META:
 # view), tops (livery_fender, fender_front, seen from above) and the plate's face (plate)
 KIT_PARTS = {"shrouds", "side_panels", "shroud_decks", "rear_fender", "front_fender", "number_plate"}
 KIT_MATS = {"livery_L", "livery_R", "livery_fender", "fender_front", "plate"}
+if not STOCK and "seat" in MAPS and os.path.exists(os.path.join(TEX, "seat.png")):
+    # Damien's GUTS seat cover, painted from above (seat.png, MAPS["seat"]): it replaces the stock cover's grain map
+    MATS["seat"] = dict(image="seat.png", rough=0.7, sheen=0.4)
+    KIT_MATS.add("seat")
 
 
 def kit_materials(name, V, faces, M, mats):

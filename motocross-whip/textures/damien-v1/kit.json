@@ -15,6 +15,160 @@
     27
    ],
    "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history udvwb2b4JtlUEiuQxluG, 2nd image): template crop + Damien's photos 03, 02, 07 (side panel crops)"
+  },
+  {
+   "side": "left",
+   "part": "shrouds",
+   "art": "art/shroud_L.png",
+   "crop": [
+    1227,
+    510,
+    2249,
+    1172
+   ],
+   "pad": [
+    0,
+    52
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history E0OFetYkbBCXX2CDoRki, 1st image): template crop + photo crops 07, 02, 03, 01"
+  },
+  {
+   "side": "left",
+   "part": "rear_fender",
+   "art": "art/fender_L.png",
+   "crop": [
+    2859,
+    493,
+    3775,
+    740
+   ],
+   "pad": [
+    0,
+    73
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history JhPEz5k70QBEziTfx8wU, 2nd image): template crop + photo 07 crop and whole"
+  },
+  {
+   "side": "left",
+   "part": "front_fender",
+   "art": "art/ffender_L.png",
+   "crop": [
+    287,
+    558,
+    1199,
+    949
+   ],
+   "pad": [
+    0,
+    0
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history 1odaDdoK9R18D6zyivam, 1st image): template crop + photo crops 07 (front fender, enlarged) and 01"
+  },
+  {
+   "side": "right",
+   "part": "side_panels",
+   "art": "art/sidepanel_R.png",
+   "mirror_of": [
+    1832,
+    516,
+    3196,
+    1228
+   ],
+   "pad": [
+    0,
+    27
+   ],
+   "source": "left side panel mirrored, its lettering and logos copied back unmirrored in place (kit makers' practice); the right side panel is hidden in all of Damien's photos"
+  },
+  {
+   "side": "right",
+   "part": "shrouds",
+   "art": "art/shroud_R.png",
+   "mirror_of": [
+    1227,
+    510,
+    2249,
+    1172
+   ],
+   "pad": [
+    0,
+    52
+   ],
+   "source": "left shroud mirrored, logos unmirrored in place; checked against photo 08 (right side from below)"
+  },
+  {
+   "side": "right",
+   "part": "rear_fender",
+   "art": "art/fender_R.png",
+   "mirror_of": [
+    2859,
+    493,
+    3775,
+    740
+   ],
+   "pad": [
+    0,
+    73
+   ],
+   "source": "left rear fender mirrored, logos unmirrored in place"
+  },
+  {
+   "side": "right",
+   "part": "front_fender",
+   "art": "art/ffender_R.png",
+   "mirror_of": [
+    287,
+    558,
+    1199,
+    949
+   ],
+   "pad": [
+    0,
+    0
+   ],
+   "source": "left front fender mirrored, logo unmirrored in place"
+  },
+  {
+   "target": "plate",
+   "side": "front",
+   "part": "number_plate",
+   "art": "art/plate.png",
+   "crop": [
+    129,
+    377,
+    1901,
+    1928
+   ],
+   "pad": [
+    0,
+    332
+   ],
+   "plate_size": [
+    2040,
+    2160
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history wSFLBgS0EUaOufod7Tv0, 1st image): plate template (front view, kit_plate) + photo crops 01 (plate, enlarged) and 09"
+  },
+  {
+   "target": "seat",
+   "side": "top",
+   "part": "seat",
+   "art": "art/seat.png",
+   "crop": [
+    0,
+    0,
+    3040,
+    864
+   ],
+   "pad": [
+    0,
+    219
+   ],
+   "size": [
+    3040,
+    864
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history PvnAojFAz1JMJRrsuCYr, 2nd image): seat top-view template + photo crops 04, 10, 03, 02 (GUTS cover)"
   }
  ]
 }
