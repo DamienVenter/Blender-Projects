@@ -591,3 +591,127 @@ Vertices (both modules' parts): 73,868 (budget 160k). Audit: no clash of these p
 (a seat). Scores (b21, main merged): left 0.8807 / 0.8965, right 0.8693 / 0.899, front 0.8841 / 0.7932, rear 0.9041 /
 0.6415, top 0.8823 / 0.8558 (silhouette / red). Tests: all pass (the full run at 29 mm failed only the top red floor,
 0.8549; at 36 mm the overlap and plastics tests pass).
+
+# Round 5 (2026-11-12, PLASTICS5 brief)
+
+Damien: "Find more inconsistencies, especially with the shape of everything ... get the plastics 1000% correct."
+Check images in `/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/micro/plastics5`
+(`p0_*` the round's start, `c1_*` component 1's end: pair sheets, photo left; `z*_` zoomed pairs on a photo-px grid
+(`tools/zpair.py`); `g_*` gridded photo crops; `sec*_` cross sections of the parts (`tools/sections.py`); `sh*_` the
+side panel's surface function shaded without Blender (`tools/shade.py`, 5 s a look); `cu*/` close-ups;
+`id*` part maps, also for close-up cameras (`tools/idmap.py`)).
+
+## R5.1 Seat tail, fender front and side panel top: the junction (done)
+
+### Anatomy (LEFT, RIGHT at 14x, lr34, rr34, TOP at 6x, Damien's 02)
+- The seat's tail: a rounded point in plan; in profile a bullnose end 14 to 18 px tall (top (2850, 755.5), end
+  (2866, 766), lower corner (2862, 773.5)), the lower corner sitting on the fender's lit deck: no slit.
+- The fender's root behind and beside the seat's tail: a wide flat deck (lit to 0.6 of the half-width in TOP), a short
+  facet, the lip's dark roll, the flank; the lip only 4 to 6 mm under the top line at x 0.07 .. 0.10, against 20 to
+  23 mm on the blade behind x 0.035.
+- The panel's top edge: under the seat's hem ahead; it comes out from under the hem at x 0.147 (TOP u 2678) and runs
+  out to the fender's lip by x 0.110, then on just under the lip's roll (LEFT: the lip's dark band, the panel's top
+  edge at its lower edge) to the tail's end.
+- The tail's end: square across, 20 to 25 mm wide (TOP), seen edge-on as a point in LEFT (2949, 805).
+
+### What was wrong, and where in the code
+1. Blocky seat end and a dark slit under it (lr34, rr34, LEFT): the hem's last two readings (2856, 779), (2866, 768)
+   lie on the tail's END face, not its hem, so the tail's underside stood at z 0.985, 7 mm over the deck, an 8 mm slab.
+   Fix: `SEAT_TIP_LOW_PX` (2862, 774.0) (LEFT 773.5, RIGHT mirrored 774.5) ends the seat's own hem; its lift is HEM_R
+   (the cover's lowest point), not HEM_LIFT. The side panels' SEAM_PX is unchanged.
+2. The deck under the seat's tail was the top line carried on at its slope, 3.5 to 4.5 mm under the hem at x 0.08 ..
+   0.10: `_seat_pad`: within 20 mm outside the hem and 4 to 8 mm inside it the deck goes to 0.5 mm under the hem's
+   lowest point (the nearest one), deeper under the seat 2 mm under the seat's underside as before.
+3. The fender's root section: rounds 1 to 4 had the change from the blade over x -0.02 .. 0.06 and a 10.8 mm deep root
+   (lip 5 mm under the panel's measured top edge, which then stood over it: the ridge). LEFT, the lower edge of the
+   lip's dark roll cast on the flank: 17.5 / 20.7 / 22.9 mm under the top line at x -0.081 / -0.042 / -0.004, 20.4 /
+   18.1 / 15.8 / 13.3 / 10.4 at x 0.035 / 0.042 / 0.050 / 0.058 / 0.065, 5.6 / 3.9 / 4.3 / 4.6 at x 0.073 / 0.081 /
+   0.088 / 0.096. Now `FENDER_ROOT` (crown 1.0, facet 1.8, lip 2.2 mm: 5 mm, split EST), `FENDER_ROOT_A1` 0.6 (TOP u
+   2800), reached over `FENDER_ROOT_X` 0.034 .. 0.078.
+4. The panel's top edge swept 20 mm out from under the hem to the lip over 31 mm (u 2790..2830) and the face twisted
+   with it; a third blend (a lap onto the lip ahead of x 0.105) added a dent. Now `PANEL_TAIL_X` (0.110, 0.150,
+   0.190): the top edge comes out over x 0.110 .. 0.150 (TOP's seam), the bead's tuck fades out behind x 0.20 .. 0.15,
+   the tail's facets blend into the face over 0.15 .. 0.19 (TOP's PANEL_CREASE_Y holds to x 0.173); the crease row is
+   the bead's line ahead of u 2760 and the measured crease behind 2800.
+5. The right tail stood 3 mm over the symmetric (LEFT-built) fender's lip: the two side cameras put mirrored pixels of
+   the tail 3.0 mm apart in z and 2.4 mm in x, the same at every tail pixel (u 2700..2940, y 0.095 and 0.13).
+   `_tail_to_left`: behind x 0.10 the right panel takes the left camera's place, back to its own photo by x 0.16
+   (`PANEL_LEFT_X`; carried to x 0.30 it stood 3 mm under the seat's right hem: a slit in the rr34 close-up).
+6. The tail's end: the outline closed in LEFT's point, where the four lines cross within 5 px: a crumpled knob. TOP's
+   outer edge per column (z 0.93): y 0.1445 / 0.1400 / 0.1355 / 0.1302 / 0.1257 / 0.1212 / 0.1159 / 0.1105 at x 0.081
+   / 0.074 / 0.067 / 0.059 / 0.052 / 0.045 / 0.038 / 0.031, then the fender's edge from x 0.024: a square end. Now
+   cut upright at `PANEL_END_U` 2941 (x 0.040) from the top edge (797.6) to D's seam (817.1), rows still in order.
+7. The fold read as a thick rounded lip (C power 1.3 and D s^1.5 both level at the fold); made fully sharp the smooth
+   shading smeared the crease into teeth. Now C straight then rounded over its last quarter, D rounded over its first
+   30 % then straight (`FOLD_ROUND`, `_ease_out`, `_ease_in`), with rows of vertices at both (tail_lines: two in A,
+   three in B/C, two in D, from u 2784); the fold's row is the fold's smoothed line (spline at 2 px: the raw readings'
+   flat step at u 2760..2780 made a wave), D's ramp over u 2715..2795, D runs to the edge's own row.
+
+### Checks
+- Sections `sec0_x.png` (start) .. `sec4_x.png`; the surface function `sh1_left.png` .. `sh8_left.png`.
+- Pairs at the end: `c1_lr34.jpg`, `c1_rr34.jpg`, `c1_left.jpg`, `c1_right.jpg`, `c1_top.jpg`, `c1_rear.jpg` (start:
+  `p0_lr34.jpg`, `p0_left.jpg`, `p0_rr34.jpg`); close-ups `cu14/render_cu_{lr,rr,l,up}.png` (start `cu0/`).
+- TOP: the panel's plan outline within 0..3 px of the photo's from x 0.052 to 0.145 (inside it by 0.2 to 3.3 px).
+- Seat on the deck: LEFT and lr34, no slit; the tail's end round.
+- Scores (b14): left 0.8862 / 0.8968, right 0.8768 / 0.8988, front 0.8913 / 0.7970, rear 0.9029 / 0.6411, top 0.8863
+  / 0.8558 (start b0 0.8863 / 0.8969, 0.8771 / 0.8991, 0.8914 / 0.7972, 0.903 / 0.6417, 0.8861 / 0.8555).
+
+### Still different
+- The seat's tail ends 11 px (LEFT) and 16 px (RIGHT) behind the side photos' (x 0.0776 from TOP's plan, 0.086 from
+  both side photos: TOP puts the rear 8 to 15 mm further back, as at the fender's tip). The seat's plan is a decision
+  of round 1 (not reopened); the fender's tip uses the mean.
+- The tail's end is 4 mm short of the photos' (x 0.040; TOP 0.031 shifted by the same 8 mm, LEFT 0.037): at u 2944 and
+  later the fold and D's seam rows cross.
+- The photo's bands (A, crease, C, D) are flat facets with crisp lines under a soft box; the model's are softer
+  gradients in the same places. The face ahead of the tail (round 2 and 3) still undulates softly in close-ups.
+- The far (right) tail shows over the fender's far edge from high on the left (close-up `cu_up`): the tail's fold
+  sticks out 47 mm, as TOP measures; not a fault, but no photo looks from there.
+
+## R5.2 Right side panel against the muffler (partly done)
+
+### Anatomy (RIGHT, `03_right_muffler.jpg` of the checkpoint, RIGHT at 12x)
+- Over the can the red panel's lower edge sits on the can's top (the can's top in the panel's shadow, then pink from
+  its reflection: RIGHT u 1200, red to row 936, then (86, 57, 59) at 938 going to (183, 123, 125) at 954).
+- Behind the can's top, from u 1300 back, the black lower part's smooth top shows under the red edge: no gap.
+- The red panel's bolt (R4.3 "not built"): a round pocket, its dark wall 27 px across (21 mm), a light rolled lip to
+  31 px, a dark 8 mm flange bolt with a hex socket on its floor, at RIGHT (1322, 922). The left panel has none there.
+
+### Done
+- The white sliver between the red panel and the black lower part (RIGHT u 1300..1470): the traced edges meet within
+  0.5 to 2.5 px but the black face lies 6 mm inside the red one, so a sight line passed between them. The black
+  part's outline now runs on 6 px up behind the red edge (`BLACK_UNDER_RED_U`, LEFT u 2540..2690, both sides).
+  Part map `id15_rmuf.png` (before `id14_rmuf.png`): gone, and the left black part no longer shows through.
+- The right panel's bolt: `RPOCKET_PX` (1322, 922), `rpocket_depth` (21 mm pocket 6 mm deep EST, lip 1.5 px, rows of
+  vertices on 5 circles), `detail_plastics.panel_bolts` adds the bolt (`bolt_black`, the same as detail_front's)
+  square to the pocket's floor (along y its flange cut the leaning floor: audit 3 mm; a floor square to y stood out
+  of the face at the pocket's top, the face leans 40 deg there). `c2_rbolt.jpg`.
+
+### Still different (shared)
+- The white gap between the red panel's edge and the can at RIGHT u 1160..1260: the model's red edge is on the
+  photo's within 1 px (917 / 926 / 936 / 948 / 958 against 914 / 926 / 937 / 948 / 959 at u 1160..1240), but the
+  model's can starts 9 to 12 px under it (929 / 939 / 948 / 958 / 967) where the photo's can top is right at the red
+  edge: the can's top is 7 to 9 mm low there (detail_chassis, the muffler).
+- The red face over the can still shows soft waves in the studio render (the face's lean follows the panel's height
+  per column, rounds 2 and 3), and the pocket's upper rim reads straight in the render.
+
+## R5.3 Shroud small items: not started
+
+## R5.4 Front fender and plate, rest (partly: the plate's tab)
+
+### Done
+- The plate's upper tab: TOP at 7x (`g_top_tab.jpg`): behind the plate's top edge (u 1612..1622) a red rounded tab
+  u 1622..1637, rows 1106..1142 (32 mm across), then the top clamp's grey front face at u 1639 (detail_front TC_FRONT,
+  f 46). Rounds 1 to 4 ran a 12 mm round boss on to f 17, 29 mm into the clamp. Now it ends 0.3 mm short of the
+  clamp's face and is 31 mm across (`PLATE_TAB_W`). `p17_ttab.jpg`, `p17_ltab.jpg`. Audit: no clash.
+
+### Shared
+- detail_front's slot through the top clamp's front (TC_SLOT, cut for the old tab) now stands empty behind the tab:
+  TOP shows a light-rimmed rectangle on the clamp there (u 1648..1658, rows 1113..1145), not a slot.
+
+### Not started
+- The plate's and the fender's bolts, the fender's underside ribs.
+
+## Round 5 totals
+Vertices (both modules' 19 parts, b18): 74,336 (budget 160k; side_panels 15,360, seat 10,408, rear_fender 5,418). Audit (b18): no clash of these parts (rear_fender on the seat,
+0.9 mm in round 4, gone), nothing floating. Scores (b17): left 0.8863 / 0.8968, right 0.8769 / 0.8984, front 0.8913 /
+0.7970, rear 0.9029 / 0.6415, top 0.8863 / 0.8559.
