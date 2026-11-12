@@ -1,6 +1,6 @@
 ---
 name: oem-reference-sourcing
-description: Where to get official specs, high-resolution studio photos and parts diagrams (microfiche) for a production motorcycle, and which sites work from the build server. Use before researching any real vehicle to model (Honda CRF250R first).
+description: Where to get official specs, high-resolution studio photos and parts diagrams (microfiche) for a production motorcycle or the rider's gear (Leatt), and which sites work from the build server. Use before researching any real vehicle to model (Honda CRF250R first).
 ---
 
 # Sourcing OEM references for a vehicle model
@@ -19,6 +19,26 @@ Learned while researching the 2026 Honda CRF250R (see `motocross-whip/research/c
 
 ## What is blocked (403, 502 or captcha)
 powersports.honda.com, RevZilla, Partzilla, CMSNL, BikeBandit, Babbitts / hondapartshouse, Ron Ayers, bike-parts-honda.com, manuals.dk. Use web search snippets for their URLs and ask Damien to open them in a browser if a diagram is essential.
+
+## Riding gear (Leatt), learned 2026-11-12 (see `motocross-whip/research/rider-gear-leatt.md`)
+- **us.leatt.com is Shopify and works** (leatt.com and the `za` site redirect to it; `eu`, `uk`, `au` are unreachable,
+  www.leatt.co.za resets). `https://us.leatt.com/products/<handle>.js` gives every variant (SKU, EAN, colour, size),
+  every image URL (originals 1920 px on cdn.shopify.com) and the description; the HTML page holds the Features list and
+  a Size Guide image (`size-chart-content`). Find handles with
+  `curl -g 'https://us.leatt.com/search/suggest.json?q=<words>&resources[type]=product&resources[limit]=10'`;
+  `/collections/<name>/products.json?limit=250` lists only the current model year. Last year's items move to
+  `...-sale-my26` style handles (tag "MY26 Obsolete") and may vanish: save images early.
+- **Leatt's NZ distributor feed** (retailer Shopify stores with `ran_<code>` handles, e.g. forzahub.nz,
+  motosouth.co.nz): `/products/ran_<code>.js` lists Leatt's full photo set as `LE<SKU>_<n>.jpg` (1600 px), often more
+  views (model shots, details) than Leatt US. Some of them duplicate Leatt US shots: keep Leatt's 1920 px copy.
+- Leatt SKUs are 10 digits: first = category (1 helmet, 3 boot, 5 apparel, 6 glove, 8 eyewear), next three = the
+  design's year code (026 for the 2026 range; carried-over designs keep an older code), last = size index.
+- Colour names differ: Leatt file names ("PinataTeal"), variants ("Pinata"), retailers ("Pinata Teal"). Leatt's kit
+  photo shoots style each jersey colourway with a helmet and goggle: the quickest way to identify the helmet a rider
+  pairs with a kit.
+- Product renders can be off in colour (Velocity goggle frame: hot pink render, raspberry in photos): take colours
+  from photographs.
+- RevZilla, Rocky Mountain ATV/MC (empty to WebFetch) and the Enduro21 article (404) did not load; search snippets did.
 
 ## Lessons
 - Specs can differ by market for the same model year (CRF250R rake: 27.6° US vs 28°24' Europe/Australia). Always ask for the owner's market or VIN.

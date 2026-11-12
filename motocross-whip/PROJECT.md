@@ -61,6 +61,7 @@ Engine: Honda CRF250R four-stroke (2026), so the engine sound is a 250 cc single
 - `research/crf250r-2026.md`: bike specifications and reference sources.
 - `research/fmx-ramp-physics-whip.md`: ramp and landing dimensions, trajectory physics, whip technique.
 - `research/blender-pipeline.md`: Blender 5.x API changes, tools, materials, render settings, web viewer.
+- `research/rider-gear-leatt.md`: Damien's Leatt gear identified (5.5 Tiger Pink kit, 8.5 Pinata Teal helmet, Velocity 5.5 goggle, 2.5 X-Flow gloves, 6.5 boots); images in `reference/leatt-gear/`.
 
 ## Toolchain (verified 2026-11-06)
 - Blender 5.2.3 LTS headless (`tools/setup_blender.sh`), plus 5.2.0 side by side for compatibility checks.
