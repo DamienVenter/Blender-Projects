@@ -44,6 +44,12 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
 - Bar pad lettering must read from the front AND from the seat: pick the UV direction by the face normal.
 
 ## Showing it
+- **Damien's phone does not load the 3D viewer artifact** (2026-11-12: neither the 78 MB six-file page nor the
+  7.8 MB Draco one: "Still won't load. Find a different way"). Show the bike as studio stills and a turntable video
+  sent with SendUserFile: `turntable.py` on a built .blend (the bike turns, camera and lights stay; Honda's studio
+  look: Standard view, exposure -0.9, world 0.7, lamps at half, shadow-catcher floor on a transparent film), then
+  `onwhite.py` (clears the denoiser's faint alpha noise, else grey streaks show on white) and ffmpeg to H.264 MP4
+  (yuv420p, faststart). About 25 s a frame at 1080 px, 24 samples; stills 1600 px, 64 samples.
 - Damien looks at the viewer on his phone, and wants a CLEAN bike: the bike alone, full screen, no text panels or
   numbers (2026-11-12: "not loading. Too much info anyways. just give me a clean bike that's it"). Numbers and
   comparison sheets go in the checkpoint folder and a short chat message, not on the page.
