@@ -219,6 +219,45 @@ if "front_end" in META:
     FRONT_END = set(META["front_end"])                 # one list for the whole pipeline: parts.py's
 
 
+# Damien's sticker kit (2026-11-12): the plastics are built in plain `plastic_red`; with a livery their red faces take
+# the kit's projections instead, by which way each face looks: sides (livery_L / livery_R, painted in the bike's side
+# view), tops (livery_fender, fender_front, seen from above) and the plate's face (plate)
+KIT_PARTS = {"shrouds", "side_panels", "shroud_decks", "rear_fender", "front_fender", "number_plate"}
+KIT_MATS = {"livery_L", "livery_R", "livery_fender", "fender_front", "plate"}
+
+
+def kit_materials(name, V, faces, M, mats):
+    M = np.array(M, copy=True)
+    red = mats.index("plastic_red") if "plastic_red" in mats else -1
+    # Damien's kit also covers the side panel's lower black cover (the red band with his name and the bolt)
+    black = {mats.index(k) for k in ("plastic_black", "black_texture") if k in mats} if name == "side_panels" else set()
+    for k in ("livery_L", "livery_R", "livery_fender", "fender_front", "plate"):
+        if k not in mats:
+            mats.append(k)
+    iL, iR, iF, iFF, iP = (mats.index(k) for k in ("livery_L", "livery_R", "livery_fender", "fender_front", "plate"))
+    for fi, f in enumerate(faces):
+        if fi >= len(M) or (M[fi] != red and M[fi] not in black) or len(f) < 3:
+            continue
+        p = V[list(f)]
+        n = np.cross(p[1] - p[0], p[2] - p[0])
+        ln = np.linalg.norm(n)
+        if ln == 0:
+            continue
+        nx, ny, nz = n / ln
+        # the side by where the face is, not by its normal: the plastics' shells are not all wound outward (the left
+        # side panel's outer face looks inward), so a normal test put it on the right side's texture
+        side = iL if p[:, 1].mean() >= 0 else iR
+        if name == "front_fender":
+            M[fi] = iFF if abs(nz) > max(abs(ny), 0.55) else side
+        elif name == "rear_fender":
+            M[fi] = iF if abs(nz) > max(abs(ny), 0.55) else side
+        elif name == "number_plate":
+            M[fi] = iP if abs(nx) > 0.45 else side
+        else:
+            M[fi] = side
+    return M
+
+
 def build_parts():
     data = np.load(PARTS)
     mats = [str(m) for m in data["materials"]]
@@ -251,10 +290,15 @@ def build_parts():
         for sz in S:
             faces.append(tuple(Fl[k:k + sz]))
             k += sz
+        if not STOCK and name in KIT_PARTS:
+            M = kit_materials(name, V, faces, M, mats)
         me = bpy.data.meshes.new(name)
         me.from_pydata(V.tolist(), [], faces)
         me.validate(clean_customdata=False)
         used = sorted(set(M.tolist()))
+        for mi in used:
+            if mats[mi] not in bmats:
+                bmats[mats[mi]] = principled(mats[mi], **MATS.get(mats[mi], dict(rgb=(200, 0, 200))))
         for mi in used:
             me.materials.append(bmats[mats[mi]])
         remap = {mi: i for i, mi in enumerate(used)}
@@ -269,7 +313,8 @@ def build_parts():
             mname = mats[used[poly.material_index]]
             nrm = tuple(poly.normal)
             for li in poly.loop_indices:
-                if UV is not None and not np.isnan(UV[li, 0]):
+                # a face that takes the kit uses the kit's projection, not the part's own UVs (rib or grain maps)
+                if UV is not None and not np.isnan(UV[li, 0]) and mname not in KIT_MATS:
                     uvl.data[li].uv = (float(UV[li, 0]), float(UV[li, 1]))
                     continue
                 co = me.vertices[me.loops[li].vertex_index].co
