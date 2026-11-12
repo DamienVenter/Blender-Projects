@@ -35,13 +35,17 @@ def test_footpeg_height_is_422_mm(V):
 
 
 def test_footpeg_tips_are_where_the_rear_photo_has_them(V):
-    """REAR: tips at columns 1673 and 2328, row about 1294."""
+    """REAR: tips at columns 1673 and 2328, row about 1294, which the rear camera reads 13 px (10 mm) lower than the
+    profiles here (round 4: the master cylinder's features, RIGHT against REAR); RIGHT and LEFT: the tip's corner teeth
+    at z 0.427..0.431 on y 0.248 (RIGHT v 1520, LEFT 1522)."""
     P = V["footpegs"]
-    for side, col in ((1, 1673), (-1, 2328)):
+    for side, col, view, row in ((1, 1673, "left", 1522), (-1, 2328, "right", 1520)):
         tip = P[np.argmax(P[:, 1] * side)]
         top = P[(P[:, 1] * side > 0.235)][:, 2].max()
         u, v = cams.CAMS["rear"].project(np.array([tip[0], tip[1], top]))[0]
-        assert abs(u - col) < 8 and abs(v - 1294) < 8, (u, v)
+        assert abs(u - col) < 8 and abs(v - (1294 - 13)) < 8, (u, v)
+        q = P[(P[:, 1] * side > 0.235)]
+        assert abs(cams.CAMS[view].project(q[np.argmax(q[:, 2])][None])[0][1] - row) < 5
 
 
 def test_ground_clearance_leaves_330_mm_under_the_cradle(V):
@@ -263,3 +267,95 @@ def test_master_cylinder_clears_the_frame_tabs(V):
     yo, yi = c.surf(P[:, [0, 2]], True), c.surf(P[:, [0, 2]], False)
     depth = np.minimum(yo - np.abs(P[:, 1]), np.abs(P[:, 1]) - yi)
     assert depth.max() < 0.0005, depth.max()
+
+
+def test_master_cylinder_is_one_casting_where_the_photos_have_it():
+    """Round 4: one closed casting (not two tubes), its outline on RIGHT's and its width on REAR's readings."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    m = dc._surface_nets(dc._mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "rmc_cast")
+    V, F = np.asarray(m.V), np.asarray(m.F)
+    e = np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 3]], F[:, [3, 0]]])
+    n, _ = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(len(V), len(V))), directed=False)
+    assert n == 1
+    _, cnt = np.unique(np.sort(e, axis=1), axis=0, return_counts=True)
+    assert (cnt == 2).all()                                   # watertight: every edge in two faces
+    lo, hi = V.min(0), V.max(0)
+    assert abs(lo[0] - 0.4335) < 0.0015 and abs(hi[2] - 0.5790) < 0.0015 and abs(lo[2] - 0.4796) < 0.0015
+    assert -0.1350 < lo[1] < -0.1335 and -0.1075 < hi[1] < -0.1060            # REAR: cols 2143..2181
+    R, B = cams.CAMS["right"], cams.CAMS["rear"]
+    up = np.array([dc.MC_AXIS[1][0], dc.MC_YC, dc.MC_AXIS[1][1]])
+    assert np.abs(R.project(up[None])[0] - (1627, 1319)).max() < 2          # the neck's top under the banjo
+    assert abs(B.project(np.array([[dc.MC_AXIS[0][0], dc.MC_YC, 0.47]]))[0][0] - 2162.5) < 2   # the boot's centre
+    # its lugs seat on the frame tabs from inside: 0.5 mm off their inner face, nothing outboard of it beside the tabs
+    # (ahead of the tabs' rear edge x 0.479 (TAB_PX u 1639), above the lower tab's foot at z 0.4925; the skirt under it is wider, REAR)
+    near = V[(V[:, 0] > 0.479) & (V[:, 2] > 0.4925)]
+    assert near[:, 1].min() > -(dc.Y_PLATE - dc.TAB_T) + 0.0004
+
+
+def test_frame_leg_turns_away_and_the_pivot_boss_has_its_rim():
+    """Round 4: the leg's face is crowned (it turns away over the last 18 mm, most at the C round the engine: detail
+    photo 475836), and the boss round the pivot is 34 mm in radius with a raised rim at its fold (RIGHT, LEFT)."""
+    from geom import inside
+    for s in (1, -1):
+        c = dc._Cast(s)
+        xs = np.linspace(0.50, 0.66, 641)
+        P = np.column_stack([xs, np.full(len(xs), 0.60)])
+        P = P[inside(c.o, P)]
+        yo = c.surf(P, True)
+        front = c.surf(np.array([[P[-1, 0] - 0.005, 0.60]]), True)[0]
+        assert yo.max() - front > 0.0015                     # 5 mm inside the front edge: turned away
+        piv = c.piv
+        at = lambda r: c.surf((piv + r * np.array([-0.7071, 0.7071]))[None], True)[0]   # noqa: E731
+        assert at(dc.BOSS_R - dc.BOSS_RIM[0]) - at(0.020) > 0.0006     # the rim stands over the boss's face
+        assert at(0.020) - at(dc.BOSS_R + 0.006) > 0.0012              # the boss stands over the leg
+
+
+def test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stamped():
+    """Round 4: closed and ground ends (flat on the preload ring's face and the lower seat's), the rebound scale (S,
+    double arrow, index line: Dirt Rider 09) stamped on the right ear just under the cup."""
+    m = dc.shock()
+    V, M = np.asarray(m.V), np.array(m.M)
+    U, A = dc.SHOCK_U, dc.SHOCK_A
+    d = (A - U) / np.linalg.norm(A - U)
+    idx = sorted({i for f, mt in zip(m.F, M) if mt == "shock_spring" for i in f})
+    t = (V[idx] - U) @ d
+    assert abs(t.min() - 0.1372) < 1e-4 and abs(t.max() - 0.3708) < 1e-4
+    assert (np.abs(t - 0.1372) < 1e-4).sum() > 20 and (np.abs(t - 0.3708) < 1e-4).sum() > 20     # flat ground faces
+    mk = sorted({i for f, mt in zip(m.F, M) if mt == "bore" for i in f})
+    P = V[mk]
+    P = P[np.abs(P[:, 1] + 0.0208) < 0.0006]
+    tp = (P - U) @ d
+    assert len(P) > 200 and 0.450 < tp.min() and tp.max() < 0.462      # under the cup (0.445), above the bolt
+
+
+def test_cushion_arm_faces_are_pocketed_inside_their_rims(V):
+    """Round 4 (Dirt Rider 09): both faces of the cushion arm recessed inside a rim round its edges and bosses; the
+    faces stay inside the shock clevis's ears (inner faces at |y| 0.01255)."""
+    from geom import inside
+    f = dc._arm_sdf()
+    T, A, B = dc.LINK_T, dc.SHOCK_A, dc.LINK_B
+    arm = dc.hull([(T[0], T[2], 0.020), (A[0], A[2], 0.016), (B[0], B[2], 0.017)])
+    X, Z = np.meshgrid(np.linspace(0.36, 0.47, 111), np.linspace(0.30, 0.40, 101))
+    Q = np.column_stack([X.ravel(), Z.ravel()])
+    Q = Q[inside(arm, Q)]
+    for y in (0.0112, -0.0112):
+        v = f(np.column_stack([Q[:, 0], np.full(len(Q), y), Q[:, 1]]))
+        assert 1200 < (v > 0.0003).sum() < 2600                    # mm2 of pocket (and the hole) on each face
+    rim = dc.resample(arm, 0.002)
+    rim = rim + 0.004 * (np.array([0.4107, 0.343]) - rim) / np.linalg.norm(np.array([0.4107, 0.343]) - rim, axis=1)[:, None]
+    assert (f(np.column_stack([rim[:, 0], np.full(len(rim), 0.0112), rim[:, 1]])) < 0).mean() > 0.9   # the rim stands
+    L = V["linkage"]
+    near = L[(np.linalg.norm(L[:, [0, 2]] - A[[0, 2]], axis=1) < 0.035) & (np.abs(L[:, 1]) < 0.02)]
+    assert np.abs(near[:, 1]).max() < 0.0122
+
+
+def test_muffler_top_follows_the_right_photo():
+    """Round 4 (the coordinator's check): the can's top in RIGHT on y -0.13: against the background at u 1000, 1050,
+    1105 and at least as high as the side panel's lower edge where the panel covers it (u 1120..1280)."""
+    for x, z in ((0.005, 0.8949), (0.042, 0.8914), (0.083, 0.8841)):
+        assert abs(dc._muf(x)[1] - z) < 0.003, (x, dc._muf(x)[1])
+    for x, z in ((0.094, 0.8696), (0.124, 0.8595), (0.154, 0.8395), (0.184, 0.8225), (0.213, 0.8055)):
+        assert dc._muf(x)[1] > z - 0.001, (x, dc._muf(x)[1])
+    for x in np.arange(0.03, 0.30, 0.03):                                   # the bottom edge as before
+        assert abs(dc._muf(x)[0] - (0.775 - 0.496 * (x - 0.029))) < 1e-9

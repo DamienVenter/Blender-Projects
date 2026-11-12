@@ -365,3 +365,189 @@ TOP together. The inner face's weld beads and stamped text (HONDA, certification
   `_cal_px` to x 0.281..0.312 (band 0.287..0.299). In the photos the hose rides on the clip's base about 9 mm over
   the arm; the wheels module lays it 1.2 mm over the arm, so the base is two cheeks either side of the hose with the
   band arching over (0.3 mm clear of the hose). Part `swingarm`. Check: cu4/render_cu_clip.png.
+
+
+# Round 4 (2026-11-11, fourth chassis agent; scratch images under `agents/micro/chassis4/`)
+
+## 1. Rear master cylinder body (part `brake_pedal`): one casting
+Anatomy at 30 cm (fiche K95CF1500: body 2, cap 4, plate 6, diaphragm 7, screws 14, boot 3, push rod 8, nut 15, clevis
+10, banjo bolt 12 and washers 13, mounting bolts 11): one grey sand-cast body of two upright columns joined by a web,
+a deep narrow valley between them; the reservoir column (rear, oval 20 x 24.5 mm) with a wider head under the cap; a
+dark smoky cap with two cross-recessed pan screws at diagonal corners over a thin plate; on the column's rear a round
+pad with the sight window (a lit rim, the grey lens 1 to 1.5 mm in, a light retaining ring of three arcs), the cast
+word LOWER beside it on the outer face; the bore column (front, 21 mm) with NISSIN cast along it (6 mm letters reading
+down, tops forward), two lugs on its outer side under the frame's tabs (the bolts come from outside); above the valley
+the neck (14 mm) carrying the banjo: washer, black eye, washer, 12 mm hex bolt; from the eye a bright 4.7 mm pipe rises
+into the hose's black sleeve, the hose hooking over forward and down inboard; under the reservoir the web with a round
+cast emblem (an N in a ring) and two dots on its rear face; the lower column, its bell skirt, a plain black boot (no
+convolutions in any photo), the push rod, its lock nut on the clevis, the clevis as rectangular outlines from the side
+AND from behind (a box of narrow bars: upper box, waist, lower box round the pin), the pin with its split pin outboard.
+References: RIGHT 4x..8x crops mc1 (1580..1700 x 1270..1530), mc2, mc3 (1575..1665 x 1280..1440), mc5 (the hose's
+hook), mc7 (rod and clevis), sa1 (the swingarm's front); rr34 mc4, mc9; REAR mc6 (2130..2210 x 1085..1265), mc8 (the
+clevis from behind); rf34 (mc_views); fiche K95CF1500.
+Numbers (all in MC_* with their pixels): x, z from RIGHT cast on the casting's mid plane y -0.1211; y from REAR cast on
+each feature's own x (the rear photo reads 13 px, 10 mm, lower than RIGHT here, as at the footpegs: its rows unused).
+Head 0.4335..0.4610 x -0.1341..-0.1067, z 0.567..0.579; cap to 0.5852; reservoir 20 x 24.5 mm, foot z 0.519; bore
+column r 10.5 at x 0.4728; neck r 6.85 on the bore's 7 deg axis (boot centre u 1641 to neck u 1627); skirt 28 x 25.6
+mm; window pad face x 0.4370, centre (y -0.1238, z 0.537), ring 17.3 mm; screws at (0.4374, -0.1250) and (0.4541,
+-0.1124); boot 18.7 mm to z 0.465; clevis 14.4 mm, pin RIGHT (1648, 1505).
+Where it is: the round-3 axis (y -0.1345, EST) put the body's centre on the tabs' face. REAR puts the boot at y -0.1211
+(cols 2150..2175), the push rod at col 2160, the clevis's legs at -0.112 and -0.130, the casting -0.108..-0.134: a
+body bolted inboard of the tabs (inner face 0.1325), its lugs 0.6 mm off them. Test: `test_master_cylinder_is_one_
+casting_where_the_photos_have_it` (one watertight surface, RIGHT and REAR readings, nothing outboard of the tabs).
+Built: `_mc_sdf` (smooth union of prisms and cylinders, fillets 1.2 to 3 mm, the lens recess cut) meshed by
+`_surface_nets` (new: naive surface nets, Newton steps onto the surface; 1.2 mm grid, 11.8k vertices); `_uv_cast` (UVs
+per face by its normal's axis, each direction in its own region of the map); `mc_map` -> textures/stock/mc_n.png
+(sand-cast grain and the raised marks: NISSIN, LOWER, the emblem, the dots); `_pill` (cap and plate), `_pan_screw`
+(cross recess cut through the head); materials rmc_cast, rmc_lid, rmc_lens, rmc_ring (renamed from mc_*: detail_front.py's front master cylinder uses mc_cast).
+Shared change (this module's swingarm): REAR and rr34 put the clevis, rod and skirt where the swingarm's pivot casting
+was (outer face 0.122 at x 0.48). rr34 mc9 shows the arm's box ending at its front weld and nothing of the arm outboard
+ahead of it; RIGHT sa1 shows a darker face turning in right after the weld (u 1615..1635). `_arm_yo` now steps in to
+0.107 between s 0.468 and 0.482 (x 0.452..0.465); side views unchanged.
+Checks (three cycles): m1 pairs right, rear, rr34; cu1 close-ups (cu_mca beside rr34 mc4, cu_mcr from the right); m3
+right; m4 right and rear (m4_both). Fixed on the way: a boxy single body (rr34: two round columns) -> bore column as a
+cylinder and the web set back; grain relief 0.035 mm read as crinkle paint -> 0.016; LOWER ran off the column; the
+pipe stood 1 cm too tall and its ferrule bright where the photo is black; the clevis a plain plate -> bar box; screws
+3.2 mm tall; non-manifold cells under the upper lug (wider fillet).
+Still different: the grain and lettering are a normal map (they do not change the silhouette, correct at 30 cm); the
+studio render's step-in face of the swingarm is lit where the photo's is mid grey; the REAR model sits 13 px high (the
+rear camera's known offset, not the part); detail_wheels' hose passes outboard of the web in RIGHT (v 1400..1414,
+ending at u 1626) where their run ends inboard (y -0.100): theirs, reported.
+
+## 2. Frame rear, depth (part `frame`): the boss's rim round the pivot, the leg's turned faces
+Anatomy (RIGHT, LEFT, the Honda detail photo 475836 in directional light): the leg's outer face is crowned, not flat:
+it turns away over its last 1 to 2 cm toward the C round the engine (dark there in the detail photo, a highlight line
+at the edge in the studio photos) and less toward the rear edge; round the pivot a boss about 68 mm across whose fold
+is a raised rim, a C cut open by the leg's front edge, the face inside it reading recessed; no channel along the
+front rim (looked for: none in any profile).
+References: RIGHT fr1 (1640..1900 x 1080..1600, 2x), fr2 and LEFT fl2 (equalised 3.2x, 1660..1830 / 2170..2340 x
+1180..1480); intensity rows 1260..1460 and columns 1700, 1720 of both photos; detail 475836 (d836, d836_leg, rows 1300,
+1500, 1700).
+Numbers: boss fold at 34 mm from the pivot (RIGHT column 1700 lit at v 1415..1440, 40 mm; row 1420 lit at u 1700..
+1710; LEFT row 1440 the boss face lit to u 2296, 36.6 mm, dropping there): BOSS_R 0.026 -> 0.034, the face 1.5 mm
+proud, the rim 0.8 mm over it, 3.5 mm half width (BOSS_RIM). Turned faces (TURN): 2.5 mm at the front edge, 1 mm at
+the rear, over 18 mm (the detail photo, the leg 208 px = 50 mm wide: 125 -> 181 over the first 10 mm from the front
+edge, even 200 beyond); not on the spar above the U bead, the tabs, the footpeg pad or the pedal's seat.
+Built: `_Cast.turn` (blended by the edge radius, front 7 mm to rear 4 mm), the rim in `_Cast.feat`, rows of vertices
+at the rim (`extra`). Test: `test_frame_leg_turns_away_and_the_pivot_boss_has_its_rim`.
+Checks: f1 pairs right 1640..1900 x 1150..1600 and left 2100..2360 (f1_both), f2 tighter pairs (f2_both), close-ups
+cu2 (cu_fl beside d836_leg, cu_fr).
+Engine hanger plates: not in this module's frame. They are detail_engine.py's head hangers (`_hanger`: "plate seated on
+the inner face of the frame's plate") and the engine's plates at x 0.667..0.711, z 0.68..0.735, |y| 0.098..0.102 (part
+`engine`), on the frame's inner face; the photos have them outside: theirs to move. Note for them: detail_engine copies
+this module's boss radius (PIVOT_BOSS_R = 0.026): it is 0.034 now.
+Still different: in the studio render the right side's turned front reads darker where the photo has a highlight
+line along the edge (the left side matches): the render's light, not the shape (the same face on the left is lit);
+the leg's section in between is EST (no photo shows it end on).
+
+## 3. Subframe (part `subframe`): investigated, not built (partly)
+What the photos show of it (every other stretch is under the seat, the side panels or the rear fender: REAR shows only
+the inner fender, TOP the seat): the lower rails' front mounts. fiche K95CF3900 part 7: two upper box rails from cast
+front lugs (bolts 15) to the tail, the lower rails from the tail down and forward to the lower mounts (bolts 21), a
+cross brace and a bracket (8, bolt 14) near the front of the right upper rail.
+- LEFT (sf_left, s0_left 2240..2440 x 1120..1300): a cast lug with a ribbed end comes out from under the airbox panel
+  (u 2355, v 1200: x 0.484, z 0.656 on y 0.141) down to ONE flange bolt on the leg's rear edge at (2305, 1250): x
+  0.521, z 0.618, 4.3 mm behind the model's outline; a second bolt above it (2290, 1185: x 0.534, z 0.667) is the
+  frame's own. The model's hidden bracket foot is at the same x, z (0.521, 0.603) but inboard (y 0.1105).
+- RIGHT (sf_right, s0_right 1600..1800 x 1080..1260, rr34 sf_rr34): a lug from under the panel (1670, 1110: x 0.507,
+  z 0.726) down to a plate with TWO flange bolts at (1690, 1165) and (1740, 1165): z 0.684, x 0.521 and 0.559. The
+  front bolt lies on the model's frame outline, the rear one 31 mm behind it: the model's frame is short there (the
+  photo's casting reaches back under the plate).
+- Not built: from the plates outside the frame (|y| 0.14) to the rails (0.08 to 0.09) the lugs pass under the side
+  panel, whose skins in the model fill |y| 0.082..0.107 down to z 0.63 there (the plastics agent's part, being
+  reworked now); and the right plate needs the frame's outline extended 31 mm. Both need the coordinator: the frame's
+  outline (this module) and the panel's inner skin (plastics) together. The rails, welds and the seat and airbox mounts
+  are hidden in every photo (EST as before).
+
+## 4. Shock, the rest (part `shock`)
+Anatomy added: the spring's closed AND ground ends (flat bearing faces tapering over about half a turn), seated on
+the preload ring's face and the lower seat; the rebound scale stamped in the clevis's right ear just under the
+bottom cup (Dirt Rider 09, crop 560..1000 x 280..560: "S", a curved double-headed arrow, an index line).
+Numbers: S 7 mm tall (25 px against the ear's 110 px = 33 mm), arrow 8.4 mm wide, line 6.5 mm; grooves 0.7 mm. The
+spring's wire centres on the seats' faces (s 0.137 and 0.371 from the top eye), ground flat there (it stood 6 mm
+past each seat's plane before, its round wire on the ring's corner).
+Checks: cu3 close-ups (cu_dr9 and cu_dr9b at about Dirt Rider 09's angle, cu_smark2 on the ear beside the photo's crop:
+cu3_s). The first marks were metallic "groove" 0.3 mm proud and read light: now black (`bore`) 0.1 mm proud.
+Test: `test_shock_spring_ends_are_ground_on_their_seats_and_the_clevis_is_stamped`.
+Still different: in Dirt Rider 09 the ear's face is a straight-sided block about 25 mm wide (the model's ears are a
+rounded hull 33 mm wide); the bike there sits at another point of its travel, so the connecting rods pass 25 mm lower
+across the clevis than in the studio pose (where they hide the marks); the spring's colour stays EST (dark).
+
+## 5. Pro-Link, the rest (part `linkage`): the cushion arm's pocketed faces
+Anatomy (Dirt Rider 09): the cast cushion arm's faces are recessed inside a lit rim that runs round its edges and
+round each boss, the floor smooth and darker, the lightening hole with its own rim; the nuts with bright washer faces,
+the bolts' ends with a dark centre mark.
+Built: `_arm_sdf` (the hull of the three bosses, 24 mm, edges rounded 2.5 mm, the hole, both faces pocketed 2 mm deep
+inside a 4.5 mm rim, 2.5 mm round the bosses) meshed by `_surface_nets` at 1.5 mm (9.6k vertices); the round-2 reason
+for leaving it plain (a raised rim clashed with the clevis's ears) is gone: the pocket is cut in, the faces stay at
+|y| 0.012 inside the ears (0.01255). First cycle: the rim's crease rounded 1.2 mm on a 1.5 mm grid came out serrated
+(cu3_b); now 1.8 / 2.0 mm (cu3_c).
+Numbers: pocket 1.75k mm2 a face (the arm 6.0k), EST depth (the rim's shadow is about a third of its width in the
+photo). Test: `test_cushion_arm_faces_are_pocketed_inside_their_rims`.
+Checks: cu3 close-ups cu_dr9, cu_dr9b (side on), cu3_c.
+Still different / not done: the casting marks (ejector-pin rings about 3 mm, below the 1.5 mm grid) and the bolts'
+end marks are not modelled; the bolt heads and nuts stand as in round 2 (flange heads left, washer, nut and two
+threads right, as Dirt Rider 09).
+
+## 6. Footpegs, the rest (part `footpegs`)
+Anatomy (detail 475839 crop d839_peg: the left peg from the front; RIGHT and LEFT see the pegs end on, p1 pairs): a
+black cast cage: a toothed top rail round the outline (about ten sharp teeth along the front rail with flat valleys,
+a tall tooth on each tip corner, the tip end square with small corners); under each side rail a diagonal strut from
+the tip down to the hinge's foot with an open triangle between (the old side rails were solid bands 21 mm deep at the
+root); end on the cage narrows downward to the hinge; the hinge: ears, pin with head and washer, split pin, return
+spring (as before).
+Position (the brief: "lower and further back in f8_right_2"): measured on the tip's own plane (y 0.248), the photos'
+teeth stand HIGHER than the model's, not lower: RIGHT corner teeth v 1520 (z 0.431), the others about 1527 (0.424);
+LEFT rows 1522..1530 (0.421..0.427); the model's tip was at 0.420 (from REAR 0.416, which reads 10 mm low here, see
+component 1). Fore and aft: RIGHT u 1708..1778 (x 0.535..0.587), LEFT 0.531..0.583: the model's 0.529..0.583 stays.
+In f8_right_2 the photo's black mass reaches lower because of the hinge bracket and the cage's V of braces under the
+rail, which the model lacked. PEG_TIP z 0.420 -> 0.424 (root unchanged: SPEC 422 mm on the ground).
+Numbers: teeth every 9 mm (PEG_TEETH), 4 mm tall, the corner teeth 5 mm over the rest; rail 8 mm deep, 24 mm at the
+hinge end (PEG_RAIL); struts 4.5 x 5.5 mm.
+Checks: p1 pairs (before), cu4 close-up cu_peg beside d839_peg (cu4_peg), p2 right pair. Test:
+`test_footpeg_tips_are_where_the_rear_photo_has_them` now checks REAR at row 1294 - 13 (the rear camera's offset) and
+the corner teeth on RIGHT v 1520 and LEFT v 1522.
+Still different: the photo's hinge bracket is a large black casting with the pin's round head on top (d839_peg); the
+model's hinge is two plain ears; the photo's teeth are sharper spikes.
+
+## 7. Muffler, the rest (part `exhaust`), and the coordinator's height check
+The can's height (coordinator: the plastics agent saw the can low in RIGHT and lr34). Measured in RIGHT column by
+column (metal run between the red panel or the background and the background below), cast on y -0.13:
+- bottom edge: photo against model, u 1040..1400 every 40 px: 1058/1057, 1078/1076, 1097/1095, 1116/1114, 1135/1133,
+  1155/1152, 1174/1170, 1211/1208, 1230/1226: within 1 to 4 px, unchanged.
+- top edge against the background: u 1000 z 0.8949 (model 0.8950), u 1050 0.8914 (0.8711), u 1105 0.8841 (0.8433);
+  under the side panel's lower edge (lower bounds: the top is hidden above them) u 1120..1280, x 0.094..0.213: 0.8696,
+  0.8595, 0.8395, 0.8225, 0.8055 against the model's 0.8359, 0.8157, 0.7957, 0.7756, 0.7555.
+So it was really low: the round-2 taper (18 mm per 100 mm, there to clear the panel) put the top 20 mm low at x
+0.042, 41 mm at 0.083 and at least 34 to 50 mm under the panel. In the photo the top runs back from the cap at 8 deg
+while the bottom falls at 26: the height grows from 108 mm at the cap to 136 mm at x 0.083 (REAR's section is 136 mm
+tall, 0.765..0.901: the can's deepest part), then the top runs parallel to the bottom (MUF_GROW). Past x 0.215 the
+top is behind the panel's black lower part in every photo: it bends down to stay 3 mm under the panel's underside
+(_MUF_TOPMAX, from the plastics' mesh in main; a straight 136 mm top stood 6 to 27 mm into it from x 0.25). Checks:
+p2_can before, q2_can after (q2_all): the gap under the panel at the rear is gone. A vertex check of the side panels,
+subframe, fender, flap, mudguard and panel bolts against the can's section: none inside.
+The dark band across the cap's knee from behind (p2_rear, cu4 cu_mufb): it is in the studio render, not in the close-up
+(cu_mufb, even): the knee (RIGHT's profile, round 3) turns the face from the backdrop to the floor and passes the
+render studio's darker horizon; Honda's cyclorama has none. Geometry kept; not fixed (a render-light difference).
+Inner face (lr34 lr_can 2380..3020 x 700..1000, 1.5x): a stamped label (a block of about eight lines of small text,
+HONDA under it) between the bracket's weld and the cap's seam, a TIG seam weld along the face's lower part, the mount
+bracket a pressed plate with its bolt at the top and a rippled weld along its foot.
+Built: `_can_label` gives the inner flank's faces over x 0.070..0.215 the material muffler_txt and UVs on its map
+(muf_txt_n.png, `muf_txt_map`: the brushing and the label stamped 0.15 mm deep along the can's slope; the small text
+is unreadable in every photo, so it is drawn as word-length strokes, no invented words), and a seam weld bead (5 mm,
+ripples 2.2 mm) along the octagon's inner lower corner from x 0.06 to 0.30. Check: cu4 cu_mufi beside lr_can (q2_all).
+lr34 caveat: it is fitted to the model and least sure for the far side (round 3): positions there were taken relative
+to the can's own lines.
+Still different: the mount is still the round-2 pair of straps (the photo's is one pressed plate with a foot weld,
+hidden in RIGHT; not rebuilt); the photo's label covers more of the face; its seam weld is bigger and sits a little
+higher on the face.
+
+## Round 4 audit and totals
+Audit (audit.py, 25 mm; main merged: plastics rounds 1 to 3, cockpit rounds 2 to 3) on the first full build: frame x
+linkage reported 27.5 mm over long faces of the lower cross member (r 13, 27.8 mm behind F) against the link's frame
+boss (r 15): the boss now 14.5; brake_pedal x frame 1.6 mm: the pedal's lever, swung inboard to the rod's new line
+(y -0.121), passed 2 mm inside the plate's face near its rear edge: it now stays outside the face (0.137) over the
+plate and swings in behind its edge. Final audit (audit5): chassis lines footpegs x frame 1.0 (the hinge pin's washer
+seated on the pad), exhaust x frame 0.9, frame x shock 0.4, brake_pedal x frame 0.2 (the pedal's boss on the pad),
+engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module 228,641 vertices (budget 260,000). The materials mc_* were renamed rmc_*: the cockpit's
+front master cylinder (detail_front.py) defines mc_cast with other values (parts.build would raise).
