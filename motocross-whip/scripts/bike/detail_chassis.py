@@ -17,7 +17,7 @@ Things the photos settle (2026-11-10):
     y -0.082..-0.195) and the outlet (dark disc centred on pixel (2205, 787): y -0.138, z 0.845).
   * The header leaves the head hidden by the radiator, comes down in front of the engine on the right of the down
     tube (front edge x 0.989 in the left photo), turns back at z 0.46 and climbs along the right side. No springs
-    show at its joints in the right photo: two welds and two clamps.
+    show at its joints in the right photo: two welds, a slip joint with a band clamp, the nose's weld (round 5).
   * The rear master cylinder carries its reservoir on top (one casting in the right photo): there is no separate
     reservoir hose on this bike, only the pressure hose to the caliper along the swingarm.
   * parts.PEG is a reading on the photo's centre plane. Cast on the plane they are on, the peg's teeth are at
@@ -61,7 +61,16 @@ MATERIALS = {"shock_spring": dict(rgb=(28, 28, 30), metal=0.7, rough=0.4),   # E
              "rmc_lens": dict(rgb=(104, 100, 94), metal=0.0, rough=0.06),   # sight window: grey glass (REAR mc6, rr34)
              "rmc_ring": dict(rgb=(176, 176, 178), metal=0.0, rough=0.45),   # the window's light retaining ring
              "muffler_txt": dict(rgb=(190, 190, 195), metal=1.0, rough=0.36, aniso=0.5, normal="stock/muf_txt_n.png",
-                                 normal_strength=1.0)}       # the can's inner flank where its label is stamped (lr34)
+                                 normal_strength=1.0),       # the can's inner flank where its label is stamped (lr34)
+             # round 5: Damien's header is heat-browned over its whole length (his 08, 02, 07): heat_maps() draws the
+             # colours along the pipe (dark rust at the head, copper and bronze on the run, rust on the inlet pipe)
+             # and the scaly skin; a dull oxide, not Honda's showroom stainless
+             "header_heat": dict(rgb=(140, 88, 56), metal=0.65, rough=0.42, image="stock/header_heat.png",
+                                 normal="stock/header_heat_n.png", normal_strength=0.6),
+             "header_weld": dict(rgb=(128, 92, 64), metal=0.8, rough=0.42),     # 08: the rings darker, (86, 53, 28) in shade,
+             #     (140, 102, 70) median lit; metallic enough for the ripples to catch the light (a matte dark ring read
+             #     as an O-ring in the close-ups)
+             "header_clamp": dict(rgb=(176, 150, 112), metal=1.0, rough=0.38)}  # 08: the band heat-tinted (172, 150, 114)
 CLASS = {"shock_spring": "black", "peg_black": "black"}
 Y3 = np.array([0.0, 1.0, 0.0])
 
@@ -960,7 +969,10 @@ def _sub_rails(s):
     rails: the rails stay 4 mm inside it; the lower rail hangs on a bracket that reaches the plate under the panel's
     lower edge, the upper mount is the lug on the ear alone. On the right the exhaust passes under the lower rail."""
     lower = spline([(0.522, s * 0.081, 0.652), (0.495, s * 0.082, 0.672), (0.470, s * 0.083, 0.690), (0.433, s * 0.086, 0.722),
-                    (0.378, s * 0.093, 0.762), (0.30, s * 0.094, 0.800), (0.213, s * 0.082, 0.842)], 20)
+                    (0.378, s * 0.093, 0.762), (0.30, s * 0.0965, 0.800), (0.255, s * 0.0945, 0.8215), (0.228, s * 0.0905, 0.835),
+                    (0.213, s * 0.084, 0.842)], 24)
+    # round 5: 3 to 9 mm further out from x 0.22 to 0.30, so the muffler's mount plate (in the plane of the can's inner
+    # face, y -0.080, lr34) bolts to its inner face (y -0.0828 at the bolt) instead of standing in it
     upper = spline([(0.615, s * 0.070, 0.838), (0.585, s * 0.070, 0.858), (0.553, s * 0.070, 0.872), (0.482, s * 0.069, 0.876),
                     (0.409, s * 0.070, 0.882), (0.336, s * 0.070, 0.888), (0.262, s * 0.069, 0.894), (0.213, s * 0.068, 0.897)], 20)
     return lower, upper
@@ -1777,35 +1789,66 @@ def shock():
 PORT = (0.903, 0.0, 0.613)                                    # exhaust port flange face of detail_engine.py (coordinator)
 PORT_DIR = (0.970, 0.0, -0.242)                               # its outward direction
 PORT_Y = -0.030                                               # the hidden first 60 mm start right of it: elbow 3 mm off the down tube
-WELDS = ((0.913, -0.146, 0.545), (0.690, -0.124, 0.624))      # RIGHT px (2213,1344) and (1916,1240)
-CLAMPS = ((0.635, -0.116, 0.626), (0.380, -0.090, 0.6425))    # RIGHT px (1844,1238) and (1500,1223)
+# Round 5 (Damien, 2026-11-12: "the shape of everything ... like the exhaust"). The route re-read with route.py
+# (scratch chassis5/tools: the tube's projected edges drawn over the photo, 10 px grid): the front U was 9 to 15 mm
+# too far forward in its far leg (RIGHT: the far leg's front edge u 2283..2290 at v 1300..1390, the model's 2305) and
+# its bottom 15 mm too far back (RIGHT: lowest edge v 1466 at u 2265..2280, front corner (2302, 1440)); the near leg
+# and the near leg's outer edge in FRONT (u 1786..1800 from v 1160 to 1240) were right and are kept. The long run sat
+# 3 to 6 mm low where it turns down (RIGHT u 2100: photo centre v 1279, model 1283; u 2150: 1301 against 1309). The
+# muffler's inlet pipe (behind the clamp) ran 15 to 35 mm low: it showed under the side panel and through the frame's
+# window, where the photos have none of it (RIGHT cols 1510..1640: nothing below the panel's lower edge at v 1218..
+# 1249; rr34 and rf34 the same). Its new line stays above that edge (test) and dips behind the frame's leg under the
+# subframe's lower rail (EST, hidden in every photo). No spring hooks on this bike: a band clamp at the slip joint
+# (RIGHT, detail 475834, Damien's 08).
+WELDS = ((0.913, -0.146, 0.545), (0.690, -0.123, 0.6225))     # RIGHT px (2210,1342): the U's ring (chord (2187,1358)..
+#   (2234,1327), 56 px: 42 mm over the bead, a 38 to 39 mm pipe); px (1916,1242): the socket's ring, cast on y -0.124
+JOINT = np.array([0.6368, -0.113, 0.6231])                    # the clamp band's centre: RIGHT px (1846, 1240) cast on y
+#   -0.112; TOP: the socket's outer edge -0.136 at x 0.635 (col 2100 row 975)
+R_HDR = 0.019                   # header 38 mm (RIGHT u 2000: edges v 1236..1284, 48 px at 1.317 px/mm; the U's ring)
+R_SOCK = 0.0235                 # the header's socket behind its rear ring: RIGHT u 1870..1890, edges v 1208..1272 (64 px
+#                                 against the black behind it: 47 to 48.6 mm), a 12 mm cone from the ring
+SOCK_END = 0.6285               # its open end under the band's rear rim (RIGHT u 1830)
+R_INLET = 0.0205                # the muffler's inlet pipe (fiche K95CF2700 parts 3 and 11) slides into the socket: 41 mm
+#                                 (round 3: the nose's ring at u 1490 round it); a bell 44.4 mm just behind the band (RIGHT
+#                                 u 1815..1830, detail 475834: a soft swelling left of the clamp)
 HEADER = [
     (0.9125, PORT_Y, 0.6106),   # 10 mm off the engine's flange face and right of its centre: the flange (its part) reaches
                                 # x 0.909 at y -0.038, and the down tube stands 30 mm ahead of the port
     (0.9185, -0.0325, 0.6090),  # EST (hidden by the radiator)
     (0.9245, -0.0395, 0.6065),  # EST
     (0.934, -0.0535, 0.601),  # EST
-    (0.950, -0.0625, 0.592),  # EST
-    (0.9625, -0.065, 0.578),  # RIGHT px (2274,1277): the pipe comes out from behind the radiator
-    (0.968, -0.066, 0.560),
-    (0.970, -0.068, 0.523),   # RIGHT px (2287,1356); LEFT px (1699,1400): front edge x 0.989; FRONT row 1260 cols 1913..1939
-    (0.964, -0.086, 0.480),
-    (0.948, -0.112, 0.462),   # RIGHT px (2277,1436): bottom of the bend, outer edge row 1460; LEFT row 1445
-    (0.930, -0.138, 0.488),
-    (0.913, -0.146, 0.545),   # RIGHT px (2213,1344): weld; FRONT row 1140 col 1784: outer edge y -0.164
-    (0.873, -0.151, 0.568),   # TOP col 1870 row 937: outer edge -0.171
-    (0.832, -0.143, 0.590),   # RIGHT px (2104,1287); TOP col 1950 row 954: outer edge -0.155 at x 0.80
+    (0.944, -0.061, 0.594),   # round 5: RIGHT, the far leg's front edge at v 1260 is u 2268 (the model's was 2285)
+    (0.952, -0.064, 0.580),
+    (0.953, -0.065, 0.560),
+    (0.956, -0.068, 0.523),   # RIGHT: far leg front edge u 2285..2290 at v 1320..1390; FRONT: its bronze seen between the
+                              # guard and the tyre at u 1905..1925, v 1240..1275 (y -0.056..-0.070)
+    (0.961, -0.086, 0.477),
+    (0.955, -0.110, 0.460),   # RIGHT: the bend's lowest edge v 1466..1468 at u 2265..2280, its front corner (2302, 1440)
+    (0.934, -0.136, 0.486),
+    (0.913, -0.146, 0.545),   # RIGHT px (2210,1342): weld; FRONT row 1140 col 1784: outer edge y -0.164
+    (0.873, -0.151, 0.574),   # TOP col 1870 row 937: outer edge -0.171; RIGHT u 2150: centre v 1301
+    (0.832, -0.143, 0.593),   # RIGHT u 2100: centre v 1279; TOP col 1950 row 954: outer edge -0.155 at x 0.80
     (0.757, -0.124, 0.607),   # RIGHT px (2005,1262); TOP col 2000 row 969: outer edge -0.141
-    (0.690, -0.124, 0.624),   # RIGHT px (1916,1240): weld; TOP col 2050 row 966: -0.144
-    (0.635, -0.116, 0.626),   # RIGHT px (1844,1238): clamp; TOP col 2100 row 975: -0.136
-    (0.585, -0.086, 0.626),   # EST: behind the right pivot plate (its inner face is at -0.111)
-    (0.530, -0.0645, 0.616),  # EST: between the subframe's bracket (y -0.087) and the shock's spring (r 41.5)
-    (0.470, -0.068, 0.613),   # EST: under the subframe's lower rail
-    (0.440, -0.074, 0.620),   # EST: 4 mm inside the airbox panel's skin (0.102 at x 0.45, 0.113 at 0.39, 0.123 at 0.36)
-    (0.410, -0.081, 0.632),   # EST
-    (0.380, -0.090, 0.6425),  # RIGHT px (1500,1223): clamp at the muffler's inlet
-    (0.352, -0.096, 0.648),   # into the muffler's nose
+    tuple(WELDS[1]),          # RIGHT px (1916,1242): the socket's weld; TOP col 2050 row 966: -0.144
+    (0.663, -0.115, 0.6228),  # RIGHT u 1880: the socket's edges v 1208..1272 cast on y -0.112: z 0.5983..0.6472
+    tuple(JOINT),             # the band
+    # the muffler's inlet pipe from here (one smooth line with the header: a slip joint is coaxial)
+    (0.612, -0.104, 0.6225),  # TOP: the pipe turns in behind the frame (outer edge v 980 at u 2080 to 1010 at u 2150)
+    (0.590, -0.090, 0.6215),  # RIGHT: behind the frame's leg from u 1792 (x 0.596); its inner face y -0.111
+    (0.565, -0.078, 0.619),   # EST from here: inboard of the leg, outboard of the shock's spring (r 47 over the coils)
+    (0.540, -0.0665, 0.619),
+    (0.515, -0.0635, 0.6205), # under the subframe's lower rail's end (its bottom z 0.641 at x 0.522), 1 mm inside the
+                              # bracket's leg (y -0.087)
+    (0.497, -0.066, 0.6325),  # under the rail (bottom 0.661 at x 0.495)
+    (0.480, -0.069, 0.643),   # RIGHT u 1640: the panel's edge v 1249 (z 0.616 under the pipe: bottom at least that)
+    (0.462, -0.072, 0.651),
+    (0.440, -0.076, 0.659),   # RIGHT u 1560..1600: edge v 1223..1240
+    (0.415, -0.081, 0.6635),
+    (0.390, -0.087, 0.6625),  # RIGHT u 1520: edge v 1218 (z 0.6406 at y -0.09): the pipe's bottom just above it
+    (0.371, -0.0917, 0.6565), # the nose's end ring: RIGHT u 1490, its lit lower part v 1207..1226 (bottom z 0.635)
+    (0.352, -0.096, 0.6525),  # into the muffler's nose
 ]
+I_JOINT = 17                    # HEADER index of the band (the header ends in its socket there)
 # muffler (round 2): a straight can of flat facets. RIGHT (OUT2 'muffler', cast at y -0.14): the lower edge is a
 # straight line from x 0.029 to 0.301 (z 0.775 to 0.640, within 4 mm of the old table); the top is seen only at the
 # rear (LEFT row 878 at col 2950: z 0.893 at x 0..0.024; REAR: the cap's top at 0.901), 109 to 117 mm over that line:
@@ -1916,7 +1959,9 @@ def _cap_x(z):
 # 0.372); its lower edge almost level (z 0.637 to 0.641), turning up into the pipe at the end. The round-2 seam was
 # square to the can at x 0.296, 2 to 4.5 cm behind the photo's
 NOSE_SEAM = (0.3176, 0.6373, 0.468)         # x, z at the bottom and dx/dz up the seam (25 deg)
-MUF_INLET = (-0.0917, 0.6441)               # the header's axis (y, z) at the nose's end (HEADER, between its last two points)
+MUF_INLET = (-0.0917, 0.6565)               # the header's axis (y, z) at the nose's end (HEADER, its point at x 0.371).
+#   Round 5: was z 0.6441, 12 mm low: RIGHT col 1490 shows the end ring's lit lower part down to v 1226 (z 0.635 on y
+#   -0.092), the black flap behind it below; the nose's lower edge now turns up into the pipe (round 3's r_nose)
 
 
 def _nose_x(z):
@@ -2087,21 +2132,14 @@ def _on_can(u, v):
     return best[1], best[2]
 
 
-def _clamp(c, d, r):
-    m = turned(c - d * 0.007, d, [(0, r + 0.0004), (0.001, r + 0.003), (0.013, r + 0.003), (0.014, r + 0.0004)], "steel", 20,
-               False, False)
-    lug = c + np.array([0.0, 0.0, -(r + 0.007)])
-    m.add(box(lug, (0.014, 0.009, 0.012), "steel"))
-    m.add(bolt(lug - 0.0043 * Y3, -Y3, af=0.008, head_h=0.004))
-    return m
-
-
 MUF_LABEL = (0.070, 0.215)              # round 4: the stamped label on the can's inner flank (lr34, chassis4/lr_can: a
 #   block of small text lines between the bracket's weld and the cap's seam, HONDA under it: lr34 u 2660..2790, v 850..
 #   985, on the model's flank x 0.08 to 0.17; lr34 is fitted to the model, so placed by the flank's own lines) and the
 #   faces it maps to (x range); the map muf_txt_n.png covers MUF_TXT metres a side (it repeats: the label's copies
 #   fall above and below the can)
 MUF_TXT = 0.145
+MUF_TXT_Z0 = 0.71                       # round 5: the map's v origin (z), so the raised label block does not wrap
+MUF_SEAM = 0.058                        # round 5: the seam weld's height over the can's lower line (lr34, see _can_label)
 
 
 def muf_txt_map(path, size=1024, seed=9):
@@ -2120,22 +2158,32 @@ def muf_txt_map(path, size=1024, seed=9):
     px = size / (MUF_TXT * 1000)                                 # pixels per mm
 
     def at(x, z):
-        return ((MUF_LABEL[1] - x) * 1000 * px, (1 - (z - 0.66) / MUF_TXT) * size)
-    for k in range(8):                                           # the block, its lines 2.6 mm apart, along the can
-        off = 0.040 + 0.0026 * k
-        x = 0.172 - 0.0015 * k
-        for wlen in rng.integers(3, 12, size=6):
-            xb = x - wlen * 0.0009
+        return ((MUF_LABEL[1] - x) * 1000 * px, (1 - (z - MUF_TXT_Z0) / MUF_TXT) * size)
+    # round 5 (lr34 lr_can, LEFT): the block stands ABOVE the seam weld, between the bracket (x 0.148) and the cap's
+    # seam (x 0.07), ten lines from 66 to 100 mm over the can's lower line; the stamped maker's line (HONDA and a second
+    # word, about 5 mm letters) under the weld near the cap
+    for k in range(10):
+        off = 0.066 + 0.0037 * k
+        x = 0.146 - 0.0012 * (k % 3)
+        for wlen in rng.integers(3, 12, size=12):
+            xb = x - wlen * 0.0010
+            if xb < 0.078:
+                break
             zl0, zl1 = _muf(x)[0] + off, _muf(xb)[0] + off
-            d.polygon([at(x, zl0 - 0.0007), at(xb, zl1 - 0.0007), at(xb, zl1 + 0.0007), at(x, zl0 + 0.0007)], fill=255)
-            x = xb - 0.0015
-    f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(4.0 * px / 0.72))
+            d.polygon([at(x, zl0 - 0.0008), at(xb, zl1 - 0.0008), at(xb, zl1 + 0.0008), at(x, zl0 + 0.0008)], fill=255)
+            x = xb - 0.0017
+    f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(5.0 * px / 0.72))
     bb = f.getbbox("HONDA")
     im = Image.new("L", (bb[2] + 4, bb[3] + 4), 0)
     ImageDraw.Draw(im).text((2 - bb[0], 2), "HONDA", fill=255, font=f)
     im = im.rotate(math.degrees(math.atan(-MUF_LOW[2])), expand=True)
-    cu, cv = at(0.150, _muf(0.150)[0] + 0.030)
+    cu, cv = at(0.128, _muf(0.128)[0] + 0.043)
     lay.paste(im, (int(cu - im.width / 2), int(cv - im.height / 2)), im)
+    x = 0.110                                                    # the second word: unreadable at the photos' scale,
+    for k in range(6):                                           # drawn as six letter strokes (no invented word)
+        xa, xb = x - 0.0042 * k, x - 0.0042 * k - 0.0030
+        zl0, zl1 = _muf(xa)[0] + 0.043, _muf(xb)[0] + 0.043
+        d.polygon([at(xa, zl0 - 0.0022), at(xb, zl1 - 0.0022), at(xb, zl1 + 0.0022), at(xa, zl0 + 0.0022)], fill=255)
     rel = -gaussian_filter(np.asarray(lay, float) / 255.0, 0.6) * 0.15
     h = h + rel
     dv = (np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) * px / 2
@@ -2161,41 +2209,210 @@ def _can_label(m, base):
         c = P.mean(axis=0)
         if nn[1] > 0.9 and MUF_LABEL[0] <= c[0] <= MUF_LABEL[1]:
             m.M[k] = "muffler_txt"
-            m.uv[k] = [((MUF_LABEL[1] - q[0]) / MUF_TXT, (q[2] - 0.66) / MUF_TXT) for q in P]
-    # the seam weld along the inner flank's lower edge (the octagon's inner bottom corner)
+            m.uv[k] = [((MUF_LABEL[1] - q[0]) / MUF_TXT, (q[2] - MUF_TXT_Z0) / MUF_TXT) for q in P]
+    # the can's seam weld on its inner flank. Round 5: lr34 (lr_can) runs it from (2505, 1045) to (2810, 890): cast on
+    # y -0.08, (0.324, 0.685) to (0.051, 0.825), parallel to the can's lower line (slope -0.51 against -0.50) and 56 to
+    # 60 mm above it, mid-height on the flat inner face (LEFT the same: 67 px over the lower edge); round 4 had it on
+    # the inner lower corner. Width 8.5 mm, 1.8 mm proud, ripples 2.2 mm (LEFT, lr34: a heavy bright rippled bead,
+    # about 1.7 times the 5 mm letters under it; 6 mm read as a thin line in e2_left)
     path, nrm = [], []
-    for x in np.linspace(0.060, 0.300, 41):
+    for x in np.linspace(0.058, 0.300, 49):
         R = _muf_ring(x)
-        j = int(np.argmax(R[:, 1] - 2.0 * (R[:, 2] - _muf(x)[0])))   # inboard and low: the inner lower corner
-        q = R[j]
-        cy = R[:, 1:].mean(axis=0)
-        n2 = q[1:] - cy
-        n2 /= np.linalg.norm(n2)
-        path.append(q)
-        nrm.append(np.array([0.0, n2[0], n2[1]]))
-    g = _bead(np.array(path), np.array(nrm), 0.0050, 0.0012, pitch=0.0022, sink=0.6, taper=0.004, mat="alu_weld")
+        zw = _muf(x)[0] + MUF_SEAM
+        inner = R[R[:, 1] > R[:, 1].max() - 0.004]               # the flat inner face's vertices
+        if zw > inner[:, 2].max() - 0.004:
+            continue                                             # under the panel the can's top comes down to it
+        y = float(np.interp(zw, np.sort(inner[:, 2]), inner[np.argsort(inner[:, 2]), 1]))
+        path.append((x, y, zw))
+        nrm.append(np.array([0.0, 1.0, 0.0]))
+    g = _bead(np.array(path), np.array(nrm), 0.0085, 0.0018, pitch=0.0022, sink=0.6, taper=0.006, mat="alu_weld")
     m.add(g)
+
+
+HDR_N = 650                     # stations along the header's spline (2 mm apart)
+HDR_SEG = 28                    # facets round the pipe (a 38 mm pipe: 4.3 mm each; 18 showed flats in the bends)
+HEAT_L = 1.32                   # metres of pipe the heat map covers (port to the nose: 1.29)
+
+
+def _hdr_path():
+    """The header's centre line (port to the muffler's nose), its unit tangents and arc length."""
+    hp = spline(HEADER, HDR_N)
+    tan = np.gradient(hp, axis=0)
+    tan /= np.linalg.norm(tan, axis=1, keepdims=True)
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(hp, axis=0), axis=1))])
+    return hp, tan, s
+
+
+def _hdr_index(hp, p):
+    return int(np.argmin(np.linalg.norm(hp - np.asarray(p, float), axis=1)))
+
+
+def _uv_tube(g, s, seg, caps=0):
+    """UVs of a geom.tube: u along the pipe (arc length over HEAT_L: the heat colours run along it), v round it."""
+    n = len(s)
+    for k in range(n - 1):
+        u0, u1 = s[k] / HEAT_L, s[k + 1] / HEAT_L
+        for i in range(seg):
+            g.uv[k * seg + i] = [(u0, i / seg), (u0, (i + 1) / seg), (u1, (i + 1) / seg), (u1, i / seg)]
+    base = (n - 1) * seg
+    for f in range(base, len(g.F)):                               # end caps: the colour at their end of the pipe
+        u = s[0] if f < base + seg and caps & 1 else s[-1]
+        g.uv[f] = [(u / HEAT_L, 0.5)] * len(g.F[f])
+
+
+def _pipe_weld(c, d, r, w=0.0075, h=0.0013, mat="header_weld", phase=0.0):
+    """A TIG bead round a pipe at C (axis D, radius R): rippled, its start and stop overlapping by 8 deg."""
+    R = frame_z(np.asarray(d, float) / np.linalg.norm(d))
+    a = phase + np.linspace(0, 2 * math.pi * (1 + 8 / 360), 120)
+    rad = np.stack([np.cos(a), np.sin(a), np.zeros_like(a)], axis=1) @ R.T
+    return _bead(np.asarray(c, float) + r * rad, rad, w, h, pitch=0.0016, sink=0.7, taper=0.006, mat=mat)
+
+
+def _band_clamp(c, d, rs):
+    """The slip joint's band (fiche K95CF2700 part 14, bolt 17, nut 21; RIGHT u 1830..1862, detail 475834): a pressed
+    stainless band round the socket with rolled rims, a hinge knuckle on top (RIGHT px (1852, 1196): its pin's end,
+    z 0.659) and two ears hanging under it (RIGHT u 1835..1860 down to v 1305, z 0.574), clamped by an M8 flange bolt
+    across them, its head outboard (RIGHT px (1846, 1290)), the nut inboard."""
+    m = Mesh()
+    d = np.asarray(d, float) / np.linalg.norm(d)
+    c = np.asarray(c, float)
+    W = 0.018                                                   # band 18 mm with its rims (RIGHT 24 px incl. the ears' bend)
+    t = 0.0013
+    a = c - d * W / 2
+    prof = [(0.0, rs + 0.0003), (0.0003, rs + 0.0017), (0.0012, rs + 0.0029), (0.0024, rs + 0.0023), (0.0030, rs + t),
+            (W - 0.0030, rs + t), (W - 0.0024, rs + 0.0023), (W - 0.0012, rs + 0.0029), (W - 0.0003, rs + 0.0017),
+            (W, rs + 0.0003)]
+    m.add(turned(a, d, prof, "header_clamp", 56, False, False))
+    up = np.array([0.0, 0.0, 1.0]) - d * d[2]
+    up /= np.linalg.norm(up)
+    side = np.cross(d, up)                                      # across the bike (outboard or inboard)
+    if side[1] > 0:
+        side = -side                                            # outboard: -y
+    # hinge knuckle on top: a rolled eye across the band, its pin, a peened head outboard and a small nut inboard
+    k = c + up * (rs + t + 0.0040)
+    m.add(turned(k - side * 0.0085, side, [(0.0, 0.0001), (0.0, 0.0040), (0.0006, 0.0046), (0.0164, 0.0046), (0.0170, 0.0040),
+                                           (0.0170, 0.0001)], "header_clamp", 20, True, True))
+    m.add(turned(k + side * 0.0085, side, [(0.0, 0.0001), (0.0, 0.0028), (0.0012, 0.0028), (0.0020, 0.0018), (0.0020, 0.0001)],
+                 "steel", 16, False, True))
+    m.add(hexnut(k - side * 0.0085, -side, 0.007, 0.0035, 0.0018, mat="steel", phase=0.0, seg=24))
+    # the ears: the band's two ends bent down square to it under the socket, 2 mm plates 6 mm apart, 26 mm deep
+    for sg in (-1, 1):
+        y0 = sg * 0.0040
+        top = rs * 0.55
+        ear = np.array([(-0.0085, -top), (0.0085, -top), (0.0090, -(rs + 0.0160)), (0.0070, -(rs + 0.0255)),
+                        (-0.0070, -(rs + 0.0255)), (-0.0090, -(rs + 0.0160))])
+        Rm = np.column_stack([d, up, side])
+
+        def to(u, v, w, y0=y0, Rm=Rm):
+            return tuple(c + Rm @ np.array([u, v, y0 + w]))
+        m.add(slab(ear, 0.0, 0.0020, "header_clamp", r=0.0007, step=0.003, to=to, mirror=bool(np.linalg.det(Rm) < 0)))
+    b = c - up * (rs + 0.0175)                                  # the bolt across both ears (RIGHT px (1846, 1290))
+    m.add(hexbolt(b + side * 0.0050, side, 0.010, 0.0055, flange_d=0.0145, flange_h=0.0012, mat="zinc", seg=36))
+    m.add(hexnut(b - side * 0.0050, -side, 0.012, 0.0065, 0.004, mat="zinc", phase=math.pi / 6, seg=36))
+    m.add(thread(b - side * 0.0115, -side, 0.0039, 0.00125, 0.0045, mat="zinc"))
+    m.add(turned(b - side * 0.0050, side, [(0.0, 0.0039), (0.0100, 0.0039)], "zinc", 16, False, False))   # the shank between
+    return m
+
+
+def _exhaust_pipes(m):
+    """Header (port to its socket), the slip joint's band, the muffler's inlet pipe (out of the socket, behind the
+    frame, under the side panel, into the nose) and the three welds, with the heat colours along them."""
+    hp, tan, s = _hdr_path()
+    ir = _hdr_index(hp, WELDS[1])
+    ij = _hdr_index(hp, JOINT)
+    ise = ij + int(np.argmin(np.abs(hp[ij:ij + 80, 0] - SOCK_END)))
+    rr = np.full(len(hp), R_HDR)
+    cone = np.clip((s - s[ir]) / 0.012, 0.0, 1.0)              # 12 mm cone from the ring (detail 475834)
+    rr[ir:] = R_HDR + (R_SOCK - R_HDR) * (3 * cone[ir:] ** 2 - 2 * cone[ir:] ** 3)
+    g = tube(hp[:ise + 1], rr[:ise + 1], HDR_SEG, "header_heat", cap0=False, cap1=False)
+    _uv_tube(g, s[:ise + 1], HDR_SEG)
+    m.add(g)
+    # the inlet pipe: from 22 mm inside the socket, its bell (44.4 mm) out to 8 mm behind the socket's end, then 41 mm
+    i0 = ij - int(np.argmin(np.abs(hp[ij - 40:ij + 1, 0][::-1] - (JOINT[0] + 0.012))))
+    xb0, xb1 = SOCK_END - 0.016, SOCK_END - 0.008
+    ri = R_INLET + 0.0017 * np.clip((hp[:, 0] - xb0) / (xb1 - xb0), 0.0, 1.0) ** 2 * (3 - 2 * np.clip((hp[:, 0] - xb0) / (xb1 - xb0), 0.0, 1.0))
+    g = tube(hp[i0:], ri[i0:], HDR_SEG, "header_heat", cap0=True, cap1=True)
+    _uv_tube(g, s[i0:], HDR_SEG, caps=1)
+    m.add(g)
+    # the socket's open end: an annulus from the bell to the socket's face
+    d = tan[ise]
+    R = frame_z(d)
+    ang = np.linspace(0, 2 * math.pi, HDR_SEG, endpoint=False)
+    cc =np.stack([np.cos(ang), np.sin(ang), np.zeros(HDR_SEG)], axis=1) @ R.T
+    ring_o = hp[ise] + cc * R_SOCK
+    ring_i = hp[ise] + cc * (R_INLET + 0.0019)
+    a = grid(Mesh(), [ring_o, ring_i], "header_heat")
+    V = np.asarray(a.V)
+    f = a.F[0]
+    nn = np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]])
+    if nn @ d > 0:                                              # it faces rearward (along -D, the pipe runs to the rear)
+        a.F = [q[::-1] for q in a.F]
+    for k_ in range(len(a.F)):
+        a.uv[k_] = [(s[ise] / HEAT_L, 0.5)] * 4
+    m.add(a)
+    # welds: the U's ring, the socket's ring (over the cone's start), the nose's ring round the inlet pipe
+    for p, r, ph in ((WELDS[0], R_HDR, 0.4), (WELDS[1], R_HDR, 2.1)):
+        i = _hdr_index(hp, p)
+        m.add(_pipe_weld(hp[i], tan[i], r, phase=ph))
+    i = _hdr_index(hp, (MUF_NOSE[1], MUF_INLET[0], MUF_INLET[1]))
+    m.add(_pipe_weld(hp[i] - tan[i] * 0.0015, tan[i], R_INLET, w=0.0045, h=0.0014, phase=4.0))
+    m.add(_band_clamp(hp[ij], -tan[ij], R_SOCK))
+    return hp, tan, s
+
+
+def heat_maps(col_path, nrm_path, w=4096, h=256, seed=13):
+    """Damien's header (his photos 08, 02, 07): heat-browned over its whole length, from a dark rust brown at the
+    head and round the U (08: median (64, 48, 36) in the bend's shade, (110, 72, 44) lit) through copper and bronze
+    along the run (08: (150, 122, 94) .. (153, 125, 98) lit, (118, 87, 62) at the 10th percentile) to a lighter
+    bronze over the socket and the band ((172, 150, 114)), and a dark rust again on the inlet pipe rising behind the
+    frame ((92, 61, 35)); blotchy, with rings of colour round the pipe (heat bands) and a scaly, slightly pitted skin.
+    Colour map: u along the pipe (HEAT_L metres from the port), v round it. Normal map: the scale (OpenGL)."""
+    from PIL import Image
+    from scipy.ndimage import gaussian_filter
+    rng = np.random.default_rng(seed)
+    hp, tan, s = _hdr_path()
+    L = HEAT_L
+    sx = np.linspace(0, L, w)
+    s_u = s[_hdr_index(hp, WELDS[0])]                          # the U's ring
+    s_r = s[_hdr_index(hp, WELDS[1])]
+    s_j = s[_hdr_index(hp, JOINT)]
+    # base colour along the pipe (sRGB): keys at arc lengths
+    keys = [(0.0, (70, 40, 28)), (0.12, (78, 46, 31)), (s_u - 0.02, (98, 58, 37)), (s_u + 0.06, (128, 76, 47)),
+            (s_u + 0.16, (150, 94, 60)), (s_r - 0.08, (156, 104, 68)), (s_r, (150, 108, 72)), (s_j, (168, 132, 92)),
+            (s_j + 0.03, (120, 80, 50)), (s_j + 0.10, (96, 60, 36)), (L, (102, 64, 40))]
+    ks = np.array([k for k, _ in keys])
+    kc = np.array([c for _, c in keys], float)
+    base = np.stack([np.interp(sx, ks, kc[:, i]) for i in range(3)], axis=1)          # (w, 3)
+    # blotches (two scales, wrapping round the pipe), heat bands round it, a darker underside streak
+    b1 = gaussian_filter(rng.standard_normal((h, w)), (6, 20), mode="wrap")
+    b2 = gaussian_filter(rng.standard_normal((h, w)), (2, 4), mode="wrap")
+    b1 /= b1.std()
+    b2 /= b2.std()
+    band = gaussian_filter(rng.standard_normal(w), 6, mode="wrap")
+    band /= band.std()
+    vv = np.linspace(0, 1, h, endpoint=False)[:, None]
+    k = 1.0 + 0.06 * b1 + 0.035 * b2 + 0.045 * band[None, :]
+    rust = np.clip(0.5 * b1 + 0.3 * b2, 0, None) * 0.05        # redder, rougher patches (cu1: 0.10 / 0.08 read as camouflage)
+    col = base[None, :, :] * k[:, :, None]
+    col[..., 0] *= 1.0 + rust
+    col[..., 2] *= 1.0 - rust
+    col = np.clip(col, 0, 255).astype(np.uint8)
+    Image.fromarray(col).save(col_path)
+    # scale: fine pits and flakes (0.3 to 1 mm), stronger where the colour is darkest
+    g = gaussian_filter(rng.standard_normal((h, w)), (0.8, 1.2), mode="wrap")
+    g2 = gaussian_filter(rng.standard_normal((h, w)), (2.5, 4), mode="wrap")
+    hh = g / g.std() + 0.7 * g2 / g2.std()
+    du = np.roll(hh, -1, axis=1) - np.roll(hh, 1, axis=1)
+    dv = np.roll(hh, -1, axis=0) - np.roll(hh, 1, axis=0)
+    kk = 0.06
+    nrm = np.stack([-du * kk, dv * kk, np.ones_like(hh)], axis=-1)
+    nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
+    Image.fromarray(np.clip((nrm * 0.5 + 0.5) * 255, 0, 255).astype(np.uint8)).save(nrm_path)
 
 
 def exhaust():
     m = Mesh()
-    hp = spline(HEADER, 200)
-    ig = int(np.argmin(np.linalg.norm(hp - np.array(WELDS[1]), axis=1)))
-    rr = np.where(np.arange(len(hp)) < ig, 0.019, 0.0205)       # RIGHT: 37 mm before the weld at x 0.69, 41 after
-    rr[ig - 1:ig + 1] = (0.0195, 0.020)
-    m.add(tube(hp, rr, 18, "header_steel"))
-    tan = np.gradient(hp, axis=0)
-    tan /= np.linalg.norm(tan, axis=1, keepdims=True)
-
-    def at(p):
-        i = int(np.argmin(np.linalg.norm(hp - np.asarray(p, float), axis=1)))
-        return hp[i], tan[i], rr[i]
-    for w in WELDS:                                             # the two welds seen in the right photo
-        c, d, r = at(w)
-        m.add(turned(c - d * 0.003, d, [(0, r), (0.0015, r + 0.0016), (0.0045, r + 0.0016), (0.006, r)], "header_steel", 18, False,
-                     False))
-    for w in CLAMPS:
-        m.add(_clamp(*at(w)))
+    _exhaust_pipes(m)
     # blind rivets (RIGHT px): three on the cap's front edge, two on the nose; domed 5.5 mm heads, mandrel holes.
     # The cap's front edge runs on the plane of the three cap rivets, 6 mm ahead of them
     global _CAP_PLANE
@@ -2241,45 +2458,74 @@ def exhaust():
     m.add(turned(a + OUT_AXIS * 0.0125, OUT_AXIS, [(0.0, 0.0098), (0.0, 0.0129), (0.0012, 0.0129), (0.0015, 0.0126),
                                                    (0.0015, 0.0101), (0.0012, 0.0098), (0.0, 0.0098)], "steel", 40, False,
                  False))
-    # mounts (hidden under the side panel in every photo, EST): two brackets welded on the can's inner flank rise to a
-    # tab square to the right subframe rail's underside; a rubber bush (fiche K95CF2700: mounting rubbers) on the tab
-    # under the rail, a steel collar through it, an M8 flange bolt up through tab, collar and bush into the rail
-    low = _sub_rails(-1)[0][::-1]
-    for x in (0.220, 0.255):
-        i = int(np.argmin(np.abs(low[:, 0] - x)))
-        p0, p1 = low[max(i - 1, 0)], low[min(i + 1, len(low) - 1)]
-        tg = np.array([p1[0] - p0[0], p1[2] - p0[2]])
-        tg /= np.linalg.norm(tg)
-        nd = np.array([tg[1], -tg[0]])
-        if nd[1] > 0:
-            nd = -nd                                                     # the rail's downward normal (x, z)
-        rz = float(np.interp(x, low[:, 0], low[:, 2]))
-        ry = float(np.interp(x, low[:, 0], low[:, 1]))
-        under = np.array([x, rz]) + nd * 0.0110                          # the rail's underside (22 mm tall rail)
-        ax = np.array([-nd[0], 0.0, -nd[1]])                              # up, square to the rail
-        bush_top = under + nd * 0.0002
-        tab_top = bush_top + nd * 0.008                                  # 8 mm rubber bush
-        tab_c = tab_top + nd * 0.0015
-        zl, zt, yc, hw = _muf(x)
-        yin = yc + hw                                                    # the can's inner flank
-        # tab (3 mm) under the bush, across to the strap
-        e = np.array([-nd[1], nd[0]])                                    # along the rail
-        tab = np.array([tab_c + e * 0.010, tab_c - e * 0.010])
-        R = np.column_stack([np.array([e[0], 0.0, e[1]]), Y3, ax])
-        ym = ry + 0.004                                                  # inboard on the rail: clear of the panel's lip
-        m.add(box((tab_c[0], ym - 0.0005, tab_c[1]), (0.020, 0.012, 0.003), "steel", R))
-        # strap: from the can's inner flank (welded) up to the tab's outer end
-        strap = np.array([(x - 0.007, (zl + zt) / 2), (x + 0.007, (zl + zt) / 2), (tab_c[0] + 0.007, tab_c[1] - 0.001),
-                          (tab_c[0] - 0.007, tab_c[1] - 0.001)])
-        m.add(slab(strap, yin + 0.0016, 0.003, "steel", r=0.0008, step=0.005, to=_xz))
-        c3 = np.array([bush_top[0], ym, bush_top[1]])
-        m.add(turned(c3, -ax, [(0.0, 0.0045), (0.0, 0.0065), (0.0010, 0.0070), (0.0070, 0.0070), (0.0080, 0.0065),
-                               (0.0080, 0.0045), (0.0, 0.0045)], "rubber_black", 24, False, False))          # bush
-        m.add(turned(c3, -ax, [(0.0, 0.0042), (0.0, 0.0050), (0.0110, 0.0050), (0.0110, 0.0042), (0.0, 0.0042)], "steel", 16,
-                     False, False))                                                                     # collar
-        head = np.array([tab_c[0], ym, tab_c[1]]) - ax * 0.0016
-        m.add(hexbolt(head, -ax, 0.012, 0.0075, flange_d=0.017, flange_h=0.0015, mat="zinc", seg=36))
+    # the cap's three blind rivets on the inner flank (round 5: LEFT px (2850, 928), (2877, 982), (2895, 1027) cast on the
+    # inner face y -0.081: (0.084, 0.853), (0.062, 0.810), (0.047, 0.775), on the outer rivets' plane within 2 mm;
+    # lr34 lr_can the same three on the cap's seam); each on the cap's surface where the section's inner side meets z
+    for z in (0.853, 0.810, 0.775):
+        x = aa + bb * z
+        R_ = _muf_ring(x, grow=0.0006)
+        best = None
+        for i in range(len(R_)):
+            a_, b_ = R_[i], R_[(i + 1) % len(R_)]
+            if (a_[2] - z) * (b_[2] - z) <= 0 and abs(b_[2] - a_[2]) > 1e-9:
+                t_ = (z - a_[2]) / (b_[2] - a_[2])
+                q = a_ + t_ * (b_ - a_)
+                if best is None or q[1] > best[0][1]:
+                    e_ = b_ - a_
+                    nn = np.array([0.0, e_[2], -e_[1]])
+                    nn /= np.linalg.norm(nn)
+                    if nn[1] < 0:
+                        nn = -nn
+                    best = (q, nn)
+        p, nrm = np.array([x, best[0][1], z]), best[1]
+        m.add(turned(p - nrm * 0.0003, nrm, [(0.0, 0.0001), (0.0, 0.00275), (0.0004, 0.0027), (0.0009, 0.0022),
+                                              (0.0012, 0.0014), (0.00125, 0.0008), (0.0004, 0.0008), (0.0004, 0.0001)],
+                     "steel", 16, True, True))
+        m.add(turned(p + nrm * 0.0008, nrm, [(0.0, 0.0001), (0.0, 0.00075)], "bore", 8, True, False))
+    _muffler_mount(m)
     return m
+
+
+MUF_BOLT = (0.2365, 0.835)       # round 5: the mount's bolt, lr34 lr_can px (2602, 858) cast on y -0.08
+MUF_BRACKET_X = (0.206, 0.262)   # its plate (lr34: the top edge x 0.149..0.244 at z 0.854..0.861, the foot weld from
+#   (0.148, 0.832) to (0.242, 0.785) along the inner face's top edge). The model's red wall under the tail (plastics'
+#   tail_under) stands at x 0.185..0.204 in the plate's plane: the plate starts 2 mm ahead of it (shared issue)
+
+
+def _muffler_mount(m):
+    """The can's mount (round 5, lr34 lr_can; fiche K95CF2700: rubbers 7, bolt 20, washer 24, collar 23): a pressed
+    aluminium plate welded along the top of the can's flat inner face (its foot lies on the face, a rippled fillet weld
+    along it) rising 2 to 5 cm above the can to an M8 flange bolt across the bike, head inboard, through a rubber
+    grommet and a steel collar into the subframe's lower rail (EST: the rail itself is hidden in every photo). It
+    replaces round 2's EST straps and tab under the rail."""
+    xs = np.linspace(MUF_BRACKET_X[0], MUF_BRACKET_X[1], 15)
+    top_face = []
+    for x in xs:
+        R_ = _muf_ring(x)
+        inner = R_[R_[:, 1] > R_[:, 1].max() - 0.004]
+        top_face.append((x, float(inner[:, 1].max()), float(inner[:, 2].max())))
+    top_face = np.array(top_face)
+    yin = float(top_face[:, 1].mean())
+    foot = [(x, z - 0.009) for x, _, z in top_face]              # the foot lies 9 mm down the face
+    bx, bz = MUF_BOLT
+    # behind x 0.228 the rail's tail bends in over the plate's plane: the plate's rear part stays under it (z 0.822)
+    upper = [(MUF_BRACKET_X[1] - 0.001, top_face[-1, 2] + 0.006), (bx + 0.017, bz + 0.004), (bx + 0.009, bz + 0.0125),
+             (bx - 0.002, bz + 0.0140), (bx - 0.010, bz + 0.006), (0.221, 0.8205), (MUF_BRACKET_X[0] + 0.002, 0.816)]
+    out = np.array(foot + upper)
+    out = smooth_poly(resample(out, 0.003), 2)
+    ym = yin + 0.0011                                            # 2 mm plate on the face
+    m.add(slab(out, ym, 0.0020, "muffler", r=0.0007, step=0.003, to=_xz, holes=[circle(0.0062, 20, bx, bz)]))
+    P = np.array([(x, yin + 0.0021, z - 0.009) for x, _, z in top_face])
+    m.add(_bead(P, np.tile([0.0, 0.6, -0.8], (len(P), 1)), 0.0045, 0.0012, pitch=0.0018, sink=0.6, taper=0.004,
+                mat="alu_weld"))
+    # grommet (rubber, both flanges), collar and bolt; the rail's inner face is at y -0.0828 here (_sub_rails)
+    c = np.array([bx, ym, bz])
+    m.add(turned(c - Y3 * 0.0024, Y3, [(0.0, 0.0050), (0.0, 0.0085), (0.0010, 0.0090), (0.0013, 0.0060), (0.0035, 0.0060),
+                                        (0.0037, 0.0088), (0.0047, 0.0085), (0.0047, 0.0050), (0.0, 0.0050)], "rubber_black",
+                 24, False, False))
+    m.add(turned(c - Y3 * 0.0026, Y3, [(0.0, 0.0042), (0.0, 0.0050), (0.0050, 0.0050), (0.0050, 0.0042), (0.0, 0.0042)],
+                 "steel", 16, False, False))
+    m.add(hexbolt(c + Y3 * 0.0024, Y3, 0.012, 0.0070, flange_d=0.017, flange_h=0.0015, mat="zinc", seg=36))
 
 
 # ---------------------------------------------------------------- footpegs

@@ -551,3 +551,62 @@ plate and swings in behind its edge. Final audit (audit5): chassis lines footpeg
 seated on the pad), exhaust x frame 0.9, frame x shock 0.4, brake_pedal x frame 0.2 (the pedal's boss on the pad),
 engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module 228,641 vertices (budget 260,000). The materials mc_* were renamed rmc_*: the cockpit's
 front master cylinder (detail_front.py) defines mc_cast with other values (parts.build would raise).
+
+
+# Round 5 (2026-11-12, fifth chassis agent; scratch images under `agents/micro/chassis5/`)
+Damien: "Find more inconsistencies, especially with the shape of everything, and fix them. Like the exhaust." His
+photos: `damien-bike-2026-11-10/` 01..05 and `damien-bike-2026-11-12/` 06..10.
+
+## 0. Exhaust, against his photos and Honda's (part `exhaust`)
+Anatomy at 30 cm (fiche K95CF2700; RIGHT, detail 475834, Dirt Rider 02, rf34, rr34, lr34, LEFT, FRONT; Damien 08, 02,
+07): the header (5) from the port down in front of the engine, a U whose far leg rises inboard to the port and whose
+near leg climbs back to a TIG ring, the long run over the clutch cover, a second ring where a 12 mm cone opens it into
+a socket; a band clamp (14, bolt 17, nut 21) over the socket's slotted end: a pressed band with rolled rims, a hinge
+knuckle with its pin on top, two ears under it and an M8 flange bolt across them, head outboard; the muffler's inlet
+pipe (3/11) slides in, with a soft bell just behind the band, turns in behind the frame's leg, rises behind the side
+panel and is welded into the can's nose. No spring hooks on this bike (RIGHT, 475834 and Damien's 08 all show the
+band). The can: flat facets, a long rippled seam weld mid-height on its inner face, a stamped label block above the
+weld and the maker's line under it, the cap riveted (three blind rivets on each side of its seam), a pressed mount
+plate welded along the top of the inner face and bolted across the bike into the subframe's lower rail.
+Finish (Damien): the whole header heat-browned, dark rust at the head and round the U, copper and bronze along the
+run, lighter bronze on the socket and band, dark rust on the inlet pipe (08, 02, 07). Honda's showroom bike is silver.
+References: RIGHT 1380..2340 x 1100..1500 (route crops g_right1..4, r0z, r1z, r2: the tube's projected edges drawn
+over the photo by tools/route.py), FRONT 1720..2000 x 1040..1300, TOP 1880..2160 x 900..1060, rr34, rf34 (e0 sheets),
+lr34 2380..3020 x 700..1060 (lr_can), LEFT 2400..3000 x 820..1260, detail 475834 crop 1850..2500 x 1250..1700
+(d834_joint), Damien 08 crops d08_header, d08_joint, d08_u, 07 d07_can, d07_header.
+Differences found (model before, e0 sheets) and what was done:
+1. Front U: far leg 9 to 15 mm too far forward (RIGHT far leg front edge u 2283..2290 at v 1300..1390, model 2305),
+   bottom 15 mm too far back (RIGHT lowest edge v 1466 at u 2265..2280, front corner (2302, 1440)): points 4..10 moved
+   (the near leg and its outer edge in FRONT, u 1786..1800 from v 1160 to 1240, were right and stay). Test.
+2. Long run 3 to 6 mm low where it turns down (RIGHT u 2100: centre v 1279 against 1283; u 2150: 1301 against 1309):
+   raised; at u 2000 its edges match the photo's (1236..1284, 38 mm). Test.
+3. Joint: one thin EST clamp ring. Now the socket (RIGHT u 1870..1890: edges v 1208..1272 against black, 47 to 48.6
+   mm: R_SOCK 23.5 mm) after a 12 mm cone from the ring (WELDS[1], px (1916, 1242) cast on y -0.124: z 0.6222), the
+   band at RIGHT px (1846, 1240) (x 0.637, z 0.623 on y -0.112), its bolt at px (1846, 1290), knuckle px (1852, 1196);
+   the inlet pipe's bell (RIGHT u 1815..1830, 475834). Test.
+4. Inlet pipe 15 to 35 mm low: it showed under the side panel's lower edge and through the frame's window, where no
+   photo has any of it (RIGHT rowscan cols 1510..1640: nothing below v 1218..1249; rr34, rf34 the same). New line from
+   the nose's end ring (RIGHT col 1490: lit lower part to v 1226, z 0.635: MUF_INLET z 0.6441 -> 0.6565) rising under
+   the panel, then dipping behind the frame's leg under the subframe's lower rail (EST). Test (every column).
+5. Colour: Honda silver -> Damien's heat colours: `heat_maps()` writes textures/stock/header_heat.png (colour along
+   the pipe, u = arc length / 1.32 m, blotches, heat bands) and header_heat_n.png (scale); header_heat, header_weld,
+   header_clamp materials. Photo 08 samples: run lit (150..153, 122..125, 94..98), shade (118, 87, 62); U (64, 48, 36)
+   shade, (110, 72, 44) lit; inlet pipe (92, 61, 35); band (172, 150, 114).
+6. Welds: smooth turned rings -> rippled TIG beads 7.5 mm wide (the first try, 5.5 mm and matte, read as O-rings).
+7. Can, inner face (LEFT, lr34): the seam weld sat on the inner lower corner; lr34 runs it 56 to 60 mm over the lower
+   line, parallel to it (cast (0.324, 0.685) to (0.051, 0.825) on y -0.08), LEFT 67 px: MUF_SEAM 0.058, 8.5 mm wide.
+   The label block moved above the weld (x 0.078..0.146, 66..100 mm over the lower line), HONDA (5 mm) and a second
+   word as strokes under the weld. Three inner cap rivets added (LEFT px (2850, 928), (2877, 982), (2895, 1027): on the
+   outer rivets' plane within 2 mm). Test.
+8. Mount: round 2's EST straps and a tab under the rail -> a pressed plate on the inner face's top, its foot weld,
+   bolt across the bike at lr34 px (2602, 858) (x 0.2365, z 0.835 on y -0.08), rubber grommet, collar, M8 flange
+   bolt head inboard; the subframe's lower rail moved 3 to 9 mm out between x 0.22 and 0.30 (EST, hidden) so the plate
+   bolts to its inner face. Test.
+Checks: e0 -> e2 pair sheets (right, left, rr34, lr34, rf34), close-ups cu1 (cu_hj, cu_hu, cu_h08), cu2 (cu_hj,
+cu_mnt, cu_capi); audit3 (exhaust x subframe 2.2 mm: the plate's rear corner under the rail's tail and the pipe at the
+rail's end, both fixed after: 1.5 mm clear by vertex distance).
+Still different: the can's position in lr34 (fitted to the model) and LEFT is 10 to 18 px off (far-side camera
+offsets, round 3); the photo's mount plate reaches back to x 0.149 (lr34) but the plastics' red wall under the tail
+(tail_under, x 0.185..0.204) stands in its plane, so it starts at x 0.206 (shared); in lr34 the model's side panel
+hangs lower and hides the plate (plastics); the header diameter is 38 mm by the run's edges and the U's ring, but the
+dim upper edge at u 1940 allows up to 44 mm (no clean silhouette against white); the seam weld's ripples are regular.
