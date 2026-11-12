@@ -356,3 +356,20 @@ def test_round5_seat_fender_panel_junction():
         ul = Pn.px[:, 0] if side > 0 else 3999.0 - Pn.px[:, 0]
         end = Pn.px[ul > pl.PANEL_END_U - 1.5]
         assert end[:, 1].max() - end[:, 1].min() > 12.0          # an upright end, not a point
+
+
+def test_round5_right_bolt_and_plate_tab():
+    """Round 5: the right red panel's bolt stands in its pocket at RIGHT (1322, 922) within 1.5 px (its seat on the
+    leaning floor: the audit, which found 3 mm with the bolt along y); the plate's upper tab stops at the top clamp's
+    front face (TOP: the tab ends at u 1637..1639, the clamp's grey from there; rounds 1 to 4 ran it 29 mm into the
+    clamp) and is 31 mm across."""
+    B = np.asarray(dp.panel_bolts().V)
+    b = B[B[:, 1] < -0.12]
+    uv = cams.CAMS["right"].project(b)
+    assert np.hypot(*((uv.min(axis=0) + uv.max(axis=0)) / 2 - np.array(pl.RPOCKET_PX))) < 1.5
+    import detail_front as DF
+    T = np.asarray(dp.plate_details().V)
+    tab = T[T[:, 2] > 1.12]
+    f = (tab - DF.TUBE0) @ DF.FWD                              # in the fork frame: ahead of the clamp's front face
+    assert f.min() > DF.TC_FRONT[0] - 0.0001, (f.min(), DF.TC_FRONT[0])
+    assert abs((tab[:, 1].max() - tab[:, 1].min()) - dp.PLATE_TAB_W) < 0.002

@@ -1240,6 +1240,18 @@ def _panel(side):
             if dd > 0.0:
                 return lambda x, z, f=f, dd=dd: f(x, z) - dd
         return f
+
+    def surf_pocket(u, v):
+        # the right panel's bolt pocket (round 5): the face pushed in round it, its floor parallel to the face (the
+        # face leans 40 deg there: a floor square to y stood out of the face at the pocket's top); the bolt stands
+        # along the face's normal (detail_plastics.panel_bolts; along y its 12.5 mm flange cut the floor, audit 3 mm)
+        f = surf(u, v)
+        if side > 0:
+            return f
+        dd = rpocket_depth(u, v)
+        if dd <= 0.0:
+            return f
+        return lambda x, z, f=f, dd=dd: f(x, z) - side * dd
     # extra rows of vertices through the tail, where four lines meet within a few px and the face turns 40 mm in 20
     # px: between the crease and the fold, under the fold, and along the lower edge (on a 9 px mesh it came out
     # jagged in the close-ups)
@@ -1256,7 +1268,7 @@ def _panel(side):
     rows += [(lambda q, f=f: fold_v(q) + f * (edge_v(q) - fold_v(q))) for f in (0.3, 0.6)]
     # (no row along the lower edge: the outline's own rings at 2.5 and 5 px carry it; a row 3 px in cut teeth)
     tail_lines = [_mpx(view, np.column_stack([uq, [r(q) for q in uq]])) for r in rows]
-    return SimpleNamespace(view=view, px=px, E=E, width=width, surf=surf, seam=seam, crease=cl, extra=extra,
+    return SimpleNamespace(view=view, px=px, E=E, width=width, surf=surf_pocket, seam=seam, crease=cl, extra=extra,
                            tail_lines=tail_lines,
                            ridge=_mpx(view, rg_))
 
@@ -1473,6 +1485,11 @@ def side_panels():
         Pn = _panel(side)
         view, cam = Pn.view, cams.CAMS[Pn.view]
         holes, slines = [], []
+        if side < 0:                                       # rows of vertices round the bolt pocket (round 5)
+            uc_, vc_ = RPOCKET_PX
+            a_ = np.linspace(0.0, 2 * math.pi, 41)
+            for r_ in (RPOCKET_R + RPOCKET_LIP, RPOCKET_R, RPOCKET_R - 1.5, RPOCKET_R - 3.5, RPOCKET_R - 7.0):
+                slines.append(np.stack([uc_ + r_ * np.cos(a_), vc_ + r_ * np.sin(a_)], axis=1))
         if side > 0:
             # the intake (INTAKE_PX) in its scoop: rows of vertices on the scoop's outline (the crease), 2.5 and 5.5
             # px outside the opening's edge and on the split between the facet and the lip
@@ -1550,6 +1567,15 @@ def side_panels():
         ang = np.linspace(0.0, 2 * math.pi, 33)[:-1]
         hole = np.stack([bc[0] + pr * np.cos(ang), bc[1] + pr * np.sin(ang)], axis=1)
         louter, llines = clean_outline(view, OUT2[low], sigma=4.0), []
+        # its top edge runs on up behind the red panel's lower edge (round 5): the traced edges meet within 0.5 to
+        # 2.5 px at LEFT u 2540..2690 (RIGHT 1310..1460), but the black face lies 6 mm inside the red one, so a sight
+        # line passed between them: a white sliver over the can in RIGHT (03_right_muffler.jpg), where the photo shows
+        # the black part's smooth top under the red edge. A band from 6 px over the red edge to 4 px under it
+        lu_ = np.arange(BLACK_UNDER_RED_U[0], BLACK_UNDER_RED_U[1] + 0.1, 3.0)
+        mu_ = lu_ if side > 0 else 3999.0 - lu_
+        red_low = np.array([Pn.px[np.abs(Pn.px[:, 0] - q) < 2.0, 1].max() for q in mu_])
+        band = np.vstack([np.column_stack([mu_, red_low - 6.0]), np.column_stack([mu_, red_low + 4.0])[::-1]])
+        louter = _union(louter, band)
         if side > 0:
             # the window (_window_left): cut out of the traced outline (with the gap and the main frame's dark side
             # under and ahead of the cover, which the trace took in, and the mud flap's top under the cover's lower
@@ -1607,6 +1633,23 @@ def side_panels():
     return m
 
 
+# The right red panel's bolt (round 5; R4.3 "not built"). RIGHT at 12x (`g_right_bolt.jpg`): a round pocket, its dark
+# wall 27 px across (u 1307..1334, rows 908..935: 21 mm at 0.78 mm/px), a light rolled lip round it to 31 px, and on
+# its floor a dark flange bolt with a hex socket, 16 px (12.5 mm: the 8 mm flange bolt's flange, SPEC body bolts),
+# centred at (1322, 922). The left panel has no such bolt in its red part (LEFT: plain red there, the intake ahead).
+# Depth 6 mm (EST: the floor is in the wall's shadow; the black lower part's pocket is 8).
+RPOCKET_PX = (1322.0, 922.0)     # RIGHT photo pixels
+RPOCKET_R, RPOCKET_LIP, RPOCKET_D = 13.5, 1.5, 0.006
+
+
+def rpocket_depth(u, v):
+    """How far the right panel's face is pushed in at RIGHT pixel (u, v): the pocket's flat floor out to 3.5 px inside
+    its rim, the wall, and the lip rolling into it over RPOCKET_LIP outside."""
+    r = math.hypot(u - RPOCKET_PX[0], v - RPOCKET_PX[1])
+    return RPOCKET_D * smoothstep((RPOCKET_R + RPOCKET_LIP - r) / (RPOCKET_LIP + 3.5))
+
+
+BLACK_UNDER_RED_U = (2540.0, 2690.0)   # LEFT columns where the black lower part's top runs on behind the red edge
 SIDE_COVER_TILE = 0.018   # the ribbed texture's tile: two lattice steps of 9.0 mm (detail_plastics.SIDE_COVER)
 PANEL_BOLT_PX = (2426.0, 1136.0)   # LEFT: the side panel's bolt in its black lower part (detail_plastics.panel_bolts)
 POCKET_R, POCKET_D = 0.015, 0.008  # its pocket's radius and depth

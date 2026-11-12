@@ -666,3 +666,52 @@ side panel's surface function shaded without Blender (`tools/shade.py`, 5 s a lo
   gradients in the same places. The face ahead of the tail (round 2 and 3) still undulates softly in close-ups.
 - The far (right) tail shows over the fender's far edge from high on the left (close-up `cu_up`): the tail's fold
   sticks out 47 mm, as TOP measures; not a fault, but no photo looks from there.
+
+## R5.2 Right side panel against the muffler (partly done)
+
+### Anatomy (RIGHT, `03_right_muffler.jpg` of the checkpoint, RIGHT at 12x)
+- Over the can the red panel's lower edge sits on the can's top (the can's top in the panel's shadow, then pink from
+  its reflection: RIGHT u 1200, red to row 936, then (86, 57, 59) at 938 going to (183, 123, 125) at 954).
+- Behind the can's top, from u 1300 back, the black lower part's smooth top shows under the red edge: no gap.
+- The red panel's bolt (R4.3 "not built"): a round pocket, its dark wall 27 px across (21 mm), a light rolled lip to
+  31 px, a dark 8 mm flange bolt with a hex socket on its floor, at RIGHT (1322, 922). The left panel has none there.
+
+### Done
+- The white sliver between the red panel and the black lower part (RIGHT u 1300..1470): the traced edges meet within
+  0.5 to 2.5 px but the black face lies 6 mm inside the red one, so a sight line passed between them. The black
+  part's outline now runs on 6 px up behind the red edge (`BLACK_UNDER_RED_U`, LEFT u 2540..2690, both sides).
+  Part map `id15_rmuf.png` (before `id14_rmuf.png`): gone, and the left black part no longer shows through.
+- The right panel's bolt: `RPOCKET_PX` (1322, 922), `rpocket_depth` (21 mm pocket 6 mm deep EST, lip 1.5 px, rows of
+  vertices on 5 circles), `detail_plastics.panel_bolts` adds the bolt (`bolt_black`, the same as detail_front's)
+  square to the pocket's floor (along y its flange cut the leaning floor: audit 3 mm; a floor square to y stood out
+  of the face at the pocket's top, the face leans 40 deg there). `c2_rbolt.jpg`.
+
+### Still different (shared)
+- The white gap between the red panel's edge and the can at RIGHT u 1160..1260: the model's red edge is on the
+  photo's within 1 px (917 / 926 / 936 / 948 / 958 against 914 / 926 / 937 / 948 / 959 at u 1160..1240), but the
+  model's can starts 9 to 12 px under it (929 / 939 / 948 / 958 / 967) where the photo's can top is right at the red
+  edge: the can's top is 7 to 9 mm low there (detail_chassis, the muffler).
+- The red face over the can still shows soft waves in the studio render (the face's lean follows the panel's height
+  per column, rounds 2 and 3), and the pocket's upper rim reads straight in the render.
+
+## R5.3 Shroud small items: not started
+
+## R5.4 Front fender and plate, rest (partly: the plate's tab)
+
+### Done
+- The plate's upper tab: TOP at 7x (`g_top_tab.jpg`): behind the plate's top edge (u 1612..1622) a red rounded tab
+  u 1622..1637, rows 1106..1142 (32 mm across), then the top clamp's grey front face at u 1639 (detail_front TC_FRONT,
+  f 46). Rounds 1 to 4 ran a 12 mm round boss on to f 17, 29 mm into the clamp. Now it ends 0.3 mm short of the
+  clamp's face and is 31 mm across (`PLATE_TAB_W`). `p17_ttab.jpg`, `p17_ltab.jpg`. Audit: no clash.
+
+### Shared
+- detail_front's slot through the top clamp's front (TC_SLOT, cut for the old tab) now stands empty behind the tab:
+  TOP shows a light-rimmed rectangle on the clamp there (u 1648..1658, rows 1113..1145), not a slot.
+
+### Not started
+- The plate's and the fender's bolts, the fender's underside ribs.
+
+## Round 5 totals
+Vertices (both modules' 19 parts, b18): 74,336 (budget 160k; side_panels 15,360, seat 10,408, rear_fender 5,418). Audit (b18): no clash of these parts (rear_fender on the seat,
+0.9 mm in round 4, gone), nothing floating. Scores (b17): left 0.8863 / 0.8968, right 0.8769 / 0.8984, front 0.8913 /
+0.7970, rear 0.9029 / 0.6415, top 0.8863 / 0.8559.

@@ -315,6 +315,15 @@ def panel_bolts():
         m.add(bolt(c + a * 0.0015, a, af=0.008, head_h=0.005, flange_d=0.013))
         m.add(tube([c + a * 0.0001, c - a * 0.012], 0.0029, 12, "steel"))           # its shank through the floor's
         #                                                                            hole (POCKET_HOLE) into the airbox
+    # the right red panel's bolt on its pocket's floor (round 5: plastics.RPOCKET_PX; RIGHT: a dark 8 mm flange bolt
+    # with a hex socket, no washer showing), square to the floor: head and flange only, its shank hidden in the mount
+    uc, vc = plastics.RPOCKET_PX
+    c = plastics.panel_point(-1, uc, vc)
+    du = plastics.panel_point(-1, uc + 4.0, vc) - plastics.panel_point(-1, uc - 4.0, vc)     # on the pocket's floor
+    dv = plastics.panel_point(-1, uc, vc + 4.0) - plastics.panel_point(-1, uc, vc - 4.0)
+    a = np.cross(du, dv)
+    a = a / np.linalg.norm(a) * (-1.0 if a[1] > 0 else 1.0)                             # outward (-y)
+    m.add(bolt(c + a * 0.0002, a, af=0.008, head_h=0.004, flange_d=0.0125, mat="bolt_black"))
     return m
 
 
@@ -382,6 +391,9 @@ def rear_flap():
 
 
 # ---------------------------------------------------------------- number plate: mounts and hose guide
+PLATE_TAB_W = 0.031   # the plate's upper tab across (TOP: rows 1106..1142, 32 mm; its rounded sides 1 mm in)
+
+
 def plate_details():
     """Behind the plate's bolt pocket a boss runs back to the top clamp's front face; two pegs under the slot stand
     on the lower clamp's front face, 0.3 mm short of it (both EST: hidden behind the plate; the clamps are
@@ -399,7 +411,21 @@ def plate_details():
         low = lambda y: P.on_tube(P.T_BOT_CLAMP) - P.BACK * 0.031 + np.array([0, y, 0])
     # each leaves the plate square to it and meets the clamp square to its face (a slanted end cut into both)
     stub = lambda p, q, seg: tube([p, p + Pl.back * 0.007, q - P.BACK * 0.007, q], 0.006, seg, "plastic_red")
-    m.add(stub(Pl.hit(uc, vc, 0.0035), top(0.0), 12))
+    # the upper tab ends on the top clamp's front face (round 5). TOP at 7x (`g_top_tab.jpg`): behind the plate's top
+    # edge (u 1612..1622) a red rounded tab, u 1622..1637, rows 1106..1142 (32 mm across at 0.9 mm/px), then the
+    # clamp's grey front face at u 1639 (detail_front.TC_FRONT, f 46). Rounds 1 to 4 ran a 12 mm round boss on to f 17,
+    # 29 mm into the clamp (detail_front cut a slot for it; TOP showed it red over the clamp's grey). Now 14 mm deep
+    # to the face, 0.3 mm short of it, and 31 mm across (the round boss stretched across: PLATE_TAB_W)
+    try:
+        f_face = DF.TC_FRONT[0] + 0.0003
+        tab_end = DF.fk(f_face, 0.0, (DF.FACE_UP + DF.T_UP[1]) / 2)
+    except Exception:
+        tab_end = top(0.0)
+    t = stub(Pl.hit(uc, vc, 0.0035), tab_end, 16)
+    V = np.asarray(t.V, float)
+    V[:, 1] *= PLATE_TAB_W / 0.012
+    t.V = [tuple(q) for q in V]
+    m.add(t)
     for u in (1970.0, 2030.0):                             # on the flat centre panel (its edge is 47 px out here:
         p = Pl.hit(u, 598.0, 0.0035)                       # further out the folded wing cut the peg's end)
         m.add(stub(p, low(p[1]), 10))
@@ -558,8 +584,10 @@ MATERIALS = {
     # 5..11) at its lit lower front: (10, 58, 2) rendered (55, 75, 50) there, round 4), matte. (No channel at 1:
     # build_bike.srgb reads a value of 1 as 1.0, full, not 1/255: (5, 32, 1) rendered bright blue.)
     "intake_foam": dict(rgb=(8, 46, 3), rough=0.9, normal="stock/intake_foam_n.png", normal_strength=1.0),
+    # black-finished body bolts (the right panel's: RIGHT, a dark head with a light ring); the same as detail_front's
+    "bolt_black": dict(rgb=(28, 28, 30), metal=0.8, rough=0.35),
 }
-CLASS = {"intake_foam": "black"}                             # dark, as the louvre panel it replaces
+CLASS = {"intake_foam": "black", "bolt_black": "black"}                             # dark, as the louvre panel it replaces
 
 PARTS = {"fork_guards": fork_guards, "guard_hardware": guard_hardware, "tail_under": tail_under,
          "shroud_bolts": shroud_bolts, "seat_bolts": seat_bolts, "panel_bolts": panel_bolts,
