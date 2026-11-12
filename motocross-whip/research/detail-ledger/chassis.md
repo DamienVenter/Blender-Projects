@@ -652,3 +652,26 @@ socket_bolt`.
 Still different: the tip stands about 10 px lower and further forward than the photo's (its pin is round 1's last
 line point) and the photo's tip has a squarer lower body with a cut-out; the arm's thickness (9 mm) is EST (no photo
 shows its edge on); the spring's hooks are plain wire ends.
+
+## 2. Footpegs: not started in round 5.
+## 3. Frame MC tab edge: looked at, not changed (scratch t8_right, RIGHT 1590..1720 x 1270..1440)
+The photo's two lugs are angular (straight edges from the leg down to each boss, the boss a flat spot face with the
+bolt in it, a deep notch with a vertical wall at u 1666 between them, a raised V rib beside each boss); the model's
+lugs are round lobes (the 2 mm boss blended by a smoothstep), its notch shallower and curved, its ribs thin lines.
+Outline read for the next round (sheet t8, 5.3 px per photo px): (1671, 1271), (1665, 1288), (1657, 1309), (1647,
+1322), boss (1643.3, 1337.9) r 10.4 px, (1637, 1348), (1647, 1354), notch (1666, 1361)..(1667, 1377), (1647, 1380),
+(1641, 1390), boss (1650.3, 1400.2), (1645, 1413), (1656, 1418), (1652, 1435).
+## 4. Header details: done in 0 (welds, the joint, the band clamp; no spring hooks on this bike).
+## 5. Subframe: only the lower rails moved out 3 to 10 mm between x 0.22 and 0.30 for the muffler's mount (0); the rest
+not started.
+## 6. Rear hose joint (shared): the joint this module wants from detail_wheels.py: RIGHT shows the hose outboard of the
+master cylinder's web (v 1400..1414, ending at u 1626): cast on y -0.139 (outside the casting's outer face -0.134 plus
+the hose's radius) that is (0.469, -0.139, 0.501), heading (0.97, 0, 0.24); their run now ends at (0.452, -0.100,
+0.505), inboard. Not edited here.
+
+## Round 5 audit and totals
+Audit (audit9, 25 mm, this worktree's build): chassis lines exhaust x subframe 1.2 mm (the mount plate's rear corner
+under the rail's tail: fixed after, the rail 3 to 10 mm out and the plate from x 0.214, by vertex distance 0.6 mm
+clear), footpegs x frame 1.0 (the hinge pin's washer on the pad, as before), frame x shock 0.4, brake_pedal x frame
+0.3, engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module about 255,600 vertices (budget
+300,000): exhaust 52.7k (was 24.5k), chain guide 12.7k.

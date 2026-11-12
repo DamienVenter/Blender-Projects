@@ -971,9 +971,9 @@ def _sub_rails(s):
     rails: the rails stay 4 mm inside it; the lower rail hangs on a bracket that reaches the plate under the panel's
     lower edge, the upper mount is the lug on the ear alone. On the right the exhaust passes under the lower rail."""
     lower = spline([(0.522, s * 0.081, 0.652), (0.495, s * 0.082, 0.672), (0.470, s * 0.083, 0.690), (0.433, s * 0.086, 0.722),
-                    (0.378, s * 0.093, 0.762), (0.30, s * 0.0965, 0.800), (0.255, s * 0.0945, 0.8215), (0.228, s * 0.0905, 0.835),
+                    (0.378, s * 0.093, 0.762), (0.30, s * 0.0970, 0.800), (0.255, s * 0.0955, 0.8215), (0.228, s * 0.0925, 0.835),
                     (0.213, s * 0.084, 0.842)], 24)
-    # round 5: 3 to 9 mm further out from x 0.22 to 0.30, so the muffler's mount plate (in the plane of the can's inner
+    # round 5: 3 to 10 mm further out from x 0.22 to 0.30 (audit9: 1.2 mm with 9), so the muffler's mount plate (in the plane of the can's inner
     # face, y -0.080, lr34) bolts to its inner face (y -0.0828 at the bolt) instead of standing in it
     upper = spline([(0.615, s * 0.070, 0.838), (0.585, s * 0.070, 0.858), (0.553, s * 0.070, 0.872), (0.482, s * 0.069, 0.876),
                     (0.409, s * 0.070, 0.882), (0.336, s * 0.070, 0.888), (0.262, s * 0.069, 0.894), (0.213, s * 0.068, 0.897)], 20)
@@ -2621,7 +2621,7 @@ def exhaust():
 
 
 MUF_BOLT = (0.2365, 0.835)       # round 5: the mount's bolt, lr34 lr_can px (2602, 858) cast on y -0.08
-MUF_BRACKET_X = (0.206, 0.262)   # its plate (lr34: the top edge x 0.149..0.244 at z 0.854..0.861, the foot weld from
+MUF_BRACKET_X = (0.214, 0.262)   # its plate (lr34: the top edge x 0.149..0.244 at z 0.854..0.861, the foot weld from
 #   (0.148, 0.832) to (0.242, 0.785) along the inner face's top edge). The model's red wall under the tail (plastics'
 #   tail_under) stands at x 0.185..0.204 in the plate's plane: the plate starts 2 mm ahead of it (shared issue)
 
@@ -2644,7 +2644,7 @@ def _muffler_mount(m):
     bx, bz = MUF_BOLT
     # behind x 0.228 the rail's tail bends in over the plate's plane: the plate's rear part stays under it (z 0.822)
     upper = [(MUF_BRACKET_X[1] - 0.001, top_face[-1, 2] + 0.006), (bx + 0.017, bz + 0.004), (bx + 0.009, bz + 0.0125),
-             (bx - 0.002, bz + 0.0140), (bx - 0.010, bz + 0.006), (0.221, 0.8205), (MUF_BRACKET_X[0] + 0.002, 0.816)]
+             (bx - 0.002, bz + 0.0140), (bx - 0.009, bz + 0.004), (0.223, 0.8185), (MUF_BRACKET_X[0] + 0.002, 0.812)]
     out = np.array(foot + upper)
     out = smooth_poly(resample(out, 0.003), 2)
     ym = yin + 0.0011                                            # 2 mm plate on the face
