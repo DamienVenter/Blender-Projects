@@ -489,6 +489,9 @@ def main():
     col, objs = build_parts()
     studio()
     cams = cameras(bpy.data.objects["bike"])
+    # textures go inside the file: their paths are absolute on the build server, so a delivered .blend opened on
+    # Damien's machine would lose them (2026-11-12)
+    bpy.ops.file.pack_all()
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, f"{NAME}.blend"))
     export_glb(col)
     if VIEWS != ["none"]:
