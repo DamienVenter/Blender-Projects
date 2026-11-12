@@ -1,7 +1,8 @@
 """Template crops of single panels for the kit artwork (see kit_canvas.py): the panel in grey with a black outline,
 everything else white, padded to an aspect ratio the image model offers.
 
-python3 kit_crops.py TEMPLATE_DIR SIDE PART ASPECT OUT.png     (ASPECT e.g. 16:9, 4:3, 1:1)
+python3 kit_crops.py TEMPLATE_DIR SIDE PART ASPECT OUT.png     (ASPECT e.g. 16:9, 4:3, 1:1; SIDE left, right or
+    top; PART one part or several joined by commas, each outlined)
 Prints the kit.json entry (crop and pad).
 """
 import json
@@ -16,12 +17,14 @@ def main():
     tdir, side, part, aspect, out = sys.argv[1:6]
     fr = json.load(open(os.path.join(tdir, "frame.json")))
     pid = np.asarray(Image.open(os.path.join(tdir, f"parts_{side}.png")))
-    m = pid == fr["names"].index(part) + 1
+    ids = [fr["names"].index(p) + 1 for p in part.split(",")]       # one part, or several ("tank,shroud_decks")
+    m = np.isin(pid, ids)
     ys, xs = np.nonzero(m)
     u0, v0, u1, v1 = xs.min() - 40, ys.min() - 40, xs.max() + 41, ys.max() + 41
     img = np.full(m.shape + (3,), 255, np.uint8)
     img[m] = (200, 200, 203)
-    e = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(5))) > 0
+    lab = np.where(m, pid, 0).astype(np.uint8)                      # outlines round each part and between them
+    e = np.asarray(Image.fromarray(lab).filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(5))) > 0
     img[e] = (20, 20, 22)
     crop = img[v0:v1, u0:u1]
     aw, ah = (int(a) for a in aspect.split(":"))

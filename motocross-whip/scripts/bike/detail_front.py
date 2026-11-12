@@ -934,8 +934,19 @@ def _rows():
 def grip(s, right=False):
     """Honda stock grip on one side (s: _Side): a closed rubber body from the end face to the bar (or the throttle
     tube), its diamond fields as true pyramids (36 round, 2.5 mm diagonal), two ring grooves with beads, the end lip,
-    flange and collar; the underside's waffle ribs (two along it, the rings and two partial ribs across) on top."""
-    mat = "grip_rubber"
+    flange and collar; the underside's waffle ribs (two along it, the rings and two partial ribs across) on top.
+    The right grip has its own materials (body grip_r, end grip_r_end, flange and collar grip_r_flange, beads
+    grip_r_bead): stock black here; Damien's grey grip with red flange and end ring in his livery (build_bike)."""
+    mat = "grip_r" if right else "grip_rubber"
+    bead_m = "grip_r_bead" if right else "grip_bead"
+
+    def zone(a0, a1, default):
+        """The right grip's end (lip and end face) and flange (fillet, disc, collar) take their own colour."""
+        if right and max(a0, a1) <= 0.0050:
+            return "grip_r_end"
+        if right and min(a0, a1) >= 0.1123:
+            return "grip_r_flange"
+        return default
     n = 2 * G_ROUND
     th = np.arange(n) * 2 * math.pi / n
     cs, sn = np.cos(th), np.sin(th)
@@ -954,7 +965,7 @@ def grip(s, right=False):
     for k in range(len(rows) - 1):
         b0, b1 = base[k], base[k + 1]
         pat = rows[k][1] == "p" and rows[k + 1][1] == "p"
-        fm = "grip_bead" if rows[k][1] == "b" and rows[k + 1][1] == "b" else mat
+        fm = zone(rows[k][0], rows[k + 1][0], bead_m if rows[k][1] == "b" and rows[k + 1][1] == "b" else mat)
         for i in range(n):
             j = (i + 1) % n
             q = (b0 + i, b0 + j, b1 + j, b1 + i)
@@ -968,7 +979,7 @@ def grip(s, right=False):
                 m.face((q[0], q[2], q[3]), mat)
     c = m.verts([s.p(rows[0][0])])                           # end face centre, recessed with its ring
     for i in range(n):
-        m.face((base[0] + (i + 1) % n, base[0] + i, c), mat)
+        m.face((base[0] + (i + 1) % n, base[0] + i, c), zone(0.0, 0.0, mat))
     m = _outward_open(m, s)
     # ---- underside waffle: ribs along at G_LONG, across at the rings and the partial ribs
     w0, w1, hgt = G_RIB
@@ -997,7 +1008,7 @@ def grip(s, right=False):
         loop = [(0.0003, -0.0002), (0.0003, 0.0002), (-0.00012, 0.0002), (-0.00012, -0.0002)]
         rings = [np.array([s.p(G_FLANGE[0] + da, *(r0 * e + dt * e_t)) for da, dt in loop])
                  for r0 in (0.0220, G_FLANGE[2] - 0.0010)]
-        m.add(_outward(grid(Mesh(), rings, mat, cap0=True, cap1=True)))
+        m.add(_outward(grid(Mesh(), rings, zone(G_FLANGE[0], G_FLANGE[0], mat), cap0=True, cap1=True)))
     return m
 
 
@@ -2935,6 +2946,10 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "btn_red": dict(rgb=(200, 22, 26), rough=0.4), "btn_blue": dict(rgb=(24, 70, 190), rough=0.4),
              "btn_green": dict(rgb=(20, 140, 60), rough=0.4), "pad_cap": dict(rgb=(58, 58, 62), rough=0.65),
              "grip_rubber": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),      # satin black rubber (DR06, DET829)
+             "grip_r": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),           # the right grip, same stock black
+             "grip_r_end": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),
+             "grip_r_flange": dict(rgb=(24, 24, 26), rough=0.55, bump=0.12),
+             "grip_r_bead": dict(rgb=(26, 26, 28), rough=0.22),
              "grip_bead": dict(rgb=(26, 26, 28), rough=0.22),       # the rings' beads shine as thin lines (DR05, DR06)
              # switch buttons: colour and engraved symbol (switch_maps); base colours from the REAR photo's lit
              # buttons (blue 45 103 194, green 40 159 86, red 207 64 65) darkened to the render's studio light
@@ -2963,7 +2978,7 @@ MATERIALS = {"bar_knurl": dict(rgb=(20, 20, 22), metal=0.6, rough=0.45, normal="
              "guard_band": dict(rgb=(28, 28, 30), rough=0.28),
              # round 4, top clamp: bead-blasted cast aluminium, satin light grey with a fine grain (DET835)
              "tc_cast": dict(rgb=(176, 176, 179), metal=1.0, rough=0.48, bump=0.14)}
-CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black",
+CLASS = {"glass_dark": "black", "bolt_black": "black", "bar_knurl": "black", "btn_red": "black", "btn_blue": "black", "btn_green": "black", "pad_cap": "black", "grip_rubber": "black", "grip_r": "black", "grip_r_end": "black", "grip_r_flange": "black", "grip_r_bead": "black",
          "grip_bead": "black", "sw_m": "black", "sw_stop": "black", "sw_tc": "black", "sw_start": "black",
          "led_lens": "black", "sw_body": "black", "tie_band": "black", "guard_black": "black",
          "guard_band": "black"}

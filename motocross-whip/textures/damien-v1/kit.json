@@ -30,7 +30,7 @@
     0,
     52
    ],
-   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history E0OFetYkbBCXX2CDoRki, 1st image): template crop + photo crops 07, 02, 03, 01"
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history HFtiW7v7ETaQkicoAL1P, 2nd image; redo of the too-grey v1): template crop + photo crops 07, 02 and the flipped right shroud from 03 (red scribble top, grey glitter band, white 7 stripe, black logo wing)"
   },
   {
    "side": "left",
@@ -46,7 +46,7 @@
     0,
     73
    ],
-   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history JhPEz5k70QBEziTfx8wU, 2nd image): template crop + photo 07 crop and whole"
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history gRK3VpnmsDAeLQV6HDCM, 1st image; redo of v1's red fender): template crop + photo 07 fender crop + photo 02 seat crop (navy-black side, yellow PIRELLI plate, red band to the tail; the 2nd image invented brand logos that are not on his bike)"
   },
   {
    "side": "left",
@@ -94,7 +94,7 @@
     0,
     52
    ],
-   "source": "left shroud mirrored, logos unmirrored in place; checked against photo 08 (right side from below)"
+   "source": "kit_mirror.py from the left: layout mirrored, the logo column (LEATT, MOTUL, USN, small logos) set back unmirrored"
   },
   {
    "side": "right",
@@ -110,7 +110,7 @@
     0,
     73
    ],
-   "source": "left rear fender mirrored, logos unmirrored in place"
+   "source": "kit_mirror.py from the left: layout mirrored, the PIRELLI plate set back unmirrored"
   },
   {
    "side": "right",
@@ -169,6 +169,196 @@
     864
    ],
    "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history PvnAojFAz1JMJRrsuCYr, 2nd image): seat top-view template + photo crops 04, 10, 03, 02 (GUTS cover)"
+  },
+  {
+   "side": "left",
+   "part": "swingarm",
+   "art": "art/swingarm_L.png",
+   "crop": [
+    2194,
+    1352,
+    3326,
+    1778
+   ],
+   "pad": [
+    0,
+    29
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history mYwReeqdlpXTC9CcBCfz, 1st image): template crop + photo crops 07 and 02 (black wrap, red outlined PSALM, white PSALM 91)",
+   "band": true
+  },
+  {
+   "side": "left",
+   "part": "fork_guards",
+   "art": "art/fguard_L.png",
+   "crop": [
+    721,
+    1019,
+    1101,
+    1700
+   ],
+   "pad": [
+    1,
+    0
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history IGhgeaxyR9ncQCANpuFP, 1st image): template crop + photo crops 07 and 01 (black guard, yellow PIRELLI, red MOTUL box, red trim)"
+  },
+  {
+   "side": "right",
+   "part": "swingarm",
+   "art": "art/swingarm_R.png",
+   "mirror_of": [
+    2194,
+    1352,
+    3326,
+    1778
+   ],
+   "pad": [
+    0,
+    29
+   ],
+   "source": "kit_mirror.py from the left: layout mirrored, both words re-set to read along the part; order checked on photo 03 (outlined PSALM at the pivot, white PSALM 91 at the axle)",
+   "band": true
+  },
+  {
+   "side": "right",
+   "part": "fork_guards",
+   "art": "art/fguard_R.png",
+   "mirror_of": [
+    721,
+    1019,
+    1101,
+    1700
+   ],
+   "pad": [
+    1,
+    0
+   ],
+   "source": "kit_mirror.py from the left: layout mirrored, PIRELLI and the MOTUL box re-set to read along the guard (letter tops to the front edge, as on the left)"
+  },
+  {
+   "side": "top",
+   "part": "tank,shroud_decks",
+   "art": "art/tanktop.png",
+   "crop": [
+    166,
+    465,
+    579,
+    870
+   ],
+   "pad": [
+    0,
+    73
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history kGNo15xnLBjxS0MhwV7z, 1st image): top-view template crop (kit_template.py top, kit_crops.py top tank,shroud_decks 3:4) + photo 10 crop (black tank sticker with red splatter, white 114 with the slashed 1 behind the cap, red scribble shroud tops)"
+  },
+  {
+   "target": "barpad",
+   "side": "front",
+   "part": "barpad",
+   "art": "art/barpad_face.png",
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history qtWQYbMqcnlqSlFK9oFb, 2nd image): flat pad-face template + photo 04 crop (red Renthal pad, gold emblem, RENTHAL twice in gold with black outline); the face cropped inside the AI's border",
+   "top_rows": [
+    0,
+    154
+   ],
+   "face_rows": [
+    154,
+    480
+   ],
+   "top_scale": 1.42,
+   "face_length": 0.88
+  }
+ ],
+ "mirror": [
+  {
+   "part": "swingarm",
+   "left": "art/swingarm_L.png",
+   "right": "art/swingarm_R.png",
+   "layers": [
+    {
+     "ink": [
+      "red"
+     ]
+    },
+    {
+     "ink": [
+      "white"
+     ],
+     "on_black": true,
+     "box": [
+      1140,
+      420,
+      1830,
+      720
+     ]
+    }
+   ]
+  },
+  {
+   "part": "fork_guards",
+   "left": "art/fguard_L.png",
+   "right": "art/fguard_R.png",
+   "layers": [
+    {
+     "ink": [
+      "yellow"
+     ]
+    },
+    {
+     "ink": [
+      "red",
+      "white"
+     ],
+     "box": [
+      162,
+      867,
+      358,
+      1181
+     ]
+    }
+   ]
+  },
+  {
+   "part": "shrouds",
+   "left": "art/shroud_L.png",
+   "right": "art/shroud_R.png",
+   "layers": [
+    {
+     "ink": [
+      "red",
+      "white"
+     ],
+     "box": [
+      330,
+      640,
+      760,
+      1215
+     ],
+     "angle": 0,
+     "glyphs": true
+    }
+   ]
+  },
+  {
+   "part": "rear_fender",
+   "left": "art/fender_L.png",
+   "right": "art/fender_R.png",
+   "layers": [
+    {
+     "ink": [
+      "yellow"
+     ],
+     "box": [
+      900,
+      295,
+      1110,
+      380
+     ],
+     "angle": 0,
+     "solid": true
+    }
+   ]
   }
  ]
 }

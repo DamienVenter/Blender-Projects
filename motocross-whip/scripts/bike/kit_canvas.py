@@ -18,13 +18,17 @@ kit.json: {"panels": [{"side": "left", "part": "side_panels", "art": "art/sidepa
   view is the left view flipped, u_right = (X1 - X0) * PPM - u_left.
   "target": "plate" or "seat": artwork painted on that texture's own crop (its pixels: the plate seen from the front,
   the seat from above); fills plate.png / seat.png (pixel "size") where the artwork is not white.
+  "target": "barpad": the pad's face artwork (emblem above two RENTHAL lines) -> barpad.png (build_barpad).
+  "side": "top": the tank sticker painted on a crop of the top view (template_top.png): top.png (build_top).
+  "band": true (a wrap on bare metal, the swingarm): also writes the sticker's extent to KIT_DIR/bands.json
+  ({part: {side: [[x, z_low, z_high], ...]}}) so the build wraps only the faces under the sticker.
 """
 import json
 import os
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 RED = (208, 10, 22)
 
@@ -47,6 +51,7 @@ def build_side(kit, side, tdir, kdir):
     out = np.empty((H, W, 3), np.uint8)
     out[:] = RED
     span = (fr["X1"] - fr["X0"]) * fr["PPM"]
+    bands = {}
     for p in kit["panels"]:
         if p["side"] != side or p.get("target", "side") != "side":
             continue
@@ -61,10 +66,138 @@ def build_side(kit, side, tdir, kdir):
         a = np.asarray(art)
         ax = ((ut - u0 + pl) * k).astype(int)
         ay = ((vt - v0 + pt) * k).astype(int)
-        ok = (front == names.index(p["part"]) + 1) & (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
+        inr = (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
+        if p.get("band"):
+            # a wrap on bare metal: every texel of the sticker itself, also where a part that carries no kit (the
+            # chain over the swingarm) hides it in the side view, so the faces under it are wrapped too
+            others = [names.index(q["part"]) + 1 for q in kit["panels"]
+                      if q["side"] == side and q.get("target", "side") == "side" and q["part"] != p["part"]]
+            ok = inr & ~np.isin(front, others) & sticker(a, ax, ay, inr)
+            bands[p["part"]] = band(ok, x, z)
+        else:
+            ok = inr & (front == names.index(p["part"]) + 1)
         out[ok] = a[ay[ok], ax[ok]]
         print(side, p["part"], "texels", int(ok.sum()))
     Image.fromarray(out).save(os.path.join(kdir, f"side_{'L' if side == 'left' else 'R'}.png"), optimize=True)
+    return bands
+
+
+def sticker(a, ax, ay, inr):
+    """The texels a wrap sticker covers: its black, its ink and its white lettering, not the bare aluminium the
+    artwork shows round it nor the white page; small specks and gaps closed (5 px)."""
+    px = np.full(inr.shape + (3,), 255, np.int16)                  # outside the artwork: page, joined to its own
+    px[inr] = a[ay[inr], ax[inr]]
+    mx, mn = px.max(-1), px.min(-1)
+    alu = (mx - mn < 28) & (mn > 120) & (mx < 236)                  # grey metal: neither black, nor ink, nor white
+    page = mn >= 236
+    letters = on_black(page & ~ndi_fill_border(page), (mx < 90) | ((px[..., 0] > 140) & (mn < 90)))
+    st = inr & ~alu & (~page | letters)
+    st = np.asarray(Image.fromarray((st * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(5))) > 0
+    return np.asarray(Image.fromarray((st * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+
+
+def on_black(m, dark):
+    """The blobs of m mostly ringed by dark (white letters on the black sticker), not by metal (the white of a slot
+    through the aluminium axle block)."""
+    from scipy import ndimage as ndi
+    lab, n = ndi.label(m)
+    ring = ndi.binary_dilation(m, iterations=4) & ~m
+    rl = ndi.grey_dilation(lab, size=9) * ring
+    tot = np.bincount(rl.ravel(), minlength=n + 1)
+    drk = np.bincount(rl.ravel(), weights=dark.ravel(), minlength=n + 1)
+    keep = drk > 0.6 * np.maximum(tot, 1)
+    keep[0] = False
+    return keep[lab]
+
+
+def ndi_fill_border(m):
+    """The parts of mask m that touch the image border (the page round the part)."""
+    from scipy import ndimage as ndi
+    lab, _ = ndi.label(m)
+    edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    return np.isin(lab, list(edge))
+
+
+def band(st, x, z, step=0.004):
+    """Where a wrap sticker sits on its bare metal part (bands.json): for each 4 mm of x the lowest and highest z of
+    the sticker's texels. The build wraps a face with the kit only inside this band; the metal keeps its own
+    material outside it."""
+    out = []
+    for x0 in np.arange(x.min(), x.max(), step):
+        cols = (x[0] >= x0) & (x[0] < x0 + step)
+        rows = st[:, cols].any(1)
+        if rows.sum() < 4:
+            continue
+        zz = z[:, 0][rows]
+        out.append([round(float(x0 + step / 2), 4), round(float(zz.min()), 4), round(float(zz.max()), 4)])
+    return out
+
+
+def build_top(kit, tdir, kdir):
+    """The tank sticker and the shroud decks, painted on a crop of the top view (kit_template.py, front at the top,
+    the bike's right at the right) -> top.png over maps.json "top" (x0..x1 forward, y0..y1 left, ppm). Texels take the
+    artwork where the part seen from above is one of the panel's parts ("tank,shroud_decks")."""
+    panels = [p for p in kit["panels"] if p["side"] == "top" and "target" not in p]     # not the seat (build_flat)
+    if not panels:
+        return
+    fr = json.load(open(os.path.join(tdir, "frame.json")))
+    names, t = fr["names"], fr["top"]
+    tm = json.load(open(os.path.join(kdir, "maps.json")))["top"]
+    W = int(round((tm["y1"] - tm["y0"]) * tm["ppm"]))
+    H = int(round((tm["x1"] - tm["x0"]) * tm["ppm"]))
+    c, r = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
+    y = tm["y1"] - c / tm["ppm"]
+    x = tm["x1"] - r / tm["ppm"]
+    ut = (t["Y1"] - y) * fr["PPM"]
+    vt = (t["X1"] - x) * fr["PPM"]
+    pid = np.asarray(Image.open(os.path.join(tdir, "parts_top.png")))
+    front = pid[np.clip(vt.astype(int), 0, pid.shape[0] - 1), np.clip(ut.astype(int), 0, pid.shape[1] - 1)]
+    out = np.empty((H, W, 3), np.uint8)
+    out[:] = RED
+    for p in panels:
+        art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
+        u0, v0, u1, v1 = p["crop"]
+        pl, pt = p.get("pad", [0, 0])
+        k = art.width / ((u1 - u0) + 2 * pl)
+        a = np.asarray(art)
+        ax = ((ut - u0 + pl) * k).astype(int)
+        ay = ((vt - v0 + pt) * k).astype(int)
+        ids = [names.index(n) + 1 for n in p["part"].split(",")]
+        ok = np.isin(front, ids) & (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
+        out[ok] = a[ay[ok], ax[ok]]
+        print("top", p["part"], "texels", int(ok.sum()))
+    Image.fromarray(out).save(os.path.join(kdir, "top.png"), optimize=True)
+
+
+def build_barpad(kit, kdir):
+    """Damien's Renthal pad (photos 04, 10): barpad.png in livery.barpad's three bands (build_bike.uv_for "barpad"):
+    bottom third the front and rear faces (each read from its own side), middle the pad's top (forward = up in the
+    image), top third the end caps. The face artwork's lower rows (the two RENTHAL lines) go on the faces at the pad's
+    full length, its upper rows (the emblem) on the top at "top_scale" of the face's scale; the rest is the pad's red."""
+    p = next((q for q in kit["panels"] if q.get("target") == "barpad"), None)
+    if p is None:
+        return
+    W, H = 840, 720                                         # 210 x 180 mm at 4000 px/m, as livery.barpad
+    B = H // 3
+    art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
+    a = np.asarray(art)
+    red = tuple(int(v) for v in np.median(a[(a[..., 0] > 150) & (a[..., 1] < 80)], axis=0))
+    out = Image.new("RGB", (W, H), red)
+    t0, t1 = p["top_rows"]
+    f0, f1 = p["face_rows"]
+    face = art.crop((0, f0, art.width, f1))
+    k = W * p.get("face_length", 1.0) / art.width           # the lettering's share of the pad's length
+    face = face.resize((round(art.width * k), max(1, round(face.height * k))), Image.LANCZOS)
+    out.paste(face, ((W - face.width) // 2, 2 * B + (B - face.height) // 2))
+    top = art.crop((0, t0, art.width, t1))
+    ink = np.asarray(top).astype(int)
+    cols = np.nonzero(((ink[..., 1] > 120) | (ink.max(-1) < 70)).any(0))[0]
+    top = top.crop((max(cols.min() - 10, 0), 0, min(cols.max() + 11, art.width), top.height))
+    kt = k * p.get("top_scale", 1.0)
+    top = top.resize((round(top.width * kt), round(top.height * kt)), Image.LANCZOS)
+    out.paste(top, ((W - top.width) // 2, B + (B - top.height) // 2))
+    out.save(os.path.join(kdir, "barpad.png"), optimize=True)
+    print("barpad red", red, "face", face.size, "top", top.size)
 
 
 def build_flat(kit, kdir):
@@ -100,8 +233,14 @@ def build_flat(kit, kdir):
 def main():
     kdir, tdir = sys.argv[1], sys.argv[2]
     kit = json.load(open(os.path.join(kdir, "kit.json")))
+    bands = {}
     for side in ("left", "right"):
-        build_side(kit, side, tdir, kdir)
+        for part, b in build_side(kit, side, tdir, kdir).items():
+            bands.setdefault(part, {})[side] = b
+    json.dump(bands, open(os.path.join(kdir, "bands.json"), "w"))
+    print("bands", {k: {s: len(v) for s, v in b.items()} for k, b in bands.items()})
+    build_top(kit, tdir, kdir)
+    build_barpad(kit, kdir)
     build_flat(kit, kdir)
 
 

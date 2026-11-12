@@ -365,3 +365,40 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   the views list under that name (use `cu_...` names). A wrong name renders nothing and exits 0: count the PNGs.
 - Viewer: https://claude.ai/artifact/ToCZsujHJ7qgqiXYWK2Dzv, version 8 = the clean page with model v0.5 (Draco).
   Publish `viewer/bike.html` with that `url` and the `files` map above to update it.
+
+## Damien's sticker kit (2026-11-12, "use ai... put it on the bike, ZERO difference")
+- Pipeline, all scripted (`scripts/bike`): `kit_template.py PARTS OUT` (orthographic left, right and TOP views of the
+  model, part-id maps, frame.json) -> `kit_crops.py OUT SIDE PART[,PART] ASPECT tpl.png` (one panel's outline padded to
+  an aspect the image model offers) -> OpenArt Nano Banana Pro image2image, 4K, two images: the template crop first,
+  then crops of HIS photos -> pick, check the art against the template outline (overlay the template's dark lines)
+  -> `textures/damien-v1/art/` at 2x the template's pixels, entry in `kit.json` with crop, pad and the history id ->
+  `kit_mirror.py KIT PART` for the right side -> `kit_canvas.py KIT TEMPLATE_DIR` -> side_L/R.png, top.png,
+  plate.png, seat.png, bands.json -> `build_bike.py ... livery`.
+- Prompts that work: "Faithful copying job, not a redesign", the template's orientation in words (which end is the
+  front), the colour layout read off the photo region by region, "keep the template's exact outline... pure white
+  outside... no other text". Whole-bike prompts invent a kit; one panel per call does not. Of two images one often
+  invents logos or brands (DUNLOP on a Pirelli kit): reject it even if it looks better. Writing in the AI's output
+  can come back mirrored ("NSU" for USN): read every word before keeping an image.
+- Right side = left art mirrored, then every word set back to READ (`kit_mirror.py`). A plain unmirrored copy is
+  right only for level writing; a slanted word (the swingarm) must be carried by the mirror and then a reflection
+  across the line perpendicular to its writing direction, i.e. rotated by -2x its slope about its centre: it then
+  runs along the mirrored part, letter tops still to the same edge. Layers pick lettering by ink colour, a box, and
+  filters: `on_black` (white ink only where ringed by the black sticker: brushed aluminium highlights and the white
+  slot through the axle block are as light as white ink), `glyphs` (drop long or sparse blobs: pinstripes, gloss
+  streaks), `solid` (a logo plate with its letters, PIRELLI), `angle` (a column of level logos is taller than wide,
+  so its long axis is not its writing direction). Checked on photo 03: his right swingarm reads "PSALM 91" at the
+  axle end, the outlined "PSALM" at the pivot end.
+- A wrap on bare metal (swingarm): map only the faces under the sticker. `kit_canvas` writes the sticker's band (per
+  4 mm of x, z low and high, from the art's own black/ink pixels, not the AI's grey "aluminium" round it) to
+  bands.json, also where the chain hides the arm in the side view; `build_bike.in_band` wraps a face inside it at
+  any |ny| > 0.3. The first try (only `swing_L/R` faces with |ny| > 0.6) left the cast front section and the rounded
+  edges bare: half the outlined PSALM and a sticker band half the arm's height.
+- Tops: a "top" texture seen from above as the rider sees it (front at the image's top, the bike's right at its
+  right; maps.json "top"): the tank's top faces (tank_ti, z > 0.97) and the shroud decks' tops take it. The fuel cap
+  is its own geometry: the art's black disc under it need not line up exactly.
+- Bookkeeping traps: the seat is ALSO a "top" panel (target seat); filtering panels by side dropped it once. A camera
+  at -y in the studio scene looks at the back of the backdrop (all grey): use right_rear_34 for the right side.
+- Read his photos for WHERE a graphic sits, not only what it is: the Renthal pad's AI face came back 2.5:1 while the
+  pad's face is 3.5:1, because photo 04 sees the face AND the top: the emblem is on the pad's top, the two RENTHAL
+  lines on its faces (`kit_canvas.build_barpad`). His right grip is light grey with a red flange and bar-end ring,
+  the left black: the right grip has its own materials (grip_r*, stock black; his colours in the livery block).

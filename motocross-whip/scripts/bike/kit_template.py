@@ -9,6 +9,8 @@ z up; the LEFT view has the front at the image's left, the RIGHT view at its rig
   parts_<side>.png      the part number of each pixel (8 bit, 0 = nothing), for masks
   frame.json            the framing: pixel (u, v) of a point = ((X1 - x) * PPM, (Z1 - z) * PPM) on the left,
                         ((x - X0) * PPM, (Z1 - z) * PPM) on the right
+and the tank top seen from above as the rider sees it (front at the image's top, the bike's right at its right), for
+the tank sticker and the shroud tops: template_top.png, parts_top.png; pixel (u, v) = ((TY1 - y) * PPM, (TX1 - x) * PPM)
 """
 import json
 import os
@@ -27,6 +29,30 @@ PPM = 1700
 W, H = int((X1 - X0) * PPM), int((Z1 - Z0) * PPM)
 PLASTICS = ["shrouds", "side_panels", "rear_fender", "front_fender", "number_plate", "fork_guards", "shroud_decks",
             "tail_under", "fender_flap", "seat", "tank", "swingarm", "rear_flap", "mudguard_top"]
+TX0, TX1, TY0, TY1 = 0.55, 1.25, -0.22, 0.22                   # the top view: shrouds, tank, decks, seat's nose
+TW, TH = int((TY1 - TY0) * PPM), int((TX1 - TX0) * PPM)
+
+
+class OrthoTop:
+    """Looking straight down, the rider's way round: front at the image's top, the bike's right at its right."""
+    F = np.array([0.0, 0.0, -1.0])
+    C = np.array([0.0, 0.0, 10.0])
+
+    def project(self, P):
+        P = np.atleast_2d(np.asarray(P, float))
+        return np.stack([(TY1 - P[:, 1]) * PPM, (TX1 - P[:, 0]) * PPM], axis=-1)
+
+
+def paint(pid, names, W, H):
+    """Template image: plastics light grey with dark outlines, every other part pale."""
+    plast = np.isin(pid, [names.index(n) + 1 for n in PLASTICS if n in names])
+    img = np.full((H, W, 3), 255, np.uint8)
+    img[pid > 0] = (236, 236, 238)
+    img[plast] = (205, 205, 208)
+    edges = np.asarray(Image.fromarray(pid.astype(np.uint8)).filter(ImageFilter.FIND_EDGES)) > 0
+    edges = np.asarray(Image.fromarray((edges * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
+    img[edges & (pid > 0)] = (40, 40, 44)
+    return img, int(plast.sum())
 
 
 class Ortho:
@@ -54,18 +80,20 @@ def main():
             cams.CAMS["kit_" + side] = Ortho(side)
             pid = compare.raster(parts_path, None, "kit_" + side, scale=1, by_part=True)
             Image.fromarray(pid.astype(np.uint8)).save(os.path.join(out, f"parts_{side}.png"))
-            plast = np.isin(pid, [names.index(n) + 1 for n in PLASTICS if n in names])
-            img = np.full((H, W, 3), 255, np.uint8)
-            img[pid > 0] = (236, 236, 238)                      # every other part, pale
-            img[plast] = (205, 205, 208)                        # the plastics, the canvas
-            edges = np.asarray(Image.fromarray(pid.astype(np.uint8)).filter(ImageFilter.FIND_EDGES)) > 0
-            edges = np.asarray(Image.fromarray((edges * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
-            img[edges & (pid > 0)] = (40, 40, 44)
+            img, n = paint(pid, names, W, H)
             Image.fromarray(img).save(os.path.join(out, f"template_{side}.png"))
-            print(side, W, H, "plastics px", int(plast.sum()))
+            print(side, W, H, "plastics px", n)
+        cams.W, cams.H = TW, TH
+        cams.CAMS["kit_top"] = OrthoTop()
+        pid = compare.raster(parts_path, None, "kit_top", scale=1, by_part=True)
+        Image.fromarray(pid.astype(np.uint8)).save(os.path.join(out, "parts_top.png"))
+        img, n = paint(pid, names, TW, TH)
+        Image.fromarray(img).save(os.path.join(out, "template_top.png"))
+        print("top", TW, TH, "plastics px", n)
     finally:
         cams.W, cams.H = W0, H0
-    json.dump(dict(X0=X0, X1=X1, Z0=Z0, Z1=Z1, PPM=PPM, W=W, H=H, names=names, plastics=PLASTICS),
+    json.dump(dict(X0=X0, X1=X1, Z0=Z0, Z1=Z1, PPM=PPM, W=W, H=H, names=names, plastics=PLASTICS,
+                   top=dict(X0=TX0, X1=TX1, Y0=TY0, Y1=TY1, W=TW, H=TH)),
               open(os.path.join(out, "frame.json"), "w"), indent=1)
 
 

@@ -183,6 +183,9 @@ def uv_for(mat, co, nrm=(0.0, 0.0, 1.0)):
         s = MAPS["swingarm"]
         u = (s["x1"] - x) / (s["x1"] - s["x0"]) if mat == "swing_L" else (x - s["x0"]) / (s["x1"] - s["x0"])
         return u, (z - s["z0"]) / (s["z1"] - s["z0"])
+    if mat == "livery_top":                                         # from above, front at the image's top,
+        s = MAPS["top"]                                             # the bike's right at its right
+        return (s["y1"] - y) / (s["y1"] - s["y0"]), (x - s["x0"]) / (s["x1"] - s["x0"])
     key = {"livery_fender": "fender", "fender_front": "front_fender", "seat": "seat"}.get(mat)
     if key:
         s = MAPS[key]
@@ -222,23 +225,61 @@ if "front_end" in META:
 # Damien's sticker kit (2026-11-12): the plastics are built in plain `plastic_red`; with a livery their red faces take
 # the kit's projections instead, by which way each face looks: sides (livery_L / livery_R, painted in the bike's side
 # view), tops (livery_fender, fender_front, seen from above) and the plate's face (plate)
-KIT_PARTS = {"shrouds", "side_panels", "shroud_decks", "rear_fender", "front_fender", "number_plate"}
+KIT_PARTS = {"shrouds", "side_panels", "shroud_decks", "rear_fender", "front_fender", "number_plate", "fork_guards",
+             "swingarm"}
 KIT_MATS = {"livery_L", "livery_R", "livery_fender", "fender_front", "plate"}
+if not STOCK:
+    MATS["intake_foam"] = dict(rgb=(12, 12, 13), rough=0.8)     # Damien's intake shows black, not Honda's green
+    # his right grip (photos 10, 03): light grey diamond rubber, red flange and red ring at the bar end; left stays black
+    MATS["grip_r"] = MATS["grip_r_bead"] = dict(rgb=(176, 178, 180), rough=0.6, bump=0.12)
+    MATS["grip_r_end"] = MATS["grip_r_flange"] = dict(rgb=(196, 22, 28), rough=0.5)
+    # his Renthal pad is red all over (photos 04, 10): no grey end caps
+    MATS["pad_cap"] = dict(rgb=(214, 29, 46), rough=0.7)
+if not STOCK and "top" in MAPS and os.path.exists(os.path.join(TEX, "top.png")):
+    # the tank sticker (black, red splatter, 114 behind the cap) and the shroud decks, painted from above as the
+    # rider sees them (top.png, MAPS["top"]): the tank's top and the decks' tops take it (kit_materials)
+    MATS["livery_top"] = dict(image="top.png", rough=0.34, coat=0.08)
+    KIT_MATS.add("livery_top")
+    KIT_PARTS.add("tank")
 if not STOCK and "seat" in MAPS and os.path.exists(os.path.join(TEX, "seat.png")):
     # Damien's GUTS seat cover, painted from above (seat.png, MAPS["seat"]): it replaces the stock cover's grain map
     MATS["seat"] = dict(image="seat.png", rough=0.7, sheen=0.4)
     KIT_MATS.add("seat")
 
 
+BANDS = json.load(open(os.path.join(TEX, "bands.json"))) if os.path.exists(os.path.join(TEX, "bands.json")) else {}
+
+
+_BAND_X = {}
+
+
+def in_band(part, side, x, z, tol=0.0015):
+    """Is (x, z) under the part's wrap sticker on that side (KIT_DIR/bands.json from kit_canvas.py)?"""
+    b = BANDS.get(part, {}).get(side)
+    if not b:
+        return False
+    xs = _BAND_X.setdefault((part, side), np.array([r[0] for r in b]))
+    i = int(np.argmin(abs(xs - x)))
+    return abs(xs[i] - x) <= 0.004 and b[i][1] - tol <= z <= b[i][2] + tol
+
+
 def kit_materials(name, V, faces, M, mats):
     M = np.array(M, copy=True)
     red = mats.index("plastic_red") if "plastic_red" in mats else -1
-    # Damien's kit also covers the side panel's lower black cover (the red band with his name and the bolt)
-    black = {mats.index(k) for k in ("plastic_black", "black_texture") if k in mats} if name == "side_panels" else set()
+    # Damien's kit also covers the side panel's lower black cover (the red band with his name and the bolt), his fork
+    # guards (black, PIRELLI, MOTUL) and the swingarm's outer faces (his black wrap with PSALM 91)
+    extra = {"side_panels": ("plastic_black", "black_texture"), "fork_guards": ("fork_guard",),
+             "swingarm": ("alu_satin", "swing_L", "swing_R", "alu_cast", "alu_weld"), "tank": ("tank_ti",)}.get(name, ())
+    black = {mats.index(k) for k in extra if k in mats}
     for k in ("livery_L", "livery_R", "livery_fender", "fender_front", "plate"):
         if k not in mats:
             mats.append(k)
     iL, iR, iF, iFF, iP = (mats.index(k) for k in ("livery_L", "livery_R", "livery_fender", "fender_front", "plate"))
+    iT = -1
+    if "livery_top" in MATS:
+        if "livery_top" not in mats:
+            mats.append("livery_top")
+        iT = mats.index("livery_top")
     for fi, f in enumerate(faces):
         if fi >= len(M) or (M[fi] != red and M[fi] not in black) or len(f) < 3:
             continue
@@ -257,6 +298,16 @@ def kit_materials(name, V, faces, M, mats):
             M[fi] = iF if abs(nz) > max(abs(ny), 0.55) else side
         elif name == "number_plate":
             M[fi] = iP if abs(nx) > 0.45 else side
+        elif name == "tank":                                       # its top between the decks: the tank sticker
+            if iT >= 0 and abs(nz) > 0.5 and p[:, 2].mean() > 0.97:
+                M[fi] = iT
+        elif name == "shroud_decks":
+            M[fi] = iT if iT >= 0 and abs(nz) > 0.5 else side
+        elif name == "swingarm":
+            # the wrap covers the arm's sides where kit_canvas found the sticker (bands.json); round it the metal
+            # keeps its own finish (the art's grey "aluminium" there is only the AI's picture of it)
+            if abs(ny) > 0.3 and in_band("swingarm", "left" if side == iL else "right", p[:, 0].mean(), p[:, 2].mean()):
+                M[fi] = side
         else:
             M[fi] = side
     return M
