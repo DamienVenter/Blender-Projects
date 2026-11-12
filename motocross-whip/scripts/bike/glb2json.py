@@ -58,6 +58,10 @@ def mesh_views(doc, mi):
     img = {doc["textures"][t]["source"] for t in tex if "source" in doc["textures"][t]}
     smp = {doc["textures"][t]["sampler"] for t in tex if "sampler" in doc["textures"][t]}
     views = {doc["accessors"][a]["bufferView"] for a in acc if "bufferView" in doc["accessors"][a]}
+    for p in doc["meshes"][mi]["primitives"]:                # Draco keeps a primitive's data in its own buffer view
+        dr = p.get("extensions", {}).get("KHR_draco_mesh_compression")
+        if dr:
+            views.add(dr["bufferView"])
     views |= {doc["images"][i]["bufferView"] for i in img if "bufferView" in doc["images"][i]}
     return dict(acc=acc, mats=mats, tex=tex, img=img, smp=smp, views=views)
 
@@ -141,6 +145,9 @@ def subset(doc, binary, meshes):
                 p["targets"] = [{k: remap["acc"][v] for k, v in t.items()} for t in p["targets"]]
             if "material" in p:
                 p["material"] = remap["mats"][p["material"]]
+            dr = p.get("extensions", {}).get("KHR_draco_mesh_compression")
+            if dr:
+                dr["bufferView"] = remap["views"][dr["bufferView"]]
         out["meshes"].append(m)
     out["buffers"] = [dict(byteLength=len(blob),
                            uri="data:application/octet-stream;base64," + base64.b64encode(bytes(blob)).decode("ascii"))]

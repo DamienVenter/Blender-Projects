@@ -44,9 +44,20 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
 - Bar pad lettering must read from the front AND from the seat: pick the UV direction by the face normal.
 
 ## Showing it
-- Interactive viewer: motocross-whip/viewer/bike-v0.html (three.js 0.147 from jsDelivr, OrbitControls, GLTFLoader,
-  a PMREM studio environment so metals reflect). Artifacts do not serve .glb: convert with `glb2json.py` (same model,
-  buffer as a data URI) and load the .json.
+- Damien looks at the viewer on his phone, and wants a CLEAN bike: the bike alone, full screen, no text panels or
+  numbers (2026-11-12: "not loading. Too much info anyways. just give me a clean bike that's it"). Numbers and
+  comparison sheets go in the checkpoint folder and a short chat message, not on the page.
+- Page: `motocross-whip/viewer/bike.html` (three.js 0.147 from jsDelivr, OrbitControls, GLTFLoader, DRACOLoader,
+  RoomEnvironment reflections, a canvas-gradient contact shadow instead of shadow maps). Model: `export_web.py` on a
+  built .blend (Draco, 14/10/12-bit quantization: 58 MB -> 5.9 MB), then `glb2json.py OUT.glb bike.json` (one file).
+  Publish with `files` = bike.json plus `draco/draco_decoder.js`, `draco/draco_wasm_wrapper.js`,
+  `draco/draco_decoder.wasm` (contentType application/wasm; copies in `viewer/draco/`). The page uses the wasm
+  decoder when it can compile WebAssembly and the plain JS one otherwise.
+- The artifact host lets a page fetch only files published beside it (CDNs serve scripts only), keeps each file
+  under 16 MB and each publish under 64 MB. The 78 MB, six-file v0.5 page did not load on Damien's phone: keep the
+  model one compressed file under about 10 MB.
+- Test with Playwright before publishing, at 390x844 and desktop, once with `delete window.WebAssembly` to exercise
+  the JS decoder. Software GL is slow with a million vertices: screenshot timeout 240 s, device scale factor 1.
 
 ## Exact-shape pass (2026-11-10, after "get the shape EXACTLY right, every tiny detail")
 - Damien wants the STOCK Honda shape exact first (no graphics, no colours yet), following Honda's reference photos.
@@ -346,8 +357,5 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   bolts through the bar pad and mirrored lettering.
 - `BIKE_STUDIO_RES` is "W,H" (two numbers). A `BIKE_CLOSEUPS` camera is named exactly as written and must be in
   the views list under that name (use `cu_...` names). A wrong name renders nothing and exits 0: count the PNGs.
-- Viewer model: `glb2json.py IN.glb OUT.json 12` splits it into files under the host's limit; the page loads the
-  list in `MODEL_FILES`. Test with the headless browser before publishing. Run that test on an idle machine: with the
-  test suite running beside it the page was too slow for the click checks and the test timed out.
-- Viewer is published as version 5 of https://claude.ai/artifact/ToCZsujHJ7qgqiXYWK2Dzv (model v0.4, three files
-  `bike_v3*.json`); publish `viewer/bike-v0.html` with that `url` and the `files` map to update it.
+- Viewer: https://claude.ai/artifact/ToCZsujHJ7qgqiXYWK2Dzv, version 8 = the clean page with model v0.5 (Draco).
+  Publish `viewer/bike.html` with that `url` and the `files` map above to update it.
