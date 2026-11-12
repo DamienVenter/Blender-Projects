@@ -29,7 +29,7 @@ PPM = 1700
 W, H = int((X1 - X0) * PPM), int((Z1 - Z0) * PPM)
 PLASTICS = ["shrouds", "side_panels", "rear_fender", "front_fender", "number_plate", "fork_guards", "shroud_decks",
             "tail_under", "fender_flap", "seat", "tank", "swingarm", "rear_flap", "mudguard_top"]
-TX0, TX1, TY0, TY1 = 0.55, 1.25, -0.22, 0.22                   # the top view: shrouds, tank, decks, seat's nose
+TX0, TX1, TY0, TY1 = X0, X1, -0.22, 0.22                       # the top view: the whole bike's length
 TW, TH = int((TY1 - TY0) * PPM), int((TX1 - TX0) * PPM)
 
 

@@ -242,9 +242,9 @@
    "art": "art/tanktop.png",
    "crop": [
     166,
-    465,
+    1570,
     579,
-    870
+    1975
    ],
    "pad": [
     0,
@@ -268,6 +268,40 @@
    ],
    "top_scale": 1.42,
    "face_length": 0.88
+  },
+  {
+   "side": "top",
+   "part": "rear_fender",
+   "texture": "fender",
+   "art": "art/fender_top.png",
+   "crop": [
+    179,
+    2961,
+    569,
+    3775
+   ],
+   "pad": [
+    34,
+    0
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history 2TWcZaSVxZ624axVhK7U, 2nd image; its painted gloss streak flattened to the navy's median): top-view template crop + photo 02 fender crop + the fender's side art (navy-black, white edge lines, red and yellow accents; the 1st image repeated PIRELLI on the top)"
+  },
+  {
+   "side": "top",
+   "part": "front_fender",
+   "texture": "front_fender",
+   "art": "art/ffender_top.png",
+   "crop": [
+    167,
+    287,
+    581,
+    1199
+   ],
+   "pad": [
+    49,
+    0
+   ],
+   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history kMd7wbtWUJKEeSibIsH2, 2nd image): top-view template crop + photo 01 crop + the fender's side art (black with red shapes and white pinstripes; the 1st image had baked-in lighting)"
   }
  ],
  "mirror": [

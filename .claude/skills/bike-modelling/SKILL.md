@@ -402,3 +402,11 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   pad's face is 3.5:1, because photo 04 sees the face AND the top: the emblem is on the pad's top, the two RENTHAL
   lines on its faces (`kit_canvas.build_barpad`). His right grip is light grey with a red flange and bar-end ring,
   the left black: the right grip has its own materials (grip_r*, stock black; his colours in the livery block).
+- The top view is the bike's whole length (same X0..X1 as the side views), so the tank and both fender tops are
+  painted on crops of one template: `kit_canvas.build_top` fills top.png, fender.png and front_fender.png ("texture"
+  per panel; maps with "ppm"). Moving the frame shifted the tank crop by (1.90 - 1.25) x 1700 px; top.png came out
+  identical to the texel, which is the check to run after any change of framing. Image-model art often paints
+  lighting into a flat sticker (a gloss streak, a red glow): reject it, or flatten that colour to its median.
+- Never read a test result through a pipe: `pytest ... | tail` exits 0 whatever pytest did. Write the output to a
+  file and echo pytest's own exit code (`pytest ...  > out.txt; echo $?`). Renaming a material (the right grip's)
+  broke four tests that pick faces by material name; one such run was reported as passing.

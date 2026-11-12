@@ -166,6 +166,10 @@ def test_textures_match_their_maps():
                                                           round((s["z1"] - s["z0"]) * s["ppm"]))
     assert Image.open(os.path.join(KIT, "top.png")).size == (round((t["y1"] - t["y0"]) * t["ppm"]),
                                                               round((t["x1"] - t["x0"]) * t["ppm"]))
+    for k in ("fender", "front_fender"):                             # painted from the top view (build_top)
+        m = maps[k]
+        assert Image.open(os.path.join(KIT, k + ".png")).size == (round((m["x1"] - m["x0"]) * m["ppm"]),
+                                                                  round((m["y1"] - m["y0"]) * m["ppm"]))
     for f in ("plate.png", "seat.png"):
         assert os.path.exists(os.path.join(KIT, f))
 

@@ -134,39 +134,50 @@ def band(st, x, z, step=0.004):
 
 
 def build_top(kit, tdir, kdir):
-    """The tank sticker and the shroud decks, painted on a crop of the top view (kit_template.py, front at the top,
-    the bike's right at the right) -> top.png over maps.json "top" (x0..x1 forward, y0..y1 left, ppm). Texels take the
-    artwork where the part seen from above is one of the panel's parts ("tank,shroud_decks")."""
-    panels = [p for p in kit["panels"] if p["side"] == "top" and "target" not in p]     # not the seat (build_flat)
-    if not panels:
-        return
+    """Artwork painted on crops of the top view (kit_template.py: front at the top, the bike's right at the right)
+    -> the textures seen from above, each over its maps.json entry:
+      top.png           "top": rows along x (front at the top), columns along y (the bike's left at the left)
+      fender.png        "fender" / "front_fender" (build_bike.uv_for): columns along x (front at the left), rows
+      front_fender.png  along y (the bike's left at the top)
+    A panel names its texture ("texture", default "top") and parts ("tank,shroud_decks"); a texel takes the artwork
+    where the part seen from above there is one of them."""
     fr = json.load(open(os.path.join(tdir, "frame.json")))
     names, t = fr["names"], fr["top"]
-    tm = json.load(open(os.path.join(kdir, "maps.json")))["top"]
-    W = int(round((tm["y1"] - tm["y0"]) * tm["ppm"]))
-    H = int(round((tm["x1"] - tm["x0"]) * tm["ppm"]))
-    c, r = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
-    y = tm["y1"] - c / tm["ppm"]
-    x = tm["x1"] - r / tm["ppm"]
-    ut = (t["Y1"] - y) * fr["PPM"]
-    vt = (t["X1"] - x) * fr["PPM"]
+    maps = json.load(open(os.path.join(kdir, "maps.json")))
     pid = np.asarray(Image.open(os.path.join(tdir, "parts_top.png")))
-    front = pid[np.clip(vt.astype(int), 0, pid.shape[0] - 1), np.clip(ut.astype(int), 0, pid.shape[1] - 1)]
-    out = np.empty((H, W, 3), np.uint8)
-    out[:] = RED
-    for p in panels:
-        art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
-        u0, v0, u1, v1 = p["crop"]
-        pl, pt = p.get("pad", [0, 0])
-        k = art.width / ((u1 - u0) + 2 * pl)
-        a = np.asarray(art)
-        ax = ((ut - u0 + pl) * k).astype(int)
-        ay = ((vt - v0 + pt) * k).astype(int)
-        ids = [names.index(n) + 1 for n in p["part"].split(",")]
-        ok = np.isin(front, ids) & (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
-        out[ok] = a[ay[ok], ax[ok]]
-        print("top", p["part"], "texels", int(ok.sum()))
-    Image.fromarray(out).save(os.path.join(kdir, "top.png"), optimize=True)
+    groups = {}
+    for p in kit["panels"]:
+        if p["side"] == "top" and "target" not in p:                # not the seat (build_flat)
+            groups.setdefault(p.get("texture", "top"), []).append(p)
+    for tex, panels in groups.items():
+        m = maps[tex]
+        ppm = m.get("ppm", 2000)
+        if tex == "top":
+            W, H = int(round((m["y1"] - m["y0"]) * ppm)), int(round((m["x1"] - m["x0"]) * ppm))
+            c, r = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
+            y, x = m["y1"] - c / ppm, m["x1"] - r / ppm
+        else:
+            W, H = int(round((m["x1"] - m["x0"]) * ppm)), int(round((m["y1"] - m["y0"]) * ppm))
+            c, r = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
+            x, y = m["x1"] - c / ppm, m["y1"] - r / ppm
+        ut = (t["Y1"] - y) * fr["PPM"]
+        vt = (t["X1"] - x) * fr["PPM"]
+        front = pid[np.clip(vt.astype(int), 0, pid.shape[0] - 1), np.clip(ut.astype(int), 0, pid.shape[1] - 1)]
+        out = np.empty((H, W, 3), np.uint8)
+        out[:] = RED
+        for p in panels:
+            art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
+            u0, v0, u1, v1 = p["crop"]
+            pl, pt = p.get("pad", [0, 0])
+            k = art.width / ((u1 - u0) + 2 * pl)
+            a = np.asarray(art)
+            ax = ((ut - u0 + pl) * k).astype(int)
+            ay = ((vt - v0 + pt) * k).astype(int)
+            ids = [names.index(n) + 1 for n in p["part"].split(",")]
+            ok = np.isin(front, ids) & (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
+            out[ok] = a[ay[ok], ax[ok]]
+            print(tex, p["part"], "texels", int(ok.sum()))
+        Image.fromarray(out).save(os.path.join(kdir, tex + ".png"), optimize=True)
 
 
 def build_barpad(kit, kdir):

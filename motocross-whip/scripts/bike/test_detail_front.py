@@ -18,11 +18,18 @@ def built():
 
 
 def verts(mesh, mat=None):
+    """Vertices of the faces in material mat (a name or a tuple of names); all of them for None."""
     v = np.asarray(mesh.V, float)
     if mat is None:
         return v
-    idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m == mat for i in f})
+    mats = (mat,) if isinstance(mat, str) else tuple(mat)
+    idx = sorted({i for f, m in zip(mesh.F, mesh.M) if m in mats for i in f})
     return v[idx]
+
+
+# the right grip has its own materials (Damien's grey grip, red flange and end in his livery; stock black here)
+GRIP = ("grip_rubber", "grip_bead", "grip_r", "grip_r_bead", "grip_r_end", "grip_r_flange")
+GRIP_BODY = ("grip_rubber", "grip_r")
 
 
 def test_overall_width_is_the_handlebar_827_mm(built):
@@ -30,7 +37,7 @@ def test_overall_width_is_the_handlebar_827_mm(built):
 
 
 def test_bar_ends_sit_on_the_shared_bar_end(built):
-    grip = np.vstack([verts(built["bars"], "grip_rubber"), verts(built["bars"], "grip_bead")])
+    grip = verts(built["bars"], GRIP)
     assert df.TIP[0] == cams.BAR_END[0] and df.TIP[2] == cams.BAR_END[2]                  # no FRONT_TIP override
     for side in (1, -1):
         d = np.linalg.norm(grip - df.TIP * [1, side, 1], axis=1)
@@ -40,7 +47,7 @@ def test_bar_ends_sit_on_the_shared_bar_end(built):
 
 def _grip_frame(built, side, mat=None):
     sd = df._Side(side)
-    g = verts(built["bars"], mat) if mat else np.vstack([verts(built["bars"], k) for k in ("grip_rubber", "grip_bead")])
+    g = verts(built["bars"], mat if mat else GRIP)
     g = g[g[:, 1] * side > 0] - sd.T
     a = -(g @ sd.d)
     r = np.linalg.norm(g + np.outer(a, sd.d), axis=1)
@@ -50,7 +57,7 @@ def _grip_frame(built, side, mat=None):
 
 def test_grip_diamonds_36_round_2_5_mm_along(built):
     for side in (1, -1):
-        a, r, th = _grip_frame(built, side, "grip_rubber")
+        a, r, th = _grip_frame(built, side, GRIP_BODY)
         z = (a > df.G_ZONES[1][0] + 0.003) & (a < df.G_ZONES[1][1] - 0.003)
         tips = z & (np.abs(r - np.array([df.g_tip(x) for x in a])) < 2e-5)
         top = tips & (np.abs(th - math.pi / 2) < 0.06)                                    # tips along the top line
