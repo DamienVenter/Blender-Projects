@@ -440,3 +440,23 @@ def test_muffler_seam_weld_rivets_and_mount_from_the_inside():
     lo, up = dc._sub_rails(-1)
     i = int(np.argmin(np.abs(lo[:, 0] - dc.MUF_BOLT[0])))
     assert lo[i, 1] + 0.009 < -0.0826                                     # the rail's inner face outboard of the plate
+
+
+def test_red_chain_guide_is_damiens(V):
+    """Round 5: Damien's bike carries a red aftermarket guide (his 07, 02, 09, 06): its three screws in the stock
+    guide's holes (within 2 mm), its side plate reaching back under the 50T (07: the tip right under the axle) with
+    three windows; Honda's guide stays buildable behind RED_GUIDE."""
+    assert dc.RED_GUIDE
+    B = dc._rg_px(dc.RG_BOLTS)
+    S = dc._photo_px("left", dc.GUIDE_BOLTS, dc.GUIDE_Y[1])
+    d = np.linalg.norm(B[np.argsort(B[:, 0])] - S[np.argsort(S[:, 0])], axis=1)
+    assert d.max() < 0.002, d
+    G = V["chain_guide"]
+    assert G[:, 0].min() < 0.03 and len(dc.RG_WIN) == 3
+    m = dc.chain_guide()
+    assert "anod_red" in set(m.M)
+    dc.RED_GUIDE = False
+    try:
+        assert "anod_red" not in set(dc.chain_guide().M)
+    finally:
+        dc.RED_GUIDE = True

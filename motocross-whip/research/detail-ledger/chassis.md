@@ -610,3 +610,26 @@ offsets, round 3); the photo's mount plate reaches back to x 0.149 (lr34) but th
 (tail_under, x 0.185..0.204) stands in its plane, so it starts at x 0.206 (shared); in lr34 the model's side panel
 hangs lower and hides the plate (plastics); the header diameter is 38 mm by the run's edges and the U's ring, but the
 dim upper edge at u 1940 allows up to 44 mm (no clean silhouette against white); the seam weld's ripples are regular.
+
+## 0b. Damien's red chain guide (part `chain_guide`; Honda's behind RED_GUIDE = False)
+Anatomy (his 07 side on, 02 from the front left and below, 09 and 06 from below): an aftermarket red anodised
+machined guide round the lower run: a thick outer side plate whose outline is a slanted parallelogram from the arm's
+tabs down and back to a pointed tip under the 50T, three long slots along its lower edge (deep: the plate is thick),
+a small dark maker's plaque (its lettering is not modelled), three round-headed socket screws near its top edge in the
+stock guide's three holes (two close together at the front, one 50 mm behind), the floor under the run and an inner
+wall, a black wear insert inside; Honda's tabs welded under the arm stay.
+References: 07 (1332 x 888) 8x crop 850..1000 x 690..790 (g07_guide), axles g07_axle and g07_faxle, the arm g07_arm;
+02 crop 470..620 x 1020..1170 (d02_guide).
+Numbers: 07's scale from the wheelbase (axles (948.75, 710.25) and (291, 692): 443.7 px/m, the axle line 1.6 deg),
+the arm's sticker edges at 10.3 deg (rider aboard: 6 deg flatter than the build pose). Taken in the arm's frame and
+carried onto the model's arm, the three screws land 2 to 5 mm from the stock bolts (the same holes, LEFT GUIDE_BOLTS):
+the mean offset (2.5, -5.8) mm is applied (RG_SHIFT), leaving them within 1.5 mm (test). Plate 10 mm (EST, 02), screw
+heads 13 mm (07: 6 px), slots 10 mm wide (07: 4.5 px); 07 colour lit (192, 42, 39), 02 shade (145, 48, 53).
+Built: `_red_chain_guide()` (RG_OUT, RG_BOLTS, RG_WIN, RG_LOGO; anod_red). The floor follows 07's lower edge but is let
+down where it came within 4.5 mm of the model's chain slot (GUIDE_SLOT), up to 4 mm at x 0.10; floor, wall and insert
+stop short of the 50T where the chain wraps it (r 0.145 from the axle); the side plate runs on under the sprocket.
+Checks: cu3 and cu4 close-ups (cu_g07 beside d07_guide: cmp_g07b; cu_g02 beside d02_guide: cmp_g02b), g5_left.
+Tests: `test_red_chain_guide_is_damiens`, the stock slot and tyre tests (still pass).
+Still different: 02 shows a deeper U body with a rounded mouth at the front where the chain enters (the model's front
+is the plate's edge and the floor's end); the tip in 07 is narrower and more pointed; the plaque's lettering; the arm
+pose differs (rider aboard in 07), so side-by-side views differ by that 6 deg.

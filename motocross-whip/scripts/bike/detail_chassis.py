@@ -70,7 +70,9 @@ MATERIALS = {"shock_spring": dict(rgb=(28, 28, 30), metal=0.7, rough=0.4),   # E
              "header_weld": dict(rgb=(128, 92, 64), metal=0.8, rough=0.42),     # 08: the rings darker, (86, 53, 28) in shade,
              #     (140, 102, 70) median lit; metallic enough for the ripples to catch the light (a matte dark ring read
              #     as an O-ring in the close-ups)
-             "header_clamp": dict(rgb=(176, 150, 112), metal=1.0, rough=0.38)}  # 08: the band heat-tinted (172, 150, 114)
+             "header_clamp": dict(rgb=(176, 150, 112), metal=1.0, rough=0.38),  # 08: the band heat-tinted (172, 150, 114)
+             "anod_red": dict(rgb=(190, 32, 30), metal=0.6, rough=0.34)}   # Damien's red guide: 07 lit (192, 42, 39),
+#                                                                           02 in shade (145, 48, 53)
 CLASS = {"shock_spring": "black", "peg_black": "black"}
 Y3 = np.array([0.0, 1.0, 0.0])
 
@@ -1566,7 +1568,139 @@ def _clip_below(poly, z):
     return np.array(out)
 
 
+RED_GUIDE = True                # round 5: Damien's bike carries an aftermarket red guide (his 07, 09, 06, 02); False
+#                                 builds Honda's stock guide (_stock_chain_guide)
+
+
 def chain_guide():
+    return _red_chain_guide() if RED_GUIDE else _stock_chain_guide()
+
+
+# Damien's red guide, read on his 07 (a panning shot, near side-on left; 1332 x 888): the axles at px (948.75, 710.25)
+# and (291, 692) (wheelbase 1.483 m: 443.7 px/m, the axle line rising 1.6 deg to the front), the arm's sticker edges
+# falling 10.3 deg to the rear (the arm 6 deg higher than the build pose: rider aboard). Points are taken in the arm's
+# frame (along it from the axle, square to it) and carried onto the model's arm; its three bolts land 2 to 5 mm from
+# the stock guide's three (LEFT GUIDE_BOLTS: the same tabs), so the mean of that difference is added (_rg_shift)
+RG_AXLE = np.array([948.75, 710.25])
+RG_K = 443.7
+RG_ARM = 10.3                                   # deg, the arm in 07
+RG_OUT = [(866.3, 718.4), (874.0, 719.5), (885.0, 722.5), (898.0, 727.0), (910.0, 731.5), (918.0, 736.5), (927.0, 743.5),
+          (936.0, 751.5), (943.5, 758.5), (947.0, 763.5), (946.0, 768.5), (942.5, 771.5), (934.0, 769.5), (925.0, 765.5),
+          (913.0, 760.0), (902.5, 754.5), (892.0, 750.5), (882.5, 747.5), (875.0, 743.5), (870.5, 738.0), (868.8, 730.0),
+          (866.0, 723.0)]                       # 07 (8x crop, g07_guide): the side plate's outline
+RG_BOLTS = [(873.75, 724.6), (883.0, 726.5), (906.9, 734.0)]   # 07: round silver heads, 6 px (13 mm)
+RG_WIN = [((886.0, 744.0), (901.0, 750.0)), ((909.0, 749.0), (920.0, 755.0)), ((930.0, 757.0), (937.0, 761.0))]  # 07 slots
+RG_LOGO = ((891.0, 736.0), (909.0, 744.0))      # 07: a dark maker's plaque on the side plate (lettering not modelled)
+RG_Y = (0.1052, 0.1152)                         # the side plate's faces: EST 10 mm machined plate (02: chunky, its
+#                                                 windows deep; a 6 mm plate read flat in cu3), outside the stock
+#                                                 plate's 0.105..0.108, 0.3 mm off the tabs (02: a thick block, its windows deep)
+
+
+def _rg_st(pts):
+    a = np.array([-math.cos(math.radians(RG_ARM)), -math.sin(math.radians(RG_ARM))])
+    n = np.array([math.sin(math.radians(RG_ARM)), -math.cos(math.radians(RG_ARM))])
+    return np.array([((np.array(p) - RG_AXLE) @ a / RG_K, (np.array(p) - RG_AXLE) @ n / RG_K) for p in pts])
+
+
+def _rg_shift():
+    """Mean offset (along, square to the arm) from the 07 bolts to the stock guide's bolts, paired along the arm."""
+    B = _photo_px("left", GUIDE_BOLTS, GUIDE_Y[1])
+    sb = np.array([((b - [RA[0], RA[2]]) @ [ARM_E[0], ARM_E[2]], (b - [RA[0], RA[2]]) @ [ARM_N[0], ARM_N[2]]) for b in B])
+    sp = _rg_st(RG_BOLTS)
+    return np.mean(sb[np.argsort(sb[:, 0])] - sp[np.argsort(sp[:, 0])], axis=0)
+
+
+def _rg_px(pts):
+    """Damien's 07 pixels -> the model's (x, z), through the arm frame."""
+    sh = _rg_shift()
+    return np.array([_fr(ARM_A, s_ + sh[0], t_ + sh[1]) for s_, t_ in _rg_st(pts)])
+
+
+def _rect_px(p0, p1, r_px=2.5):
+    """A rounded slot between two corner pixels, along the guide's lower edge (07: the slots follow it)."""
+    (u0, v0), (u1, v1) = p0, p1
+    c = np.array([(u0 + u1) / 2, (v0 + v1) / 2])
+    ang = math.atan2(771.5 - 747.5, 942.5 - 882.5)
+    L, H = (u1 - u0) / 2 / math.cos(ang), 2.2                # 07: the slots about 4.5 px (10 mm) across
+    e, nn = np.array([math.cos(ang), math.sin(ang)]), np.array([-math.sin(ang), math.cos(ang)])
+    loop = rounded_rect(2 * L, 2 * H, min(r_px, H * 0.9), 4)
+    return [tuple(c + e * q[0] + nn * q[1]) for q in loop]
+
+
+def _red_chain_guide():
+    """Damien's aftermarket guide (his 07 side on, 02 from the front left, 09 and 06 from below): a red anodised
+    machined body round the chain's lower run: the outer side plate (its outline in 07, three long windows along its
+    lower edge, the maker's dark plaque), the floor under the run and the inner wall, a black wear insert inside; bolted
+    by three round-headed socket screws through its top into the arm's stock tabs (the same three holes as Honda's
+    guide), nuts inboard. Honda's tabs stay (welded to the arm)."""
+    m = Mesh()
+    yi, yo = RG_Y
+    out = _clean(_rg_px(RG_OUT), 0.0015, 0.0012)
+    # the floor must pass under the model's lower run (GUIDE_SLOT, as the stock block's slot): where 07's lower edge
+    # comes within 4.5 mm of the slot's bottom (by up to 5 mm: 07's scale and arm angle are good to about that, and
+    # the run sits higher with the rider's weight on the arm) the edge is let down to it, blended over 15 mm
+    x0, z0, slope, half = GUIDE_SLOT
+    floor = lambda x: z0 + slope * (x - x0) - half - 0.0045
+    lowpart = out[:, 1] < z0 + slope * (out[:, 0] - x0)
+    for i in np.nonzero(lowpart)[0]:
+        w = float(np.clip((out[i, 0] - 0.060) / 0.015, 0.0, 1.0))
+        out[i, 1] = min(out[i, 1], out[i, 1] + w * (floor(out[i, 0]) - out[i, 1]))
+    out = smooth_poly(out, 2)
+    wins = [_clean(_rg_px(_rect_px(*w)), 0.001, 0.0008) for w in RG_WIN]
+    m.add(slab2(out, (yo + yi) / 2, yo - yi, "anod_red", r=0.0020, step=0.004, holes=wins, to=_xz, r_hole=0.0012))
+    # inner wall: the outline's part under the chain run's top (+ 4 mm), 4 mm thick, inboard of the chain
+    top = lambda x: z0 + slope * (x - x0) + half + 0.004
+    xs = np.linspace(float(out[:, 0].min()), float(out[:, 0].max()), 60)
+    from geom import inside as _in
+    wall = [p for p in resample(out, 0.002) if p[1] <= top(p[0])]
+    if len(wall) > 8:
+        wall = np.array(wall)
+        wall = wall[np.argsort(np.arctan2(wall[:, 1] - wall[:, 1].mean(), wall[:, 0] - wall[:, 0].mean()))]
+        m.add(slab(smooth_poly(wall, 1), CHAIN_Y - 0.0170, 0.005, "anod_red", r=0.0015, step=0.005, to=_xz))
+    # floor along the outline's lower edge, between the inner wall and the side plate
+    zb = []
+    for x in xs[2:-2]:
+        near = out[np.abs(out[:, 0] - x) < 0.004]
+        if len(near):
+            zb.append((x, float(near[:, 1].min()) + 0.0022))
+    zb = np.array(zb)
+    # the floor stops short of the 50T where the chain wraps it (r 0.1426 from the axle: the teeth 130.6 mm and the
+    # chain's half height) and ahead at the block's mouth (x 0.176): the side plate alone runs on under the sprocket
+    zb = zb[(np.hypot(zb[:, 0], zb[:, 1] - RA[2]) > 0.1450) & (zb[:, 0] < 0.176)]
+    path = np.stack([zb[:, 0], np.full(len(zb), (yi + CHAIN_Y - 0.0185) / 2 + 0.0002), zb[:, 1]], axis=1)
+    m.add(bar(path, yi - (CHAIN_Y - 0.0185) - 0.0008, 0.0040, "anod_red"))
+    # black wear insert: two rails along the run inside the channel (as the stock block's)
+    a = math.atan(slope)
+    e = np.array([math.cos(a), 0.0, math.sin(a)])
+    nrm = np.array([-math.sin(a), 0.0, math.cos(a)])
+    xa, xb = float(out[:, 0].min()) + 0.012, float(out[:, 0].max()) - 0.008
+    for q in (-1, 1):
+        c = np.array([x0, (CHAIN_Y - 0.0145 + yi - 0.0004) / 2, z0]) + nrm * q * (half * math.cos(a) + 0.004)
+        pts = [c + e * w for w in np.linspace((xa - x0) / e[0], (xb - x0) / e[0], 12)]
+        pts = [p for p in pts if _in(out, np.array([[p[0], p[2]]]))[0] and math.hypot(p[0], p[2] - RA[2]) > 0.1450]
+        if len(pts) > 2:
+            m.add(bar(pts, yi - 0.0004 - CHAIN_Y + 0.0145, 0.006, "plastic_black"))
+    # the maker's plaque (07: dark, about 40 x 18 mm on the side plate)
+    lg = _rg_px([RG_LOGO[0], (RG_LOGO[1][0], RG_LOGO[0][1]), RG_LOGO[1], (RG_LOGO[0][0], RG_LOGO[1][1])])
+    m.add(slab(smooth_poly(resample(lg, 0.002), 2), yo + 0.0002, 0.0004, "plastic_black", r=0.0001, step=0.003, to=_xz))
+    # screws: round heads 13 mm (07: 6 px), hex sockets, through the plate and the stock tabs; flange nuts inboard
+    for c2 in _rg_px(RG_BOLTS):
+        c = np.array([c2[0], yo, c2[1]])
+        m.add(turned(c - Y3 * 0.0002, Y3, [(0.0, 0.0001), (0.0, 0.0064), (0.0012, 0.0062), (0.0030, 0.0050),
+                                           (0.0040, 0.0030), (0.0042, 0.0001)], "zinc", 32, True, True))
+        m.add(lathe2(c + Y3 * 0.0026, Y3, [(0.0, 1.0, 0.0040), (0.0018, 1.0, 0.0040)], "bore", 6, cap0=False, cap1=True))
+        m.add(hexnut((c[0], GUIDE_Y[0] - 0.0042, c[2]), -Y3, 0.010, 0.005, 0.0031, "zinc", seg=24))
+        m.add(thread((c[0], GUIDE_Y[0] - 0.0092, c[2]), -Y3, 0.003, 0.001, 0.0012, "zinc", seg=16, per=5))
+    # Honda's tabs under the arm (unchanged): the guide bolts to them
+    for pts in (GUIDE_TAB, GUIDE_STRUT):
+        o = _photo_px("left", pts, GUIDE_Y[1])
+        tp = o[:, 1] > o[:, 1].mean()
+        o[tp, 1] = [float(_arm_bot(x)) - 0.0003 for x in o[tp, 0]]
+        m.add(slab2(o, GUIDE_Y[0] - 0.0021, 0.0040, "alu_satin", r=0.0012, step=0.005, to=_xz))
+    return m
+
+
+def _stock_chain_guide():
     """Stock chain guide under the left arm (fiche K95CF3200: plate 11, block 10, bolts 18/19, nuts 23): the alu
     plate with its front window and long rear slot, bolted by three M6 flange bolts to two tabs welded under the arm
     (a wide front tab and a narrow rear strut); behind it the black block: an inner wall and two wear rails round the
