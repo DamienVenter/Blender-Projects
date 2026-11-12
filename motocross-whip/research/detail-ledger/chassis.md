@@ -633,3 +633,22 @@ Tests: `test_red_chain_guide_is_damiens`, the stock slot and tyre tests (still p
 Still different: 02 shows a deeper U body with a rounded mouth at the front where the chain enters (the model's front
 is the plate's edge and the floor's end); the tip in 07 is narrower and more pointed; the plaque's lettering; the arm
 pose differs (rider aboard in 07), so side-by-side views differ by that 6 deg.
+
+## 1. Brake pedal (part `brake_pedal`)
+Anatomy (RIGHT 8x crops p_right1 1680..1840 x 1430..1540, p_right2 1820..1990 x 1460..1560; review sheet 04): a broad
+flat forged arm (a lit flat face, a narrow highlight along its rounded edges) leaving a 27 mm boss up into an arc over
+the pivot, then sagging in a swan neck under the clutch cover to the folding serrated tip; the pivot bolt a flanged
+hex-socket bolt with a flat grey head 21 mm across and an 8 mm socket (darker than the pedal); behind the pivot the
+lever to the clevis; the return spring, about eight coils of thick wire, hooked from the lever down to the bracket.
+Numbers: width square to the line 23 mm leaving the boss (u 1726), 26.6 at the arc's top (u 1751: v 1451..1486), 25
+at u 1772, 20 at 1794, 21 to 22 under the cover (u 1836 v 1507..1542, u 1885 v 1521..1548), 17 to 15 at the tip; the
+line 7 to 14 px lower than round 1's from u 1812 to 1926; boss 27 mm (u 1690..1726); head 21 mm (u 1692..1720),
+socket corners u 1700..1713 (9.9 mm: 8 mm across flats); spring coils 9 px across.
+Built: PEDAL_LINE and PEDAL_W re-read; the arm's section a flat rounded rectangle (1 mm edges along the 9 mm
+thickness) instead of the 22 % rounded bar; the head in steel_dark with a dark hex socket; spring r 5 mm, 1.2 mm wire,
+8 turns, hooks 1.2 mm.
+Checks: p7 and p8 pair sheets right 1640..1990 x 1420..1580. Test: `test_brake_pedal_is_the_broad_forged_arm_on_a_
+socket_bolt`.
+Still different: the tip stands about 10 px lower and further forward than the photo's (its pin is round 1's last
+line point) and the photo's tip has a squarer lower body with a cut-out; the arm's thickness (9 mm) is EST (no photo
+shows its edge on); the spring's hooks are plain wire ends.

@@ -460,3 +460,17 @@ def test_red_chain_guide_is_damiens(V):
         assert "anod_red" not in set(dc.chain_guide().M)
     finally:
         dc.RED_GUIDE = True
+
+
+def test_brake_pedal_is_the_broad_forged_arm_on_a_socket_bolt():
+    """Round 5 (RIGHT 8x crop): the arm 26.6 mm wide at the top of its arc (u 1751: v 1451..1486), flat faced; the
+    pivot a grey flanged bolt head 21 mm across with an 8 mm hex socket (a black head read as a hole); the arm's centre
+    under the clutch cover at v 1521 (u 1840)."""
+    assert max(dc.PEDAL_W) >= 0.026 and dc.PEDAL_W[2] == max(dc.PEDAL_W)
+    m = dc.rear_brake()
+    assert "steel_dark" in set(m.M)
+    V = np.asarray(m.V, float)
+    dark = np.unique(np.concatenate([list(f) for f, mm in zip(m.F, m.M) if mm == "steel_dark"]))
+    r = np.ptp(V[dark][:, [0, 2]], axis=0)
+    assert 0.019 < r.max() < 0.023, r
+    assert abs(dict(dc.PEDAL_LINE)[1840.0] - 1521.0) < 1e-6

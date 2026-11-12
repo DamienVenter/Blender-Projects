@@ -2873,9 +2873,13 @@ def _uv_cast(m, base, tile, org, regions):
 # RIGHT px (3.25x crop 1680..1990 x 1420..1620): the pedal's arm centre line from the pivot over the top of its arc
 # and down to the folding tip; its width square to that line (21 mm at the arc, 14 mm at the tip); the tip's pin
 PEDAL_LINE = [(1709.2, 1493.2), (1726.2, 1472.3), (1750.8, 1465.5), (1772.3, 1464.6), (1793.8, 1473.8),
-              (1812.3, 1493.8), (1840.0, 1512.3), (1870.8, 1523.1), (1901.5, 1530.8), (1926.2, 1532.3),
+              (1812.3, 1495.0), (1840.0, 1521.0), (1870.8, 1530.5), (1901.5, 1535.0), (1926.2, 1534.0),
               (1950.8, 1529.2)]
-PEDAL_W = (0.021, 0.021, 0.021, 0.021, 0.0205, 0.020, 0.019, 0.017, 0.015, 0.014, 0.014)
+#   round 5 (p7_right): under the clutch cover the arm's centre runs 7 to 14 px lower than round 1's line (its edges
+#   against the dark below: u 1836 v 1507..1542, u 1885 v 1521..1548): the arm sags into its swan neck before the tip
+PEDAL_W = (0.024, 0.024, 0.0265, 0.025, 0.022, 0.021, 0.022, 0.021, 0.019, 0.017, 0.015)
+#   round 5 (8x crop p_right1, square to the line): 23 mm leaving the boss (u 1726), 26.6 at the top of the arc (u 1751:
+#   edges v 1451..1486), 25 at u 1772, 20 at u 1794, 18 at u 1812 (round 1 had 21 mm along the arc)
 
 # ---- rear master cylinder (round 4): ONE Nissin casting (fiche K95CF1500 part 2), read on 4x to 8x crops of RIGHT
 # (scratch chassis4/mc1, mc2, mc3, mc7), rr34 (mc4, mc9) and REAR (mc6, mc8). x and z: RIGHT cast on y MC_YC; y: REAR
@@ -3148,18 +3152,26 @@ def rear_brake():
     m = Mesh()
     piv = _px("right", 1709.2, 1493.2, "y", -0.150)                # the boss: round, 25 mm (17 px radius)
     piv[1] = -0.1414                                               # on the footpeg bracket's outer face (0.141)
-    m.add(turned(piv, -Y3, [(0, 0.0001), (0, 0.0122), (0.0006, 0.0127), (0.0114, 0.0127), (0.012, 0.0121), (0.012, 0.0001)],
-                 "alu_cast", 32))
-    head = piv - 0.0121 * Y3                                       # M8 socket cap screw, 13 mm head, 6 mm hex
-    m.add(lathe2(head, -Y3, [(0.0, 0.0001), (0.0, 0.0065), (0.0072, 0.0065), (0.0080, 0.0058), (0.0080, 1.0, 0.006),
-                             (0.0050, 1.0, 0.006), (0.0047, 0.0001)], "anod_black", 36, cap0=True, cap1=True))
-    # arm: cast, 9 mm thick, its width from the photo; its plane moves out 13 mm to the tip (TOP rows 955..975)
+    # round 5 (p_right1, 8x): the boss 27 mm (u 1690..1726); the pivot bolt a flanged hex-socket bolt: a flat grey
+    # head 21 mm across (u 1692..1720, darker than the pedal) with an 8 mm hex socket (corners u 1700..1713: 9.9 mm),
+    # not a black socket cap screw (which read as a round black hole)
+    m.add(turned(piv, -Y3, [(0, 0.0001), (0, 0.0130), (0.0006, 0.0135), (0.0114, 0.0135), (0.012, 0.0129), (0.012, 0.0001)],
+                 "alu_cast", 40))
+    head = piv - 0.0121 * Y3
+    m.add(lathe2(head, -Y3, [(0.0, 0.0001), (0.0, 0.0102), (0.0026, 0.0103), (0.0036, 0.0096), (0.0040, 0.0086),
+                             (0.0040, 1.0, 0.0080)], "steel_dark", 48, cap0=True, cap1=False))
+    m.add(lathe2(head, -Y3, [(0.0040, 1.0, 0.0080), (0.0008, 1.0, 0.0080), (0.0008, 0.0001)], "bore", 6, cap0=False,
+                 cap1=True))
+    # arm: forged, 9 mm thick, flat faces with 1 mm rounded edges (p_right1: a flat lit face, a narrow highlight along
+    # its edge; round 1-4's rounded-bar section read as a round bar), its width from the photo; its plane moves out
+    # 13 mm to the tip (TOP rows 955..975)
     ys = np.linspace(-0.1470, -0.1600, len(PEDAL_LINE))
     pts = np.array([_px("right", u, v, "y", y) for (u, v), y in zip(PEDAL_LINE, ys)])
     pts[:, 1] = ys
-    path = spline(pts, 40)
-    w = np.interp(np.linspace(0, 1, 40), np.linspace(0, 1, len(PEDAL_W)), PEDAL_W)
-    m.add(bar(path, 0.0090, w, "alu_cast"))
+    path = spline(pts, 48)
+    w = np.interp(np.linspace(0, 1, 48), np.linspace(0, 1, len(PEDAL_W)), PEDAL_W)
+    sec = rounded_rect(1.0, 1.0, 0.11, 4)
+    m.add(tube(path, np.stack([np.full(len(path), 0.0090), w], 1), len(sec), "alu_cast", True, True, section=sec))
     m.add(_toe(pts[-1]))
     # rear lever from the boss to the clevis pin, bending in to the push rod's line (REAR mc8: rod and clevis at y -0.121)
     pin = _px("right", MC_PIN[0], MC_PIN[1], "y", MC_YC)
@@ -3175,9 +3187,10 @@ def rear_brake():
     # return spring from the lever's tab down to the bracket's rear edge (RIGHT px (1654,1522) to (1697,1547))
     # (round 3: outside the frame's lower section, which now reaches under it; hooked on the footpeg pad's face)
     sa, sb = _px("right", 1654, 1522, "y", -0.1425), _px("right", 1697.5, 1546.6, "y", -0.1425)
-    m.add(coil(sa, sb, 0.0045, 0.0008, 13, "steel", seg=6, dead=0, per=12))
-    m.add(tube([sa, on_lever(0.5080, -0.1420) - (0.0, 0.0, 0.0085)], 0.0008, 6, "steel"))      # hooked under the lever
-    m.add(tube([sb, (0.5425, -0.1420, 0.3895)], 0.0008, 6, "steel"))
+    m.add(coil(sa, sb, 0.0050, 0.0012, 8, "steel", seg=8, dead=0, per=14))   # round 5: p7_right, coils 9 px across,
+    #   about eight of them, the wire thicker than round 1's 1.6 mm (13 turns of fine wire read as a thin coil)
+    m.add(tube([sa, on_lever(0.5080, -0.1420) - (0.0, 0.0, 0.0085)], 0.0012, 8, "steel"))      # hooked under the lever
+    m.add(tube([sb, (0.5425, -0.1420, 0.3895)], 0.0012, 8, "steel"))
     return m
 
 
