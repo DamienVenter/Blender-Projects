@@ -399,7 +399,7 @@ Built: `_mc_sdf` (smooth union of prisms and cylinders, fillets 1.2 to 3 mm, the
 `_surface_nets` (new: naive surface nets, Newton steps onto the surface; 1.2 mm grid, 11.8k vertices); `_uv_cast` (UVs
 per face by its normal's axis, each direction in its own region of the map); `mc_map` -> textures/stock/mc_n.png
 (sand-cast grain and the raised marks: NISSIN, LOWER, the emblem, the dots); `_pill` (cap and plate), `_pan_screw`
-(cross recess cut through the head); materials mc_cast, mc_lid, mc_lens, mc_ring.
+(cross recess cut through the head); materials rmc_cast, rmc_lid, rmc_lens, rmc_ring (renamed from mc_*: detail_front.py's front master cylinder uses mc_cast).
 Shared change (this module's swingarm): REAR and rr34 put the clevis, rod and skirt where the swingarm's pivot casting
 was (outer face 0.122 at x 0.48). rr34 mc9 shows the arm's box ending at its front weld and nothing of the arm outboard
 ahead of it; RIGHT sa1 shows a darker face turning in right after the weld (u 1615..1635). `_arm_yo` now steps in to
@@ -488,3 +488,66 @@ Checks: cu3 close-ups cu_dr9, cu_dr9b (side on), cu3_c.
 Still different / not done: the casting marks (ejector-pin rings about 3 mm, below the 1.5 mm grid) and the bolts'
 end marks are not modelled; the bolt heads and nuts stand as in round 2 (flange heads left, washer, nut and two
 threads right, as Dirt Rider 09).
+
+## 6. Footpegs, the rest (part `footpegs`)
+Anatomy (detail 475839 crop d839_peg: the left peg from the front; RIGHT and LEFT see the pegs end on, p1 pairs): a
+black cast cage: a toothed top rail round the outline (about ten sharp teeth along the front rail with flat valleys,
+a tall tooth on each tip corner, the tip end square with small corners); under each side rail a diagonal strut from
+the tip down to the hinge's foot with an open triangle between (the old side rails were solid bands 21 mm deep at the
+root); end on the cage narrows downward to the hinge; the hinge: ears, pin with head and washer, split pin, return
+spring (as before).
+Position (the brief: "lower and further back in f8_right_2"): measured on the tip's own plane (y 0.248), the photos'
+teeth stand HIGHER than the model's, not lower: RIGHT corner teeth v 1520 (z 0.431), the others about 1527 (0.424);
+LEFT rows 1522..1530 (0.421..0.427); the model's tip was at 0.420 (from REAR 0.416, which reads 10 mm low here, see
+component 1). Fore and aft: RIGHT u 1708..1778 (x 0.535..0.587), LEFT 0.531..0.583: the model's 0.529..0.583 stays.
+In f8_right_2 the photo's black mass reaches lower because of the hinge bracket and the cage's V of braces under the
+rail, which the model lacked. PEG_TIP z 0.420 -> 0.424 (root unchanged: SPEC 422 mm on the ground).
+Numbers: teeth every 9 mm (PEG_TEETH), 4 mm tall, the corner teeth 5 mm over the rest; rail 8 mm deep, 24 mm at the
+hinge end (PEG_RAIL); struts 4.5 x 5.5 mm.
+Checks: p1 pairs (before), cu4 close-up cu_peg beside d839_peg (cu4_peg), p2 right pair. Test:
+`test_footpeg_tips_are_where_the_rear_photo_has_them` now checks REAR at row 1294 - 13 (the rear camera's offset) and
+the corner teeth on RIGHT v 1520 and LEFT v 1522.
+Still different: the photo's hinge bracket is a large black casting with the pin's round head on top (d839_peg); the
+model's hinge is two plain ears; the photo's teeth are sharper spikes.
+
+## 7. Muffler, the rest (part `exhaust`), and the coordinator's height check
+The can's height (coordinator: the plastics agent saw the can low in RIGHT and lr34). Measured in RIGHT column by
+column (metal run between the red panel or the background and the background below), cast on y -0.13:
+- bottom edge: photo against model, u 1040..1400 every 40 px: 1058/1057, 1078/1076, 1097/1095, 1116/1114, 1135/1133,
+  1155/1152, 1174/1170, 1211/1208, 1230/1226: within 1 to 4 px, unchanged.
+- top edge against the background: u 1000 z 0.8949 (model 0.8950), u 1050 0.8914 (0.8711), u 1105 0.8841 (0.8433);
+  under the side panel's lower edge (lower bounds: the top is hidden above them) u 1120..1280, x 0.094..0.213: 0.8696,
+  0.8595, 0.8395, 0.8225, 0.8055 against the model's 0.8359, 0.8157, 0.7957, 0.7756, 0.7555.
+So it was really low: the round-2 taper (18 mm per 100 mm, there to clear the panel) put the top 20 mm low at x
+0.042, 41 mm at 0.083 and at least 34 to 50 mm under the panel. In the photo the top runs back from the cap at 8 deg
+while the bottom falls at 26: the height grows from 108 mm at the cap to 136 mm at x 0.083 (REAR's section is 136 mm
+tall, 0.765..0.901: the can's deepest part), then the top runs parallel to the bottom (MUF_GROW). Past x 0.215 the
+top is behind the panel's black lower part in every photo: it bends down to stay 3 mm under the panel's underside
+(_MUF_TOPMAX, from the plastics' mesh in main; a straight 136 mm top stood 6 to 27 mm into it from x 0.25). Checks:
+p2_can before, q2_can after (q2_all): the gap under the panel at the rear is gone. A vertex check of the side panels,
+subframe, fender, flap, mudguard and panel bolts against the can's section: none inside.
+The dark band across the cap's knee from behind (p2_rear, cu4 cu_mufb): it is in the studio render, not in the close-up
+(cu_mufb, even): the knee (RIGHT's profile, round 3) turns the face from the backdrop to the floor and passes the
+render studio's darker horizon; Honda's cyclorama has none. Geometry kept; not fixed (a render-light difference).
+Inner face (lr34 lr_can 2380..3020 x 700..1000, 1.5x): a stamped label (a block of about eight lines of small text,
+HONDA under it) between the bracket's weld and the cap's seam, a TIG seam weld along the face's lower part, the mount
+bracket a pressed plate with its bolt at the top and a rippled weld along its foot.
+Built: `_can_label` gives the inner flank's faces over x 0.070..0.215 the material muffler_txt and UVs on its map
+(muf_txt_n.png, `muf_txt_map`: the brushing and the label stamped 0.15 mm deep along the can's slope; the small text
+is unreadable in every photo, so it is drawn as word-length strokes, no invented words), and a seam weld bead (5 mm,
+ripples 2.2 mm) along the octagon's inner lower corner from x 0.06 to 0.30. Check: cu4 cu_mufi beside lr_can (q2_all).
+lr34 caveat: it is fitted to the model and least sure for the far side (round 3): positions there were taken relative
+to the can's own lines.
+Still different: the mount is still the round-2 pair of straps (the photo's is one pressed plate with a foot weld,
+hidden in RIGHT; not rebuilt); the photo's label covers more of the face; its seam weld is bigger and sits a little
+higher on the face.
+
+## Round 4 audit and totals
+Audit (audit.py, 25 mm; main merged: plastics rounds 1 to 3, cockpit rounds 2 to 3) on the first full build: frame x
+linkage reported 27.5 mm over long faces of the lower cross member (r 13, 27.8 mm behind F) against the link's frame
+boss (r 15): the boss now 14.5; brake_pedal x frame 1.6 mm: the pedal's lever, swung inboard to the rod's new line
+(y -0.121), passed 2 mm inside the plate's face near its rear edge: it now stays outside the face (0.137) over the
+plate and swings in behind its edge. Final audit (audit5): chassis lines footpegs x frame 1.0 (the hinge pin's washer
+seated on the pad), exhaust x frame 0.9, frame x shock 0.4, brake_pedal x frame 0.2 (the pedal's boss on the pad),
+engine x frame 0.5 (detail_engine's shift clamp); no floating pieces. Module 228,641 vertices (budget 260,000). The materials mc_* were renamed rmc_*: the cockpit's
+front master cylinder (detail_front.py) defines mc_cast with other values (parts.build would raise).

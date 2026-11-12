@@ -35,13 +35,17 @@ def test_footpeg_height_is_422_mm(V):
 
 
 def test_footpeg_tips_are_where_the_rear_photo_has_them(V):
-    """REAR: tips at columns 1673 and 2328, row about 1294."""
+    """REAR: tips at columns 1673 and 2328, row about 1294, which the rear camera reads 13 px (10 mm) lower than the
+    profiles here (round 4: the master cylinder's features, RIGHT against REAR); RIGHT and LEFT: the tip's corner teeth
+    at z 0.427..0.431 on y 0.248 (RIGHT v 1520, LEFT 1522)."""
     P = V["footpegs"]
-    for side, col in ((1, 1673), (-1, 2328)):
+    for side, col, view, row in ((1, 1673, "left", 1522), (-1, 2328, "right", 1520)):
         tip = P[np.argmax(P[:, 1] * side)]
         top = P[(P[:, 1] * side > 0.235)][:, 2].max()
         u, v = cams.CAMS["rear"].project(np.array([tip[0], tip[1], top]))[0]
-        assert abs(u - col) < 8 and abs(v - 1294) < 8, (u, v)
+        assert abs(u - col) < 8 and abs(v - (1294 - 13)) < 8, (u, v)
+        q = P[(P[:, 1] * side > 0.235)]
+        assert abs(cams.CAMS[view].project(q[np.argmax(q[:, 2])][None])[0][1] - row) < 5
 
 
 def test_ground_clearance_leaves_330_mm_under_the_cradle(V):
@@ -269,7 +273,7 @@ def test_master_cylinder_is_one_casting_where_the_photos_have_it():
     """Round 4: one closed casting (not two tubes), its outline on RIGHT's and its width on REAR's readings."""
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import connected_components
-    m = dc._surface_nets(dc._mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "mc_cast")
+    m = dc._surface_nets(dc._mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "rmc_cast")
     V, F = np.asarray(m.V), np.asarray(m.F)
     e = np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 3]], F[:, [3, 0]]])
     n, _ = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(len(V), len(V))), directed=False)
@@ -344,3 +348,14 @@ def test_cushion_arm_faces_are_pocketed_inside_their_rims(V):
     L = V["linkage"]
     near = L[(np.linalg.norm(L[:, [0, 2]] - A[[0, 2]], axis=1) < 0.035) & (np.abs(L[:, 1]) < 0.02)]
     assert np.abs(near[:, 1]).max() < 0.0122
+
+
+def test_muffler_top_follows_the_right_photo():
+    """Round 4 (the coordinator's check): the can's top in RIGHT on y -0.13: against the background at u 1000, 1050,
+    1105 and at least as high as the side panel's lower edge where the panel covers it (u 1120..1280)."""
+    for x, z in ((0.005, 0.8949), (0.042, 0.8914), (0.083, 0.8841)):
+        assert abs(dc._muf(x)[1] - z) < 0.003, (x, dc._muf(x)[1])
+    for x, z in ((0.094, 0.8696), (0.124, 0.8595), (0.154, 0.8395), (0.184, 0.8225), (0.213, 0.8055)):
+        assert dc._muf(x)[1] > z - 0.001, (x, dc._muf(x)[1])
+    for x in np.arange(0.03, 0.30, 0.03):                                   # the bottom edge as before
+        assert abs(dc._muf(x)[0] - (0.775 - 0.496 * (x - 0.029))) < 1e-9

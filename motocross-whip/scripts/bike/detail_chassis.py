@@ -55,11 +55,13 @@ MATERIALS = {"shock_spring": dict(rgb=(28, 28, 30), metal=0.7, rough=0.4),   # E
              "steel_dark": dict(rgb=(118, 118, 122), metal=1.0, rough=0.45),  # LEFT: the pivot bolt's head in its recess
              "frame_spar": dict(rgb=(205, 205, 208), metal=1.0, rough=0.32, aniso=0.6, normal="stock/brushed_n.png",
                                 normal_strength=0.8),                  # the extruded spars: brushed along their length
-             "mc_cast": dict(rgb=(184, 184, 188), metal=1.0, rough=0.5, normal="stock/mc_n.png", normal_strength=1.0),
+             "rmc_cast": dict(rgb=(184, 184, 188), metal=1.0, rough=0.5, normal="stock/mc_n.png", normal_strength=1.0),
              #     the master cylinder's casting: grey, coarse grain, cast lettering (RIGHT: lit faces 197, the frame's 186)
-             "mc_lid": dict(rgb=(46, 46, 50), metal=0.0, rough=0.3),   # its cap: smoky dark (RIGHT band grey 99, rr34)
-             "mc_lens": dict(rgb=(104, 100, 94), metal=0.0, rough=0.06),   # sight window: grey glass (REAR mc6, rr34)
-             "mc_ring": dict(rgb=(176, 176, 178), metal=0.0, rough=0.45)}   # the window's light retaining ring
+             "rmc_lid": dict(rgb=(46, 46, 50), metal=0.0, rough=0.3),   # its cap: smoky dark (RIGHT band grey 99, rr34)
+             "rmc_lens": dict(rgb=(104, 100, 94), metal=0.0, rough=0.06),   # sight window: grey glass (REAR mc6, rr34)
+             "rmc_ring": dict(rgb=(176, 176, 178), metal=0.0, rough=0.45),   # the window's light retaining ring
+             "muffler_txt": dict(rgb=(190, 190, 195), metal=1.0, rough=0.36, aniso=0.5, normal="stock/muf_txt_n.png",
+                                 normal_strength=1.0)}       # the can's inner flank where its label is stamped (lr34)
 CLASS = {"shock_spring": "black", "peg_black": "black"}
 Y3 = np.array([0.0, 1.0, 0.0])
 
@@ -406,8 +408,9 @@ CROSS_LO = np.array([0.545, 0.0, 0.380])        # EST: lower cross member behind
 CROSS_UP = np.array([0.632, 0.0, 0.805])        # EST: upper cross member that carries the shock
 PEG_ROOT_Z = 0.4065                             # top of the teeth at the root. REAR row 1313 at y 0.14: 0.401; LEFT px
 # (2257,1520): 0.413; SPEC footpeg height 422 on the ground: 0.405. The mean of the two photos
-PEG_TIP = (0.2475, 0.420)                       # REAR: tips at columns 1673 and 2328, row 1294: y 0.248, z 0.416; LEFT:
-# the teeth's top edge at rows 1522..1530 gives 0.423
+PEG_TIP = (0.2475, 0.424)                       # REAR: tips at columns 1673 and 2328, row 1294: y 0.248, z 0.416 (the
+# rear photo reads 10 mm low against the profiles here, as at the master cylinder); round 4 (chassis4/p1): the tip's
+# teeth on y 0.248 in RIGHT at v 1527 (z 0.424, the corner teeth to v 1520: 0.430), LEFT rows 1522..1530 (0.421..0.427)
 PEG_Y0 = 0.152
 PEG_PIN = (PEG_Y0 - 0.006, PEG_ROOT_Z - 0.012)   # EST: hinge pin under the peg's root (y, z)
 
@@ -1667,7 +1670,8 @@ def linkage():
     m.add(hollow(B - 0.0245 * Y3, Y3, 0.017, 0.007, 0.049, "alu_cast", 28))
     for s in (1, -1):
         m.add(_dogbone(B, F, s * 0.0285))
-    m.add(hollow(F - 0.036 * Y3, Y3, 0.015, 0.0072, 0.072, "alu_cast", 28))
+    m.add(hollow(F - 0.036 * Y3, Y3, 0.0145, 0.0072, 0.072, "alu_cast", 28))   # 14.5 mm: the frame's lower cross
+    #                                                                     member (r 13) runs 27.8 mm behind F (audit)
     k = (0.497 - B[0]) / (F[0] - B[0])                         # bridge of the rods, ahead of the shock's clevis
     zb = B[2] + k * (F[2] - B[2])
     m.add(bar([(0.497, -0.027, zb), (0.497, 0.0, zb), (0.497, 0.027, zb)], 0.016, 0.018, "alu_forged"))
@@ -1812,7 +1816,15 @@ HEADER = [
 # can's front 11 cm: those were the lumps.
 MUF_LOW = (0.029, 0.775, -0.496)            # z_low = a + b (x - x0)
 MUF_H = 0.108                               # LEFT row 878 and REAR (0.901) disagree by 11 mm: the top splits it
-MUF_TAPER = 0.18                            # the can's height falls 18 mm per 100 mm, straight, to clear the side panel
+MUF_TAPER = 0.18                            # (round 2: the height fell 18 mm per 100 mm to clear the side panel; no
+#   longer used, round 4 below)
+MUF_GROW = (0.005, 0.083, 0.136)            # round 4 (the coordinator's check): the can's top in RIGHT, on y -0.13,
+#   at u 1000 / 1050 / 1105 (against the background: z 0.8949, 0.8914, 0.8841) and under the side panel's lower edge
+#   at u 1120..1280 (x 0.094..0.213: at least 0.8696, 0.8595, 0.8395, 0.8225, 0.8055): the round-2 taper put it 20 mm
+#   low at x 0.042, 41 mm at 0.083, 34 to 50 mm under the panel. The top runs back from the cap at 8 deg while the
+#   bottom falls at 26: the height grows from 108 mm at the cap (x 0.005) to 136 mm at x 0.083 (REAR's section is 136
+#   mm tall: 0.765..0.901, the can's deepest part), then the top runs parallel to the bottom. The bottom edge matches
+#   RIGHT within 1 to 4 px from u 1040 to 1400 (unchanged).
 #                                             over the nose (audit: 20.8 mm into it at x 0.26..0.32 without; hidden part)
 MUF_FACE = -0.008                           # the cap's rear face (at z 0.840, before its lean)
 MUF_ROLL = 0.018                            # the cap's pressed edge: an 18 mm roll into its rear face (rr34, REAR)
@@ -1837,10 +1849,21 @@ def _smin(a, b, k=0.008):
     return -k * math.log(math.exp(-a / k) + math.exp(-b / k))
 
 
+_MUF_TOPMAX = PchipInterpolator([0.150, 0.215, 0.228, 0.240, 0.252, 0.264, 0.276, 0.288, 0.300, 0.312, 0.324, 0.336,
+                                  0.348, 0.360],
+                                 [0.950, 0.900, 0.818, 0.795, 0.775, 0.757, 0.743, 0.730, 0.718, 0.706, 0.693, 0.681,
+                                  0.668, 0.655])
+#   round 4: past x 0.215 the can's top is behind the side panel's black lower part in every photo (EST): it bends down
+#   to stay 3 mm under the panel's underside (the plastics' mesh in main, rounds 1 to 3, over the can's top face; a
+#   straight top at 136 mm stood 6 to 27 mm into it from x 0.25 to the nose)
+
+
 def _muf(x):
     """z of the can's lower and upper edges, its plan centre and half width at station x (straight lines)."""
     zl = MUF_LOW[1] + MUF_LOW[2] * (x - MUF_LOW[0])
-    zt = zl + MUF_H - MUF_TAPER * max(x - 0.013, 0.0)
+    zt = zl + MUF_H + (MUF_GROW[2] - MUF_H) * min(max((x - MUF_GROW[0]) / (MUF_GROW[1] - MUF_GROW[0]), 0.0), 1.0)
+    if x > 0.15:
+        zt = _smin(zt, float(_MUF_TOPMAX(min(x, 0.36))), 0.003)
     yc = -0.138 + (-0.127 + 0.138) * (x + 0.008) / 0.243
     hw = 0.056 + (0.046 - 0.056) * (x + 0.004) / 0.239
     return zl, zt, yc, hw
@@ -2073,6 +2096,87 @@ def _clamp(c, d, r):
     return m
 
 
+MUF_LABEL = (0.070, 0.215)              # round 4: the stamped label on the can's inner flank (lr34, chassis4/lr_can: a
+#   block of small text lines between the bracket's weld and the cap's seam, HONDA under it: lr34 u 2660..2790, v 850..
+#   985, on the model's flank x 0.08 to 0.17; lr34 is fitted to the model, so placed by the flank's own lines) and the
+#   faces it maps to (x range); the map muf_txt_n.png covers MUF_TXT metres a side (it repeats: the label's copies
+#   fall above and below the can)
+MUF_TXT = 0.145
+
+
+def muf_txt_map(path, size=1024, seed=9):
+    """Normal map of the can's inner flank where the label is stamped: the brushed finish along u (u = (x1 - x) / W:
+    the text reads from the left, front to rear; isotropic, MUF_TXT metres a side, v = (z - 0.66) / MUF_TXT) and the
+    stamped marks 0.15 mm deep, along the can's slope: a block of eight lines of small text (1.4 mm, unreadable in every
+    photo: drawn as strokes of word length, no invented words) and HONDA (4 mm letters) under it."""
+    from PIL import Image, ImageDraw, ImageFont
+    from scipy.ndimage import gaussian_filter, zoom
+    rng = np.random.default_rng(seed)
+    coarse = rng.standard_normal((size, 48))
+    h = zoom(coarse, (1, size / 48), order=1, mode="grid-wrap")[:, :size]
+    h = gaussian_filter(h, (0.6, 12.0), mode="wrap") * 0.004       # mm: the brushing (as brushed_map)
+    lay = Image.new("L", (size, size), 0)
+    d = ImageDraw.Draw(lay)
+    px = size / (MUF_TXT * 1000)                                 # pixels per mm
+
+    def at(x, z):
+        return ((MUF_LABEL[1] - x) * 1000 * px, (1 - (z - 0.66) / MUF_TXT) * size)
+    for k in range(8):                                           # the block, its lines 2.6 mm apart, along the can
+        off = 0.040 + 0.0026 * k
+        x = 0.172 - 0.0015 * k
+        for wlen in rng.integers(3, 12, size=6):
+            xb = x - wlen * 0.0009
+            zl0, zl1 = _muf(x)[0] + off, _muf(xb)[0] + off
+            d.polygon([at(x, zl0 - 0.0007), at(xb, zl1 - 0.0007), at(xb, zl1 + 0.0007), at(x, zl0 + 0.0007)], fill=255)
+            x = xb - 0.0015
+    f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(4.0 * px / 0.72))
+    bb = f.getbbox("HONDA")
+    im = Image.new("L", (bb[2] + 4, bb[3] + 4), 0)
+    ImageDraw.Draw(im).text((2 - bb[0], 2), "HONDA", fill=255, font=f)
+    im = im.rotate(math.degrees(math.atan(-MUF_LOW[2])), expand=True)
+    cu, cv = at(0.150, _muf(0.150)[0] + 0.030)
+    lay.paste(im, (int(cu - im.width / 2), int(cv - im.height / 2)), im)
+    rel = -gaussian_filter(np.asarray(lay, float) / 255.0, 0.6) * 0.15
+    h = h + rel
+    dv = (np.roll(h, -1, axis=0) - np.roll(h, 1, axis=0)) * px / 2
+    du = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) * px / 2
+    nrm = np.stack([-du, dv, np.ones_like(h)], axis=-1)
+    nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
+    Image.fromarray(np.clip((nrm * 0.5 + 0.5) * 255, 0, 255).astype(np.uint8)).save(path)
+
+
+def _can_label(m, base):
+    """Faces of the can's inner flank over MUF_LABEL take the label's material and map (u along -x: the text reads from
+    the left); a TIG seam weld runs along the flank's lower edge from the cap's seam to the nose (lr34: a rippled bead
+    along the inner face's lower part, the length of the can)."""
+    V = np.asarray(m.V, float)
+    for k in range(base, len(m.F)):
+        if m.M[k] != "muffler":
+            continue
+        P = V[list(m.F[k])]
+        nn = np.cross(P[1] - P[0], P[2] - P[0])
+        if np.linalg.norm(nn) < 1e-12:
+            continue
+        nn /= np.linalg.norm(nn)
+        c = P.mean(axis=0)
+        if nn[1] > 0.9 and MUF_LABEL[0] <= c[0] <= MUF_LABEL[1]:
+            m.M[k] = "muffler_txt"
+            m.uv[k] = [((MUF_LABEL[1] - q[0]) / MUF_TXT, (q[2] - 0.66) / MUF_TXT) for q in P]
+    # the seam weld along the inner flank's lower edge (the octagon's inner bottom corner)
+    path, nrm = [], []
+    for x in np.linspace(0.060, 0.300, 41):
+        R = _muf_ring(x)
+        j = int(np.argmax(R[:, 1] - 2.0 * (R[:, 2] - _muf(x)[0])))   # inboard and low: the inner lower corner
+        q = R[j]
+        cy = R[:, 1:].mean(axis=0)
+        n2 = q[1:] - cy
+        n2 /= np.linalg.norm(n2)
+        path.append(q)
+        nrm.append(np.array([0.0, n2[0], n2[1]]))
+    g = _bead(np.array(path), np.array(nrm), 0.0050, 0.0012, pitch=0.0022, sink=0.6, taper=0.004, mat="alu_weld")
+    m.add(g)
+
+
 def exhaust():
     m = Mesh()
     hp = spline(HEADER, 200)
@@ -2099,7 +2203,9 @@ def exhaust():
     R3 = np.array([p for p, _ in riv[:3]])
     bb, aa = np.polyfit(R3[:, 2], R3[:, 0], 1)
     _CAP_PLANE = (float(aa), float(bb))
+    n_can = len(m.F)
     _can(m)
+    _can_label(m, n_can)
     # round 3: the three rivets seen from behind (REAR 3x crop, rear_cap: the lower corners of the cap's face at
     # (2142, 870) and (2268, 870), one at the bottom (2205, 898)), on the cap where the rear camera's ray meets it
     V = np.asarray(m.V, float)
@@ -2191,7 +2297,8 @@ def _peg_frame(s):
 
 
 def _peg_loop():
-    w, y0, y1, rt, rr = 0.054, PEG_Y0, PEG_TIP[0], 0.024, 0.006       # LEFT zoom: 52..55 mm fore-aft
+    w, y0, y1, rt, rr = 0.054, PEG_Y0, PEG_TIP[0], 0.007, 0.006       # LEFT zoom: 52..55 mm fore-aft; the tip end
+    #   square with small corners (round 4: RIGHT and LEFT see it end on, a straight crown with a tall tooth each corner)
     pts = []
     for cx, cy, r, a0 in ((w / 2 - rt, y1 - rt, rt, 0), (-w / 2 + rt, y1 - rt, rt, 90), (-w / 2 + rr, y0 + rr, rr, 180),
                           (w / 2 - rr, y0 + rr, rr, 270)):
@@ -2201,25 +2308,38 @@ def _peg_loop():
     return resample(np.array(pts), 0.002)
 
 
+PEG_TEETH = (0.009, 0.0040, 0.0050)    # round 4: tooth pitch, height, the tip corners' extra (detail 475839: about ten
+#   sharp teeth along the front rail, flat valleys between; RIGHT end on: the corner teeth at v 1520 (z 0.431 on y
+#   -0.248), the others at about 1527 (0.424))
+PEG_RAIL = (0.008, 0.024)              # the top rail's depth, and the hinge end's (detail 475839: a toothed top rail 8 mm
+#   deep, a diagonal strut under it from the tip down to the hinge's foot, an open triangle between; RIGHT end on: the
+#   cage narrows downward to the hinge, a V of braces)
+
+
 def footpegs():
-    """Cage pegs: a toothed band 4.5 mm thick round the outline (TOP: open cells), two cross bars, hinge pin with
-    washer and split pin, return spring. Teeth 4 mm high every 8 mm (LEFT zoom). Black, the teeth's tips worn bright
-    (detail 475839 and RIGHT: a dark peg with bright tooth edges); its side rails deep at the root and shallow at the
-    tip, a triangle seen from behind (detail 475839: the brace runs from the tip down to the hinge)."""
+    """Cage pegs (round 4, detail 475839 and the profiles end on): a toothed top rail 4.5 mm thick round the outline,
+    teeth every 9 mm with flat valleys and a tall tooth at each tip corner; under each side rail a diagonal strut from
+    the tip down to the hinge's foot (open triangles between); cross bars along the bottom of the rail (open cells from
+    above); the hinge: ears, pin with washer and split pin, return spring. Black, the teeth's tips worn bright."""
     m = Mesh()
     loop = _peg_loop()
     n = len(loop)
     tg = np.roll(loop, -1, axis=0) - np.roll(loop, 1, axis=0)
     tg /= np.linalg.norm(tg, axis=1, keepdims=True)
     inward = np.stack([-tg[:, 1], tg[:, 0]], axis=1)
-    sarc = np.arange(n) * 0.002
-    tooth = -0.004 + 0.004 * (1 - np.abs(2 * ((sarc / 0.008) % 1.0) - 1))
+    sarc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(loop, axis=0), axis=1))])
+    pitch, th, tc = PEG_TEETH
+    ph = (sarc / pitch) % 1.0
+    tooth = -th + th * np.clip(1.0 - np.abs(2 * ph - 1) * 1.6, 0.0, 1.0)           # pointed, flat valleys
+    for cx in (0.02495, -0.02495):                                              # a tall tooth on each tip corner
+        dc_ = np.hypot(loop[:, 0] - cx, loop[:, 1] - 0.24545)                     # (the corner arc's middle)
+        tooth = np.maximum(tooth, tc - (tc + th) * dc_ / 0.006)
     for s in (1, -1):
         f = _peg_frame(s)
         rings = []
         for i in range(n):
             o, q = loop[i], loop[i] + 0.0045 * inward[i]
-            lo = -0.021 + 0.013 * min(max((o[1] - PEG_Y0 - 0.010) / (PEG_TIP[0] - PEG_Y0 - 0.010), 0.0), 1.0)
+            lo = -PEG_RAIL[0] - (PEG_RAIL[1] - PEG_RAIL[0]) * _smoothstep((PEG_Y0 + 0.010 - o[1]) / 0.008)
             ring = f([(o[0], o[1], lo), (o[0], o[1], tooth[i]), (q[0], q[1], tooth[i]), (q[0], q[1], lo)])
             rings.append(ring[::-1] if s > 0 else ring)
         band = grid(Mesh(), rings + [rings[0]], "peg_black")
@@ -2229,10 +2349,16 @@ def footpegs():
             if np.ptp(V[list(fc)][:, 2]) < 0.0025 and c[2] > PEG_ROOT_Z - 0.003 + (abs(c[1]) - PEG_Y0) * 0.08:
                 band.M[k] = "peg_edge"
         m.add(band)
-        for ly in (PEG_Y0 + 0.031, PEG_Y0 + 0.062):               # cross bars
+        for sx in (1, -1):                                            # diagonal struts under the side rails
+            st = f([(sx * 0.0245, PEG_TIP[0] - 0.006, -PEG_RAIL[0] + 0.001),
+                    (sx * 0.0215, (PEG_TIP[0] + PEG_Y0) / 2, -0.0155), (sx * 0.0170, PEG_Y0 + 0.010, -PEG_RAIL[1] + 0.002)])
+            m.add(bar(spline(st, 8), 0.0045, 0.0055, "peg_black"))
+        for ly in (PEG_Y0 + 0.033, PEG_Y0 + 0.063):                 # cross bars: the cells' floor ties
             b = Mesh()
-            b.verts(f([(x, y, z) for z in (-0.019, -0.006) for x, y in ((-0.025, ly - 0.002), (0.025, ly - 0.002), (0.025, ly + 0.002),
-                                                                         (-0.025, ly + 0.002))]))
+            b.verts(f([(x, y, z) for z in (-PEG_RAIL[0], -PEG_RAIL[0] + 0.004) for x, y in ((-0.025, ly - 0.002),
+                                                                                             (0.025, ly - 0.002),
+                                                                                             (0.025, ly + 0.002),
+                                                                                             (-0.025, ly + 0.002))]))
             for fc in ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
                 b.face(fc if s > 0 else fc[::-1], "peg_black")
             m.add(b)
@@ -2518,13 +2644,13 @@ def _master_cylinder(pin):
     from the tube to detail_wheels.py's run is the loop of fiche part 1: up, forward behind the frame's tabs and down
     inboard of the casting (hidden in every photo but its first bend, RIGHT u 1648..1668, v 1283..1312)."""
     m = Mesh()
-    mc = _surface_nets(_mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "mc_cast")   # 12k vertices
+    mc = _surface_nets(_mc_sdf, (0.425, -0.145, 0.472), (0.505, -0.098, 0.586), 0.0012, "rmc_cast")   # 12k vertices
     _uv_cast(mc, 0, MC_TILE, MC_ORG, MC_REG)
     m.add(mc)
     # cap stack
     m.add(_pill((0.4338, 0.4607), (-0.1338, -0.1070), (MC_HEAD[2][1] - 0.0002, MC_LID[0] + 0.0008), 0.0045, 0.0002, 0.0003,
                 "steel", k=1))
-    m.add(_pill((0.4340, 0.4605), (-0.1336, -0.1072), (MC_LID[0] + 0.0008, MC_LID[1]), 0.0043, 0.0004, 0.0015, "mc_lid"))
+    m.add(_pill((0.4340, 0.4605), (-0.1336, -0.1072), (MC_LID[0] + 0.0008, MC_LID[1]), 0.0043, 0.0004, 0.0015, "rmc_lid"))
     for sx, sy in MC_SCREWS:
         m.add(_pan_screw((sx, sy, MC_LID[1] - 0.0001), (0.0, 0.0, 1.0)))
     # sight window: the lit ring round the recess, the lens 1.2 mm in, a retaining ring of three arcs on it (REAR mc6)
@@ -2533,12 +2659,12 @@ def _master_cylinder(pin):
                                                       (0.0014, r_ring - 0.0004), (0.0014, rr + 0.0004), (0.0, rr + 0.0002)],
                  "alu_satin", 48, False, False))
     m.add(turned((x0 + 0.0015, yw, zw), (-1, 0, 0), [(0, 0.0001), (0, rr - 0.0001), (0.0006, rr - 0.0001), (0.0006, 0.0001)],
-                 "mc_lens", 48))
+                 "rmc_lens", 48))
     for k in range(3):
         a0 = math.radians(90 + 120 * k + 14)
         arc = [(math.cos(a), math.sin(a)) for a in np.linspace(a0, a0 + math.radians(92), 12)]
         o = np.array([(5.6e-3 * c, 5.6e-3 * s) for c, s in arc] + [(4.4e-3 * c, 4.4e-3 * s) for c, s in arc[::-1]])
-        m.add(slab(o + (yw, zw), x0 + 0.0006, 0.0006, "mc_ring", r=0.0002, step=0.0008,
+        m.add(slab(o + (yw, zw), x0 + 0.0006, 0.0006, "rmc_ring", r=0.0002, step=0.0008,
                    to=lambda u, v, t: (t, u, v), mirror=False))
     # banjo on the neck (fiche 12, 13): washer, black eye 16.4 x 11 mm (RIGHT u 1619..1640, v 1303..1317), washer, bolt
     a0, a1 = (np.array([x, MC_YC, z]) for x, z in MC_AXIS)
@@ -2657,16 +2783,20 @@ def rear_brake():
     m.add(_toe(pts[-1]))
     # rear lever from the boss to the clevis pin, bending in to the push rod's line (REAR mc8: rod and clevis at y -0.121)
     pin = _px("right", MC_PIN[0], MC_PIN[1], "y", MC_YC)
-    lever_mid = (piv + pin) / 2 + (0, 0.002, 0.004)
-    lever_mid[1] = -0.1330
-    m.add(bar([piv - 0.0065 * Y3, lever_mid, pin + (0.0, 0.0, -0.002)], (0.007, 0.009, 0.0110), (0.024, 0.020, 0.015),
-              "alu_cast"))                                          # rr34 m1: a broad flat arm (20 mm) to the clevis
+    def on_lever(x, y):                                             # (x, y) on the line from the boss to the pin, arched
+        t = (piv[0] - x) / (piv[0] - pin[0])
+        return np.array([x, y, piv[2] + (pin[2] - piv[2]) * t + 0.004 * math.sin(math.pi * t)])
+    lever_mid = on_lever(0.4990, -0.1330)
+    # it stays outside the frame plate's face (0.137) while it is over the plate (the leg's rear edge at x 0.509..0.52
+    # for z 0.43..0.46; the audit found it 1.6 mm into the plate) and swings in to the rod's line behind it
+    m.add(bar([piv - 0.0065 * Y3, on_lever(0.5140, -0.1440), lever_mid, pin + (0.0, 0.0, -0.002)],
+              (0.007, 0.0075, 0.009, 0.0110), (0.024, 0.022, 0.019, 0.015), "alu_cast"))   # rr34 m1: a broad flat arm
     m.add(_master_cylinder(pin))
     # return spring from the lever's tab down to the bracket's rear edge (RIGHT px (1654,1522) to (1697,1547))
     # (round 3: outside the frame's lower section, which now reaches under it; hooked on the footpeg pad's face)
     sa, sb = _px("right", 1654, 1522, "y", -0.1425), _px("right", 1697.5, 1546.6, "y", -0.1425)
     m.add(coil(sa, sb, 0.0045, 0.0008, 13, "steel", seg=6, dead=0, per=12))
-    m.add(tube([sa, (lever_mid[0] - 0.004, -0.1440, lever_mid[2] - 0.006)], 0.0008, 6, "steel"))
+    m.add(tube([sa, on_lever(0.5080, -0.1420) - (0.0, 0.0, 0.0085)], 0.0008, 6, "steel"))      # hooked under the lever
     m.add(tube([sb, (0.5425, -0.1420, 0.3895)], 0.0008, 6, "steel"))
     return m
 
