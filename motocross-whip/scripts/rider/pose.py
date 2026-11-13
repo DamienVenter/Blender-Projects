@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BIKE = os.path.join(HERE, "..", "bike")
 sys.path.insert(0, BIKE)
 
-BOOT_SOLE = 0.025            # m under the ball of the foot: Leatt 6.5 sole and insole, EST (boots agent refines)
+BOOT_SOLE = 0.020            # m under the ball of the foot: the 6.5 boot model, sole and insole (boots.py; 27 at the heel)
 GRIP_IN = 0.06               # m from the bar end along the grip to the palm's centre
 
 
