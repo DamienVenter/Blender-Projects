@@ -1236,8 +1236,11 @@ NUMBER_OUTLINE = 0.0045  # m (PHOTO 06: 0.024 of the number's height)
 NUMBER_TOP = 0.37        # the back collar's centre to the number's top, in number heights (PHOTO 06)
 NAME = "DAMIEN"          # Damien (2026-11-13)
 NAME_FONT = "/usr/share/fonts/opentype/inter/InterDisplay-Black.otf"
-NAME_LEFT, NAME_RIGHT = -0.585, 0.0   # the name's ends (seen from behind) in number widths from the number's centre:
-                                      # from 0.085 W outside its left end (his left) to its centre (PHOTO 06)
+NAME_SEEN = ("DAMI", 0.585)   # PHOTO 06: the first four letters in front of a fold of the jersey at the collar
+                              # span 0.585 number widths (EN shows past the fold); the whole name is longer
+NAME_LEN = 0.89          # the whole name in number widths: 0.585 x ink width of DAMIEN / DAMI in NAME_FONT (0.658)
+NAME_LEFT, NAME_RIGHT = -NAME_LEN / 2, NAME_LEN / 2   # centred over the number (Damien 2026-11-13: "perfectly
+                                                      # centered", 06's camera angle and the fold shift it)
 NAME_H = 0.146           # letter height with the outline, in number heights (PHOTO 06)
 NAME_GAP = 0.05          # the name's bottom above the number's top, in number heights (PHOTO 06)
 NAME_OUTLINE = 0.0022    # m

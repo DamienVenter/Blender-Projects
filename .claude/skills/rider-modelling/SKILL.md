@@ -214,5 +214,9 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   cloth point. Check it by rendering with and without the overlay and differencing: 0.3 mm lift drew 2 px contact-
   shadow lines along the island edges. build_rider's gear materials take no alpha, so a cut-out decal is not an
   option.
+- **A word cut by a fold is not the whole word**: in 06 the name ran into a fold of the jersey at the collar,
+  so round 2 took DAMI for DAMIEN and set the whole name over the number's left half. Damien: it is centred.
+  Read which letters are visible, then scale by the font's own ink widths (DAMIEN / DAMI). Off-centre graphics on
+  a twisted rider are usually the twist: ask before printing something asymmetric.
 - His name replaced Leatt's back LEATT (06 shows none beside it): erase it from Leatt's photo before projecting
   (normalised Gaussian fill).

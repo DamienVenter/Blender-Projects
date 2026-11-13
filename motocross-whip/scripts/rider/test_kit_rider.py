@@ -186,15 +186,15 @@ def test_print_overlay_rides_the_jersey(built):
 
 
 def test_prints_at_their_measured_places(built):
-    """Number (PHOTO 06: 0.30 m across the flat back, its top 0.37 of its height under the collar), name over its
-    left half (his left), sponsors at the ledger's places and widths, heights from the official artwork."""
+    """Number (PHOTO 06: 0.30 m across the flat back, its top 0.37 of its height under the collar), name centred
+    over it (Damien), sponsors at the ledger's places and widths, heights from the official artwork."""
     body, g = built
     pr = json.loads(str(g["prints"]))
     n = pr["number"]
     assert abs(n["w"] - K.NUMBER_W) < 0.003 and 0.18 < n["h"] < 0.21
     assert abs(n["P0"][0]) < 1e-3 and 1.38 < n["P0"][2] < 1.44 and n["P0"][1] > 0.08      # on his back, centred
     nm = pr["name"]
-    assert nm["P0"][0] > 0.05                                    # his left (seen from behind: the left)
+    assert abs(nm["P0"][0]) < 1e-3                               # centred over the number, on the spine
     assert nm["P0"][2] - nm["h"] / 2 > n["P0"][2] + n["h"] / 2 - 0.01   # above the number
     assert abs(nm["w"] - (K.NAME_RIGHT - K.NAME_LEFT) * n["w"]) < 0.003
     for k, (x, z, w) in K.FRONT.items():
@@ -204,6 +204,18 @@ def test_prints_at_their_measured_places(built):
     assert pr["bikewise"]["P0"][0] < 0 < pr["pirelli"]["P0"][0]                  # BikeWise his right, Pirelli left
     assert pr["usn"]["P0"][0] < 0 < pr["cworx"]["P0"][0] and pr["motul"]["P0"][2] < pr["usn"]["P0"][2]
     assert abs(pr["pirelli"]["w"] / pr["pirelli"]["h"] - 476 / 147) < 0.05      # Pirelli's own box
+
+
+def test_name_length_from_the_letters_seen():
+    """PHOTO 06 shows DAMI over 0.585 number widths before a fold at the collar: the whole name scales by the
+    lettering's own ink widths (no Blender, no build)."""
+    from PIL import ImageFont
+    f = ImageFont.truetype(K.NAME_FONT, 600)
+    w = lambda s: f.getbbox(s)[2] - f.getbbox(s)[0]
+    seen, frac = K.NAME_SEEN
+    assert K.NAME.startswith(seen)
+    assert abs(frac * w(K.NAME) / w(seen) - K.NAME_LEN) < 0.005
+    assert K.NAME_LEFT == -K.NAME_RIGHT                          # centred (Damien)
 
 
 def test_prints_read_the_right_way_round(built):
