@@ -85,7 +85,19 @@ The Velocity 5.5 frame is the same in every colourway (Leatt US handles goggle-v
 same five angles: ISO, Front (the ISO angle), Back, Exploded, lens). Leatt publishes no front, top or side view of
 the goggle alone, and no dimensions but the 45 mm strap and the 48 mm Roll-Off film; the MY27 Moto 8.5 kit
 (product moto-8-5-helmet-kit, "Velocity 5.5 goggles are included") shows the goggle on the helmet from four sides:
-those are the measured views (cameras fitted to the helmet shell, `scripts/rider/goggle.py`).
+those are the measured views (cameras fitted to the helmet shell, `scripts/rider/goggle.py`). Round 3 also fitted
+a camera to the ISO itself (the goggle's own silhouette): the frame's cross-section, fins, beak and posts come from
+it (research/rider-ledger/goggle.md).
+
+## Leatt wordmark (official)
+
+| File | Size | Source image URL |
+|---|---|---|
+| `leatt-wordmark-slanted_official_leatt-us_1200x300.png` | 1200x300, transparent | https://us.leatt.com/cdn/shop/files/Logo_2_NoBG.png?v=1782225910 (the header logo of https://us.leatt.com/, served there as Logo_2_NoBG_380x.png) |
+
+The slanted LEATT as printed on the goggle strap, the outriggers and the frame's lower band (Leatt ISO, his 07).
+`goggle.py` stamps it from this file at its own aspect (about 4.0 long per height); nothing is redrawn. Leatt's
+other logo file seen on the same site, Leatt_Logo_Red_HR_1200x1200.png, carries the icon as well and was not used.
 
 ## Gloves: Leatt Moto 2.5 X-Flow (Black, and Purple for photo 05)
 

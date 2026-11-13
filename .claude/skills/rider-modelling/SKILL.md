@@ -102,13 +102,39 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   nose to the beak, the frame is shallow there and the foam runs on the opening's edge (the first foam sat on his
   nose tip). Outrigger LEATT: letter tops towards the strap on both sides (reads up on his right, down on his left).
 - Colour under the studio (white world, AgX): saturated flat colours render pastel; a goggle frame base of
-  200/6/70 rendered 188/85/97. Take a darker base (132/0/44) and check the render against the photo's hue.
+  200/6/70 rendered 188/85/97. Take a darker base and check the render against the photo's hue (round 3 below).
 - Purple mirror lens: metallic 0.94 on a purple base with a 430 nm thin film (IOR 1.33) reads deep purple square
   on; test swatches first (curved strips under the studio), the film's colour swings fast with thickness.
 - **Eyes**: MakeHuman's eye proxy is fitted to helper vertices (not in body.npz); rebuild the shaped mesh from the
   body's macro (body.npz meta) to get them. The proxy eyeball is a 15.8 mm sphere (larger than anatomy) at the
   helper sphere's centre: that is where his lids close round it. A separate refracting cornea dome over a painted
   iris looked like a glass bead: bulge the eyeball itself over the iris and give it a clear coat.
+
+## Goggle round 3: the shape pass (2026-11-13, same files)
+- **A product shot of the item alone is a calibrated view once a camera is fitted to the item's own silhouette**
+  (here Leatt's ISO, 5.3 px/mm): grid, then Powell at 240 and 480 px on IoU + edge chamfer both ways, the strap cut
+  off in both masks. Then back-project photo pixels onto the model's lens surface to read (s, z) per control point
+  and move each one along its normal; refit the camera on the final shape. Elevation is the weak axis of an
+  oblique single view (el -5 and +8 cost almost the same): take heights from it, depths from the side views.
+  Check the Blender render of that camera against the numpy projection (IoU 0.997 here) before trusting a sheet.
+- **Round 2's "rounded tube" came from the cross-section, not the outline**: the Velocity is a narrow flat front
+  rim (3 mm, 1.5 mm proud of the lens) round a lens that fills the front, then flat faces with crisp 0.8 mm
+  edges: a band rising back to the outline edge (8 to 10 mm on top and the tall side faces, 3 to 4 at the cheeks),
+  a top surface, a 1.5 mm step to the vent row. Keep each face's rings separate with support rings.
+- **Kit-photo outline errors: compare edges, not filled masks**, and align first: the red frame in a photo is a
+  ring (the lens is clear), so filled-silhouette IoU said 0.2 for a good fit. Edge-to-edge chamfer, both ways, raw
+  and after a 2D shift + scale (removes the helmet-fitted camera's bias, 16 to 30 mm in the front-iso views);
+  photo edges over 15 mm from any model edge are clutter (strap stripe). In the Blue/Red kit the frame's side faces
+  are not red, so model-to-photo in the side views is inflated there: read photo-to-model.
+- Colour from his daylight photos, not Leatt's studio: his 08/09 frame median 165/20/54 (hue 346). AgX turns reds
+  about +9 deg towards orange and caps saturation near 0.61: set the base bluer (150/0/58, hue 337) and measure the
+  render's hue in the same view (347).
+- Lettering: use Leatt's own logo file (us.leatt.com header logo, transparent PNG) stamped at its own aspect into
+  the textures (strap, outriggers: mirror one half exactly) and as small cells on the frame; never redraw it.
+- Clearance: his nose tip sits 5.6 mm behind the lens front at the notch: the frame there can be 5 to 6 mm deep
+  only. Foam: march it along the lens normal from a 13 mm band inside the face opening (march tolerance 2.5 mm,
+  fill misses from the neighbouring rows) or it pokes through his cheeks.
+- render.sh needs its full output path: with an unset `$W` it wrote to /r3w/his at the filesystem root.
 
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe

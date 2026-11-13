@@ -808,7 +808,7 @@ def strap_texture(path, w=2048, h=160):
     """Strap print: iridescent gradient (orange-yellow at the goggle, magenta, purple, teal-green round the back;
     Leatt goggle iso and Damien's 07, 09) with a large white LEATT on each side reading along the strap from the
     left outrigger (so it reads correctly on both sides from outside)."""
-    from PIL import Image, ImageDraw
+    from PIL import Image
     s = np.abs(np.linspace(-1, 1, w))                      # 1 at the outriggers, 0 at the back centre
     stops = [(0.0, (40, 190, 160)), (0.30, (60, 175, 175)), (0.48, (110, 60, 170)), (0.62, (170, 30, 150)),
              (0.76, (225, 40, 120)), (0.88, (245, 120, 60)), (1.0, (250, 200, 60))]
@@ -818,15 +818,14 @@ def strap_texture(path, w=2048, h=160):
     yy = np.linspace(0, 1, h)[:, None]
     img = img * (0.92 + 0.08 * np.cos(yy * 9.0 + np.linspace(0, 40, w)[None, :] * 0.2))[..., None]   # sheen bands
     im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
-    d = ImageDraw.Draw(im)
-    ch = 0.72 * h
+    # Leatt's official slanted wordmark (goggle.WORDMARK; Leatt ISO, his 07), letter height 0.70 of the strap
+    import goggle as G
+    ch = 0.70 * h
+    lw = ch * G.wordmark_aspect()
     for side in (0, 1):
-        polys, lw = logo_polys(0, 0, ch)
-        start = 0.06 * w if side == 0 else w - 0.06 * w - (0.5 * w - 0.06 * w) + 0.5 * w - lw - 0.0 * w
-        start = 0.07 * w if side == 0 else 0.93 * w - lw
         # side 1 (right side) is read from outside going towards its outrigger: same direction along the strap
-        for poly in polys:
-            d.polygon([(start + px, h * 0.5 + ch / 2 - py) for px, py in poly], fill=(250, 250, 250))
+        start = 0.07 * w if side == 0 else 0.93 * w - lw
+        G.stamp_wordmark(im, start, h * 0.5 - ch / 2, lw, ch, (250, 250, 250))
     im.save(path)
 
 

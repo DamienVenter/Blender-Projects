@@ -40,16 +40,54 @@ def frame_in_helmet_frame():
 
 def test_side_profile_from_leatts_side_views():
     """Leatt's MY27 kit side views (left and right, cameras fitted to the shell), red frame back-projected onto the
-    centre plane: top lip front at y -149 mm, top at z +41 to +43.5 mm, the nose beak's front at y -156 to -157 mm,
-    its bottom at z -64.6 to -66 mm (helmet frame). The built frame on the centre line within 4 mm of each."""
+    centre plane: top lip front at y -149 mm, top at z +41 to +43.5 mm, the beak's front at y -156 to -157 mm, its
+    bottom (the tabs either side of the nose notch) at z -64.6 to -66 mm (helmet frame). The built frame within
+    4 to 5 mm of each."""
     V, info = frame_in_helmet_frame()
     c = V[np.abs(V[:, 0]) < 0.004]
     top = c[c[:, 2] > 0.02]
-    bot = c[c[:, 2] < -0.04]
+    bot = V[(np.abs(V[:, 0]) < 0.03) & (V[:, 2] < -0.04)]
     assert abs(top[:, 1].min() - (-0.149)) < 0.004
     assert abs(top[:, 2].max() - 0.0425) < 0.004
     assert abs(bot[:, 1].min() - (-0.1565)) < 0.005
     assert abs(bot[:, 2].min() - (-0.065)) < 0.004
+
+
+def test_velocity55_shape_from_leatts_iso():
+    """Leatt's ISO (camera fitted to the goggle's silhouette, then pixels back-projected): a thin front rim round a
+    lens that fills the front (lens top +31 to +36 mm under a frame top of +43 to +44 mm), crisp flat faces behind
+    it; fins rising about 6 mm at the top band's ends; the beak's tabs about 20 mm either side of the centre, 20 to
+    25 mm below the pointed notch over the nose (notch -43 mm, tabs -67 mm); posts about 17 mm in from the lens's
+    visible end; the outriggers start behind the frame's tall side faces."""
+    gp = G.GP
+    rings, info = G.frame_rings()
+    Co, Cu = info["Co"], info["Cu"]
+    rim = np.linalg.norm(rings[G.RING_RIM] - rings[2], axis=1)
+    assert 0.0018 < rim.min() and rim.max() < 0.0035                       # narrow flat front rim
+    assert gp["lip"] > 0.001                                                # stands proud of the lens
+    o, u = dict(enumerate(gp["open"])), dict(enumerate(gp["out"]))
+    assert all(u[k][1] - o[k][1] < 0.011 for k in (0, 1, 2))                # the top band over a big lens
+    assert 0.029 <= o[0][1] <= 0.036 and abs(u[0][1] - 0.0425) < 0.002
+    assert u[4][0] - o[4][0] < 0.008                                        # thin rim at the ends too
+    # fins
+    f = G.build_fins()
+    zf = f.V[:, 2].max()
+    s_tip = G.FIN_S[1]
+    z_band = np.interp(s_tip, [p[0] for p in gp["out"][1:4]], [p[1] for p in gp["out"][1:4]])
+    assert 0.004 < zf - z_band < 0.008
+    # beak: pointed notch, tabs either side
+    assert 0.018 < u[8][0] < 0.025 and 0.018 < u[10][1] - u[8][1] < 0.026
+    assert abs(u[10][1] - (-0.043)) < 0.003 and gp["fillet_out"][10] <= 0.002 and gp["fillet_out"][8] <= 0.002
+    ng = G.build_nose_guard()
+    assert ng.V[:, 2].min() > u[8][1]                                       # the guard stays inside the tabs
+    # posts
+    assert 0.014 < G.POST_S_IN < 0.020
+    # outriggers behind the side faces
+    L = info["L"]
+    for sg, (box, end, n) in G.outrigger_frames().items():
+        front = box[[0, 1]].mean(0)
+        P, N = L.point(sg * u[4][0], front[2], 0.0)
+        assert (P - front) @ N > 0.012                                      # more than 12 mm behind the lens front
 
 
 def test_frame_width_and_wrap():
@@ -124,14 +162,37 @@ def test_brown_eyes_and_the_lens_hides_them():
 
 
 def test_frame_colour_and_parts(built):
-    """Raspberry frame (darker than the photos' 200/5/70: the studio light and AgX lift it), black outriggers with
-    their LEATT, bare tear-off posts (no tear-offs, decision 7), nose guard, foam, strap."""
+    """Red-pink frame: his 08 and 09 measure hue 346 deg (median 165/20/54); the base is set bluer (337 deg) so the
+    render (AgX shifts reds towards orange) measures 347 deg in his 09 view. Black outriggers with their LEATT, fins,
+    the lower band's LEATT, bare tear-off posts (no tear-offs, decision 7), nose guard, foam, strap."""
+    import colorsys
     r, g, b = G.MATERIALS["goggle_frame"]["rgb"]
-    assert r > 120 and g < 20 and 25 < b < 90
-    for name in ("goggle_frame", "goggle_lens", "goggle_posts", "goggle_outriggers", "goggle_noseguard",
-                 "goggle_foam", "goggle_strap"):
+    h = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[0] * 360
+    assert 330 < h < 345 and r > 120 and g < 10
+    for name in ("goggle_frame", "goggle_fins", "goggle_logo", "goggle_lens", "goggle_posts", "goggle_outriggers",
+                 "goggle_noseguard", "goggle_foam", "goggle_strap"):
         assert name in built["parts"]
     assert "goggle_vent" in built["parts"]["goggle_frame"].M
+
+
+def test_leatt_wordmark_is_the_official_slanted_one():
+    """Strap, outriggers and the lower band carry Leatt's official slanted LEATT (reference file from Leatt's own
+    site), at its own aspect (about 4.0 long per height): the strap's two white logos, the lower band's logo at his
+    left cheek (MY27 front-iso and left side views), 4 mm high."""
+    from PIL import Image
+    a = G.wordmark_aspect()
+    assert 3.8 < a < 4.2
+    im = np.array(Image.open(os.path.join(H.TEXDIR, "goggle_strap.png")).convert("RGB")).astype(int)
+    white = im.min(-1) > 235
+    w = im.shape[1]
+    for half in (white[:, :w // 2], white[:, w // 2:]):
+        ys, xs = np.nonzero(half)
+        assert abs(np.ptp(xs) / np.ptp(ys) - a) < 0.3
+    lg = G.build_frame_logo()
+    V = G.g2h(lg.V)
+    assert (V[:, 0] > 0.03).all()                                           # his left cheek
+    ext = np.ptp(V, 0)
+    assert G.LOGO_H - 0.0015 < ext[2] < G.LOGO_H + 0.002 and abs(ext[0] / G.LOGO_H - a) < 0.8
 
 
 def test_outrigger_text_reads_from_outside():
