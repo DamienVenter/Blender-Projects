@@ -10,7 +10,8 @@ on a white studio floor, 1200 x 1600) or none. POSE.json: {"bones": {name: [w, x
 Gear: RIDER_GEAR="a.npz,b.npz" adds gear modules' parts (helmet.py, boots.py, ...). A gear npz holds
   names            part names
   mats             material names; materials: JSON {name: {rgb: [r, g, b] sRGB 0..255, rough, metal, coat, sheen,
-                   alpha, image: file under textures/rider/ or absolute, normal: file, bump}}
+                   alpha, transmission, thin_film: {thickness_nm, ior}, image: file under textures/rider/ or
+                   absolute, normal: file, bump}}
   <p>__V, <p>__F, <p>__FS   vertices (MB rest frame of body.py, metres), faces as a flat list with sizes
   <p>__M           material index of each face (into mats)
   <p>__UV          optional face-corner UVs (sum(FS) x 2)
@@ -128,6 +129,9 @@ def gear_material(name, spec):
         p.inputs["Alpha"].default_value = spec["alpha"]
     if "transmission" in spec:
         p.inputs["Transmission Weight"].default_value = spec["transmission"]
+    if "thin_film" in spec:                                       # an iridescent mirror coating (goggle lens)
+        p.inputs["Thin Film Thickness"].default_value = spec["thin_film"].get("thickness_nm", 500.0)
+        p.inputs["Thin Film IOR"].default_value = spec["thin_film"].get("ior", 1.5)
     if "image" in spec:
         f = spec["image"] if os.path.isabs(spec["image"]) else os.path.join(TEXDIR, spec["image"])
         t = nt.nodes.new("ShaderNodeTexImage")
