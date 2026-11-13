@@ -17,6 +17,8 @@ Gear: RIDER_GEAR="a.npz,b.npz" adds gear modules' parts (helmet.py, boots.py, ..
   <p>__bone        a bone name: the part rides that bone rigidly (helmet: "head"), or
   <p>__wv, <p>__wb, <p>__ww   skin weights (vertex, bone index into body.npz "bones", weight): it deforms
   <p>__smooth      optional: 1 = smooth shading (default), 0 = flat
+  hide_body        optional: body vertex ids the gear covers completely; they are masked out of the render so
+                   skin never shows through (a vertex group "covered" and a Mask modifier on the body)
 """
 import json
 import math
@@ -413,8 +415,19 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     d = np.load(BODY)
     root, rig, body = build(d)
+    covered = set()
     for gpath in [p for p in os.environ.get("RIDER_GEAR", "").split(",") if p]:
         add_gear(os.path.abspath(gpath), rig, [str(n) for n in d["bones"]])
+        g = np.load(os.path.abspath(gpath))
+        if "hide_body" in g:
+            covered |= set(g["hide_body"].tolist())
+    if covered:
+        vg = body.vertex_groups.new(name="covered")
+        vg.add(sorted(covered), 1.0, "REPLACE")
+        m = body.modifiers.new("covered", "MASK")
+        m.vertex_group = "covered"
+        m.invert_vertex_group = True
+        body.modifiers.move(len(body.modifiers) - 1, 1)          # armature, mask, then the subdivision
     if POSE:
         apply_pose(root, rig, json.load(open(POSE)))
     bike = os.environ.get("RIDER_BIKE")                           # "bike.blend::collection": the bike to sit on
