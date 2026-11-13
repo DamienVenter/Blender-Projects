@@ -64,7 +64,7 @@ def pose(c, name):
         # points while the suspension sags under him)
         x = 0.58                                          # hip joints over the seat's lowest point (photo 05)
         pelvis = [x, 0.0, seat_top(c, x) + 0.095]         # sit bones about 95 mm below the hip joints when seated
-        out = dict(pelvis=pelvis, pelvis_pitch=18.0, spine_lean=24.0, head_pitch=0.0,
+        out = dict(pelvis=pelvis, pelvis_pitch=20.0, spine_lean=34.0, head_pitch=4.0,
                    elbow_pole=[-0.15, 0.75, 0.25])           # a straight back, the head carried up (photo 07)
     elif name == "photo05":
         # his photo 05 (2026-11-10, stopped in the pits, seated, left side): upright trunk, left boot on the left

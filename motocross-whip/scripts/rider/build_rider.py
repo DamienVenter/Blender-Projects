@@ -446,6 +446,7 @@ def main():
             dst.collections = [col]
         for c in dst.collections:
             bpy.context.scene.collection.children.link(c)
+    bpy.ops.file.pack_all()                                       # textures inside the file: it opens anywhere
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "rider.blend"))
     if VIEWS:
         studio()
