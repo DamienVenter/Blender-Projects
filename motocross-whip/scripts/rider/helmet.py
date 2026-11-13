@@ -119,7 +119,7 @@ class Profile:
 
 # ---------------------------------------------------------------- half width over the profile
 L_CROWN, P_CROWN = 0.1239, 1.933  # roundness of the crown and back (m, superellipse power): fitted with W_Z, Q_Y
-L_CHIN, P_CHIN = 0.120, 1.5        # the chin bar narrows to a blunt V in plan (estimated from the iso views)
+L_CHIN, P_CHIN = 0.140, 1.25       # the chin bar narrows to a blunt V in plan (Pinata iso-left camera fit)
 # Half width by height (back view) and plan factor by y (top view), fitted together with L_CROWN and P_CROWN to
 # Leatt's back view (Royal_Back, camera 13.5 deg above, 0.2046 mm/px) and top view (Pinata Teal top, 0.247
 # mm/px) by least squares with a smoothness penalty: residuals 7.7 px (1.6 mm) back, 9.3 px (2.3 mm) top. The
@@ -530,7 +530,10 @@ def thicken_grid(G, t, mat_top, mat_under, mat_edge, part):
     if flip:
         N = -N
     Vu = V - N * t
-    o1 = part.add(V, grid_faces(nr, nc, 0, flip), mat_top)
+    Ftop = np.array(grid_faces(nr, nc, 0, flip))
+    uv_top = atlas_uvs(V, Ftop, visor=True)[0] if mat_top == "helmet_paint" else None
+    o1 = part.add(V, Ftop, mat_top, None if uv_top is None else list(uv_top))
+    part.top = (V, Ftop, N, uv_top)
     o2 = part.add(Vu, grid_faces(nr, nc, 0, not flip), mat_under)
     ring = ([(0, j) for j in range(nc)] + [(i, nc - 1) for i in range(1, nr)] +
             [(nr - 1, j) for j in range(nc - 2, -1, -1)] + [(i, 0) for i in range(nr - 2, 0, -1)])
@@ -553,7 +556,8 @@ def build(body):
     skin_H = (skin - tr) @ R
     Vi, thick, strips = shell_solid(Vo, Fo, skin_H)
     shell = Part("helmet_shell")
-    shell.add(Vo, Fo, "helmet_white")
+    uv_o = atlas_uvs(Vo, Fo)[0]
+    shell.add(Vo, Fo, "helmet_paint", list(uv_o))
     o_in = shell.add(Vi, Fo[:, ::-1], "helmet_liner")
     for loop, rings in strips:
         m = len(loop)
@@ -567,12 +571,465 @@ def build(body):
         for f in F:
             shell.F.append(f); shell.M.append("helmet_trim"); shell.UV.append(None)
     visor = Part("helmet_visor")
-    thicken_grid(visor_surface(prof), VISOR_T, "helmet_white", "visor_under", "visor_under", visor)
+    thicken_grid(visor_surface(prof), VISOR_T, "helmet_paint", "visor_under", "visor_under", visor)
     parts = [shell, visor]
+    if PAINT or not os.path.exists(os.path.join(TEXDIR, "helmet_pinata.png")):
+        Vt, Ft, Nt, UVt = visor.top
+        info["paint"] = paint_atlas([(Vo, Fo, normals(Vo, Fo), uv_o), (Vt, Ft, Nt, UVt)],
+                                    os.path.join(TEXDIR, "helmet_pinata.png"))
+    for P in parts:                                   # faces without art: any UV (their materials have no image)
+        P.UV = [u if u is not None else [(0.0, 0.0)] * len(f) for u, f in zip(P.UV, P.F)]
     for P in parts:
         P.V = P.V @ R.T + tr
     info.update(shell_thickness_mm=[round(float(thick.min()) * 1000, 1), round(float(thick.max()) * 1000, 1)])
-    return parts, info, (R, tr)
+    gparts, ginfo = build_goggle(body, (R, tr), prof)
+    info.update(ginfo)
+    return parts + gparts, info, (R, tr)
+
+
+# ---------------------------------------------------------------- graphics: Leatt's Pinata Teal art, projected
+REF = os.path.normpath(os.path.join(HERE, "..", "..", "reference", "leatt-gear", "helmet"))
+PHOTOS = dict(isoleft="helmet85-kit_pinatateal_iso-left_leatt-us_1026000250_1920.png",
+              isoright="helmet85-kit_pinatateal_iso-right-with-goggle_leatt-us_1026000250_1920.png",
+              back="helmet85-kit_pinatateal_back_leatt-us_1026000250_1920.png",
+              top="helmet85-kit_pinatateal_top_leatt-us_1026000250_1920.png")
+# Pinhole cameras of Leatt's four Pinata Teal views in the helmet frame, fitted to the shell and visor outline
+# (chamfer distance both ways, half resolution, Powell then Nelder-Mead): azimuth from the front towards his left
+# and elevation of the camera (deg), roll (deg), distance (m), focal length (px), aim offset (m) from CAM_CTR.
+CAM_CTR = np.array([0.0, -0.03, 0.0])
+CAMS = dict(isoleft=[62.0789, 3.9144, -7.4058, 1.4021, 5653.2658, -0.0307, -0.0032, -0.0334],
+            back=[186.6286, 10.703, -4.8924, 1.2116, 5632.7324, -0.0011, 0.0102, 0.002],
+            top=[3.0441, 87.254, 0.2669, 1.4571, 5624.0378, 0.0002, -0.0141, -0.0449],
+            isoright=[-59.1663, 8.6293, 8.1332, 1.8892, 7721.6883, 0.0325, 0.0004, -0.0393])
+# the goggle and its strap cover the right side in Leatt's iso-right view: not the helmet's art (hand-drawn, px)
+ISORIGHT_GOGGLE = [(215, 630), (560, 610), (800, 700), (1430, 700), (1470, 1000), (1440, 1260), (800, 1240),
+                   (770, 1040), (560, 960), (215, 930)]
+TEX = 2048
+PAINT = False
+ATLAS_K = 2150.0                   # texels per metre (2.15 px/mm)
+BASE_WHITE = (226, 229, 235)
+
+
+def cam_from(x):
+    az, el, roll, d, f, tx, ty, tz = x
+    a, e = math.radians(az), math.radians(el)
+    dirn = np.array([math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)])
+    C = CAM_CTR + np.array([tx, ty, tz]) + dirn * d
+    fwd = -dirn
+    up0 = np.array([0, 0, 1.0]) if abs(e) < math.radians(80) else np.array([0, 1.0, 0])
+    right = np.cross(fwd, up0); right /= np.linalg.norm(right)
+    up = np.cross(right, fwd)
+    r = math.radians(roll)
+    right, up = right * math.cos(r) + up * math.sin(r), up * math.cos(r) - right * math.sin(r)
+    return C, np.vstack([right, up, fwd]), f
+
+
+def cam_project(x, Q):
+    C, Rm, f = cam_from(x)
+    q = (Q - C) @ Rm.T
+    return np.c_[960 + f * q[:, 0] / q[:, 2], 960 - f * q[:, 1] / q[:, 2]], q[:, 2]
+
+
+# atlas islands: (name, origin u, v in texels, axes): side views by (y, z), top by (x, y), back/front by (x, z)
+ISLANDS = dict(L=(0, 0), R=(820, 0), T=(0, 700), B=(600, 700), F=(1200, 700), V=(0, 1500))
+
+
+def island_uv(name, P):
+    """Texel coordinates of helmet-frame points in an island (u right, v up, origin at the island's corner)."""
+    k = ATLAS_K
+    ou, ov = ISLANDS[name]
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    if name == "L":
+        u, v = (y + 0.225) * k, (z + 0.18) * k
+    elif name == "R":
+        u, v = (0.16 - y) * k, (z + 0.18) * k
+    elif name == "T":
+        u, v = (x + 0.14) * k, (0.16 - y) * k
+    elif name in ("B", "F"):
+        u, v = ((0.14 - x) if name == "B" else (x + 0.14)) * k, (z + 0.18) * k
+    else:
+        u, v = (x + 0.13) * k, (0.02 - y) * k
+    return np.c_[ou + u, ov + v]
+
+
+def face_island(N):
+    ax, ay, az = np.abs(N).T
+    isl = np.where((ax >= ay) & (ax >= az), np.where(N[:, 0] > 0, "L", "R"),
+                   np.where(az >= ay, np.where(N[:, 2] > 0, "T", np.where(N[:, 0] > 0, "L", "R")),
+                            np.where(N[:, 1] > 0, "B", "F")))
+    return isl
+
+
+def atlas_uvs(V, F, visor=False):
+    """Face-corner UVs (0..1) for an outer surface, each face in the island of its normal (visor: V)."""
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    isl = np.full(len(F), "V") if visor else face_island(fn)
+    UV = np.zeros((len(F), F.shape[1], 2))
+    for name in np.unique(isl):
+        m = isl == name
+        P = V[F[m]].reshape(-1, 3)
+        UV[m] = island_uv(name, P).reshape(m.sum(), F.shape[1], 2)
+    return UV / TEX, isl
+
+
+def rasterize(UV, P3, N3):
+    """Texel centres covered by each triangle (UV in texels), with the interpolated 3D point and normal."""
+    tex_idx, pts, nrm = [], [], []
+    for (a, b, c), (pa, pb, pc), (na, nb, nc) in zip(UV, P3, N3):
+        lo = np.floor(np.minimum(np.minimum(a, b), c)).astype(int)
+        hi = np.ceil(np.maximum(np.maximum(a, b), c)).astype(int)
+        gx, gy = np.meshgrid(np.arange(lo[0], hi[0] + 1), np.arange(lo[1], hi[1] + 1))
+        q = np.c_[gx.ravel(), gy.ravel()] + 0.5
+        T = np.array([b - a, c - a]).T
+        det = np.linalg.det(T)
+        if abs(det) < 1e-9:
+            continue
+        l = np.linalg.solve(T, (q - a).T).T
+        w = np.c_[1 - l.sum(1), l]
+        ok = (w >= -0.02).all(1)
+        if not ok.any():
+            continue
+        w = w[ok]
+        tex_idx.append(np.c_[gx.ravel()[ok], gy.ravel()[ok]])
+        pts.append(w @ np.array([pa, pb, pc]))
+        nrm.append(w @ np.array([na, nb, nc]))
+    return np.vstack(tex_idx), np.vstack(pts), np.vstack(nrm)
+
+
+def paint_atlas(surfaces, out_path):
+    """Leatt's photos projected onto the outer surfaces: every texel takes the views that see it, weighted by how
+    squarely they see it (cos^4), visible by a depth test, inside the photo's matte and (iso-right) not behind the
+    goggle. Texels no view sees take the mirror point's colour (the art is symmetric), then the base white."""
+    from PIL import Image, ImageDraw
+    allidx, allP, allN = [], [], []
+    for V, F, N, UV in surfaces:
+        T = F if F.shape[1] == 3 else np.vstack([F[:, [0, 1, 2]], F[:, [0, 2, 3]]])
+        UVt = UV if F.shape[1] == 3 else np.vstack([UV[:, [0, 1, 2]], UV[:, [0, 2, 3]]])
+        idx, P, Nn = rasterize(UVt * TEX, V[T], N[T])
+        allidx.append(idx); allP.append(P); allN.append(Nn)
+    idx, P, Nn = np.vstack(allidx), np.vstack(allP), np.vstack(allN)
+    Nn /= np.linalg.norm(Nn, axis=1)[:, None]
+    acc = np.zeros((len(P), 3)); wsum = np.zeros(len(P))
+    acc_m = np.zeros((len(P), 3)); wsum_m = np.zeros(len(P))
+    for view, x in CAMS.items():
+        if x is None:
+            continue
+        img = np.array(Image.open(os.path.join(REF, PHOTOS[view])).convert("RGBA")).astype(float)
+        if view == "isoright":
+            m = Image.new("L", (1920, 1920), 0)
+            ImageDraw.Draw(m).polygon(ISORIGHT_GOGGLE, fill=255)
+            img[np.array(m) > 0, 3] = 0
+        C, Rm, f = cam_from(x)
+        for mirror in (False, True):
+            Q = P * ([-1, 1, 1] if mirror else 1)
+            Nq = Nn * ([-1, 1, 1] if mirror else 1)
+            uv, depth = cam_project(x, Q)
+            # depth buffer from the surfaces themselves, 4 px cells
+            cell = np.floor(uv / 4).astype(int)
+            okc = (cell >= 0).all(1) & (cell < 480).all(1)
+            zb = np.full((480, 480), np.inf)
+            np.minimum.at(zb, (cell[okc, 1], cell[okc, 0]), depth[okc])
+            vis = np.zeros(len(P), bool)
+            vis[okc] = depth[okc] <= zb[cell[okc, 1], cell[okc, 0]] + 0.004
+            view_dir = (C - Q) / np.linalg.norm(C - Q, axis=1)[:, None]
+            cosv = np.clip(np.sum(Nq * view_dir, 1), 0, 1)
+            ui = np.clip(np.round(uv).astype(int), 0, 1919)
+            px = img[ui[:, 1], ui[:, 0]]
+            w = cosv ** 4 * vis * (px[:, 3] > 200) * (cosv > 0.15)
+            if mirror:
+                acc_m += w[:, None] * px[:, :3]; wsum_m += w
+            else:
+                acc += w[:, None] * px[:, :3]; wsum += w
+    col = np.tile(np.array(BASE_WHITE, float), (len(P), 1))
+    has_m = wsum_m > 1e-4
+    col[has_m] = acc_m[has_m] / wsum_m[has_m, None]
+    has = wsum > 0.02
+    col[has] = acc[has] / wsum[has, None]
+    out = np.zeros((TEX, TEX, 3)); cnt = np.zeros((TEX, TEX))
+    ii = np.clip(idx, 0, TEX - 1)
+    np.add.at(out, (TEX - 1 - ii[:, 1], ii[:, 0]), col)
+    np.add.at(cnt, (TEX - 1 - ii[:, 1], ii[:, 0]), 1)
+    filled = cnt > 0
+    out[filled] /= cnt[filled, None]
+    # bleed the islands' edges by a few texels so filtering never reaches the empty atlas
+    from scipy import ndimage
+    for _ in range(4):
+        grown = ndimage.grey_dilation(np.where(filled[..., None], out, 0), size=(3, 3, 1))
+        out = np.where(filled[..., None], out, grown)
+        filled = ndimage.binary_dilation(filled)
+    out[~filled] = BASE_WHITE
+    Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).save(out_path)
+    return dict(texels=int(len(P)), seen=float(has.mean()), mirrored=float((~has & has_m).mean()))
+
+
+# ---------------------------------------------------------------- goggle: Leatt Velocity 5.5 Iriz, Pinata Teal
+G_HALF_W = 0.098                   # m, frame half width (fills the port at eye height, outriggers just outside it)
+G_TOP, G_BOT = 0.038, -0.052       # m, frame top and bottom at the sides, from his eye centres (90 mm: MY27 side
+                                   # view with the goggle on, 386 px x 0.241 mm/px = 93 mm incl. the outrigger clip)
+G_NOSE, G_NOSE_W = 0.030, 0.042   # m, the nose cut-out: rise of the bottom edge at the centre, half width
+G_RIM = (0.008, 0.009, 0.010)      # m, frame rim width at the top, sides and bottom (Leatt goggle iso)
+G_DEPTH, G_FOAM = 0.020, 0.014     # m, frame depth behind the lens; triple-layer face foam (compressed)
+G_PLAN = (0.115, 0.075)            # m, lens plan: ellipse half axes (170 deg WideVision wrap, 36 mm back at the ends)
+STRAP_W, STRAP_T = 0.045, 0.002    # m, strap width (Leatt) and thickness
+# strap centre line on the shell, Royal_Left px: MY27 side view (goggle on) mapped through the registration
+STRAP_LINE = [(1071, 918), (1615, 852)]
+
+
+def logo_polys(x0=0.0, y0=0.0, h=1.0, shear=0.25):
+    """The LEATT logotype as polygons (cap height h, italic shear): L, E (detached middle arm), A without its bar,
+    TT under one top bar. Units of h; y up."""
+    L = [[(0, 0), (0.75, 0), (0.75, 0.22), (0.22, 0.22), (0.22, 1), (0, 1)]]
+    E = [[(0, 0), (0.75, 0), (0.75, 0.22), (0.22, 0.22), (0.22, 0.78), (0.75, 0.78), (0.75, 1), (0, 1)],
+         [(0.30, 0.39), (0.70, 0.39), (0.70, 0.61), (0.30, 0.61)]]
+    A = [[(0, 0), (0.25, 0), (0.5, 0.66), (0.75, 0), (1.0, 0), (0.62, 1), (0.38, 1)]]
+    TT = [[(0, 0.78), (1.62, 0.78), (1.62, 1), (0, 1)], [(0.29, 0), (0.51, 0), (0.51, 0.78), (0.29, 0.78)],
+          [(1.11, 0), (1.33, 0), (1.33, 0.78), (1.11, 0.78)]]
+    out, x = [], 0.0
+    for glyph, w in ((L, 0.75), (E, 0.75), (A, 1.0), (TT, 1.62)):
+        for poly in glyph:
+            out.append([(x0 + (x + px + shear * py) * h, y0 + py * h) for px, py in poly])
+        x += w + 0.14
+    return out, (x - 0.14 + shear) * h
+
+
+def strap_texture(path, w=2048, h=160):
+    """Strap print: iridescent gradient (orange-yellow at the goggle, magenta, purple, teal-green round the back;
+    Leatt goggle iso and Damien's 07, 09) with a large white LEATT on each side reading along the strap from the
+    left outrigger (so it reads correctly on both sides from outside)."""
+    from PIL import Image, ImageDraw
+    s = np.abs(np.linspace(-1, 1, w))                      # 1 at the outriggers, 0 at the back centre
+    stops = [(0.0, (40, 190, 160)), (0.30, (60, 175, 175)), (0.48, (110, 60, 170)), (0.62, (170, 30, 150)),
+             (0.76, (225, 40, 120)), (0.88, (245, 120, 60)), (1.0, (250, 200, 60))]
+    t = 1 - s
+    cols = np.array([np.interp(1 - t, [p for p, _ in stops], [c[k] for _, c in stops]) for k in range(3)]).T
+    img = np.repeat(cols[None, :, :], h, axis=0)
+    yy = np.linspace(0, 1, h)[:, None]
+    img = img * (0.92 + 0.08 * np.cos(yy * 9.0 + np.linspace(0, 40, w)[None, :] * 0.2))[..., None]   # sheen bands
+    im = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(im)
+    ch = 0.72 * h
+    for side in (0, 1):
+        polys, lw = logo_polys(0, 0, ch)
+        start = 0.06 * w if side == 0 else w - 0.06 * w - (0.5 * w - 0.06 * w) + 0.5 * w - lw - 0.0 * w
+        start = 0.07 * w if side == 0 else 0.93 * w - lw
+        # side 1 (right side) is read from outside going towards its outrigger: same direction along the strap
+        for poly in polys:
+            d.polygon([(start + px, h * 0.5 + ch / 2 - py) for px, py in poly], fill=(250, 250, 250))
+    im.save(path)
+
+
+def outrigger_texture(path, w=256, h=512):
+    """Black outriggers with the vertical white LEATT, letter tops towards the frame on both sides (Pinata
+    iso-right: reads top to bottom on the right side). Left half of the image: the left outrigger (text turned
+    anticlockwise), right half: the right one (clockwise); front of each at the image's outer edge."""
+    from PIL import Image, ImageDraw
+    band = Image.new("RGB", (h, w), (16, 16, 18))
+    d = ImageDraw.Draw(band)
+    ch = 0.5 * w
+    polys, lw = logo_polys(0, 0, ch)
+    x0 = (h - lw) / 2
+    for poly in polys:
+        d.polygon([(x0 + px, w / 2 + ch / 2 - py) for px, py in poly], fill=(245, 245, 245))
+    im = Image.new("RGB", (2 * w, h))
+    im.paste(band.rotate(90, expand=True), (0, 0))
+    im.paste(band.rotate(-90, expand=True), (w, 0))
+    im.save(path)
+
+
+def goggle_outline(z_e, inset=(0.0, 0.0, 0.0), n=96):
+    """Front outline (x, z) of the frame, closed, starting at the top centre going towards +x. inset: (top, side,
+    bottom) in metres for the lens opening."""
+    it, isd, ib = inset
+    W = G_HALF_W - isd
+    out = []
+    for k in range(n):
+        th = 2 * np.pi * k / n
+        c, s_ = np.sin(th), np.cos(th)                    # x-ish, z-ish
+        x = W * np.sign(c) * abs(c) ** 0.35
+        top = z_e + G_TOP - it - 0.006 * (x / G_HALF_W) ** 2
+        bot = z_e + G_BOT + ib
+        tt = abs(x) / G_NOSE_W
+        bot = bot + (G_NOSE + 0.6 * ib) * ((1 - tt * tt) ** 2 if tt < 1 else 0.0)
+        zc, zh = 0.5 * (top + bot), 0.5 * (top - bot)
+        z = zc + zh * np.sign(s_) * abs(s_) ** 0.35
+        out.append((x, z))
+    return np.array(out)
+
+
+def lens_y(x, y_c):
+    a, b = G_PLAN
+    return y_c + b * (1 - np.sqrt(np.clip(1 - (x / a) ** 2, 0, 1)))
+
+
+def ring_quads(rings, part, mat, closed=True):
+    m = len(rings[0])
+    ids = [part.add(r, [], mat) + np.arange(m) for r in rings]
+    for k in range(len(ids) - (0 if closed else 1)):
+        A_, B_ = ids[k], ids[(k + 1) % len(ids)]
+        for i in range(m):
+            j = (i + 1) % m
+            part.F.append([A_[i], A_[j], B_[j], B_[i]]); part.M.append(mat); part.UV.append(None)
+    return ids
+
+
+def build_goggle(body, Rt, prof):
+    """The goggle in the rest frame (MB): frame, double lens, face foam conforming to his face, outriggers,
+    bare tear-off posts, and the strap round the helmet's back."""
+    R, t = Rt
+    L = head_landmarks(body)
+    z_e = L["eye"][2]
+    skin = body["V"][head_skin(body, ("head",))]
+    front = skin[skin[:, 1] < L["eye"][1] + 0.02]
+    tree = cKDTree(front[:, [0, 2]])
+
+    def face_y(x, z):
+        out = []
+        for xi, zi in zip(np.atleast_1d(x), np.atleast_1d(z)):
+            nb = tree.query_ball_point([xi, zi], 0.008)
+            out.append(front[nb, 1].min() if nb else np.nan)
+        return np.array(out)
+
+    oo = goggle_outline(z_e)
+    ii = goggle_outline(z_e, G_RIM)
+    # foam back on his face, the frame's back the foam's depth in front of it, the lens the frame's depth in front
+    fy = face_y(oo[:, 0] * 0.97, oo[:, 1])
+    fy = np.where(np.isnan(fy), np.nanmax(fy), fy)
+    lens_back = np.min(fy - (G_FOAM + G_DEPTH) - (lens_y(oo[:, 0], 0.0)))
+    y_c = lens_back
+    gog = Part("goggle_frame")
+    yo, yi = lens_y(oo[:, 0], y_c), lens_y(ii[:, 0], y_c)
+    fr = [np.c_[oo[:, 0], yo - 0.002, oo[:, 1]], np.c_[ii[:, 0], yi - 0.002, ii[:, 1]],
+          np.c_[ii[:, 0], yi + G_DEPTH, ii[:, 1]], np.c_[oo[:, 0], yo + G_DEPTH, oo[:, 1]]]
+    ring_quads(fr, gog, "goggle_frame")
+    # face foam: frame back to his face, conforming
+    fo = goggle_outline(z_e, (-0.001, -0.001, -0.001))
+    fi = goggle_outline(z_e, tuple(r + 0.004 for r in G_RIM))
+    yb_o = np.maximum(face_y(fo[:, 0] * 0.97, fo[:, 1]), lens_y(fo[:, 0], y_c) + G_DEPTH + 0.004) - 0.001
+    yb_i = np.maximum(face_y(fi[:, 0] * 0.97, fi[:, 1]), lens_y(fi[:, 0], y_c) + G_DEPTH + 0.004) - 0.001
+    yb_o = np.where(np.isnan(yb_o), lens_y(fo[:, 0], y_c) + G_DEPTH + G_FOAM, yb_o)
+    yb_i = np.where(np.isnan(yb_i), lens_y(fi[:, 0], y_c) + G_DEPTH + G_FOAM, yb_i)
+    foam = Part("goggle_foam")
+    ring_quads([np.c_[fo[:, 0], lens_y(fo[:, 0], y_c) + G_DEPTH - 0.001, fo[:, 1]],
+                np.c_[fi[:, 0], lens_y(fi[:, 0], y_c) + G_DEPTH - 0.001, fi[:, 1]],
+                np.c_[fi[:, 0], yb_i, fi[:, 1]], np.c_[fo[:, 0], yb_o, fo[:, 1]]], foam, "goggle_foam")
+    # lens: two sheets 2 mm apart, 3 mm larger than the opening (edges in the frame's groove)
+    lo = goggle_outline(z_e, tuple(r - 0.003 for r in G_RIM), n=96)
+    from scipy.spatial import Delaunay as _D
+    gx, gz = np.meshgrid(np.linspace(lo[:, 0].min(), lo[:, 0].max(), 40), np.linspace(lo[:, 1].min(), lo[:, 1].max(), 14))
+    pts = np.vstack([lo, np.c_[gx.ravel(), gz.ravel()]])
+    o = Profile.__new__(Profile)
+    o.outline = lo
+    keep = np.r_[np.ones(len(lo), bool), Profile.inside(o, pts[len(lo):]) &
+                 (cKDTree(lo).query(pts[len(lo):])[0] > 0.003)]
+    pts = pts[keep]
+    T = _D(pts).simplices
+    T = T[Profile.inside(o, pts[T].mean(1))]
+    lens = Part("goggle_lens")
+    for dy, flip in ((0.0, False), (0.002, True)):
+        V = np.c_[pts[:, 0], lens_y(pts[:, 0], y_c) + 0.004 + dy, pts[:, 1]]
+        lens.add(V, T[:, ::-1] if not flip else T, "goggle_lens")
+    # outriggers (both sides) and bare tear-off posts
+    parts_ = [gog, foam, lens]
+    orig = Part("goggle_outriggers")
+    posts = Part("goggle_posts")
+    ends = {}
+    for sgn in (1, -1):
+        x0 = sgn * G_HALF_W
+        y0 = lens_y(G_HALF_W, y_c)
+        P0 = np.array([x0 - sgn * 0.004, y0 + 0.002, z_e - 0.002])
+        P1 = np.array([x0 + sgn * 0.010, y0 + 0.042, z_e - 0.002])
+        d = (P1 - P0) / np.linalg.norm(P1 - P0)
+        nrm = np.cross(d, [0, 0, 1.0]) * sgn
+        nrm /= np.linalg.norm(nrm)
+        box = []
+        for (u, hz, off) in ((0, 1, 0), (1, 1, 0), (1, -1, 0), (0, -1, 0), (0, 1, 1), (1, 1, 1), (1, -1, 1), (0, -1, 1)):
+            box.append(P0 + (P1 - P0) * u + np.array([0, 0, 0.025 * hz]) + nrm * (0.007 * off - 0.0035))
+        box = np.array(box)
+        quads = [[0, 1, 2, 3], [7, 6, 5, 4], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]]
+        if sgn < 0:
+            quads = [q[::-1] for q in quads]
+        uv = [None] * 6
+        outer = 1                                           # the face with offset +1 is the outer face
+        uvq = [(0, 1), (1, 1), (1, 0), (0, 0)]
+        uvs = [[(0.5, 0.5)] * 4 for _ in quads]
+        # outer face corners (front bottom, back bottom, back top, front top); image halves per side
+        if sgn > 0:
+            uvs[1] = [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]
+        else:
+            uvs[1] = [(1.0, 1.0), (0.5, 1.0), (0.5, 0.0), (1.0, 0.0)]     # front top, back top, back bottom, front bottom
+        orig.add(box, quads, "goggle_outrigger", uvs)
+        ends[sgn] = P1 + nrm * 0.0035
+        c = np.array([sgn * 0.083, lens_y(0.083, y_c) - 0.003, z_e + 0.006])
+        cyl = []
+        for k in range(10):
+            a_ = 2 * np.pi * k / 10
+            cyl.append(c + np.array([0.0025 * np.cos(a_), 0, 0.0025 * np.sin(a_)]))
+        cyl = np.array(cyl)
+        ring_quads([cyl, cyl + [0, -0.004, 0]], posts, "goggle_post")
+    parts_ += [orig, posts]
+    parts_.append(build_strap(Rt, prof, ends))
+    return parts_, dict(lens_centre_ahead_of_eye_mm=round(float(L["eye"][1] - y_c) * 1000, 1))
+
+
+def build_strap(Rt, prof, ends, n=160):
+    """Strap round the helmet's back: from each outrigger's rear end onto the shell, along the line traced from
+    Leatt's MY27 side view, across the back. Width across the band, laid on the shell (2.5 mm off it)."""
+    R, t = Rt
+    L0, L1 = px2h(STRAP_LINE)
+    end_H = {k: R.T @ (v - t) for k, v in ends.items()}
+    ys = np.linspace(0, 1, n)
+    rows = []
+    for sgn in (1, -1):
+        e = end_H[sgn]
+        y_back = prof.rim_crown[np.argmin(np.abs(prof.rim_crown[:, 1] - L1[1]) + (prof.rim_crown[:, 0] < 0) * 9), 0]
+        Y = e[1] + (y_back - e[1]) * ys
+        Z = np.interp(Y, [e[1], L0[0], L1[0], y_back + 0.01], [e[2], L0[1], L1[1], L1[1] + (y_back - L1[0]) * 0.12])
+        X = np.zeros(n)
+        ins = prof.inside(np.c_[Y, Z])
+        X[ins] = half_width(prof, Y[ins], Z[ins], smooth=False)
+        X = X + 0.0025
+        k = np.clip((Y - e[1]) / 0.04, 0, 1)
+        X = np.maximum(X, abs(e[0]) * (1 - k))
+        X[-1] = 0.0
+        rows.append(np.c_[sgn * X, Y, Z])
+    path = np.vstack([rows[0], rows[1][::-1][1:]])         # left outrigger -> back -> right outrigger
+    tg = np.gradient(path, axis=0)
+    tg /= np.linalg.norm(tg, axis=1)[:, None]
+    w = np.cross(tg, np.c_[np.sign(path[:, 0]), np.zeros(len(path)), np.zeros(len(path))] + [0, 1e-9, 0])
+    up = np.array([0, 0, 1.0])
+    w = up - tg * (tg @ up)[:, None]
+    w /= np.linalg.norm(w, axis=1)[:, None]
+    lo_, hi_ = path - w * STRAP_W / 2, path + w * STRAP_W / 2
+    # keep both edges on the outside of the shell
+    for E_ in (lo_, hi_):
+        ins = prof.inside(E_[:, 1:])
+        hw = np.zeros(len(E_))
+        hw[ins] = half_width(prof, E_[ins, 1], E_[ins, 2], smooth=False) + 0.0025
+        need = np.abs(E_[:, 0]) < hw
+        E_[need, 0] = np.sign(path[need, 0] + 1e-9) * hw[need]
+    strap = Part("goggle_strap")
+    m = len(path)
+    outn = np.c_[path[:, 0], path[:, 1] - 0.0, np.zeros(m)]          # outwards in plan from the shell's centre
+    outn /= np.linalg.norm(outn, axis=1)[:, None]
+    rings = [lo_, hi_, hi_ - outn * STRAP_T * 0 + (hi_ - path) * 0, lo_]
+    s_ = np.r_[0, np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))]
+    s_ /= s_[-1]
+    o1 = strap.add(lo_, [], "goggle_strap")
+    o2 = strap.add(hi_, [], "goggle_strap")
+    inner_lo = lo_ - (lo_ - np.c_[np.zeros(m), lo_[:, 1:]]) * 0 - outn * STRAP_T
+    inner_hi = hi_ - outn * STRAP_T
+    o3 = strap.add(inner_hi, [], "goggle_strap_in")
+    o4 = strap.add(inner_lo, [], "goggle_strap_in")
+    for i in range(m - 1):
+        j = i + 1
+        uv = [(s_[i], 0.0), (s_[j], 0.0), (s_[j], 1.0), (s_[i], 1.0)]
+        strap.F.append([o1 + i, o1 + j, o2 + j, o2 + i]); strap.M.append("goggle_strap"); strap.UV.append(uv)
+        for a_, b_, mat in ((o2, o3, "goggle_strap_in"), (o3, o4, "goggle_strap_in"), (o4, o1, "goggle_strap_in")):
+            strap.F.append([a_ + i, a_ + j, b_ + j, b_ + i]); strap.M.append(mat); strap.UV.append([(0.5, 0.5)] * 4)
+    # the band was built in the helmet frame: to the rest frame
+    strap.V = strap.V @ R.T + t
+    strap.frame = "MB"
+    return strap
 
 
 def hidden_skin(body, Rt, prof=None):
@@ -597,10 +1054,18 @@ def extras(body, parts, Rt):
 
 
 MATERIALS = {
-    "helmet_white": dict(rgb=[226, 229, 235], rough=0.22, coat=1.0),
+    "helmet_paint": dict(image="helmet_pinata.png", rough=0.22, coat=1.0),       # Pinata Teal art, gloss clear
     "helmet_trim": dict(rgb=[18, 18, 20], rough=0.65),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
+    "goggle_frame": dict(rgb=[196, 28, 78], rough=0.35, coat=0.3),         # raspberry pink (his photos 07, 09)
+    "goggle_foam": dict(rgb=[46, 46, 50], rough=0.95, sheen=0.6),
+    "goggle_lens": dict(rgb=[214, 190, 226], rough=0.02, transmission=1.0,  # Iriz Purple, 78 % VLT
+                        thin_film=dict(thickness_nm=520, ior=1.6)),         # (thin film: not read by build_rider yet)
+    "goggle_post": dict(rgb=[22, 22, 24], rough=0.4),
+    "goggle_outrigger": dict(rough=0.45, image="goggle_outrigger.png"),
+    "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),
+    "goggle_strap_in": dict(rgb=[24, 24, 26], rough=0.8),
 }
 
 
@@ -624,6 +1089,10 @@ def write_npz(path, parts, extra=None):
 
 if __name__ == "__main__":
     body = np.load(sys.argv[1])
+    PAINT = "--paint" in sys.argv
+    os.makedirs(TEXDIR, exist_ok=True)
+    strap_texture(os.path.join(TEXDIR, "goggle_strap.png"))
+    outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
     parts, info, Rt = build(body)
     write_npz(sys.argv[2], parts, extras(body, parts, Rt))
     print(json.dumps(info), sum(len(P.V) for P in parts), "vertices")

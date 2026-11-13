@@ -98,34 +98,53 @@ def test_fit_on_his_head(built):
     assert g["fore"] >= 31.5
 
 
+CHAIN = ("neck01", "neck02", "neck03", "head")
+
+
 def deform_head(body, pitch_deg):
-    """His skin with the head bone (and everything it carries) pitched down by pitch_deg about its joint."""
+    """His skin with the head pitched down by pitch_deg relative to the trunk, shared equally by the three neck
+    bones and the head (cervical flexion), by linear blend skinning of the rest mesh. Returns the skin, and the
+    head bone's rigid motion (R, j, d): p -> R (p - j) + j + d."""
     names = list(body["bones"])
     parents = list(body["parents"])
-    tree = {"head"}
+    heads = body["heads"]
+    Ra = H.rot_x(math.radians(pitch_deg / len(CHAIN)))
+    M = {}                                               # bone -> (R, d): p -> R p + d
+    R, d = np.eye(3), np.zeros(3)
+    for n in CHAIN:
+        j = heads[names.index(n)]
+        jw = R @ j + d                                    # the joint where the chain has carried it
+        R, d = Ra @ R, Ra @ (d - jw) + jw + 0 * j
+        M[n] = (R.copy(), d.copy())
+    under = {"head"}
     grow = True
     while grow:
-        new = {n for n, p in zip(names, parents) if p in tree} - tree
+        new = {n for n, p in zip(names, parents) if p in under} - under
         grow = bool(new)
-        tree |= new
-    w = np.zeros(len(body["V"]))
-    for n in tree:
-        sel = body["w_bone"] == names.index(n)
-        np.add.at(w, body["w_vert"][sel], body["w_val"][sel])
-    j = body["heads"][names.index("head")]
-    R = H.rot_x(math.radians(pitch_deg))
+        under |= new
+    for n in under:
+        M[n] = M["head"]
     V = body["V"]
-    moved = (V - j) @ R.T + j
-    return V + (moved - V) * w[:, None], R, j
+    out = np.zeros_like(V)
+    tot = np.zeros(len(V))
+    for bi, n in enumerate(names):
+        sel = body["w_bone"] == bi
+        vi, w = body["w_vert"][sel], body["w_val"][sel]
+        Rb, db = M.get(n, (np.eye(3), np.zeros(3)))
+        np.add.at(out, vi, w[:, None] * (V[vi] @ Rb.T + db))
+        np.add.at(tot, vi, w)
+    out /= tot[:, None]
+    return out, M["head"]
 
 
 @pytest.mark.parametrize("pitch", [0.0, 20.0])
 def test_no_skin_inside_the_shell(body, built, pitch):
     """No skin vertex inside the shell's solid (shell, EPS, liner), at rest and with the head pitched down 20 deg
-    as when riding (the helmet rides the head bone; neck and shoulders do not)."""
+    as when riding (shared by the neck and head; the helmet rides the head bone, chest and shoulders do not).
+    Pitching the head bone alone by 20 deg brings the chin bar's lower inner rim 6 vertices into his throat."""
     P = built["parts"]["helmet_shell"]
-    Vs, R, j = deform_head(body, pitch)
-    Vh = (P.V - j) @ R.T + j
+    Vs, (R, d) = deform_head(body, pitch)
+    Vh = P.V @ R.T + d
     lo, hi = Vh.min(0) - 0.01, Vh.max(0) + 0.01
     near = np.all((Vs > lo) & (Vs < hi), axis=1)
     w = winding(Vs[near], Vh, tris(P))
