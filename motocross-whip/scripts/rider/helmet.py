@@ -1078,7 +1078,7 @@ MATERIALS = {
     "goggle_frame": dict(rgb=[196, 28, 78], rough=0.35, coat=0.3),         # raspberry pink (his photos 07, 09)
     "goggle_foam": dict(rgb=[46, 46, 50], rough=0.95, sheen=0.6),
     "goggle_lens": dict(rgb=[214, 190, 226], rough=0.02, transmission=1.0,  # Iriz Purple, 78 % VLT
-                        thin_film=dict(thickness_nm=520, ior=1.6)),         # (thin film: not read by build_rider yet)
+                        thin_film=dict(thickness_nm=520, ior=1.6)),         # the Iriz mirror's colour shift
     "goggle_post": dict(rgb=[22, 22, 24], rough=0.4),
     "goggle_outrigger": dict(rough=0.45, image="goggle_outrigger.png"),
     "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),
