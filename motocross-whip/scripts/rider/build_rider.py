@@ -301,20 +301,23 @@ def aim_pose(rig, p):
         S0 = rest[f"upperarm01.{s}"][0]
         G = to_arm(p["hands"][s])
         u = (G - S).normalized()
-        W = G - u * 0.075 + Vector((0, 0, 0.02))                  # wrist joint behind and above the grip axis
+        up = Vector((0, 0, 1))
+        dors = (up - u * up.dot(u)).normalized()                   # square to the forearm's line, upwards
+        Hc = G + dors * 0.036                                      # the hand's bone line rides 36 mm over the grip
+        W = Hc - u * 0.075                                         # axis (16 mm grip radius + palm; gloves.py)
         pole = to_arm(Vector(p["elbow_pole"]) * Vector((1, sg, 1)))
         E, W = two_bone(S, (E0 - S0).length, (W0 - E0).length, W, pole)
         aim(pbs[f"upperarm01.{s}"], E)
         aim(pbs[f"upperarm02.{s}"], E)
         aim(pbs[f"lowerarm01.{s}"], W)
         aim(pbs[f"lowerarm02.{s}"], W)
-        aim(pbs[f"wrist.{s}"], G + (G - W).normalized() * 0.02)
+        aim(pbs[f"wrist.{s}"], Hc + (Hc - W).normalized() * 0.02)
         err["hand_" + s] = (pbs[f"wrist.{s}"].head - W).length
         for f in range(1, 6):                                      # close the hand round the grip
             for j in (1, 2, 3):
                 pb = pbs.get(f"finger{f}-{j}.{s}")
                 if pb is not None:
-                    ang = (0.35 if f == 1 else (0.95, 1.05, 0.75)[j - 1])
+                    ang = ((0.45, 0.35, 0.3)[j - 1] if f == 1 else (1.25, 1.35, 1.0)[j - 1])   # wrapped round
                     rotate_about(pb, (pb.matrix.to_3x3() @ Vector((1, 0, 0))).normalized(), ang)
     return err
 
@@ -370,6 +373,8 @@ VIEWDEF = {"front": ((3.4, 0.0, 1.0), 50, (0.0, 0.0, 0.93)), "side": ((0.0, 3.4,
            "bike_34": ((3.3, 2.6, 1.45), 40, (0.70, 0.0, 0.90)),
            "bike_front": ((4.6, 0.0, 1.15), 40, (0.70, 0.0, 0.95)),
            "p05": ((1.25, 3.6, 1.10), 34, (0.75, 0.0, 0.90)),
+           "hand_L": ((1.30, 0.80, 1.42), 55, (0.92, 0.36, 1.23), (1200, 900)),        # left hand on its grip
+           "hand_R_top": ((0.62, -0.30, 1.75), 55, (0.92, -0.36, 1.22), (1200, 900)),  # right hand, rider's eye
            # the camera build_bike's cu_p07 close-up used for his photo 07 (1332 x 888, riding, left side)
            "p07": ((0.80, 4.6, 0.95), 45, (0.78, 0.0, 0.62), (1332, 888))}
 
