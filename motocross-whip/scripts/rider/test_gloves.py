@@ -146,6 +146,29 @@ def test_uv_islands_do_not_overlap(built):
     assert np.percentile(dens, 99) / np.percentile(dens, 1) < 2.6
 
 
+def test_construction_panels(built):
+    """Painted at 1024 px: the NanoGrip palm about 40 % of the hand's glove (palm, finger fronts, thumb pad), the
+    stretch-mesh fourchettes and tip caps present on every finger, the welded overlays 4000 to 7000 mm2 (four
+    knuckle overlays 15.5 mm wide seen from the back, about 19 mm round the finger's curve, 30 mm long: about
+    600 mm2 each; two on the little-finger edge, about 1000; one along the thumb, about 1300; the parts over the
+    knuckles themselves), stitches on the seams; relief within -0.5..+0.5 mm."""
+    G = built["G"]
+    TG = GL.texel_geometry(G, G["UV"], 1024)
+    col, h, m = GL.paint(G, TG, "L")
+    texel_mm = 1000.0 / (G["texel_per_m"] * 1024 / GL.TEX)
+    a = texel_mm ** 2
+    dens = np.sqrt(np.abs(np.linalg.det(np.stack([G["UV"][:, 1] - G["UV"][:, 0], G["UV"][:, 3] - G["UV"][:, 0]], 1))))
+    hand = ~m["cuff"]
+    frac = m["palm"].sum() / hand.sum()
+    assert 0.33 < frac < 0.50, frac
+    assert m["side"].sum() * a > 1500 and m["tip"].sum() * a > 400
+    ov = m["overlay"].sum() * a
+    assert 4000 < ov < 7000, ov
+    st = (np.abs(col - GL.STITCH).sum(1) < 1e-6).sum()
+    assert st * a > 150
+    assert -0.5 < h.min() and h.max() < 0.5
+
+
 def test_glove_over_its_skin_with_the_fist_closed(built):
     """Fingers curled as build_rider.aim_pose closes them on the grip (0.95, 1.05, 0.75 rad; thumb 0.35) and the
     wrist straight or bent 30 deg either way: skin and glove posed by linear blend skinning with their own weights.

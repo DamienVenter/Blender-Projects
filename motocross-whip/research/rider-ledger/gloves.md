@@ -74,3 +74,36 @@ palm side at palm skin (about 20 mm) + glove (1 mm) + grip radius (14.8 mm), abo
 30 mm too close to the grip axis (aim_pose aims the wrist bone straight at the grip point, so the grip point is on
 the hand's bone axis). The 25 deg angle and the crossing 92 mm from the wrist (across the distal palm) are right
 for a power grip. The fingers then need more curl than (0.95, 1.05, 0.75) rad to close round it.
+
+## 2. Construction (component 2, 2026-11-13)
+
+Leatt's features (product page, us.leatt.com/products/moto-2-5-x-flow-glove, fetched 2026-11-13): "Fully vented
+X-Flow mesh upper", "Stretch mesh FormFit finger sides", "Durable, ultra-thin NanoGrip palm", "Pre-curved, snug fit
+with seamless palm", "Multi-row Coats stretch thread stitching", "Hook-and-loop adjustable closure", "Touchscreen
+compatible". Shapes and places read on Leatt's MY27 back view (right glove) at 0.178 mm/px: the cuff seam (row 440)
+to the knuckle line (row about 1030) is 590 px against 105 mm on his hand (crease y +5 to the knuckles y about 110),
+agreeing with the 0.175 mm/px from the knuckle breadth; so the photo maps onto his hand's back as
+x = -45 + (col - 520) x 0.178, y = 5 + (row - 440) x 0.178 mm (hand frame).
+
+Everything here is in the texture (colour) and a shared tangent-space normal map (`glove_normal.png`, OpenGL
+green-up, from a height field in mm): at riding distance (his photos: a glove is 60 to 100 px) none of it shows
+as shape; the welded overlays are black on black.
+
+| Feature | Model | Source |
+|---|---|---|
+| X-Flow mesh (back of hand and fingers) | staggered holes 0.85 mm pitch, 0.10 mm deep | Leatt's close crops (`z_cuff_back`: a fine regular knit with holes); pitch EST from 1920 px photos (about 5 px) |
+| Stretch mesh (fourchettes, fingertip caps) | honeycomb, 1.5 mm cells, walls 0.12 mm | Leatt's crop of the fingertips (honeycomb caps on the back of the tips, about 12 mm long) |
+| Panels | palm within 62 deg of each finger bone's palmar side, back within 55 deg of its back, fourchette between (about 10 mm wide on a 9 mm finger); thumb 70 / 65; hand: palm 80 deg, back the rest | Leatt's palm view (black strips between the fingers) and back view |
+| NanoGrip palm | grey 152, 145, 143 mottled +-4.5 % (7 mm and 2.2 mm noise), suede relief 0.012 mm | Leatt's palm photos (mottled suede) |
+| Cuff band | ribs round the wrist 0.75 mm pitch, 0.05 mm | Leatt's crops (`z_cuff_back`: fine ribs across the band) |
+| Seams | 0.6 mm grooves, 0.18 mm deep, darker 35 % | Leatt's crops |
+| FormFit stitching | dashes 1.6 mm long every 2.6 mm, 1.3 mm off the seam on the mesh side, thread grey 96, 96, 100, 0.06 mm proud | Leatt's crop of the fingers (light grey stitch dashes along the finger sides) |
+| Knuckle overlays (fingers 2 to 5) | from 3 mm behind the knuckle joint along the first phalanx, 15.5 mm wide seen from the back (13 on the little finger), 30 mm long (25), the far end pointed (0.55 mm back per mm off the middle); slot vents 7.5 x 1.4 mm at 35 deg, every 5 mm | Leatt's MY27 back view crop (`z27_knuckles`) |
+| Little-finger edge overlays | two, 17 mm in from the edge and 9 mm round it: y 13 to 31 mm (3 vents) and 34 to 56 mm (7 vents, 6.5 x 1.3 mm at 55 deg) | `z27_edge` (rows 480 to 600 and 600 to 720 at 0.178 mm/px) |
+| Thumb overlay | along the thumb's back from 12 mm before its second joint to 65 % of its length, 16 mm wide, a row of dot vents 1.6 x 1.2 mm every 3.2 mm on its index side | `z27_thumb` |
+| Overlay surface | 0.35 mm proud, 0.35 mm bevel, black 17, 17, 19, vents 0.30 mm deep | Leatt's photos (deep satin black) |
+| Fabric material | roughness 0.7, sheen 0.1, one material per glove (build_rider's gear material has one roughness): the mesh's micro-relief scatters its highlight, the overlays' smooth faces keep theirs (the satin look) | Leatt's photos; the first renders with sheen 0.3 turned the black mid grey |
+
+Areas painted (1024 px test): overlays about 5,700 mm2 (knuckles about 600 each round the finger's curve, thumb
+1,300, edge pair 1,000), palm 33 to 50 % of the hand's glove. Textures: two colour maps 1.2 MB each and the normal
+map 3.9 MB (2048 px PNG).

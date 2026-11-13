@@ -626,7 +626,8 @@ def texel_geometry(G, UV, tex=TEX):
     X = np.einsum("ij,ijk->ik", bc, G["L"][vids])
     N = np.einsum("ij,ijk->ik", bc, G["NL"][vids])
     N /= np.linalg.norm(N, axis=1, keepdims=True)
-    return dict(yy=yy, xx=xx, face=fi, X=X, N=N, tid=tid, bc=bc, vids=vids)
+    CM = np.einsum("ij,ijk->ik", bc, G["UVm"][fi[:, None], corners]) * 1000.0       # chart plane, mm
+    return dict(yy=yy, xx=xx, face=fi, X=X, N=N, tid=tid, bc=bc, vids=vids, CM=CM, chart=G["isl"][fi])
 
 
 def palm_fields(B, side, G):
@@ -638,7 +639,7 @@ def palm_fields(B, side, G):
     z, x = R[2], R[0]
     names = B["names"]
     Pb = np.zeros((len(names), 3))
-    Cb = np.zeros(len(names))
+    Cb = np.zeros((len(names), 3))                 # cos palm half-width, cos back half-width, surface radius mm
     g = hand_bone_groups(names, side)
     for b, k in g.items():
         n = names[b]
@@ -648,16 +649,17 @@ def palm_fields(B, side, G):
             target = B["J"][f"finger2-2.{side}"] - B["J"][n]
             p = target - a * (target @ a)
             p = p / np.linalg.norm(p) + 0.4 * (z - a * (z @ a))
-            lim = 70.0
+            lim, blim, rad = 70.0, 65.0, 10.0
         elif k in (2, 3, 4, 5):
-            p, lim = z - a * (z @ a), 62.0
+            p, lim, blim, rad = z - a * (z @ a), 62.0, 55.0, 8.5
         else:
-            p, lim = z, 80.0
+            p, lim, blim, rad = z, 80.0, 100.0, 12.0
         Pb[b] = p / np.linalg.norm(p)
-        Cb[b] = math.cos(math.radians(lim))
+        Cb[b] = (math.cos(math.radians(lim)), math.cos(math.radians(blim)), rad)
     Wv = G["C"] @ B["W"]
     pv = np.asarray(Wv @ Pb)
-    cv = np.asarray(Wv @ Cb).ravel() / np.maximum(np.asarray(Wv.sum(1)).ravel(), 1e-9)
+    tot = np.maximum(np.asarray(Wv.sum(1)).ravel(), 1e-9)[:, None]
+    cv = np.asarray(Wv @ Cb) / tot
     return pv @ R.T, cv
 
 
@@ -666,24 +668,206 @@ def interp(TG, G, A):
     return np.einsum("ij,ij...->i...", TG["bc"], A[TG["vids"]])
 
 
-def paint_panels(G, TG, side):
-    """Base colours: X-Flow mesh black on the back and the finger sides, NanoGrip light grey on the palm, the finger
-    fronts and the thumb's pad, black ribbed elastic on the cuff band. Returns colours and the palm mask."""
-    X, N = TG["X"], TG["N"]
-    pv = interp(TG, G, G["palm_dir"])
-    pv /= np.linalg.norm(pv, axis=1, keepdims=True)
-    cv = interp(TG, G, G["palm_cos"])
-    col = np.zeros((len(X), 3))
-    col[:] = BLACK_MESH
-    palm = (np.einsum("ij,ij->i", N, pv) > cv) & (X[:, 1] > CREASE_Y)
-    col[palm] = GREY_PALM
-    col[X[:, 1] < CREASE_Y] = BLACK_ELASTIC
-    return col, palm
-
-
 BLACK_MESH = np.array([30, 30, 33]) / 255.0          # sRGB, Leatt's studio photo of the back (median of the mesh)
 GREY_PALM = np.array([152, 145, 143]) / 255.0         # NanoGrip palm, Leatt's palm photo (median)
 BLACK_ELASTIC = np.array([24, 24, 26]) / 255.0
+BLACK_OVERLAY = np.array([17, 17, 19]) / 255.0        # welded overlays (Leatt's photos: deeper, satin black)
+STITCH = np.array([96, 96, 100]) / 255.0              # Coats stretch thread on the seams (light grey dashes)
+
+
+def _noise(P, scale, seed=0):
+    """Smooth value noise in 3D (mm), about -1..1: sum of a few random plane waves."""
+    rng = np.random.default_rng(seed)
+    out = np.zeros(len(P))
+    for _ in range(6):
+        d = rng.normal(size=3)
+        d /= np.linalg.norm(d)
+        out += np.sin(P @ d * (2 * np.pi / scale) * rng.uniform(0.7, 1.4) + rng.uniform(0, 2 * np.pi))
+    return out / 6 ** 0.5
+
+
+def _seg_dist(X, a, b):
+    """Distance (mm) from points to the segment a-b and the parameter along it (mm from a)."""
+    ab = b - a
+    L = np.linalg.norm(ab)
+    t = np.clip((X - a) @ ab / L ** 2, 0, 1)
+    return np.linalg.norm(X - (a + np.outer(t, ab)), axis=1), (X - a) @ ab / L
+
+
+def _slots(u, v, centres, ang_deg, length, width):
+    """Inside any of the rounded slots (stadiums) at CENTRES (list of (u, v)), turned ANG_DEG: signed distance mm."""
+    c, s = math.cos(math.radians(ang_deg)), math.sin(math.radians(ang_deg))
+    best = np.full(len(u), np.inf)
+    for cu, cv in centres:
+        du, dv = u - cu, v - cv
+        al, ac = du * c + dv * s, -du * s + dv * c
+        h = length / 2 - width / 2
+        d = np.hypot(np.maximum(np.abs(al) - h, 0), ac) - width / 2
+        best = np.minimum(best, d)
+    return best
+
+
+def paint(G, TG, side):
+    """Colour (sRGB 0..1) and relief (height, mm) per texel: the glove's construction (Leatt features and photos):
+    X-Flow mesh on the back (fine knit with a staggered grid of holes, 0.85 mm), stretch-mesh fourchettes on the
+    finger sides and honeycomb caps on the fingertips (1.5 mm cells), the seamless NanoGrip palm (suede, mottled),
+    the ribbed elastic cuff band (0.75 mm ribs round the wrist), the seams (0.6 mm grooves) with FormFit stitching
+    (dashes 1.6 mm every 2.6 mm, 1.3 mm off the seam on the mesh side), and the welded overlays of the knuckle area
+    (0.35 mm proud, bevelled, slot vents): one over each finger's first phalanx pointed toward the tip, two on the
+    little-finger edge above the band, one along the thumb's back with a row of dot vents. Returns colour, height
+    and the masks (palm, back, side, tip cap, overlay)."""
+    X = TG["X"] * 1000.0                                          # hand frame, mm
+    N, CM = TG["N"], TG["CM"]
+    pv = interp(TG, G, G["palm_dir"])
+    pv /= np.linalg.norm(pv, axis=1, keepdims=True)
+    cvb = interp(TG, G, G["palm_cos"])
+    cpalm, cback, rad = cvb[:, 0], cvb[:, 1], cvb[:, 2]
+    cosp = np.einsum("ij,ij->i", N, pv)
+    ang = np.arccos(np.clip(cosp, -1, 1))
+    d_palm = (np.arccos(np.clip(cpalm, -1, 1)) - ang) * rad       # mm inside the palm panel (+) from its seam
+    d_back = (ang - (np.pi - np.arccos(np.clip(cback, -1, 1)))) * rad   # mm inside the back panel from its seam
+    cuff = X[:, 1] < CREASE_Y * 1000
+    d_cuff = CREASE_Y * 1000 - X[:, 1]                            # mm into the cuff band from its seam
+    palm = (d_palm > 0) & ~cuff
+    back = (d_back > 0) & ~palm & ~cuff
+    sidep = ~palm & ~back & ~cuff                                 # fourchettes
+    J = G["Jmm"]
+    # fingertip caps: the last 12 mm of each finger's back, the boundary curved round (U) to the sides
+    tipcap = np.zeros(len(X), bool)
+    d_tip = np.full(len(X), np.inf)
+    for k in range(1, 6):
+        a, b = J[f"finger{k}-3h"], J[f"finger{k}-3t"]
+        dist, t = _seg_dist(X, a, b)
+        L = np.linalg.norm(b - a)
+        mine = dist < 12.0
+        dd = (t - (L - 12.0)) - 0.15 * np.maximum(0, -d_back) ** 1.0
+        cap = mine & (dd > 0) & ~palm
+        tipcap |= cap
+        d_tip = np.where(mine & ~palm, np.minimum(d_tip, np.abs(dd)), d_tip)
+    col = np.zeros((len(X), 3))
+    h = np.zeros(len(X))
+    # X-Flow mesh: staggered holes
+    u, v = CM[:, 0], CM[:, 1]
+    p = 0.85
+    row = np.floor(v / p)
+    uu = u / p - 0.5 * (row % 2)
+    du = (uu - np.round(uu)) * p
+    dv = (v / p - row - 0.5) * p
+    dh = np.hypot(du, dv)
+    hole = smoothstep(0.30, 0.16, dh)
+    mesh_h = -0.10 * hole + 0.02 * np.cos(2 * np.pi * u / p * 2)
+    mesh_c = BLACK_MESH[None, :] * (1.05 - 0.45 * hole)[:, None]
+    # honeycomb stretch mesh
+    s3 = math.sqrt(3)
+    q = 1.5
+    hx, hy = u / q, v / (q * s3 / 2)
+    ry = np.round(hy)
+    rx = np.round(hx - 0.5 * (ry % 2)) + 0.5 * (ry % 2)
+    cdist = np.hypot((hx - rx) * q, (hy - ry) * q * s3 / 2)
+    wall = smoothstep(0.45, 0.62, cdist / q)
+    honey_h = 0.12 * wall - 0.05
+    honey_c = BLACK_MESH[None, :] * (0.75 + 0.45 * wall)[:, None]
+    # NanoGrip palm: suede, mottled
+    mott = _noise(X, 7.0, 1) * 0.5 + _noise(X, 2.2, 2) * 0.3
+    palm_c = GREY_PALM[None, :] * (1.0 + 0.045 * mott)[:, None]
+    palm_h = 0.012 * _noise(X, 0.35, 3)
+    # cuff band elastic: ribs round the wrist (the chart's v runs along the forearm)
+    rib = np.cos(2 * np.pi * v / 0.75)
+    cuff_c = BLACK_ELASTIC[None, :] * (1.0 + 0.10 * rib)[:, None]
+    cuff_h = 0.05 * rib
+    col[:] = mesh_c
+    h[:] = mesh_h
+    for m, c_, h_ in ((sidep | tipcap, honey_c, honey_h), (palm, palm_c, palm_h), (cuff, cuff_c, cuff_h)):
+        col[m] = c_[m]
+        h[m] = h_[m]
+    # seams: grooves at the panel boundaries, stitch dashes on the mesh side
+    groove = np.zeros(len(X))
+    stitch = np.zeros(len(X), bool)
+    along = v
+    for d_, ok in ((np.abs(d_palm), ~cuff), (np.abs(d_back), ~cuff & (rad < 11.5)), (d_tip, ~cuff),
+                   (np.abs(d_cuff), np.ones(len(X), bool))):
+        groove = np.maximum(groove, ok * smoothstep(0.45, 0.0, d_))
+    for d_, ok, al in ((-d_palm, ~cuff, along), (d_back, ~cuff & (rad < 11.5), along),
+                       (-d_cuff, np.ones(len(X), bool), u)):
+        dash = ((al / 2.6) % 1.0) < 0.62
+        stitch |= ok & (np.abs(d_ - 1.3) < 0.28) & dash
+    h -= 0.18 * groove
+    col *= (1 - 0.35 * groove)[:, None]
+    # overlays
+    over = np.full(len(X), np.inf)                                # signed distance (mm, negative inside)
+    slot = np.full(len(X), np.inf)
+    zdir = np.array([0, 0, 1.0])
+    dists = []
+    for k in (2, 3, 4, 5):
+        a, b = J[f"finger{k}-1h"], J[f"finger{k}-2h"]
+        dists.append(_seg_dist(X, a, b)[0])
+    near_f = np.argmin(np.stack(dists), 0) + 2
+    for k in (2, 3, 4, 5):
+        a, b = J[f"finger{k}-1h"], J[f"finger{k}-2h"]
+        ax = (b - a) / np.linalg.norm(b - a)
+        dors = -(zdir - ax * ax[2])
+        dors /= np.linalg.norm(dors)
+        lat = np.cross(ax, dors)
+        t = (X - a) @ ax
+        l = (X - a) @ lat
+        width = 15.5 if k != 5 else 13.0
+        length = 30.0 if k != 5 else 25.0
+        on = (near_f == k) & (N @ dors > 0.25) & ~palm
+        # rectangle from 3 mm behind the knuckle joint, pointed end toward the tip
+        d = np.maximum.reduce([np.abs(l) - width / 2, -3.0 - t, t - (length - 0.55 * np.abs(l))])
+        over = np.where(on, np.minimum(over, d), over)
+        sl = _slots(t, l, [(4.0 + 5.0 * i, 0.0) for i in range(int((length - 6) // 5))], 35.0, 7.5, 1.4)
+        slot = np.where(on & (d < -1.0), np.minimum(slot, sl), slot)
+    # little-finger edge: two overlays above the band (Leatt's back view, scaled 0.178 mm/px), wrapping the edge
+    xe = G["edge_x"](X[:, 1])                                     # the hand's little-finger edge (back view), mm
+    ue = X[:, 0] - xe                                             # mm in from the edge
+    edge_on = (N[:, 2] < 0.3) & ~cuff & ~palm
+    for y0, y1, n_slots in ((13.0, 31.0, 3), (34.0, 56.0, 7)):
+        d = np.maximum.reduce([ue - 17.0, y0 - X[:, 1], X[:, 1] - y1, -ue - 9.0])
+        over = np.where(edge_on, np.minimum(over, d), over)
+        cs = [(4.0 + 2.6 * i, y0 + 4.0 + (y1 - y0 - 8.0) * i / max(n_slots - 1, 1)) for i in range(n_slots)]
+        sl = _slots(ue, X[:, 1], cs, 55.0, 6.5, 1.3)
+        slot = np.where(edge_on & (d < -1.0), np.minimum(slot, sl), slot)
+    # thumb's back: from its base to 6 mm short of the tip, a row of dot vents along its index-finger side
+    a, b = J["finger1-2h"], J["finger1-3t"]
+    ax = (b - a) / np.linalg.norm(b - a)
+    pad = G["thumb_pad"]
+    dors = -(pad - ax * (pad @ ax))
+    dors /= np.linalg.norm(dors)
+    lat = np.cross(ax, dors)
+    t = (X - a) @ ax
+    l = (X - a) @ lat
+    L = np.linalg.norm(b - a)
+    on = (N @ dors > 0.2) & ~palm & (_seg_dist(X, a - ax * 14.0, b)[0] < 13.0)
+    d = np.maximum.reduce([np.abs(l) - 8.0, -12.0 - t, t - 0.65 * L])
+    over = np.where(on, np.minimum(over, d), over)
+    sl = _slots(t, l, [(-8.0 + 3.2 * i, 5.0) for i in range(int((0.65 * L + 4.0) // 3.2))], 90.0, 1.6, 1.2)
+    slot = np.where(on & (d < -1.0), np.minimum(slot, sl), slot)
+    inside = over < 0
+    bevel = smoothstep(0.35, -0.35, over)
+    h = h * (1 - bevel) + 0.35 * bevel
+    col[inside] = BLACK_OVERLAY
+    vent = slot < 0
+    h -= 0.30 * smoothstep(0.15, -0.15, slot)
+    col[vent] = BLACK_MESH * 0.55
+    col[stitch & ~inside] = STITCH
+    h[stitch & ~inside] += 0.06
+    return np.clip(col, 0, 1), h, dict(palm=palm, back=back, side=sidep, tip=tipcap, overlay=inside, cuff=cuff)
+
+
+def paint_panels(G, TG, side):
+    """Panel colours only (for the preview)."""
+    col, h, m = paint(G, TG, side)
+    return col, m["palm"]
+
+
+def normal_map(h, filled, texel_mm):
+    """Tangent-space normal map (OpenGL: green = +v, up the image) from a height field in mm per texel."""
+    hd = dilate(h[..., None], filled)[..., 0]
+    gy, gx = np.gradient(hd, texel_mm)                            # per mm: rows go down the image, columns right
+    n = np.stack([-gx, gy, np.ones_like(hd)], -1)                 # dh/dv = -dh/drow
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    return n * 0.5 + 0.5
 
 
 # ---- strap and pull tab -------------------------------------------------------------------------------------------
@@ -864,9 +1048,30 @@ def build_side(B, side="L"):
     seg_v = segments(B, side, Wv)
     G["seg_face"] = np.array([np.bincount(seg_v[f], minlength=7).argmax() for f in G["F"]])
     G["palm_dir"], G["palm_cos"] = palm_fields(B, side, G)
+    # joints in the hand frame (mm), the little-finger edge of the back view, the thumb pad's direction
+    G["Jmm"] = {}
+    for k in range(1, 6):
+        for j in (1, 2, 3):
+            n = f"finger{k}-{j}.{side}"
+            G["Jmm"][f"finger{k}-{j}h"] = (B["J"][n] - o) @ R.T * 1000
+            G["Jmm"][f"finger{k}-{j}t"] = (B["T"][n] - o) @ R.T * 1000
+    Lm = G["L"] * 1000
+    ys = np.arange(-30.0, 131.0, 2.0)
+    ex = np.array([Lm[np.abs(Lm[:, 1] - y) < 1.5, 0].min() if (np.abs(Lm[:, 1] - y) < 1.5).any() else np.nan
+                   for y in ys])
+    ok = ~np.isnan(ex)
+    from scipy.ndimage import gaussian_filter1d, median_filter
+    exs = gaussian_filter1d(median_filter(ex[ok], 5, mode="nearest"), 2.0, mode="nearest")   # 4 mm smooth
+    G["edge_x"] = lambda y, ys=ys[ok], ex=exs: np.interp(y, ys, ex)
+    a = B["T"][f"finger1-3.{side}"] - B["J"][f"finger1-2.{side}"]
+    tgt = B["J"][f"finger2-2.{side}"] - B["J"][f"finger1-2.{side}"]
+    p = tgt - a * (tgt @ a) / (a @ a)
+    p = p / np.linalg.norm(p) + 0.4 * (R[2] - a * (R[2] @ a) / (a @ a))
+    G["thumb_pad"] = (p / np.linalg.norm(p)) @ R.T
     UV, chart = charts(B, side, G)
     isl = islands(G["F"], chart)
     G["isl"] = isl
+    G["UVm"] = UV
     UVp, k = pack(UV, isl)
     G["UV"], G["texel_per_m"] = UVp, k
     # hem (inner side of the cuff) and strap
@@ -917,8 +1122,8 @@ def to_parts(B, G, side="L", mirror=None):
 
 MATERIALS = {
     # fabric: X-Flow mesh, stretch mesh and NanoGrip in one texture; elastic, webbing, TPR pull (Leatt photos)
-    "glove_fabric_L": dict(image="glove_L_color.png", rough=0.78, sheen=0.35),
-    "glove_fabric_R": dict(image="glove_R_color.png", rough=0.78, sheen=0.35),
+    "glove_fabric_L": dict(image="glove_L_color.png", normal="glove_normal.png", rough=0.7, sheen=0.1),
+    "glove_fabric_R": dict(image="glove_R_color.png", normal="glove_normal.png", rough=0.7, sheen=0.1),
     "glove_elastic": dict(rgb=[24, 24, 26], rough=0.8, sheen=0.3),
     "glove_strap": dict(rgb=[22, 22, 24], rough=0.72, sheen=0.25),
     "glove_tab": dict(rgb=[236, 236, 234], rough=0.45),
@@ -926,16 +1131,23 @@ MATERIALS = {
 
 
 def write_textures(B, G, out_dir):
+    """glove_L_color.png and glove_R_color.png (each glove's own prints), glove_normal.png (shared: the relief is
+    the same on both, mirrored with the mesh)."""
+    from PIL import Image
     TG = texel_geometry(G, G["UV"])
     filled = TG["tid"] >= 0
+    texel_mm = 1000.0 / G["texel_per_m"]
     for side in ("L", "R"):
-        col, palm = paint_panels(G, TG, side)
+        col, h, masks = paint(G, TG, side)
         img = np.zeros((TEX, TEX, 3))
         img[TG["yy"], TG["xx"]] = col
         img = dilate(img, filled)
-        from PIL import Image
         Image.fromarray((np.clip(img, 0, 1) * 255).round().astype(np.uint8)).save(
             os.path.join(out_dir, f"glove_{side}_color.png"), optimize=True)
+    H = np.zeros((TEX, TEX))
+    H[TG["yy"], TG["xx"]] = h
+    nm = normal_map(H, filled, texel_mm)
+    Image.fromarray((nm * 255).round().astype(np.uint8)).save(os.path.join(out_dir, "glove_normal.png"), optimize=True)
     return TG
 
 
@@ -1131,10 +1343,10 @@ def heights(G, Vp, Pg):
 #   RIDER_SAMPLES (default 16), GLOVE_RES (default 900).
 CAMS = {
     # (direction from the hand to the camera in the hand frame (x thumb, y finger, z palm), image up, lens mm, dist)
-    "back": ((0.0, 0.0, -1.0), (0.0, -1.0, 0.0), 90, 0.95),
-    "palm": ((0.0, 0.0, 1.0), (0.0, -1.0, 0.0), 90, 0.95),
-    "back34": ((0.30, 0.15, -0.94), (0.0, -1.0, 0.0), 90, 0.95),
-    "palm34": ((-0.25, 0.10, 0.96), (0.0, -1.0, 0.0), 90, 0.95),
+    "back": ((0.0, 0.0, -1.0), (0.0, -1.0, 0.0), 90, 0.72),
+    "palm": ((0.0, 0.0, 1.0), (0.0, -1.0, 0.0), 90, 0.72),
+    "back34": ((0.30, 0.15, -0.94), (0.0, -1.0, 0.0), 90, 0.72),
+    "palm34": ((-0.25, 0.10, 0.96), (0.0, -1.0, 0.0), 90, 0.72),
     # close-ups (not Leatt views): fingertips from the back and from the side, knuckles, cuff and strap
     "tips": ((0.0, 0.45, -0.89), (0.0, -1.0, 0.0), 90, 0.42, 0.07),
     "knuckles": ((0.0, -0.2, -0.98), (0.0, -1.0, 0.0), 90, 0.40, 0.02),
@@ -1323,7 +1535,7 @@ def _blender_check(argv):
             dw = (t * d[0] + f * d[1] + n * d[2]).normalized()
             upw = (t * up[0] + f * up[1] + n * up[2]).normalized()
             bg.inputs["Color"].default_value = (1, 1, 1, 1)
-            bg.inputs["Strength"].default_value = 0.35
+            bg.inputs["Strength"].default_value = 0.22
             seen.inputs["Color"].default_value = (1, 1, 1, 1)
             seen.inputs["Strength"].default_value = 1.0
             body.hide_render = True
