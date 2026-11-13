@@ -74,3 +74,22 @@ def test_proportions_against_drillis_contini(built):
     shoulder_top = left[(left[:, 0] < 0.20) & (np.abs(left[:, 1] - j("upperarm01.L")[1]) < 0.04)]
     ac = shoulder_top[np.argmax(shoulder_top[:, 2])]
     assert abs(np.linalg.norm(tip - ac) / (0.44 * S) - 1) < 0.06
+
+
+PARTS = os.environ.get("BIKE_PARTS", "/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/int9/b.npz")
+
+
+@pytest.mark.skipif(not os.path.exists(PARTS), reason="needs a bike parts file (parts.py OUT.npz; BIKE_PARTS)")
+def test_pose_contacts_are_the_bikes():
+    """Grips and pegs mirror each other; seat top about 0.98 m (CRF250R spec 965 mm unladen, our model 0.979 at the
+    seat's low point); peg tops about 0.45 m; every pose keeps the hands and feet on them."""
+    import pose
+    c = pose.contacts(PARTS)
+    for k in ("grips", "pegs"):
+        L, R = np.array(c[k]["L"]), np.array(c[k]["R"])
+        assert np.allclose(L * [1, -1, 1], R, atol=1e-4)                                   # 0.1 mm
+    assert 0.96 < pose.seat_top(c, 0.55) < 1.0 and 0.42 < c["pegs"]["L"][2] < 0.47
+    for name in ("seated", "standing", "photo05"):
+        p = pose.pose(c, name)
+        assert np.allclose(p["hands"]["L"], c["grips"]["L"])
+        assert p["pelvis"][2] > pose.seat_top(c, p["pelvis"][0]) + 0.09                   # never into the seat

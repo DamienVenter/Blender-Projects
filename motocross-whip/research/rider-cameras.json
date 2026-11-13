@@ -1,0 +1,90 @@
+{
+ "cam05": {
+  "f": 2833.147561669254,
+  "rotvec": [
+   -0.6533888038130181,
+   -1.8348665496384473,
+   -1.7047114442493336
+  ],
+  "C": [
+   5.505680877513328,
+   5.132679940037263,
+   0.9664835493776238
+  ],
+  "W": 591,
+  "H": 1280,
+  "photo": "reference/damien-bike-2026-11-10/05_damien-seated-left-side.jpg",
+  "landmarks": {
+   "front axle (left nut)": [
+    99,
+    1057
+   ],
+   "rear axle (left nut)": [
+    546,
+    1001
+   ],
+   "front tyre contact": [
+    92,
+    1217
+   ],
+   "rear tyre contact": [
+    523,
+    1130
+   ],
+   "left grip (glove centre)": [
+    345,
+    662
+   ],
+   "right grip (glove centre)": [
+    145,
+    688
+   ]
+  },
+  "rms_px": 5.29,
+  "note": "fitted by least squares to the bike model's points (pose.py contacts); tyre contacts weighted 0.5, the far grip 0.6"
+ },
+ "cam07": {
+  "f": 4080.3132950405065,
+  "rotvec": [
+   -0.0005654504422176405,
+   2.6146094239347897,
+   1.586187490674184
+  ],
+  "C": [
+   0.0037892421300767315,
+   8.540041268252356,
+   -3.4011732010950677
+  ],
+  "W": 1332,
+  "H": 888,
+  "rms_px": 14.757170274156207,
+  "photo": "reference/damien-bike-2026-11-12/07_left-side-riding-pan.jpg",
+  "landmarks": {
+   "front axle (left nut)": [
+    291.7,
+    691.7
+   ],
+   "rear axle (left nut)": [
+    948.3,
+    710
+   ],
+   "front tyre contact": [
+    292,
+    832
+   ],
+   "rear tyre contact": [
+    948,
+    841
+   ],
+   "front fender tip": [
+    239.3,
+    490.7
+   ],
+   "rear fender tip": [
+    1091.7,
+    478.3
+   ]
+  },
+  "note": "panning shot, motion blur; fitted by least squares to the bike model's points, tyre contacts weighted 0.5"
+ }
+}

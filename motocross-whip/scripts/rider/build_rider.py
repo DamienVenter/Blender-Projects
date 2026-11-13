@@ -195,7 +195,129 @@ def add_gear(path, rig, body_bones):
     return out
 
 
+def to_arm(p):
+    """Bike ground frame (x forward, y left, z up) -> armature space (MB: facing -y, left at +x); the root empty
+    stays at the origin turned +90 deg, so the armature's space is the ground frame turned -90 deg."""
+    x, y, z = p
+    return Vector((y, -x, z))
+
+
+def _set(pb, M):
+    pb.matrix = M
+    bpy.context.view_layer.update()
+
+
+def rotate_about(pb, axis, ang, pivot=None):
+    """Turn a pose bone (and so its children) by ang about an armature-space axis through pivot (default its head)."""
+    M = pb.matrix.copy()
+    c = M.translation if pivot is None else pivot
+    R = Matrix.Rotation(ang, 4, axis)
+    _set(pb, Matrix.Translation(c) @ R @ Matrix.Translation(-c) @ M)
+
+
+def aim(pb, target, twist_ref=None):
+    """Turn a pose bone about its head so its tail points at target (minimal turn)."""
+    M = pb.matrix.copy()
+    h = M.translation
+    cur = (M.to_3x3() @ Vector((0, 1, 0))).normalized()
+    want = (Vector(target) - h).normalized()
+    q = cur.rotation_difference(want)
+    _set(pb, Matrix.Translation(h) @ q.to_matrix().to_4x4() @ Matrix.Translation(-h) @ M)
+
+
+def two_bone(a, b_len, c_len, target, pole):
+    """Middle joint of a two-segment chain from a towards target, bending towards pole."""
+    a, t, pole = Vector(a), Vector(target), Vector(pole).normalized()
+    d = t - a
+    L = min(d.length, (b_len + c_len) * 0.9999)
+    u = d.normalized()
+    x = (b_len ** 2 - c_len ** 2 + L ** 2) / (2 * L)
+    h = math.sqrt(max(b_len ** 2 - x ** 2, 0.0))
+    side = (pole - u * pole.dot(u)).normalized()
+    return a + u * x + side * h, a + u * L
+
+
+def aim_pose(rig, p):
+    """Pose from targets (pose.py): pelvis, spine lean, head, legs to the pegs, arms to the grips, curled fingers.
+    Returns the placement errors (m) of the hands and feet."""
+    pbs = rig.pose.bones
+    for pb in pbs:
+        pb.rotation_mode = "QUATERNION"
+    X = Vector((1, 0, 0))                                         # his left: the pitch axis in armature space
+    rest = {b.name: (b.head_local.copy(), b.tail_local.copy()) for b in rig.data.bones}
+    # pelvis: tip forward, then move the hip joints' midpoint onto the target
+    rotate_about(pbs["root"], X, math.radians(p["pelvis_pitch"]))
+    roll = math.radians(p.get("pelvis_roll", 0.0))                # + = right hip down (foot to the ground)
+    if roll:
+        rotate_about(pbs["root"], Vector((0, 1, 0)), -roll)
+    hip = (pbs["upperleg01.L"].head + pbs["upperleg01.R"].head) / 2
+    M = pbs["root"].matrix.copy()
+    _set(pbs["root"], Matrix.Translation(to_arm(p["pelvis"]) - hip) @ M)
+    # spine: the rest of the lean, shared over the five spine bones
+    extra = math.radians(p["spine_lean"] - p["pelvis_pitch"])
+    for n in ("spine05", "spine04", "spine03", "spine02", "spine01"):
+        rotate_about(pbs[n], X, extra / 5)
+        if roll:
+            rotate_about(pbs[n], Vector((0, 1, 0)), roll / 5)      # the trunk stays upright over a rolled pelvis
+    # neck and head: bring the head back to head_pitch from vertical (the face looks ahead)
+    up = (pbs["head"].tail - pbs["head"].head).normalized()
+    tilt = math.atan2(-up.y, up.z)                              # forward tilt now (facing -y)
+    corr = math.radians(p["head_pitch"]) - tilt
+    for n in ("neck01", "neck02", "neck03", "head"):
+        rotate_about(pbs[n], X, corr / 4)
+    err = {}
+    # legs
+    for s in ("L", "R"):
+        sg = 1 if s == "L" else -1
+        H = pbs[f"upperleg01.{s}"].head.copy()
+        K0, A0 = rest[f"lowerleg01.{s}"][0], rest[f"foot.{s}"][0]
+        hip0 = rest[f"upperleg01.{s}"][0]
+        balls0 = [rest[f"toe{i}-1.{s}"][0] for i in range(1, 6)]
+        ball0 = sum(balls0, Vector()) / 5
+        ball0.z = 0.0                                             # the sole under the ball
+        B = to_arm(p["balls"][s])
+        A = B + (A0 - ball0)                                      # foot level, pointing ahead
+        pole = to_arm(Vector(p["knee_pole"]) * Vector((1, sg, 1)))
+        K, A = two_bone(H, (K0 - hip0).length, (A0 - K0).length, A, pole)
+        aim(pbs[f"upperleg01.{s}"], K)
+        aim(pbs[f"upperleg02.{s}"], K)
+        aim(pbs[f"lowerleg01.{s}"], A)
+        aim(pbs[f"lowerleg02.{s}"], A)
+        foot_dir = rest[f"foot.{s}"][1] - rest[f"foot.{s}"][0]
+        aim(pbs[f"foot.{s}"], pbs[f"foot.{s}"].head + foot_dir)
+        toes = sum([pbs[f"toe{i}-1.{s}"].head for i in range(1, 6)], Vector()) / 5
+        err["foot_" + s] = ((toes - B) - (sum(balls0, Vector()) / 5 - ball0)).length
+    # arms
+    for s in ("L", "R"):
+        sg = 1 if s == "L" else -1
+        S = pbs[f"upperarm01.{s}"].head.copy()
+        E0, W0 = rest[f"lowerarm01.{s}"][0], rest[f"wrist.{s}"][0]
+        S0 = rest[f"upperarm01.{s}"][0]
+        G = to_arm(p["hands"][s])
+        u = (G - S).normalized()
+        W = G - u * 0.075 + Vector((0, 0, 0.02))                  # wrist joint behind and above the grip axis
+        pole = to_arm(Vector(p["elbow_pole"]) * Vector((1, sg, 1)))
+        E, W = two_bone(S, (E0 - S0).length, (W0 - E0).length, W, pole)
+        aim(pbs[f"upperarm01.{s}"], E)
+        aim(pbs[f"upperarm02.{s}"], E)
+        aim(pbs[f"lowerarm01.{s}"], W)
+        aim(pbs[f"lowerarm02.{s}"], W)
+        aim(pbs[f"wrist.{s}"], G + (G - W).normalized() * 0.02)
+        err["hand_" + s] = (pbs[f"wrist.{s}"].head - W).length
+        for f in range(1, 6):                                      # close the hand round the grip
+            for j in (1, 2, 3):
+                pb = pbs.get(f"finger{f}-{j}.{s}")
+                if pb is not None:
+                    ang = (0.35 if f == 1 else (0.95, 1.05, 0.75)[j - 1])
+                    rotate_about(pb, (pb.matrix.to_3x3() @ Vector((1, 0, 0))).normalized(), ang)
+    return err
+
+
 def apply_pose(root, rig, pose):
+    if "pelvis" in pose:                                          # targets (pose.py)
+        err = aim_pose(rig, pose)
+        print("POSE errors (m):", {k: round(v, 4) for k, v in err.items()})
+        return
     for n, q in pose.get("bones", {}).items():
         pb = rig.pose.bones.get(n)
         if pb is not None:
@@ -235,12 +357,47 @@ def studio():
         sc.collection.objects.link(o)
 
 
-VIEWDEF = {"front": ((3.4, 0.0, 1.0), 50), "side": ((0.0, 3.4, 1.0), 50), "back": ((-3.4, 0.0, 1.0), 50),
-           "three": ((2.6, 2.2, 1.35), 50)}
+VIEWDEF = {"front": ((3.4, 0.0, 1.0), 50, (0.0, 0.0, 0.93)), "side": ((0.0, 3.4, 1.0), 50, (0.0, 0.0, 0.93)),
+           "back": ((-3.4, 0.0, 1.0), 50, (0.0, 0.0, 0.93)), "three": ((2.6, 2.2, 1.35), 50, (0.0, 0.0, 0.93)),
+           # on the bike (ground frame of the bike): his left side, front-left three-quarter, photo 05's angle
+           "bike_left": ((0.75, 4.6, 0.95), 40, (0.70, 0.0, 0.85)),
+           "bike_34": ((3.3, 2.6, 1.45), 40, (0.70, 0.0, 0.90)),
+           "bike_front": ((4.6, 0.0, 1.15), 40, (0.70, 0.0, 0.95)),
+           "p05": ((1.25, 3.6, 1.10), 34, (0.75, 0.0, 0.90)),
+           # the camera build_bike's cu_p07 close-up used for his photo 07 (1332 x 888, riding, left side)
+           "p07": ((0.80, 4.6, 0.95), 45, (0.78, 0.0, 0.62), (1332, 888))}
 
 
-def render(name, target=(0.0, 0.0, 0.93)):
-    loc, lens = VIEWDEF[name]
+def photo_camera(spec, scale=2):
+    """A camera fitted to one of his photos (research/rider-cameras.json): focal length in pixels, rotation vector
+    (world -> camera: x right, y up, looking along -z) and centre, at the photo's own size times scale."""
+    cam = bpy.data.objects.new("cam_photo", bpy.data.cameras.new("cam_photo"))
+    cam.data.sensor_fit = "HORIZONTAL"
+    cam.data.sensor_width = 36.0
+    cam.data.lens = spec["f"] * 36.0 / spec["W"]
+    R = Matrix.Rotation(np.linalg.norm(spec["rotvec"]), 3, Vector(spec["rotvec"]).normalized()) \
+        if np.linalg.norm(spec["rotvec"]) > 0 else Matrix.Identity(3)
+    cam.matrix_world = Matrix.Translation(Vector(spec["C"])) @ R.transposed().to_4x4()
+    sc = bpy.context.scene
+    sc.render.resolution_x, sc.render.resolution_y = int(spec["W"] * scale), int(spec["H"] * scale)
+    return cam
+
+
+def render(name):
+    sc = bpy.context.scene
+    if name.startswith("photo:"):                                 # photo:<camera name> from RIDER_CAMS json
+        spec = json.load(open(os.environ["RIDER_CAMS"]))[name[6:]]
+        cam = photo_camera(spec)
+        sc.collection.objects.link(cam)
+        sc.camera = cam
+        sc.render.filepath = os.path.join(OUT, f"rider_{name[6:]}.png")
+        bpy.ops.render.render(write_still=True)
+        print("RENDERED", sc.render.filepath)
+        sc.render.resolution_x, sc.render.resolution_y = 1200, 1600
+        return
+    loc, lens, target = VIEWDEF[name][:3]
+    res = VIEWDEF[name][3] if len(VIEWDEF[name]) > 3 else (1200, 1600)
+    sc.render.resolution_x, sc.render.resolution_y = res
     cam = bpy.data.objects.new("cam_" + name, bpy.data.cameras.new("cam_" + name))
     cam.data.lens = lens
     cam.location = loc
@@ -260,6 +417,13 @@ def main():
         add_gear(os.path.abspath(gpath), rig, [str(n) for n in d["bones"]])
     if POSE:
         apply_pose(root, rig, json.load(open(POSE)))
+    bike = os.environ.get("RIDER_BIKE")                           # "bike.blend::collection": the bike to sit on
+    if bike:
+        f, col = bike.split("::")
+        with bpy.data.libraries.load(f, link=False) as (src, dst):
+            dst.collections = [col]
+        for c in dst.collections:
+            bpy.context.scene.collection.children.link(c)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "rider.blend"))
     if VIEWS:
         studio()

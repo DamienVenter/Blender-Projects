@@ -31,3 +31,23 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Blender: build_rider.py makes the mesh (UVs per face corner, smooth, subsurf 1), the armature (heads, tails,
   rolls, parents, connect flags from the rig file) and vertex groups, under an empty "rider" turned +90 deg about
   z so he faces +x like the bike.
+
+## Pose on the bike (2026-11-13)
+- Contacts come from the bike model in its ground frame (parts.to_ground): grips 60 mm in from the bar ends
+  (0.914, +-0.352, 1.228), peg tops (0.551, +-0.179, 0.446), seat top about 0.98 at its low point (x 0.53). The
+  boot sole (25 mm, estimated) lifts the ball of the foot off the peg.
+- pose.py writes targets; build_rider.aim_pose turns them into bones: pelvis tipped and moved (hip joints'
+  midpoint), the trunk's extra lean shared over spine05..01, the neck and head brought back to look ahead,
+  two-bone IK for legs and arms with pole directions, each MakeHuman split bone (upperleg01/02, lowerarm01/02)
+  aimed at the same joint, fingers curled. Hands land within 0.3 mm, feet within 9 mm.
+- His photo 05 (seated, stopped) has a fitted camera (research/rider-cameras.json, 6 bike landmarks, 5.3 px rms;
+  a telephoto from 7.5 m). Through it his body sits right on the bike (thigh, knee, peg foot, reach). The boot on
+  the ground there is his RIGHT foot on the far side: a ground point that "lands on the wrong side" may simply be
+  the far foot. It is out of reach with the bike upright: the bike leans onto that foot, and the lean cannot be
+  fitted from axles, contacts and grips (it trades against camera roll).
+- Photo 07 (panning, seated riding) cannot be fitted from the axles, contacts and fender tips: with him on board
+  the suspension sags (the rear fender tip sits 13 px above the front tip where the unladen model has it 0.19 m
+  higher). A free sag pitch and drop make the fit degenerate (camera underground). Needs more frame landmarks, or
+  the bike posed with rider sag. build_bike's cu_p07 camera was placed by eye, never overlaid.
+- Read pose renders carefully: a scaled sheet fooled me into "both poses are identical"; projecting the joints onto
+  the render (world_to_camera_view) showed the skin follows the skeleton exactly.
