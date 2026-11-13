@@ -171,6 +171,20 @@ def half_width(prof, Y, Z, smooth=True):
     return X + (Xs - X) * k * k * (3 - 2 * k)
 
 
+_SHELL_HW = {}
+
+
+def shell_hw(prof, Y, Z):
+    """The built shell's own half width (smoothed field, interpolated over its domain points) for parts that lie
+    on it (visor, strap); outside the domain 0."""
+    from scipy.interpolate import LinearNDInterpolator
+    key = id(prof)
+    if key not in _SHELL_HW:
+        P = domain_points(prof)
+        _SHELL_HW[key] = LinearNDInterpolator(P, half_width(prof, P[:, 0], P[:, 1]), fill_value=0.0)
+    return np.nan_to_num(_SHELL_HW[key](np.c_[Y, Z]))
+
+
 def ring_offsets(L, p, n):
     """Distances from a rim where the falloff rises in equal steps (even spacing across the 3D surface)."""
     s = np.arange(1, n + 1) / n
@@ -469,7 +483,7 @@ RIM_R = 0.004                      # m, the rubber trim's roll beyond the cut ed
 # Royal_Left pixels: top line (centre line) and lower edge (the visor's side edge seen from the side), tip at u 220,
 # rear end on the crown at u 1135 (its rear edge runs down to the side corner at u 1075, v 662).
 VISOR_TOP = [(220, 334), (257, 323), (297, 322), (337, 322), (407, 321), (487, 322), (567, 323), (647, 326),
-             (726, 329), (806, 334), (886, 340), (966, 347), (1045, 358), (1100, 366), (1135, 372)]
+             (726, 329), (806, 334), (886, 340), (966, 347), (1045, 352), (1100, 356), (1135, 360)]      # rear end raised 3 mm: sits on the crown
 VISOR_LOW = [(220, 334), (277, 377), (346, 416), (416, 454), (487, 491), (558, 528), (610, 600), (660, 660),
              (720, 712), (760, 722), (900, 692), (1000, 675), (1075, 662), (1110, 540), (1135, 380)]
 # plan half width of the visor (Pinata Teal top view, 0.247 mm/px), by Royal_Left u
@@ -477,7 +491,7 @@ VISOR_PLAN = [(220, 0.0), (236, 0.0356), (276, 0.0652), (315, 0.0745), (395, 0.0
               (554, 0.0921), (634, 0.0988), (713, 0.1058), (793, 0.1162), (872, 0.1212), (912, 0.1225),
               (1000, 0.090), (1075, 0.050), (1135, 0.0)]      # behind u 912 the visor lies on the shell
 VISOR_T = 0.0035                   # m, visor thickness (moulded ABS)
-VISOR_GAP = 0.004                  # m, clear of the shell where it lies over it
+VISOR_GAP = 0.0075                 # m, top surface off the shell where it lies over it (underside 4 mm clear)
 
 
 def visor_surface(prof, nu=56, nphi=41):
@@ -501,7 +515,7 @@ def visor_surface(prof, nu=56, nphi=41):
     flat = G.reshape(-1, 3)
     ins = prof.inside(flat[:, 1:])
     hw = np.zeros(len(flat))
-    hw[ins] = half_width(prof, flat[ins, 1], flat[ins, 2], smooth=False)
+    hw[ins] = shell_hw(prof, flat[ins, 1], flat[ins, 2])
     side = np.sign(flat[:, 0]) + (flat[:, 0] == 0)
     need = ins & (np.abs(flat[:, 0]) < hw + VISOR_GAP)
     flat[need, 0] = side[need] * (hw[need] + VISOR_GAP)
@@ -763,16 +777,18 @@ def paint_atlas(surfaces, out_path):
 
 
 # ---------------------------------------------------------------- goggle: Leatt Velocity 5.5 Iriz, Pinata Teal
-G_HALF_W = 0.098                   # m, frame half width (fills the port at eye height, outriggers just outside it)
-G_TOP, G_BOT = 0.038, -0.052       # m, frame top and bottom at the sides, from his eye centres (90 mm: MY27 side
-                                   # view with the goggle on, 386 px x 0.241 mm/px = 93 mm incl. the outrigger clip)
+G_HALF_W = 0.094                   # m, frame half width (fills the port at eye height, outriggers just outside it)
+G_TOP, G_BOT = 0.035, -0.057       # m, frame top and bottom at the sides, from his eye centres (94 mm: MY27 side
+                                   # view with the goggle on, 386 px x 0.241 mm/px = 93 mm; fills the port as in 09)
 G_NOSE, G_NOSE_W = 0.030, 0.042   # m, the nose cut-out: rise of the bottom edge at the centre, half width
 G_RIM = (0.008, 0.009, 0.010)      # m, frame rim width at the top, sides and bottom (Leatt goggle iso)
 G_DEPTH, G_FOAM = 0.020, 0.014     # m, frame depth behind the lens; triple-layer face foam (compressed)
 G_PLAN = (0.115, 0.075)            # m, lens plan: ellipse half axes (170 deg WideVision wrap, 36 mm back at the ends)
 STRAP_W, STRAP_T = 0.045, 0.002    # m, strap width (Leatt) and thickness
-# strap centre line on the shell, Royal_Left px: MY27 side view (goggle on) mapped through the registration
-STRAP_LINE = [(1071, 918), (1615, 852)]
+# strap centre line on the shell, Royal_Left px: its front point from Leatt's MY27 side view (goggle on) mapped
+# through the registration; it runs back 5 deg down in the helmet frame (13 deg up in his rest frame) as on his
+# photo 07, lower than Leatt's product shot (7 deg up)
+STRAP_LINE = [(1071, 918), (1615, 966)]
 
 
 def logo_polys(x0=0.0, y0=0.0, h=1.0, shear=0.25):
@@ -846,7 +862,7 @@ def goggle_outline(z_e, inset=(0.0, 0.0, 0.0), n=96):
         th = 2 * np.pi * k / n
         c, s_ = np.sin(th), np.cos(th)                    # x-ish, z-ish
         x = W * np.sign(c) * abs(c) ** 0.35
-        top = z_e + G_TOP - it - 0.006 * (x / G_HALF_W) ** 2
+        top = z_e + G_TOP - it - 0.014 * (x / G_HALF_W) ** 2      # follows the port's brow edge
         bot = z_e + G_BOT + ib
         tt = abs(x) / G_NOSE_W
         bot = bot + (G_NOSE + 0.6 * ib) * ((1 - tt * tt) ** 2 if tt < 1 else 0.0)
@@ -986,11 +1002,12 @@ def build_strap(Rt, prof, ends, n=160):
         Z = np.interp(Y, [e[1], L0[0], L1[0], y_back + 0.01], [e[2], L0[1], L1[1], L1[1] + (y_back - L1[0]) * 0.12])
         X = np.zeros(n)
         ins = prof.inside(np.c_[Y, Z])
-        X[ins] = half_width(prof, Y[ins], Z[ins], smooth=False)
-        X = X + 0.0025
+        X[ins] = shell_hw(prof, Y[ins], Z[ins])
+        X = X + 0.004
         k = np.clip((Y - e[1]) / 0.04, 0, 1)
         X = np.maximum(X, abs(e[0]) * (1 - k))
         X[-1] = 0.0
+        Y[-1] = Y[-1] + 0.004
         rows.append(np.c_[sgn * X, Y, Z])
     path = np.vstack([rows[0], rows[1][::-1][1:]])         # left outrigger -> back -> right outrigger
     tg = np.gradient(path, axis=0)
@@ -1004,7 +1021,7 @@ def build_strap(Rt, prof, ends, n=160):
     for E_ in (lo_, hi_):
         ins = prof.inside(E_[:, 1:])
         hw = np.zeros(len(E_))
-        hw[ins] = half_width(prof, E_[ins, 1], E_[ins, 2], smooth=False) + 0.0025
+        hw[ins] = shell_hw(prof, E_[ins, 1], E_[ins, 2]) + 0.004
         need = np.abs(E_[:, 0]) < hw
         E_[need, 0] = np.sign(path[need, 0] + 1e-9) * hw[need]
     strap = Part("goggle_strap")

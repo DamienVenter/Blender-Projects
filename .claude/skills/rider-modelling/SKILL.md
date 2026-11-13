@@ -51,3 +51,29 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   the bike posed with rider sag. build_bike's cu_p07 camera was placed by eye, never overlaid.
 - Read pose renders carefully: a scaled sheet fooled me into "both poses are identical"; projecting the joints onto
   the render (world_to_camera_view) showed the skin follows the skeleton exactly.
+
+## Helmet and goggle (2026-11-13, `helmet.py`, ledger `research/rider-ledger/helmet.md`)
+- **More views of the same shell**: us.leatt.com product JSON of older colourways (V25 Royal, Glamis, ...) carries
+  near-orthographic Left, Right, Back, Top and Turbine views of the 8.5; MY27 kits show it with the goggle on
+  (grey background, no alpha). Same shell: compare outlines first.
+- **Scale from a known part**: the goggle strap (45 mm, Leatt spec) measured across its run in a side view with the
+  goggle on; carry it to the alpha-matted profile by a similarity fit of the outlines (chamfer, 18 px). Allow for
+  perspective (strap 0.13 m nearer the camera than the centre plane: about 9 %). Cross-check: the top view scaled
+  by the profile's length put the visor tip 3 mm from the profile's.
+- **Shell as a width field over the side profile**: x = +-hw(y, z) over the traced profile domain; rims (centre
+  plane) and free edges (face port, lower edge) are parts of the outline; hw = W(z) Q(y) f(d_rim / L) with a
+  superellipse falloff, fitted to the back and top silhouettes by least squares with a smoothness penalty
+  (alternating multiplicative updates oscillate). The nearest-rim distance has creases on its medial axis: smooth
+  the field away from the rims (Gaussian, 10 mm). Rings of vertices at falloff-even offsets from the rims.
+- Collinear outline points at a rim/edge corner give Delaunay slivers whose winding flips: drop |area| ~ 0.
+- **Fit on the head**: port top edge 40 mm above the eye centres, then pitch and fore-aft for an even stand-off
+  (51 mm all round on his head); the shell came out pitched 18 deg nose down from Leatt's profile photo.
+- **Graphics by projection**: fit a pinhole camera to each product photo against the model's outline (Powell then
+  Nelder-Mead, about 2 min a view), rasterise an atlas (islands by face normal), sample each texel from the views
+  that see it (cos^4, depth buffer from the texels themselves), mirror point as fallback. Mask anything in front
+  of the helmet (the goggle in iso-right). Studio reflections come along: a cleanup pass is still to do.
+- **The big side LEATT in Leatt's iso-right and his photos is the goggle strap's print**, not the helmet's.
+- Text on a strap reads correctly on both sides from outside if it runs in one direction from the left outrigger
+  round the back. An outrigger face seen from the other side mirrors its UVs: give each side its own image half.
+- A head pitch put on the head bone alone drives the chin bar into the throat; share it over neck01-03 and head.
+- Test closure and orientation of the solid (every directed edge once each way) before trusting winding numbers.

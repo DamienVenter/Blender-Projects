@@ -163,3 +163,29 @@ def test_npz_loads_for_build_rider(built):
             assert len(g[name + "__UV"]) == FS.sum()
     for m in g["mats"]:
         assert str(m) in mats
+
+
+def test_goggle_in_the_port_on_his_eyes(body, built):
+    """Lens ahead of both eyes, nothing of the lens inside the shell; the strap 45 mm wide (Leatt); the frame
+    raspberry (his photos, not Leatt's hot pink render)."""
+    P = built["parts"]
+    L = H.head_landmarks(body)
+    lens = P["goggle_lens"].V
+    for sgn in (1, -1):
+        e = L["eye"] + [sgn * 0.031, 0, 0]
+        near = lens[np.abs(lens[:, 0] - e[0]) < 0.004]
+        assert near[:, 2].min() < e[2] < near[:, 2].max()            # the eye's height is inside the lens
+        assert 0.05 < e[1] - near[:, 1].max() < 0.09                 # lens 50 to 90 mm ahead of the eye centre
+    sh = P["helmet_shell"]
+    assert (winding(lens, sh.V, tris(sh)) < 0.5).all()
+    st = P["goggle_strap"]
+    n = len(st.V) // 4
+    w = np.linalg.norm(st.V[n:2 * n] - st.V[:n], axis=1)
+    assert np.allclose(np.median(w), H.STRAP_W, atol=0.002)
+    r, g, b = H.MATERIALS["goggle_frame"]["rgb"]
+    assert r > 150 and g < 60 and b < 110
+
+
+def test_textures_present():
+    for f in ("helmet_pinata.png", "goggle_strap.png", "goggle_outrigger.png"):
+        assert os.path.getsize(os.path.join(H.TEXDIR, f)) > 1000
