@@ -51,3 +51,37 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   the bike posed with rider sag. build_bike's cu_p07 camera was placed by eye, never overlaid.
 - Read pose renders carefully: a scaled sheet fooled me into "both poses are identical"; projecting the joints onto
   the render (world_to_camera_view) showed the skin follows the skeleton exactly.
+
+## Gloves (2026-11-13, `gloves.py`, Leatt 2.5 X-Flow Black, ledger research/rider-ledger/gloves.md)
+- Leatt's glove size chart is not on the product JSON: the page HTML links
+  `us.leatt.com/cdn/shop/files/GloveMen_SizingChart_04-02-2026.jpg` (circumference at the knuckles, hand length).
+  MakeHuman's hand at 1.85 m: knuckle circumference 21.9 cm, hand length 21.4 cm (long: 11.6 % of stature).
+- Build gear on skin from the skin itself: the glove is the body's hand patch (distal of a clean edge ring) plus
+  rings cast from the bone axis, one Catmull-Clark step (the body renders with subsurf 1, so this IS the rendered
+  skin), then offset. Keep every gear vertex as a sparse combination of body vertices: its skin weights are then
+  the same combination, exact. The body mesh is exactly mirror-symmetric but its weights are not (0.17 apart on the
+  hands): build the right side from the left's topology but with the right hand's own weights.
+- MakeHuman's nail folds and joint creases show through a 1 mm offset. Bridge them: Laplacian smoothing with the
+  height over the skin clamped to [offset, offset + 1.5 mm] (unclamped, the palm lifted 5.5 mm over its hollow).
+- UVs like the real pattern pieces (hand back, palm, edges planar along their normals; each phalanx a cylinder
+  about its bone, seam mid-palm; tip caps; cuff a cylinder): about isometric, so patterns drawn in mm stay true.
+  A cylinder over a bent finger overlaps itself at the joints: one island per phalanx. Paint every texel from its
+  3D point (rasterise the UV triangles with PIL, barycentrics, interpolate positions, normals and weights): chart
+  seams then never show, and panel boundaries are smooth curves (weight-blended per-bone palmar directions), not
+  face edges.
+- build_rider's gear material has one roughness and colour-image + normal-map inputs only: put construction in the
+  normal map; a smooth overlay among bumpy mesh reads glossier by itself. Black fabric turned mid grey with sheen
+  0.3 under a white world: sheen 0.1, roughness 0.7.
+- Leatt's views: work out which glove each photo shows (thumb side + palm facing): MY26 back/palm and MY27 back are
+  the RIGHT glove, MY27 "other angle" the LEFT. The two gloves carry the same graphic in the hand's own frame (mirror
+  images: hatches lean the other way), but every word and logo reads right on both: mirror letters only, inside
+  their own box. The photo maps onto his hand's back at 0.178 mm/px (two independent scales agreed).
+- Printing a photo's graphic by thresholding it directly gives blotches (mesh texture, lighting): redraw shapes
+  measured on the photo rectified to the hand, and take only clean letter shapes from it (the large holes enclosed
+  by the white core; place them rigidly, not row by row, or the slanting edge shears them).
+- Check renders: `gloves.py check` on build_rider's saved rider.blend (no studio views needed): cameras from the
+  posed hand's own joints, a camera-only white background (Light Path) for Leatt's product angles with the body
+  hidden, clearances from evaluated meshes with the hide_body Mask switched off (or the hidden skin is missing).
+- Seated pose (pose.py + aim_pose, 2026-11-13): the grip's axis crosses the hand only 6 mm palmar of the bones,
+  so the grip passes through the palm (skin 14 mm inside it). A power grip needs the axis about 36 mm palmar (palm
+  skin 20 + glove 1 + grip radius 14.8), across the distal palm at about 25 deg to the knuckle line (right now).

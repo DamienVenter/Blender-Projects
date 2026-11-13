@@ -1,7 +1,11 @@
 """Damien's gloves: Leatt Moto 2.5 X-Flow, Black, size L (MY26 6024090152 / MY27 6027010262). Both hands.
 
 python3 gloves.py BODY.npz OUT.npz          build both gloves (gear npz for build_rider.py) and their textures
+                                            (textures/rider/glove_L_color.png, glove_R_color.png, glove_normal.png,
+                                            glove_tab.png; about 35 s)
 python3 gloves.py preview BODY.npz OUT.png  flat matplotlib views of the left glove (no Blender)
+blender -b RIDER.blend --python gloves.py -- check OUT_DIR VIEWS     close-ups and clearances (see CAMS below)
+python3 gloves.py sheet OUT.jpg RENDER_DIR VIEWS                     Leatt's photo / his photo beside each render
 
 Numbers and their sources: research/rider-ledger/gloves.md. Frames: body.py's MB rest frame (metres, z up, facing
 -y, his left at +x). Each hand has a local frame (hand_frame): origin at the wrist joint, x toward the thumb, y toward
@@ -850,9 +854,185 @@ def paint(G, TG, side):
     vent = slot < 0
     h -= 0.30 * smoothstep(0.15, -0.15, slot)
     col[vent] = BLACK_MESH * 0.55
+    masks = dict(palm=palm, back=back, side=sidep, tip=tipcap, overlay=inside, cuff=cuff)
+    if G.get("prints", True):
+        layers = prints(G, TG, side, masks)
+        holes = np.where(back | sidep | tipcap, hole, 0.0) * ~inside
+        for k, (m, c_) in enumerate(layers):
+            shade = (1 - 0.55 * holes) if k == 0 else 1.0       # the white print is on the mesh: holes stay dark
+            col = col * (1 - m[:, None]) + (c_[None, :] * np.atleast_1d(shade)[:, None]) * m[:, None]
+            if k == 2:                                            # the rubber label stands 0.2 mm proud
+                h = h * (1 - m) + (0.2 + palm_h) * m
+        masks["print"] = layers[0][0] > 0.5
     col[stitch & ~inside] = STITCH
     h[stitch & ~inside] += 0.06
-    return np.clip(col, 0, 1), h, dict(palm=palm, back=back, side=sidep, tip=tipcap, overlay=inside, cuff=cuff)
+    return np.clip(col, 0, 1), h, masks
+
+
+# ---- Leatt's prints, taken from their photos ----------------------------------------------------------------------
+PX_BACK = 0.178          # mm per px, MY27 back view (cuff seam to knuckle line 590 px = 105 mm on his hand)
+PX_PALM = 0.182          # mm per px, MY26 palm view (knuckle breadth 534 px = 97 mm)
+BACK_SEAM_ROW = 440      # MY27 back view: the cuff band's seam (his wrist crease, y = +5 mm)
+PALM_SEAM_ROW = 430      # MY26 palm view: the cuff band's seam
+WHITE_INK = np.array([236, 236, 236]) / 255.0          # the band's white print (Leatt's photos, brightest areas)
+RED_LOGO = np.array([200, 30, 40]) / 255.0              # Leatt red (photo median 149, 65, 64 is the thin outline
+                                                         # blended with black: the ink itself is brighter)
+_PHOTO = {}
+
+
+def _photo_maps():
+    """Leatt's photos as maps (cached): the back view's white ink (min of RGB, smoothed 0.3 mm so the mesh holes
+    drop out), the band's core with the letters filled, the letters, the red logo, the glove's edge column per row;
+    the palm view's label (dark) and its white text, and the edge column per row."""
+    if _PHOTO:
+        return _PHOTO
+    from PIL import Image
+    from scipy import ndimage
+    g = os.path.join(REF, "leatt-gear", "gloves")
+    im = np.asarray(Image.open(os.path.join(g, "glove25xflow_black-my27_backhand_leatt-us_6027010260_1920.jpg"))
+                    .convert("RGB")).astype(float) / 255
+    bg = im[5, 5]
+    sil = ndimage.binary_fill_holes(ndimage.gaussian_filter(np.abs(im - bg).sum(2), 2) > 0.25)
+    Lm = ndimage.gaussian_filter(im.min(2), 1.6)
+    Lm[~sil] = 0
+    # LEATT: the large dark holes enclosed by the white core (outside the glove counts as white, so the L at the
+    # edge closes), in a window from the core's top to its bottom that ends at the last T (col 830)
+    white = (ndimage.gaussian_filter(im.min(2), 2.5) > 0.5) | ~sil
+    win = np.zeros_like(white)
+    win[806:936, 480:831] = True
+    holes = ndimage.binary_fill_holes(white | ~win) & ~white & win
+    lab, n = ndimage.label(holes)
+    sizes = ndimage.sum(holes, lab, range(1, n + 1))
+    keep = np.isin(lab, 1 + np.nonzero(sizes > 800)[0])
+    ys, xs = np.nonzero(keep)
+    edge = np.array([np.nonzero(sil[r])[0][0] if sil[r].any() else 0 for r in range(im.shape[0])])
+    edge = ndimage.median_filter(edge, 41, mode="nearest")        # the silhouette glitches on a few rows
+    r_, g_, b_ = im[..., 0], im[..., 1], im[..., 2]
+    red = ndimage.gaussian_filter(((r_ - g_ > 0.2) & (r_ - b_ > 0.2)).astype(float), 0.8)
+    red[:580] = 0
+    red[700:] = 0
+    rc, rr = np.nonzero(red.max(0) > 0.3)[0], np.nonzero(red.max(1) > 0.3)[0]
+    _PHOTO.update(back_L=Lm, back_letters=ndimage.gaussian_filter(keep.astype(float), 2.2), back_edge=edge,
+                  box=(xs.min(), xs.max(), ys.min(), ys.max()), red=red, red_box=(rc[0], rc[-1], rr[0], rr[-1]))
+    pm = np.asarray(Image.open(os.path.join(g, "glove25xflow_black-my26_palm_leatt-us_6024090150_1920.jpg"))
+                    .convert("RGB")).astype(float) / 255
+    psil = ndimage.binary_fill_holes(ndimage.gaussian_filter(np.abs(pm - pm[5, 5]).sum(2), 2) > 0.25)
+    pL = ndimage.gaussian_filter(pm.min(2), 1.2)
+    pedge = np.array([np.nonzero(psil[r])[0][0] if psil[r].any() else 0 for r in range(pm.shape[0])])
+    # the nanoGrip label: the dark rounded rectangle by the thumb-side edge (rows 462 to 594), its white text
+    region = np.zeros_like(psil)
+    for r in range(462, 595):
+        region[r, pedge[r] + 3:750] = True
+    body = ndimage.binary_opening(ndimage.binary_closing((pL < 0.30) & region, np.ones((9, 9))), np.ones((5, 5)))
+    text = body & (pL > 0.45)
+    ext = np.zeros((pm.shape[0], 2))
+    for r in range(pm.shape[0]):
+        c = np.nonzero(body[r])[0]
+        ext[r] = (c[0], c[-1]) if len(c) else (0, 0)
+    _PHOTO.update(palm_edge=pedge, label=ndimage.gaussian_filter(body.astype(float), 0.8),
+                  label_text=ndimage.gaussian_filter(text.astype(float), 0.7), label_ext=ext)
+    return _PHOTO
+
+
+def _sample(A, rows, cols):
+    """Bilinear sample of image A at float rows and cols (clamped)."""
+    h, w = A.shape
+    r = np.clip(rows, 0, h - 1.001)
+    c = np.clip(cols, 0, w - 1.001)
+    r0, c0 = np.floor(r).astype(int), np.floor(c).astype(int)
+    fr, fc = r - r0, c - c0
+    return (A[r0, c0] * (1 - fr) * (1 - fc) + A[r0 + 1, c0] * fr * (1 - fc) + A[r0, c0 + 1] * (1 - fr) * fc
+            + A[r0 + 1, c0 + 1] * fr * fc)
+
+
+# The knuckle band, redrawn (mm; u = in from the little-finger edge in the back view, y = hand y), as measured on
+# Leatt's MY27 back view rectified to the hand at 0.178 mm/px (research/rider-ledger/gloves.md):
+BAND = dict(top=(68.5, 0.03), bottom=(95.0, 0.09),     # core lines y = a + b u
+            solid_to=52.0, black_from=88.0,             # solid white core, then the halftone fades to black
+            dot_pitch=1.5,                              # halftone screen (mm), at 45 deg
+            hatch_pitch=5.0, hatch_width=1.8, hatch_len=9.0, hatch_lean=35.0, hatch_to=75.0)
+
+
+def band_ink(X, G, M, side, row, col):
+    """White ink of the knuckle band at hand points X (mm): the core, its halftone fade toward the thumb, the
+    hatches leaning back toward the edge above and below it, less the black LEATT (letter shapes from Leatt's photo:
+    its five letters, smoothed; mirrored inside their box on the left glove so they read right). Soft edges
+    (0.15 mm) so it stays crisp at any texel size."""
+    b = BAND
+    u = X[:, 0] - G["edge_x"](X[:, 1])
+    y = X[:, 1]
+    yt = b["top"][0] + b["top"][1] * u
+    yb = b["bottom"][0] + b["bottom"][1] * u
+    aa = 0.15
+    core = smoothstep(-aa, aa, y - yt) * smoothstep(-aa, aa, yb - y)
+    cover = smoothstep(b["black_from"], b["solid_to"], u)          # 1 solid .. 0 black
+    s45 = math.sqrt(0.5)
+    a_, b_ = (u + y) * s45, (u - y) * s45
+    p = b["dot_pitch"]
+    screen = 0.5 + 0.25 * (np.cos(2 * np.pi * a_ / p) + np.cos(2 * np.pi * b_ / p))
+    tone = smoothstep(-0.06, 0.06, cover - screen)
+    tone = np.where(cover >= 0.999, 1.0, np.where(cover <= 0.001, 0.0, tone))
+    ink = core * tone
+    t = math.tan(math.radians(b["hatch_lean"]))
+    fade = smoothstep(b["hatch_to"], 25.0, u)
+    for ref, sgn in ((yt, -1), (yb, 1)):
+        d = (y - ref) * sgn                                       # mm away from the core
+        w = u - (y - ref) * t                                     # along a stroke: constant
+        ph = (w / b["hatch_pitch"]) % 1.0
+        width = b["hatch_width"] / b["hatch_pitch"] * (0.4 + 0.6 * fade)
+        stroke = smoothstep(-0.03, 0.03, width / 2 - np.abs(ph - 0.5))
+        length = b["hatch_len"] * (0.35 + 0.65 * fade)
+        ink = np.maximum(ink, stroke * smoothstep(-aa, aa, d) * smoothstep(-aa, aa, length - d) * (u < b["hatch_to"]))
+    # the letters: placed rigidly (photo scale, anchored to the edge at the band's middle height, y 82 mm), so the
+    # glove's slanting edge does not shear them
+    c0, c1, r0, r1 = M["box"]
+    ym = 82.0
+    rm = BACK_SEAM_ROW + (ym - CREASE_Y * 1000) / PX_BACK
+    lcol = M["back_edge"][int(round(rm))] + (X[:, 0] - G["edge_x"](np.array([ym]))[0]) / PX_BACK
+    lc = lcol if side == "R" else c0 + c1 - lcol
+    letters = smoothstep(0.35, 0.65, _sample(M["back_letters"], row, lc))
+    return np.clip(ink - letters, 0, 1) * (u > -18)
+
+
+def prints(G, TG, side, masks):
+    """Leatt's prints on each glove (sRGB colour over the construction, per texel), as on Leatt's views:
+    the knuckle band (white core along the little-finger edge carrying the black LEATT, white hatches leaning back
+    toward the edge along its top and bottom, a halftone fading to black toward the thumb), from the MY27 back view
+    of the right glove, laid on the hand's back by the photo's scale and anchored row by row to the hand's
+    little-finger edge (continued round the edge); the red Leatt logo on the edge overlay; the nanoGrip label on
+    the palm by the thumb, from the MY26 palm view. Both gloves carry the same band in the hand's own frame (they
+    are mirror images); only the words and logos are turned back so they read right on the left glove: each is
+    mirrored inside its own box. Returns (mask, colour) layers in paint order."""
+    M = _photo_maps()
+    X = TG["X"] * 1000.0
+    N = TG["N"]
+    out = []
+    # back view: photo row and column of each texel
+    row = BACK_SEAM_ROW + (X[:, 1] - CREASE_Y * 1000) / PX_BACK
+    rows_i = np.clip(np.round(row).astype(int), 0, len(M["back_edge"]) - 1)
+    pe = M["back_edge"][rows_i].astype(float)
+    col = pe + (X[:, 0] - G["edge_x"](X[:, 1])) / PX_BACK
+    col = np.maximum(col, pe + 4.0)                               # round the edge: the print goes on round it
+    on_back = (N[:, 2] < 0.35) & ~masks["palm"] & ~masks["cuff"] & ~masks["overlay"]
+    out.append((band_ink(X, G, M, side, row, col) * on_back, WHITE_INK))
+    # red logo on the edge overlay (printed on the overlay), mirrored in its own box on the left glove
+    rc0, rc1, rr0, rr1 = M["red_box"]
+    on_edge = (N[:, 2] < 0.35) & ~masks["palm"] & ~masks["cuff"] & (row > rr0 - 10) & (row < rr1 + 10)
+    cl = col if side == "R" else rc0 + rc1 - col
+    out.append((smoothstep(0.25, 0.5, _sample(M["red"], row, cl)) * on_edge, RED_LOGO))
+    # nanoGrip label: the right glove's palm view (image right = toward the little finger), anchored row by row to
+    # the thumb-side edge; its text mirrored across the label's own width on the left glove
+    prow = PALM_SEAM_ROW + (X[:, 1] - CREASE_Y * 1000) / PX_PALM
+    pr_i = np.clip(np.round(prow).astype(int), 0, len(M["palm_edge"]) - 1)
+    ppe = M["palm_edge"][pr_i].astype(float)
+    pcol = ppe + (G["redge_x"](X[:, 1]) - X[:, 0]) / PX_PALM
+    on_palm = (N[:, 2] > -0.3) & ~masks["cuff"] & (prow > 455) & (prow < 600)
+    body = smoothstep(0.3, 0.6, _sample(M["label"], prow, pcol)) * on_palm
+    out.append((body, np.array([40, 40, 42]) / 255.0))
+    a, b = M["label_ext"][pr_i, 0], M["label_ext"][pr_i, 1]
+    tcol = pcol if side == "R" else a + b - pcol
+    out.append((smoothstep(0.3, 0.6, _sample(M["label_text"], prow, tcol)) * body, np.array([215, 215, 215]) / 255.0))
+    return out
 
 
 def paint_panels(G, TG, side):
@@ -930,6 +1110,12 @@ def strap_parts(B, side, G):
         gb.append(p_bot)
         W_.append(w)
     parts["tab"] = shell_from_grids(np.array(gt), np.array(gb), sparse.vstack(W_ + W_).tocsr())
+    # its face carries the moulded "2.5" (glove_tab.png): on the left glove it reads toward the back of the hand
+    # (Leatt's left-glove view: thumb at the left), top toward the cuff's edge; the right glove flips u
+    nv_, nu_ = len(SS), len(TH)
+    uvt = np.stack(np.meshgrid(1.0 - np.arange(nu_) / (nu_ - 1), 1.0 - np.arange(nv_) / (nv_ - 1)), -1).reshape(-1, 2)
+    uvt = 0.04 + 0.92 * uvt                                          # the texture's white rim round the face
+    parts["tab"]["Vuv"] = np.concatenate([uvt, np.full((len(uvt), 2), 0.02)])
     return parts
 
 
@@ -1063,6 +1249,11 @@ def build_side(B, side="L"):
     from scipy.ndimage import gaussian_filter1d, median_filter
     exs = gaussian_filter1d(median_filter(ex[ok], 5, mode="nearest"), 2.0, mode="nearest")   # 4 mm smooth
     G["edge_x"] = lambda y, ys=ys[ok], ex=exs: np.interp(y, ys, ex)
+    rx = np.array([Lm[np.abs(Lm[:, 1] - y) < 1.5, 0].max() if (np.abs(Lm[:, 1] - y) < 1.5).any() else np.nan
+                   for y in ys])                              # the thumb-side edge (the thenar, below the thumb)
+    ok = ~np.isnan(rx)
+    rxs = gaussian_filter1d(median_filter(rx[ok], 5, mode="nearest"), 2.0, mode="nearest")
+    G["redge_x"] = lambda y, ys=ys[ok], rx=rxs: np.interp(y, ys, rx)
     a = B["T"][f"finger1-3.{side}"] - B["J"][f"finger1-2.{side}"]
     tgt = B["J"][f"finger2-2.{side}"] - B["J"][f"finger1-2.{side}"]
     p = tgt - a * (tgt @ a) / (a @ a)
@@ -1110,7 +1301,11 @@ def to_parts(B, G, side="L", mirror=None):
     parts = {"glove": (Vall, Fall, M, UV, Wall, [f"glove_fabric_{side}", "glove_elastic"])}
     for k, mat in (("strap", "glove_strap"), ("tab", "glove_tab")):
         st = G["straps"][k]
-        parts["glove_" + k] = (st["V"], st["F"], np.zeros(len(st["F"]), int), None, (st["W"] @ Wg).tocsr(), [mat])
+        uv = st["Vuv"][st["F"]] if "Vuv" in st else None
+        if uv is not None and side == "R":
+            uv = uv.copy()
+            uv[..., 0] = 1.0 - uv[..., 0]                             # mirrored mesh: flip back to read right
+        parts["glove_" + k] = (st["V"], st["F"], np.zeros(len(st["F"]), int), uv, (st["W"] @ Wg).tocsr(), [mat])
     out = {}
     for name, (V, Fp, Mp, UVp, Wp, mt) in parts.items():
         if side == "R":
@@ -1126,7 +1321,7 @@ MATERIALS = {
     "glove_fabric_R": dict(image="glove_R_color.png", normal="glove_normal.png", rough=0.7, sheen=0.1),
     "glove_elastic": dict(rgb=[24, 24, 26], rough=0.8, sheen=0.3),
     "glove_strap": dict(rgb=[22, 22, 24], rough=0.72, sheen=0.25),
-    "glove_tab": dict(rgb=[236, 236, 234], rough=0.45),
+    "glove_tab": dict(image="glove_tab.png", rough=0.45),
 }
 
 
@@ -1148,7 +1343,23 @@ def write_textures(B, G, out_dir):
     H[TG["yy"], TG["xx"]] = h
     nm = normal_map(H, filled, texel_mm)
     Image.fromarray((nm * 255).round().astype(np.uint8)).save(os.path.join(out_dir, "glove_normal.png"), optimize=True)
+    Image.fromarray((tab_texture() * 255).round().astype(np.uint8)).save(os.path.join(out_dir, "glove_tab.png"))
     return TG
+
+
+def tab_texture():
+    """The white pull's face with its moulded "2.5": Leatt's MY27 left-glove back view (face cols 925 to 1060, rows
+    243 to 290, 24 x 8.4 mm; cropped to cols 940 to 1048, rows 255 to 284 inside its curved edges), luminance divided by its own smooth white level so the white is white and the
+    figures keep their grey moulded edges; framed in white (the pull's rim)."""
+    from PIL import Image
+    from scipy import ndimage
+    g = os.path.join(REF, "leatt-gear", "gloves", "glove25xflow_black-my27_backhand-other-angle_leatt-us_6027010260_1920.jpg")
+    a = np.asarray(Image.open(g).convert("L").crop((940, 255, 1048, 284))).astype(float) / 255
+    a = np.clip(a / ndimage.maximum_filter(ndimage.gaussian_filter(a, 3), 25), 0, 1)
+    a = np.asarray(Image.fromarray((a * 255).astype(np.uint8)).resize((236, 58), Image.LANCZOS)) / 255.0
+    out = np.ones((64, 256))
+    out[3:61, 10:246] = 0.25 + 0.75 * a
+    return np.repeat((out * 236 / 255)[..., None], 3, -1)
 
 
 def build(body_path, out_path, textures=True):

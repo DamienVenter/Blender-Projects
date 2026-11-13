@@ -107,3 +107,26 @@ as shape; the welded overlays are black on black.
 Areas painted (1024 px test): overlays about 5,700 mm2 (knuckles about 600 each round the finger's curve, thumb
 1,300, edge pair 1,000), palm 33 to 50 % of the hand's glove. Textures: two colour maps 1.2 MB each and the normal
 map 3.9 MB (2048 px PNG).
+
+## 3. Graphics (component 3, 2026-11-13)
+
+Which glove each Leatt view shows (thumb side and palm normal worked out per photo): MY26 back and palm, MY27 back:
+the RIGHT glove; MY27 "other angle" back and palm: the LEFT glove. Both gloves carry the same band in the hand's own
+frame (the gloves are mirror images: white end on the little-finger edge, halftone toward the thumb, hatches
+leaning back toward the edge, so they lean "\" on the right glove's back view and "/" on the left's), but every
+word reads left to right on both: LEATT starts at the edge on the right glove and ends at it on the left (MY27
+crops `z_bands`, `z_hatch`, `z_hatch2`).
+
+| Print | Model | Source |
+|---|---|---|
+| Knuckle band, redrawn (u = mm in from the little-finger edge in the back view, y = hand y) | core from y = 68.5 + 0.03 u to 95.0 + 0.09 u; solid to u 52, a 45 deg halftone (1.5 mm screen) fading to black at u 88; hatch strokes 1.8 mm wide every 5 mm, 9 mm long above and below the core, leaning 35 deg (toward the thumb going toward the fingers), thinning and shortening from u 25 to 75; continued 18 mm round the edge | Leatt's MY27 back view rectified onto his hand's back at 0.178 mm/px, anchored row by row to the glove's edge (`band_grid.png` in my scratch folder); the first try (thresholding the photo itself) came out blotchy from the mesh texture and the lighting |
+| LEATT | the photo's own five letters: the large dark holes enclosed by the white core in rows 806 to 935, cols up to 830 (outside the glove counted as white so the L at the edge closes), smoothed 2.2 px; placed rigidly (anchored to the edge at y 82), not row by row (the slanting edge sheared them); about 50 x 20 mm; mirrored inside their box on the left glove | MY27 back view |
+| Red Leatt logo | on the lower little-finger-edge overlay, photo rows 614 to 654, cols 565 to 589 (4.3 x 7 mm), red 200, 30, 40 (the photo's 149, 65, 64 is the thin outline mixed with black); mirrored in its box on the left glove | MY27 back view |
+| nanoGrip label | dark rubber label 40, 40, 42 with its light grey text, on the palm by the thumb-side edge, y 11 to 35 mm (photo rows 462 to 594 at 0.182 mm/px), 0.2 mm proud; text mirrored across the label's width per row on the left glove | MY26 palm view (right glove), checked on the MY27 left-glove palm view (top right, thumb side) |
+| "2.5" on the white pull | moulded figures (about 4.3 mm tall): the pull's face from the photo (cols 940 to 1048, rows 255 to 284), divided by its smooth white level, `glove_tab.png`; u flipped on the right glove so it reads on both | MY27 left-glove back view (`z_tab`) |
+| Not done | the Leatt mark on the pull's palm-side end, and the small print on the pull beside "2.5" (too small to read in Leatt's views) | |
+
+Checks: renders of both gloves from Leatt's four angles beside Leatt's photos; close-ups (knuckles, both cuffs):
+LEATT and "2.5" read right on both gloves; test `test_prints_read_right_on_both_gloves`. His photos 08 and 09: the
+white band with LEATT runs along the little-finger side of the fist, along the grip, in the model too; the fist
+itself does not match while the pose puts the grip through the palm (section 1).

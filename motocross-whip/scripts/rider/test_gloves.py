@@ -169,6 +169,41 @@ def test_construction_panels(built):
     assert -0.5 < h.min() and h.max() < 0.5
 
 
+def test_prints_read_right_on_both_gloves(built):
+    """The knuckle band: the same white area on both gloves (one band, mirror-image gloves), 1200 to 3000 mm2 of
+    white ink between y 55 and 110 mm; its letters are the photo's five LEATT letters, on the right glove as
+    Leatt shot it, on the left glove mirrored inside their box (so they read left to right in its own back view);
+    the red logo and the nanoGrip label (with its text) present on both; the pull's "2.5" flipped on the right."""
+    G = built["G"]
+    TG = GL.texel_geometry(G, G["UV"], 1024)
+    a = (1000.0 / (G["texel_per_m"] * 1024 / GL.TEX)) ** 2
+    lay = {}
+    for side in "LR":
+        _, _, m = GL.paint(G, TG, side)
+        lay[side] = GL.prints(G, TG, side, m)
+    ink = {s: (lay[s][0][0] > 0.5).sum() * a for s in "LR"}
+    assert 1200 < ink["R"] < 3000 and abs(ink["L"] / ink["R"] - 1) < 0.03, ink
+    y = TG["X"][:, 1] * 1000
+    on = lay["R"][0][0] > 0.5
+    assert y[on].min() > 50 and y[on].max() < 112
+    M = GL._photo_maps()
+    c0, c1, r0, r1 = M["box"]
+    assert 250 < c1 - c0 < 330 and 90 < r1 - r0 < 130          # the word: about 50 x 20 mm at 0.178 mm/px
+    # the left glove's letters are the right glove's mirrored across the box: compare on a grid of photo points
+    rr, cc = np.meshgrid(np.arange(r0, r1, 2.0), np.arange(c0, c1, 2.0))
+    A = GL._sample(M["back_letters"], rr.ravel(), cc.ravel())
+    B = GL._sample(M["back_letters"], rr.ravel(), c0 + c1 - cc.ravel())
+    assert np.corrcoef(A, B)[0, 1] < 0.6                        # LEATT is not its own mirror image
+    for s in "LR":
+        assert (lay[s][1][0] > 0.5).sum() * a > 4                 # red logo
+        body = (lay[s][2][0] > 0.5).sum() * a
+        text = (lay[s][3][0] > 0.5).sum() * a
+        assert 150 < body < 600 and 10 < text < body / 2          # nanoGrip label about 18 x 24 mm and its text
+    z = built["npz"]
+    uL, uR = z["glove_tab_L__UV"][:, 0], z["glove_tab_R__UV"][:, 0]
+    assert np.allclose(np.sort(uL), np.sort(1 - uR), atol=1e-6) and not np.allclose(uL, uR)
+
+
 def test_glove_over_its_skin_with_the_fist_closed(built):
     """Fingers curled as build_rider.aim_pose closes them on the grip (0.95, 1.05, 0.75 rad; thumb 0.35) and the
     wrist straight or bent 30 deg either way: skin and glove posed by linear blend skinning with their own weights.
