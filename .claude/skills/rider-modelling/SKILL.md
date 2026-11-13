@@ -135,6 +135,12 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   only. Foam: march it along the lens normal from a 13 mm band inside the face opening (march tolerance 2.5 mm,
   fill misses from the neighbouring rows) or it pokes through his cheeks.
 - render.sh needs its full output path: with an unset `$W` it wrote to /r3w/his at the filesystem root.
+- **Head close-ups in any pose: `head_closeups.py RIDER.blend OUT`**. Its views are set once in the rest frame
+  (rider at the origin facing +x) and carried with the head: posed = helmet_shell.matrix_world @ Rz(90)^-1 (rigid
+  parts' mesh coordinates are the MB rest frame). `cam07` renders through photo 07's fitted camera, cropped round
+  the head. Whole rider on the bike: build_rider.py with RIDER_BIKE=blend/bike_v6.blend::kit7, the seated pose,
+  and gear npz files rebuilt from main (helmet.py, kit.py regenerate their textures byte-identical); its
+  rider.blend is already packed, compressing it saves little (86 to 85 MB).
 
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
