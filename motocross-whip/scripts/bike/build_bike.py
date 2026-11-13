@@ -6,6 +6,7 @@ blender -b --factory-startup --python-exit-code 1 --python build_bike.py -- PART
   views: comma list of camera names ('all' for every one, 'none' to skip rendering); stock = plain Honda colours
   cameras: honda_left, honda_right, honda_front, honda_rear, honda_top (Honda's studio cameras, cams.py),
            honda_lf34, honda_lr34, honda_rf34, honda_rr34 (three-quarter photos, fit34.py),
+           dv03_left_rear (Damien's photo 03, fit_dv.py),
            profile_left, left_34_hero, right_rear_34, dv01_front_left, dv02_left_front, dv04_cockpit
 Writes OUT_DIR/NAME.blend, OUT_DIR/NAME.glb and OUT_DIR/render_<view>.png.
 """
@@ -18,6 +19,9 @@ import bpy
 import numpy as np
 from bpy_extras import anim_utils  # noqa: F401  (kept for later animation of the steering)
 from mathutils import Matrix, Vector
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kit_faces  # noqa: E402  (pure numpy: which kit faces are inner or back faces)
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 PARTS, TEX, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1]), os.path.abspath(argv[2])
@@ -36,6 +40,8 @@ STUDIO_CAMS = json.load(open(os.path.join(HERE, "..", "..", "research", "bike-ca
 _C34 = os.path.join(HERE, "..", "..", "research", "bike-cameras-34.json")         # fit34.py: three-quarter photos
 if os.path.exists(_C34):
     STUDIO_CAMS.update({k: v for k, v in json.load(open(_C34)).items()})
+_CDV = os.path.join(HERE, "..", "..", "research", "bike-cameras-damien.json")      # fit_dv.py: Damien's own photos
+DV_CAMS = json.load(open(_CDV)) if os.path.exists(_CDV) else {}
 
 
 def srgb(c):
@@ -66,6 +72,7 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
     m = bpy.data.materials.new(name)
     nt = m.node_tree
     p = nt.nodes["Principled BSDF"]
+    normal_interp = "Cubic"
     if rgb is not None:
         p.inputs["Base Color"].default_value = lin(rgb)
     p.inputs["Metallic"].default_value = metal
@@ -78,13 +85,30 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
         tex.image = bpy.data.images.load(_tex_path(image))
         tex.interpolation = "Cubic"
         nt.links.new(tex.outputs["Color"], p.inputs["Base Color"])
+        # the texture's material map (kit_canvas "mat", decision 37 round 2): IMAGE_mr.png beside it, glTF's
+        # metallic-roughness convention (G roughness, B metallic), so the glTF export carries it too
+        mr = os.path.splitext(_tex_path(image))[0] + "_mr.png"
+        if os.path.exists(mr):
+            mt = nt.nodes.new("ShaderNodeTexImage")
+            mt.image = bpy.data.images.load(mr)
+            mt.image.colorspace_settings.name = "Non-Color"
+            mt.interpolation = "Linear"
+            sep = nt.nodes.new("ShaderNodeSeparateColor")
+            nt.links.new(mt.outputs["Color"], sep.inputs["Color"])
+            nt.links.new(sep.outputs["Green"], p.inputs["Roughness"])
+            nt.links.new(sep.outputs["Blue"], p.inputs["Metallic"])
+        # and its normal map (kit_canvas "nrm": the flakes' tilts), IMAGE_n.png, on the base layer only: the kit's
+        # clear laminate (the coat) stays smooth over the flakes
+        nrm = os.path.splitext(_tex_path(image))[0] + "_n.png"
+        if normal is None and os.path.exists(nrm):
+            normal, normal_interp = nrm, "Linear"
     if sheen > 0:
         p.inputs["Sheen Weight"].default_value = sheen
     if normal:
         nt_img = nt.nodes.new("ShaderNodeTexImage")
         nt_img.image = bpy.data.images.load(_tex_path(normal))
         nt_img.image.colorspace_settings.name = "Non-Color"
-        nt_img.interpolation = "Cubic"
+        nt_img.interpolation = normal_interp
         nm = nt.nodes.new("ShaderNodeNormalMap")
         nm.inputs["Strength"].default_value = normal_strength
         nt.links.new(nt_img.outputs["Color"], nm.inputs["Color"])
@@ -264,6 +288,10 @@ def in_band(part, side, x, z, tol=0.0015):
 
 
 def kit_materials(name, V, faces, M, mats):
+    """The kit's materials for a plastic's faces: (front, back) material indices per face. back is the material of
+    the face's other side, for a single surface that the build solidifies (THIN: the shell gets it); for parts built
+    with their thickness it equals front. Inner and back faces keep the plastic's own material (kit_faces)."""
+    M0 = np.array(M, copy=True)
     M = np.array(M, copy=True)
     red = mats.index("plastic_red") if "plastic_red" in mats else -1
     # Damien's kit also covers the side panel's lower black cover (the red band with his name and the bolt), his fork
@@ -310,7 +338,14 @@ def kit_materials(name, V, faces, M, mats):
                 M[fi] = side
         else:
             M[fi] = side
-    return M
+    if name == "swingarm":                     # metal with a wrap on its outer faces (bands.json), not a plastic shell
+        return M, M
+    # inner and back faces show the bare plastic, not a mirror image of the kit (decision 37 round 2: the right side
+    # panel's inner skin showed VENTER reversed behind the shock): kit_faces
+    names = [mats[i] for i in M]
+    front, back = kit_faces.back_faces(np.asarray(V, float), faces, names, [mats[i] for i in M0], thin=name in THIN)
+    idx = {m: i for i, m in enumerate(mats)}
+    return np.array([idx[m] for m in front]), np.array([idx[m] for m in back])
 
 
 def build_parts():
@@ -345,19 +380,29 @@ def build_parts():
         for sz in S:
             faces.append(tuple(Fl[k:k + sz]))
             k += sz
+        Mb = None
         if not STOCK and name in KIT_PARTS:
-            M = kit_materials(name, V, faces, M, mats)
+            M, Mb = kit_materials(name, V, faces, M, mats)
         me = bpy.data.meshes.new(name)
         me.from_pydata(V.tolist(), [], faces)
         me.validate(clean_customdata=False)
-        used = sorted(set(M.tolist()))
-        for mi in used:
+        # material slots: one per (front, back) pair; a solidified part's shell takes the back one, n slots on
+        # (Solidify material_offset). A face's UVs follow the kit material of its pair (front or back)
+        n_ = len(me.polygons)
+        pairs = list(zip(M[:n_].tolist(), (Mb if Mb is not None and name in THIN else M)[:n_].tolist()))
+        used = sorted(set(pairs))
+        two = any(a != b for a, b in used)
+        for mi in {m for p in used for m in p}:
             if mats[mi] not in bmats:
                 bmats[mats[mi]] = principled(mats[mi], **MATS.get(mats[mi], dict(rgb=(200, 0, 200))))
-        for mi in used:
-            me.materials.append(bmats[mats[mi]])
-        remap = {mi: i for i, mi in enumerate(used)}
-        me.polygons.foreach_set("material_index", [remap[int(v)] for v in M[:len(me.polygons)]])
+        for a, _ in used:
+            me.materials.append(bmats[mats[a]])
+        if two:
+            for _, b in used:
+                me.materials.append(bmats[mats[b]])
+        remap = {p: i for i, p in enumerate(used)}
+        me.polygons.foreach_set("material_index", [remap[p] for p in pairs])
+        uvmat = [next((mats[m] for m in p if mats[m] in KIT_MATS), mats[p[0]]) for p in used]
         uvl = me.uv_layers.new(name="UVMap")
         UV = data[f"{name}__UV"] if f"{name}__UV" in data.files else None       # the part's own UVs (Mesh.uv)
         if UV is not None and len(UV) != len(me.loops):           # validate() dropped a bad face: corners no longer line up
@@ -365,7 +410,7 @@ def build_parts():
                   % (name, len(UV), len(me.loops)), flush=True)
             UV = None
         for poly in me.polygons:
-            mname = mats[used[poly.material_index]]
+            mname = uvmat[poly.material_index]
             nrm = tuple(poly.normal)
             for li in poly.loop_indices:
                 # a face that takes the kit uses the kit's projection, not the part's own UVs (rib or grain maps)
@@ -382,6 +427,8 @@ def build_parts():
             sol = ob.modifiers.new("thickness", "SOLIDIFY")
             sol.thickness = 0.003
             sol.offset = -1.0
+            if two:                               # the shell (behind the surface) takes each pair's back material
+                sol.material_offset = len(used)
         if name in BEVEL:
             bv = ob.modifiers.new("edges", "BEVEL")
             bv.width = BEVEL[name]
@@ -485,16 +532,19 @@ def camera(name, loc, target, lens=50.0, ortho=None, roll=0.0, res=(1280, 720)):
     return co
 
 
-def studio_camera(view, root, res=(2000, 1125)):
+def studio_camera(view, root, res=(2000, 1125), c=None, name=None):
     """Honda's studio photo camera for VIEW (cams.py, axle-line frame), parented to the bike's root so it follows the
-    tilt onto the ground: the render lands on the photo pixel for pixel."""
-    c = STUDIO_CAMS[view]
-    cd = bpy.data.cameras.new(f"honda_{view}")
-    cd.sensor_fit = "HORIZONTAL"
+    tilt onto the ground: the render lands on the photo pixel for pixel. c, name: another fitted photo's camera
+    (fit_dv.py: f in pixels of its own photo, "size" its pixels; Honda's photos are 4000 x 2250)."""
+    c = c or STUDIO_CAMS[view]
+    name = name or f"honda_{view}"
+    size = c.get("size", (4000, 2250))
+    cd = bpy.data.cameras.new(name)
+    cd.sensor_fit = "AUTO"                              # 36 mm on the photo's long side
     cd.sensor_width = 36.0
-    cd.lens = c["f"] * 36.0 / 4000.0
+    cd.lens = c["f"] * 36.0 / max(size)
     cd.clip_end = 60.0
-    co = bpy.data.objects.new(f"honda_{view}", cd)
+    co = bpy.data.objects.new(name, cd)
     R, U, F = Vector(c["R"]), Vector(c["U"]), Vector(c["F"])
     M = Matrix(((R.x, U.x, -F.x, c["C"][0]), (R.y, U.y, -F.y, c["C"][1]), (R.z, U.z, -F.z, c["C"][2]), (0, 0, 0, 1)))
     bpy.context.scene.collection.objects.link(co)
@@ -509,6 +559,8 @@ def cameras(root=None):
     if root is not None:
         cams += [studio_camera(v, root, res=tuple(int(q) for q in os.environ.get("BIKE_STUDIO_RES", "2000,1125").split(",")))
                  for v in ("left", "right", "front", "rear", "top", "lf34", "lr34", "rf34", "rr34") if v in STUDIO_CAMS]
+        # Damien's own photos, fitted (fit_dv.py): rendered in his photos' look like the dv* views, at the photo's size
+        cams += [studio_camera(k, root, res=tuple(c["size"]), c=c, name=k) for k, c in DV_CAMS.items()]
     # Honda's left profile, reproduced: orthographic, same scale and framing as the 4000x2250 studio photo
     s = BP["mm_per_px"] / 1000.0
     fa, ra = np.array(BP["front_axle_px"]), np.array(BP["rear_axle_px"])

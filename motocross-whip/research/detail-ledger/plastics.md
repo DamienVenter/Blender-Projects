@@ -715,3 +715,56 @@ side panel's surface function shaded without Blender (`tools/shade.py`, 5 s a lo
 Vertices (both modules' 19 parts, b18): 74,336 (budget 160k; side_panels 15,360, seat 10,408, rear_fender 5,418). Audit (b18): no clash of these parts (rear_fender on the seat,
 0.9 mm in round 4, gone), nothing floating. Scores (b17): left 0.8863 / 0.8968, right 0.8769 / 0.8984, front 0.8913 /
 0.7970, rear 0.9029 / 0.6415, top 0.8863 / 0.8559.
+
+# Decision 37 round 2 (2026-11-13): the side panels' upper rear faired
+
+The coordinator, on the side panel close-ups of round 1 (`r7/render_sp07.png` x 700..1100, y 170..470, sheet 04):
+the upper rear of both panels, behind the 4 and over the can up to the fender, was crumpled "like a plastic bag".
+Honda's studio photos and Damien's 07 show smooth gloss plastic with crisp creases there. Scratch folder:
+`/tmp/claude-0/-home-user-blender-projects/4c1715c0-4e6f-517a-aa9d-c16103ac023a/scratchpad/agents/bike/sidepanel`
+(`fair/`: rows and mesh-normal plots before and after; `r8/`: the renders; `tools/rake.py`: raking light).
+
+### Causes (all in `plastics._panel`; not the template, not the fender junction)
+A gloss face shows every break in its curvature as a line in its reflections. Measured along rows parallel to the
+creases (LEFT u 2650..2860, the face from crease to fold in fractions 0.1 .. 0.85), the normal's lean and yaw:
+1. The top edge (SEAM_PX, then PANEL_TAIL_TOP_PX) was read straight from reading to reading, so it kinked every 20 px
+   and the face's lean with it, 2 to 3 deg: the creases across the upper rear.
+2. The reach of the face (PANEL_H, then the fold) changed over u 2640..2700 by a smoothstep: the face twisted 20 deg
+   out and back, the dent behind the 4.
+3. The crease changed from the bead's line to the tail's measured crease over u 2760..2800 with the measured line held
+   level ahead of 2780: it bent twice and the face under it twisted 20 deg, a dent behind the seat's tail.
+4. Under the crease the panel's own section (the plan envelope leaned in from the seat's narrowing hem) sank 4 to 5 mm
+   inside the tail's section at x 0.17..0.18 and the tail's brought it back within 40 mm: a trough 20 deg deep in the
+   normals beside the seat's tail.
+5. The plan envelope changed from one smoothing to the other over x 0.11..0.14, where they differ by 3 mm (left) and
+   6 mm (right): a dent 1 mm deep in the fold at x 0.125.
+6. BEAD_PX read straight from reading to reading: its kinks at u 2540 and 2600 bent the tucked facet 6 deg.
+7. min / max clamps and smoothstep (C1) blends everywhere else: each a line in the reflections.
+8. The mesh: lone crease and fold rows on the 9 px grid (with the 70 deg auto-smooth a lone row turns a crease into a
+   bend as wide as the triangles beside it, uneven: teeth along the bead and the fold), the crease row 0.3 to 0.8 px
+   off the surface's own crease, and the fold's round across triangles 15 px tall: smooth-shaded normals up to 16 deg
+   (left) and 39 deg (right) off the surface.
+
+### Cures (plastics.py)
+- New C2 tools beside smoothstep: `smootherstep`, `smin` / `smax` (cubic, rounded over a band), `fair_line` (a cubic
+  smoothing spline through measured readings, levelling out past its ends), `spline_table` (plan tables).
+- Top edge: one smoothing spline through SEAM_PX and PANEL_TAIL_TOP_PX behind the seam's V at u 2266
+  (`PANEL_TOP_SIG` 0.5 px, the readings' precision). Bead: `_bead_px`, eased (C2). Crease: `crease_at`, the measured
+  crease carried on ahead of its first reading at its slope, the change over `PANEL_CREASE_BLEND` u 2700..2800. Reach:
+  the fold carried on at its slope, taken over by a smin rounded over 30 px (no blend in u). Tail section over
+  `PANEL_TAIL_BLEND` x 0.165..0.250 (where the two sections agree within 0.5 mm under the crease, 0.7 mm mid-face,
+  1.8 mm by the fold). Plan envelope change over `PANEL_PLAN_BLEND` x 0.12..0.26. The seat's hem, the fender's lip
+  and TOP's crease and seam lines: smoothing splines through their readings. Every clamp in the face: smin / smax.
+- Mesh: the crease row is the surface's crease line every 2 px from u 2080; rows 2.5 px either side of the crease and
+  the fold wherever the facets beside them are wider than 6 px (`crease_sides`); behind u 2700 rows every quarter of
+  the fold's round (FOLD_ROUND) each side. side_panels 15,360 -> 17,702 vertices.
+
+### Checks
+- Rows (gauss 10 samples): waves 9.19 / 8.76 deg (left / right) -> 3.47 / 3.95; step-to-step kinks 4.1 / 5.5 deg ->
+  0.29 / 0.36. Mesh: smooth-shaded vertex normals off the surface, worst 15.8 / 38.6 deg -> 7.8 / 6.7.
+- `test_detail_plastics.test_decision37_panel_upper_rear_is_fair`: waves under 5 deg, kinks under 1 deg, every outer
+  vertex's normal (more than 300 a side, off the crease and fold rows) within 10 deg. It fails on round 1's code.
+- Scores unchanged (parts2 against round 1): left 0.8859 / 0.8968, right 0.8790 / 0.8984, front 0.8913 / 0.7970,
+  rear 0.9004 / 0.6414 (0.6416), top 0.8864 / 0.8574 (0.8558). The plastics tests pass (18), test_bike passes.
+- Renders: sp07 and sp07r (x 700..1100, y 170..470), dv02_left_front, dv03_left_rear, and the same crops under a
+  raking sun with the panels in plain gloss red (`tools/rake.py`): `renders/checkpoints/2026-11-13_side-panels/`.

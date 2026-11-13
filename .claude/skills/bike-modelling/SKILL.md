@@ -190,6 +190,20 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
 - Seams drawn by hand between touching plastics hand slivers to the wrong part (the fender's lower flank went to the
   side panel as a tongue). Cut where the parts really meet (a vertical cut at the fender's root) and let the lofted
   part's edge line follow the mask's true lower boundary; overlap the two parts by 20 mm so no gap opens.
+- **Gloss needs C2 (2026-11-13, decision 37 round 2: the side panels' upper rear "crumpled like a plastic bag").** A
+  gloss face shows every break in its CURVATURE as a line in its reflections; C1 is not enough. What dented it, all
+  in `plastics._panel`: measured lines read straight from reading to reading (a kink at every reading, and the
+  face's lean with it), smoothstep blends, hard min/max clamps, a blend between two sections that disagree by 4 to
+  5 mm, a measured line held level past its last reading. Cures: `fair_line` (a cubic smoothing spline through the
+  readings, to their precision, carried on at the end's slope), `spline_table`, `smootherstep`, `smin`/`smax`;
+  blend only where the two things agree (measure that first), over the widest stretch the photos allow. Mesh: the
+  crease row ON the surface's own crease (0.3 px off it cut teeth), rows 2.5 px either side wherever the facets
+  beside it are wider than 6 px, and rows through every round (a 45 deg turn across one 15 px triangle wobbles).
+  Measure before and after: the normal along rows parallel to the creases (waves against a running mean, kinks
+  step to step) and the smooth-shaded vertex normals against the surface's (test_detail_plastics
+  `test_decision37_panel_upper_rear_is_fair`: waves 9 -> 3.5 deg, kinks 5 -> 0.3, mesh 39 -> 7). Then look under a
+  raking sun with the panel in plain gloss red (`scripts/bike/rake.py BLEND -- OUT "sp07:rakeL:red"`): a printed kit
+  hides waves.
 
 ### Checking
 - `python3 -m pytest -q test_bike.py` (2 minutes) before any render: cameras, agreement between photos, photo-panel
@@ -425,12 +439,20 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
   not a rotation.
 - Reflections are not graphics: the white "swoosh stripes" on the black tail move between 02 and 03 and are absent
   in 06. The red band along the panel's lower rear in 03 is the plastic's own lip.
-- Silver flake reads navy in the sun (06, 07). Measure it in shade (02) against a known white (the 114): photo 02
-  p10/p50/p90 = 0.20/0.60/0.98 of the white, a dark base packed with bright flakes. Map smooth noise through
-  brightness quantiles and measure the result in a render through 02's camera against the render's own white. Pixels
-  average LIGHT (linear), not sRGB values: a few bright flakes lift a blurred median a lot, so the base must be far
-  darker than the photo's median (final 8/11/18/70/250 at 10/35/50/65/90 percent renders 0.24/0.56/0.88; the first
-  try, grey 170 +-52, rendered 0.62/0.82/0.89). Red ink over the flake lets the flake through (LEATT, splatter).
+- Flake vinyl is METAL: its look is what it reflects, not a colour. The same panel reads light silver in shade (02:
+  the sky in every flake), bright worms on a dark base in 03, dark navy in sun (07). Round 1 calibrated a diffuse
+  colour on 02 (0.20/0.60/0.98 of the 114's white) and got a coarse black and white salt and pepper at half white:
+  the coordinator's "too coarse, too bright, too contrasty". Round 2: measure the ALBEDO where the flake reflects
+  little (03, the closest view, 0.88 mm a pixel up the panel: base (43, 43, 51), specks over 32 percent by Otsu, 1 to
+  2 px long; 07 in sun: (28, 38, 58) against the white) and make the specks metal in the material map. Then check it
+  in renders through each photo's camera: a studio shows it lighter than a tent or the sun does (the grey cyc is in
+  every flake). Draw specks as the photo shows them (bent strokes 1 to 2 mm, 0.65 mm wide, 3x supersampled), not as
+  smooth noise mapped through quantiles (round blobs).
+- A flat metal flake does not sparkle: every flake on a flat panel mirrors the same direction, so the zone just goes
+  grey. Sparkle is each flake's own tilt: a normal map (Rayleigh 12 deg per axis, EST), on the base layer only (the
+  clear laminate, Principled's coat, stays smooth). It raised the zone's pixel contrast in sp07 by 40 percent (std 16 -> 23).
+- Draw extra random layers from `rng.spawn(1)[0]`: the main stream, and so every other random element of the art,
+  stays as it was (the colour art and material map came out byte-identical).
 - Raster slits: the template's side view leaves texel slits inside a panel where faces meet edge-on or the subframe
   tube leaks through. Art mapped only onto the panel's part id leaves them plain red: red cracks through the 114.
   kit.json `"close_slits": true` gives the panel the enclosed holes of its mask that no other kit part owns
@@ -438,8 +460,20 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
 - Right side by the same script: zones from the mirrored geometry, each word placed by F M F_src (mirror the
   placement and the word's source about its own box centre), so det > 0 and it reads normally. Test the determinant,
   the mirrored place, and that the right art is not the left one flipped (IoU).
-- build_bike projects the livery on both faces of a plastic shell: the right panel's inner face shows its art
-  mirrored through gaps (a mirrored VENTER behind the left panel from the rear). A fix belongs in kit_materials
-  (inner faces plain plastic), not in the art.
-- Gloss: `build_bike.principled()` takes a base colour image only (livery roughness 0.34 everywhere), so the black
-  laminate is no glossier than the flake. A kit roughness map is proposed in the ledger, not done.
+- Inner and back faces: a projected livery lands on both skins of a shell (round 1 showed the right panel's inner
+  skin, a mirrored VENTER, behind the shock in sp03). `kit_faces.py`, called by `build_bike.kit_materials` for every
+  kit part, gives them the part's plain plastic. Shells: a kit face is inner when another face of the same part lies
+  within 6 mm in front of it along the projection and parallel to it (|n1.n2| > 0.8); do not trust normals, not all
+  shells are wound outward. Single surfaces (THIN, solidified inward): decide per CONNECTED SURFACE by the
+  area-weighted vote of n.d (per face, a fork guard wrapped round its tube split 83/14 percent), and let the
+  Solidify modifier's `material_offset` put the other side's material on the shell (slots: fronts, then backs).
+- Per-texel maps (round 2): kit.json `"mat"` (glTF metallic-roughness: G roughness, B metallic) and `"nrm"` (tangent
+  normal, 128 + 127 n), the artwork's size; `kit_canvas.Maps` maps them exactly like the colour into
+  `<texture>_mr.png` / `_n.png` (only for textures that have one; defaults: kit.json "material", flat), and
+  `build_bike.principled` wires them when the files exist (Separate Color G -> Roughness, B -> Metallic; Normal Map),
+  so the glTF carries them. Side panels: laminate 0.12, flake base 0.40, specks metal 0.25 to 0.35, everything else
+  the kit default 0.34.
+- A camera fitted to one of his photos is a standard view: `fit_dv.py` (landmarks: art px of the panel's graphics
+  placed on the model's outer skin, plus a few model points, seven unknowns with a weak lens prior) writes
+  `research/bike-cameras-damien.json`, build_bike makes each entry a camera with the photo's own size
+  (dv03_left_rear), test_bike refits it against the current model.

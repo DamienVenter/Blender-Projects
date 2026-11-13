@@ -205,17 +205,23 @@ def test_barpad_lettering_on_the_faces_emblem_on_top():
 @pytest.fixture(scope="module")
 def sidepanels():
     import kit_sidepanel
-    return kit_sidepanel, {s: kit_sidepanel.build(s) for s in ("left", "right")}
+    built = {s: kit_sidepanel.build(s, with_mat=True) for s in ("left", "right")}
+    return (kit_sidepanel, {s: b[0] for s, b in built.items()}, {s: b[1] for s, b in built.items()},
+            {s: b[2] for s, b in built.items()})
 
 
 def test_side_panel_art_is_the_scripts_output(sidepanels):
-    """The committed artwork is exactly what kit_sidepanel.py draws (no hand edits, nothing left over from the
-    image model's v1)."""
-    _, art = sidepanels
-    for side, f in (("left", "sidepanel_L.png"), ("right", "sidepanel_R.png")):
-        a = np.asarray(Image.open(os.path.join(KIT, "art", f)).convert("RGB"))
+    """The committed artwork, material maps and normal maps are exactly what kit_sidepanel.py draws (no hand edits,
+    nothing left over from the image model's v1)."""
+    _, art, mat, nrm = sidepanels
+    for side, f in (("left", "sidepanel_L"), ("right", "sidepanel_R")):
+        a = np.asarray(Image.open(os.path.join(KIT, "art", f + ".png")).convert("RGB"))
         assert a.shape == art[side].shape == (1536, 2752, 3)
         assert np.array_equal(a, art[side]), side
+        m = np.asarray(Image.open(os.path.join(KIT, "art", f + "_mr.png")).convert("RGB"))
+        assert np.array_equal(m, mat[side]), side
+        n = np.asarray(Image.open(os.path.join(KIT, "art", f + "_n.png")).convert("RGB"))
+        assert np.array_equal(n, nrm[side]), side
 
 
 def test_side_panel_entries_point_at_the_script(kit):
@@ -227,7 +233,7 @@ def test_side_panel_entries_point_at_the_script(kit):
 def test_side_panel_words_read_normally_on_both_sides(sidepanels):
     """Every word and logo is placed without a reflection on both sides (positive determinant), the right one at
     the mirrored place; and the right art there is the word drawn afresh, not the left art's pixels flipped."""
-    K, art = sidepanels
+    K, art, _, _ = sidepanels
     P = K.placements()
     rings = {"number": K.number_rings(), "psalm": K.text_rings(K.PSALM["text"])[0], "leatt": K.leatt_rings(),
              "name": K.name_rings()}
@@ -252,7 +258,7 @@ def test_side_panel_number_glyphs_are_whole(sidepanels):
     """The 114 has no crack lines: closing its white by 2 px adds next to nothing (the image model's v1 had dark
     ticks and slits through the 1s), and it is three digits apart from the clipping at the intake."""
     from scipy import ndimage as ndi
-    K, art = sidepanels
+    K, art, _, _ = sidepanels
     P = K.placements()
     num = K.fill(K.number_rings(), P["number"]) > 0.5
     words = ndi.binary_dilation(K.fill(K.text_rings(K.PSALM["text"])[0], P["psalm"]) > 0.05, iterations=3)
@@ -294,3 +300,231 @@ def test_side_textures_have_no_red_slits_through_the_side_panels():
         cols = sorted(round((maps["x1"] - x if side == "left" else x - maps["x0"]) * ppm) for x in (0.02, 0.82))
         rows = [round((maps["z1"] - z) * ppm) for z in (1.03, 0.58)]
         assert red_slits(a, (slice(*rows), slice(*cols))) == 0, f
+
+
+# ---- decision 37 round 2: the flake, the material maps, inner and back faces ------------------------------------------
+
+def luma(a):
+    return a[..., :3].astype(float) @ [0.2126, 0.7152, 0.0722]
+
+
+def test_side_panel_flake_is_photo_03s(sidepanels):
+    """The flake zone as photo 03 shows it at 0.88 mm a pixel (ledger "flake"): a dark charcoal base with a navy cast
+    and fine worm-like silver specks over about a third of it, 1 to 2 mm long. The r7 flake was a coarse salt and
+    pepper at about half white (round flakes of 1.5 mm, 10 percent of it at 250)."""
+    from scipy import ndimage as ndi
+    K, art, mat, _ = sidepanels
+    for side in ("left", "right"):
+        a, m = art[side], mat[side]
+        rough = np.round(m[..., 1] / 255.0, 2)
+        base = (np.abs(rough - K.MAT_FLAKE_BASE[0]) < 0.005) & (m[..., 2] == 0)
+        speck = m[..., 2] > 128
+        zone = base | (m[..., 2] > 0)                                      # the flake (specks' edges included)
+        assert zone.sum() > 150000, side                                   # the front piece, ahead of the 1s
+        share = speck.sum() / zone.sum()
+        assert 0.25 < share < 0.40, (side, share)                         # photo 03: 0.32, photo 07: 0.33
+        b = a[base].astype(float).mean(0)
+        assert b[2] - b[0] >= 12 and luma(b) < 60, (side, b)               # navy charcoal (07: albedo near 45/53/66)
+        assert 110 < luma(a[speck]).mean() < 200, side                     # dim silver, not white
+        lab, n = ndi.label(speck)
+        area = ndi.sum(speck, lab, range(1, n + 1)) * K_MM2
+        assert 0.4 < np.median(area) < 2.5, (side, np.median(area))       # 1 to 2 mm long, 0.65 mm wide
+        # worm-like: the specks' own outlines are long, not round (principal axes 2:1 and more for most)
+        sl = ndi.find_objects(lab)
+        ratio = []
+        for i, s in enumerate(sl[:3000], 1):
+            ys, xs = np.nonzero(lab[s] == i)
+            if len(xs) < 8:
+                continue
+            ev = np.linalg.eigvalsh(np.cov(np.c_[xs, ys].T))
+            ratio.append(np.sqrt(ev[1] / max(ev[0], 1e-6)))
+        assert np.median(ratio) > 1.8, (side, np.median(ratio))
+
+
+K_MM2 = 0.29 ** 2                       # one art px is 0.29 mm (ledger "Frames")
+
+
+def test_side_panel_material_map_is_physical(sidepanels):
+    """The material map (glTF convention: G roughness, B metallic): the black laminate is gloss (0.12), the flake's
+    specks are metal (aluminium, roughness 0.25 to 0.35) and its base a satin dielectric, and the red ink keeps the
+    kit plastics' default (0.34, not metallic; under the black zone's laminate its drops are gloss like it). Only
+    the flake is metallic; every value is physical (roughness 0.05 to 1, metallic 0 to 1)."""
+    K, art, mat, _ = sidepanels
+    for side in ("left", "right"):
+        a, m = art[side], mat[side]
+        r, mt = m[..., 1] / 255.0, m[..., 2] / 255.0
+        assert (m[..., 0] == 255).all() and r.min() >= 0.05 and r.max() <= 1.0
+        gloss = np.abs(r - K.MAT_BLACK[0]) < 0.005
+        assert gloss.mean() > 0.2 and (mt[gloss] == 0).all(), side         # the laminate round the number
+        assert (luma(a[gloss]) < 40).mean() > 0.6, side                    # mostly black (white print, red drops)
+        red = (a[..., 0] > 150) & (a[..., 1] < 60) & (a[..., 2] < 70)
+        satin = (np.abs(r[red] - K.MAT_DEFAULT[0]) < 0.005) | (np.abs(r[red] - K.MAT_BLACK[0]) < 0.005)
+        assert satin.mean() > 0.97 and (mt[red] < 0.02).mean() > 0.97, side
+        assert (np.abs(r[red] - K.MAT_DEFAULT[0]) < 0.005).mean() > 0.8, side   # the red zone itself as it was
+        metal = mt > 0.98
+        assert (np.abs(r[metal] - 0.30) <= 0.055).all(), side             # aluminium flake
+        s = a[metal].astype(int)
+        assert (s.max(-1) - s.min(-1) < 30).mean() > 0.97, side           # grey metal (silver), not ink
+
+
+def test_side_textures_carry_the_material_map():
+    """kit_canvas maps a panel's material map exactly as its colour (kit.json "mat"): side_L/R_mr.png are the side
+    textures' size; texels that kept the plain plastic red have the kit plastics' default material; the metallic
+    texels are the silver specks of the colour texture (same art pixel)."""
+    kit = json.load(open(os.path.join(KIT, "kit.json")))
+    d = kit["material"]
+    default = (255, round(d["roughness"] * 255), round(d["metallic"] * 255))
+    for f in ("side_L", "side_R"):
+        a = np.asarray(Image.open(os.path.join(KIT, f + ".png")).convert("RGB"))
+        m = np.asarray(Image.open(os.path.join(KIT, f + "_mr.png")).convert("RGB"))
+        assert a.shape == m.shape
+        plain = (a == kit_canvas.RED).all(-1)
+        assert (m[plain] == default).all(), f
+        metal = m[..., 2] > 250
+        flat = (m[..., 2] == 0) & (np.abs(m[..., 1].astype(int) - 102) <= 1)        # the flake's base
+        assert metal.sum() > 8000, f                    # the flake zone's specks (about 15000 texels of 0.5 mm)
+        assert luma(a[metal]).mean() > luma(a[flat]).mean() + 60, f
+
+
+def tilt_deg(n):
+    """The angle (deg) of a normal map's texels (128 + 127 n) from the surface's own normal."""
+    v = (n.astype(float) - 128.0) / 127.0
+    return np.degrees(np.arccos(np.clip(v[..., 2] / np.linalg.norm(v, axis=-1), -1.0, 1.0)))
+
+
+def test_side_panel_normal_map_tilts_only_the_flakes(sidepanels):
+    """The normal map (kit.json "nrm"): every texel a unit normal facing out of the film; the flat normal wherever the
+    material is not metal (laminate, red ink and red zone, print), so only the flake's specks are tilted: about
+    FLAKE_TILT per axis (Rayleigh: median 1.18 times it), in every direction alike, none lying near the film's plane
+    (what makes a flake vinyl sparkle, decision 37 round 2)."""
+    K, _, mat, nrm = sidepanels
+    for side in ("left", "right"):
+        m, n = mat[side], nrm[side]
+        v = (n.astype(float) - 128.0) / 127.0
+        assert (np.abs(np.linalg.norm(v, axis=-1) - 1.0) < 0.02).all() and (v[..., 2] > 0.4).all(), side
+        assert (n[m[..., 2] == 0] == kit_canvas.FLAT).all(), side
+        t = tilt_deg(n[m[..., 2] > 250])
+        assert 0.9 * K.FLAKE_TILT < np.median(t) < 1.4 * K.FLAKE_TILT, (side, np.median(t))
+        assert np.percentile(t, 99) < 4.0 * K.FLAKE_TILT, side
+        mx, my = v[m[..., 2] > 250, 0].mean(), v[m[..., 2] > 250, 1].mean()
+        assert abs(mx) < 0.01 and abs(my) < 0.01, (side, mx, my)
+
+
+def test_side_textures_carry_the_normal_map():
+    """kit_canvas maps a panel's normal map exactly as its colour and material (kit.json "nrm"): side_L/R_n.png are
+    the side textures' size, flat wherever the material map is not metal, tilted on the metallic texels."""
+    for f in ("side_L", "side_R"):
+        m = np.asarray(Image.open(os.path.join(KIT, f + "_mr.png")).convert("RGB"))
+        n = np.asarray(Image.open(os.path.join(KIT, f + "_n.png")).convert("RGB"))
+        assert n.shape == m.shape
+        assert (n[m[..., 2] == 0] == kit_canvas.FLAT).all(), f
+        assert np.median(tilt_deg(n[m[..., 2] > 250])) > 8.0, f
+
+
+@pytest.mark.parametrize("key", list(kit_canvas.MAPS))
+def test_kit_canvas_writes_maps_only_for_textures_that_have_them(tmp_path, key):
+    """A texture none of whose panels has a material ("mat") or normal ("nrm") map gets no _mr / _n file (a stale one
+    is removed), so build_bike keeps the material's own roughness and the surface's own normal there; one that has
+    gets the default round the panel's texels (the kit's "material", the flat normal)."""
+    kit = {"material": {"roughness": 0.5, "metallic": 0.0}}
+    mr = kit_canvas.map_canvas(kit, key, 4, 6)
+    assert (mr == ((255, 128, 0) if key == "mat" else kit_canvas.FLAT)).all()
+    tex = str(tmp_path / "t")
+    path = tex + kit_canvas.MAPS[key] + ".png"
+    kit_canvas.save_map(mr, True, tex, key)
+    assert os.path.exists(path)
+    kit_canvas.save_map(mr, False, tex, key)
+    assert not os.path.exists(path)
+    p = {key: "m.png"}
+    Image.new("RGB", (5, 5)).save(tmp_path / "m.png")
+    with pytest.raises(ValueError):
+        kit_canvas.map_art(str(tmp_path), p, key, Image.new("RGB", (6, 5)))
+
+
+def sheet(y0, t, n=12, wobble=0.004, flip=None):
+    """Two skins of a curved sheet t apart (outer at y0 + bulge, inner t inside), quads over x, z in 0..0.1 m, with
+    the given faces' winding reversed (flip: a bool per face)."""
+    g = np.linspace(0, 0.1, n)
+    X, Z = np.meshgrid(g, g)
+    Y = y0 + wobble * np.sin(X * 30) * np.cos(Z * 20)
+    V = np.vstack([np.c_[X.ravel(), Y.ravel(), Z.ravel()], np.c_[X.ravel(), Y.ravel() - t, Z.ravel()]])
+    F = []
+    for off in (0, n * n):
+        for i in range(n - 1):
+            for j in range(n - 1):
+                a = off + i * n + j
+                F.append((a, a + 1, a + n + 1, a + n))
+    if flip is not None:
+        F = [f[::-1] if fl else f for f, fl in zip(F, flip)]
+    return V, F
+
+
+def test_kit_faces_finds_a_shells_inner_skin_whatever_its_winding():
+    import kit_faces as kf
+    rng = np.random.default_rng(3)
+    half = 121
+    for t, side in ((0.003, 1.0), (0.0015, 1.0)):
+        V, F = sheet(0.10 * side, t, flip=rng.random(2 * 121) < 0.5)
+        cov = kf.covered(V, F, list(range(len(F))), 1, side)
+        assert not cov[:half].any() and cov[half:].all(), t
+    # the right side (looked at from -y): its outer skin is the one at the more negative y
+    V, F = sheet(-0.10, -0.003)
+    cov = kf.covered(V, F, list(range(len(F))), 1, -1.0)
+    assert not cov[:half].any() and cov[half:].all()
+    # a second sheet 20 mm inside (another layer, not this sheet's other skin) is not an inner face
+    V, F = sheet(0.10, 0.020)
+    assert not kf.covered(V, F, list(range(len(F))), 1, 1.0).any()
+    # back_faces: the inner skin goes back to the plastic's own material, the outer keeps the kit
+    V, F = sheet(0.10, 0.003)
+    front, back = kf.back_faces(V, F, ["livery_L"] * len(F), ["plastic_red"] * len(F), thin=False)
+    assert front[:half] == ["livery_L"] * half and front[half:] == ["plastic_red"] * half and back == front
+
+
+def test_kit_faces_puts_a_single_surfaces_kit_on_its_outer_side():
+    """Single surfaces (solidified in Blender against their normals): a surface wound outward keeps the kit on its
+    faces and the plain plastic on its shell; one wound inward (a mirrored copy not flipped back) has its shell
+    outside, which takes the kit. Decided per connected surface: a guard wrapped round its tube looks both ways."""
+    import kit_faces as kf
+    V, F = sheet(0.10, 0.0)
+    out = [f[::-1] for f in F[:len(F) // 2]]                              # normals +y: out on the left
+    Vm = V * [1, -1, 1]                                                   # the mirrored copy, winding not flipped
+    names = ["livery_L"] * len(out) + ["livery_R"] * len(out)
+    Va = np.vstack([V, Vm])
+    Fa = out + [tuple(i + len(V) for i in f) for f in out]
+    front, back = kf.back_faces(Va, Fa, names, ["fork_guard"] * len(Fa), thin=True)
+    n = len(out)
+    assert front[:n] == ["livery_L"] * n and back[:n] == ["fork_guard"] * n
+    assert front[n:] == ["fork_guard"] * n and back[n:] == ["livery_R"] * n
+    # a half cylinder round x (a guard round its tube), outward normals: some faces look in along y, all keep the kit
+    a = np.linspace(-1.9, 1.9, 24)
+    x = np.linspace(0, 0.1, 6)
+    A, X = np.meshgrid(a, x)
+    Vc = np.c_[X.ravel(), 0.12 + 0.02 * np.cos(A.ravel()), 0.5 + 0.02 * np.sin(A.ravel())]
+    Fc = [(i * 24 + j, i * 24 + j + 1, (i + 1) * 24 + j + 1, (i + 1) * 24 + j) for i in range(5) for j in range(23)]
+    N, _ = kf.normals(Vc, Fc)
+    assert (N[:, 1] < 0).any()                                            # it does look in somewhere
+    assert kf.outward(Vc, Fc, list(range(len(Fc))), 1, 1.0).all()
+
+
+def test_kit_faces_on_the_side_panels():
+    """The side panels as built: on each side the faces kit_faces sends back to plain plastic are the inner skin,
+    3 mm inside a kept face at the same place (r7: the right panel's inner skin showed VENTER mirrored behind the
+    shock in the photo-03 view), about half the panel's area."""
+    from scipy.spatial import cKDTree
+    import kit_faces as kf
+    import plastics
+    m = plastics.side_panels()
+    V = np.asarray(m.V, float)
+    F = [tuple(f) for f in m.F]
+    N, A = kf.normals(V, F)
+    cen = np.array([V[list(f)].mean(0) for f in F])
+    for side in (1.0, -1.0):
+        sel = np.flatnonzero(cen[:, 1] * side >= 0)
+        cov = kf.covered(V, F, list(sel), 1, side)
+        kept, back = sel[~cov], sel[cov]
+        assert 0.3 < A[back].sum() / A[sel].sum() < 0.55, side
+        dist, j = cKDTree(cen[kept][:, [0, 2]]).query(cen[back][:, [0, 2]])
+        dy = (cen[kept[j], 1] - cen[back, 1]) * side
+        assert (dist < 0.002).mean() > 0.99
+        p5, p50, p95 = np.percentile(dy[dist < 0.002], [5, 50, 95])
+        assert 0.0018 < p5 and abs(p50 - 0.003) < 0.0005 and p95 < 0.0042, (side, p5, p50, p95)   # the 3 mm sheet

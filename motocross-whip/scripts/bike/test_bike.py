@@ -73,6 +73,24 @@ def test_rear_camera_predicts_the_footpeg_tips():
     assert abs(uv[0, 0] - 1673.0) < 6.0 and abs(uv[1, 0] - 2328.0) < 6.0
 
 
+def test_photo03_camera_is_fitted_to_the_current_model(npz):
+    """Damien's photo 03 is a standard view (dv03_left_rear, research/bike-cameras-damien.json, decision 37 round 2):
+    the stored camera is what fit_dv.py fits to the parts as built (within 10 mm and 0.3 mm of lens), it is a
+    proper camera (unit, right-handed axes), and the side panel's landmarks land within 25 photo px of where they
+    were read (by eye on gridded zooms; 25 px is 22 mm on the panel at 0.88 mm a pixel; round 1's fit: 12 to 24 px)."""
+    import fit_dv
+    stored = json.load(open(fit_dv.OUT))["dv03_left_rear"]
+    e = fit_dv.fit(np.load(npz), fit_dv.PHOTOS["dv03_left_rear"])
+    assert np.linalg.norm(np.subtract(e["C"], stored["C"])) < 0.010
+    assert abs(e["lens_mm"] - stored["lens_mm"]) < 0.3
+    R, U, F = (np.array(stored[k]) for k in ("R", "U", "F"))
+    assert np.allclose([R @ R, U @ U, F @ F, R @ U, R @ F, U @ F], [1, 1, 1, 0, 0, 0], atol=1e-6)
+    assert np.allclose(np.cross(R, U), -F, atol=1e-6)                # camera looks down its -Z
+    assert stored["size"] == [739, 1600] and abs(stored["f"] - stored["lens_mm"] / 36 * 1600) < 1e-6
+    panel = {k: v for k, v in e["residuals_px"].items() if k not in ("bar_L", "pad")}
+    assert max(panel.values()) < 25.0, panel
+
+
 def test_front_camera_puts_the_tyre_top_above_the_flap_edge():
     """The landmark that was misread: the front tyre's top must show ABOVE row 1030 (the fender flap's lower edge),
     so that the knobs stand in front of the flap as they do in the photo."""

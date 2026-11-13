@@ -23,6 +23,14 @@ kit.json: {"panels": [{"side": "left", "part": "side_panels", "art": "art/sidepa
   "band": true (a wrap on bare metal, the swingarm): also writes the sticker's extent to KIT_DIR/bands.json
   ({part: {side: [[x, z_low, z_high], ...]}}) so the build wraps only the faces under the sticker.
   "close_slits": true: the panel also takes its artwork on the slits and holes its texels enclose (close_slits).
+  Per-texel maps beside the colour (decision 37 round 2), each the artwork's size, mapped exactly as the colour:
+  "mat": "art/x_mr.png": the panel's material map, glTF's metallic-roughness convention (G roughness, B metallic,
+         0..255) -> <texture>_mr.png; texels of panels without one take kit.json's "material" (the kit plastics' own
+         roughness and metallic, build_bike MATS).
+  "nrm": "art/x_n.png": the panel's normal map, tangent space (128 + 127 n, OpenGL convention) -> <texture>_n.png;
+         texels of panels without one are flat (128, 128, 255).
+  A texture gets a map only when one of its panels has one (a stale file is removed). build_bike wires
+  <texture>_mr.png and <texture>_n.png into that texture's material when they exist.
 """
 import json
 import os
@@ -32,6 +40,62 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 RED = (208, 10, 22)
+MAPS = {"mat": "_mr", "nrm": "_n"}       # kit.json key -> the texture's file suffix
+FLAT = (128, 128, 255)                   # a tangent-space normal map's flat texel: the surface's own normal
+
+
+def map_canvas(kit, key, H, W):
+    """A map (H x W x 3 uint8) filled with its default: "mat" the kit plastics' own material (255, roughness,
+    metallic), "nrm" the flat normal."""
+    out = np.empty((H, W, 3), np.uint8)
+    if key == "nrm":
+        out[:] = FLAT
+    else:
+        m = kit.get("material", {"roughness": 0.34, "metallic": 0.0})
+        out[:] = (255, int(round(m["roughness"] * 255)), int(round(m["metallic"] * 255)))
+    return out
+
+
+def map_art(kdir, p, key, art):
+    """The panel's map (kit.json key "mat" or "nrm") as an array the artwork's size, or None."""
+    if key not in p:
+        return None
+    m = Image.open(os.path.join(kdir, p[key])).convert("RGB")
+    if m.size != art.size:
+        raise ValueError(f"{p[key]}: {m.size}, its artwork is {art.size}")
+    return np.asarray(m)
+
+
+def save_map(a, has, tex, key):
+    """Write TEX_mr.png / TEX_n.png when a panel on the texture has that map; else remove a stale one."""
+    path = tex + MAPS[key] + ".png"
+    if has:
+        Image.fromarray(a).save(path, optimize=True)
+    elif os.path.exists(path):
+        os.remove(path)
+
+
+class Maps:
+    """A texture's per-texel maps (MAPS), filled panel by panel as its colour is."""
+
+    def __init__(self, kit, kdir, H, W):
+        self.kdir = kdir
+        self.a = {k: map_canvas(kit, k, H, W) for k in MAPS}
+        self.has = dict.fromkeys(MAPS, False)
+
+    def of(self, p, art):
+        """The panel's maps (None for those it has not)."""
+        return {k: map_art(self.kdir, p, k, art) for k in MAPS}
+
+    def put(self, m, ok, ay, ax):
+        for k, v in m.items():
+            if v is not None:
+                self.a[k][ok] = v[ay[ok], ax[ok]]
+                self.has[k] = True
+
+    def save(self, tex):
+        for k in MAPS:
+            save_map(self.a[k], self.has[k], tex, k)
 
 
 def build_side(kit, side, tdir, kdir):
@@ -51,12 +115,14 @@ def build_side(kit, side, tdir, kdir):
     front = pid[vi, ui]
     out = np.empty((H, W, 3), np.uint8)
     out[:] = RED
+    mp = Maps(kit, kdir, H, W)
     span = (fr["X1"] - fr["X0"]) * fr["PPM"]
     bands = {}
     for p in kit["panels"]:
         if p["side"] != side or p.get("target", "side") != "side":
             continue
         art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
+        m = mp.of(p, art)
         if "mirror_of" in p:
             a0, b0, a1, b1 = p["mirror_of"]
             p = dict(p, crop=[span - a1, b0, span - a0, b1])
@@ -82,8 +148,11 @@ def build_side(kit, side, tdir, kdir):
                           if q["side"] == side and q.get("target", "side") == "side" and q["part"] != p["part"]]
                 ok = close_slits(ok, front, others)
         out[ok] = a[ay[ok], ax[ok]]
+        mp.put(m, ok, ay, ax)
         print(side, p["part"], "texels", int(ok.sum()))
-    Image.fromarray(out).save(os.path.join(kdir, f"side_{'L' if side == 'left' else 'R'}.png"), optimize=True)
+    tex = os.path.join(kdir, f"side_{'L' if side == 'left' else 'R'}")
+    Image.fromarray(out).save(tex + ".png", optimize=True)
+    mp.save(tex)
     return bands
 
 
@@ -180,8 +249,10 @@ def build_top(kit, tdir, kdir):
         front = pid[np.clip(vt.astype(int), 0, pid.shape[0] - 1), np.clip(ut.astype(int), 0, pid.shape[1] - 1)]
         out = np.empty((H, W, 3), np.uint8)
         out[:] = RED
+        mp = Maps(kit, kdir, H, W)
         for p in panels:
             art = Image.open(os.path.join(kdir, p["art"])).convert("RGB")
+            mm = mp.of(p, art)
             u0, v0, u1, v1 = p["crop"]
             pl, pt = p.get("pad", [0, 0])
             k = art.width / ((u1 - u0) + 2 * pl)
@@ -191,8 +262,10 @@ def build_top(kit, tdir, kdir):
             ids = [names.index(n) + 1 for n in p["part"].split(",")]
             ok = np.isin(front, ids) & (ax >= 0) & (ay >= 0) & (ax < art.width) & (ay < art.height)
             out[ok] = a[ay[ok], ax[ok]]
+            mp.put(mm, ok, ay, ax)
             print(tex, p["part"], "texels", int(ok.sum()))
         Image.fromarray(out).save(os.path.join(kdir, tex + ".png"), optimize=True)
+        mp.save(os.path.join(kdir, tex))
 
 
 def build_barpad(kit, kdir):
@@ -253,6 +326,9 @@ def build_flat(kit, kdir):
             art_px = ok & (px.astype(int).sum(2) < 735)         # else: the artwork, not its white surround
         out[art_px] = px[art_px]
         Image.fromarray(out).save(os.path.join(kdir, p["target"] + ".png"), optimize=True)
+        mp = Maps(kit, kdir, H, W)
+        mp.put(mp.of(p, art), art_px, ay, ax)
+        mp.save(os.path.join(kdir, p["target"]))
         print(p["target"], "texels", int(art_px.sum()))
 
 

@@ -373,3 +373,71 @@ def test_round5_right_bolt_and_plate_tab():
     f = (tab - DF.TUBE0) @ DF.FWD                              # in the fork frame: ahead of the clamp's front face
     assert f.min() > DF.TC_FRONT[0] - 0.0001, (f.min(), DF.TC_FRONT[0])
     assert abs((tab[:, 1].max() - tab[:, 1].min()) - dp.PLATE_TAB_W) < 0.002
+
+
+def _panel_normal(side, u, v, h=1.0):
+    P = lambda a, b: pl.panel_point(side, a, b)
+    n = np.cross(P(u + h, v) - P(u - h, v), P(u, v + h) - P(u, v - h))
+    n /= np.linalg.norm(n)
+    return n if n[1] * side > 0 else -n
+
+
+def test_decision37_panel_upper_rear_is_fair():
+    """Round 2 of decision 37: the side panels' upper rear (behind the 4, over the can, to the fender) is smooth gloss
+    plastic with crisp creases, not crumpled. Along rows parallel to its creases (fractions of the face from the
+    crease to the fold, LEFT u 2650..2860, the right bolt's pocket left out) the surface normal turns smoothly: its
+    lean and yaw stay within 5 deg of their own running mean (gauss 20 px) and change by under 1 deg from one 2 px
+    step to the next (the crumpled r7 face: waves of 8.8 to 9.2 deg, kinks of 4.1 to 5.5 deg at the top edge's
+    readings). And the mesh follows: the smooth-shaded normal of every outer vertex there (off the crease and fold
+    rows, 6 px in from the outline) is within 10 deg of the surface's (r7: 16 deg left, 39 deg right: lone crease
+    rows on a 9 px grid, the fold's round across triangles 15 px tall)."""
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.spatial import cKDTree
+    m = pl.side_panels()
+    V = np.asarray(m.V, float)
+    T = np.array([f for f in m.F if len(f) == 3])
+    fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    pocket = (3999.0 - pl.RPOCKET_PX[0], pl.RPOCKET_PX[1])             # LEFT columns
+    for side in (1, -1):
+        Pn = pl._panel(side)
+        cam = cams.CAMS[Pn.view]
+        mu = (lambda u: u) if side > 0 else (lambda u: 3999.0 - u)
+        cl, rg = np.asarray(Pn.crease), np.asarray(Pn.ridge)
+        cl, rg = cl[np.argsort(cl[:, 0])], rg[np.argsort(rg[:, 0])]
+        cv = lambda u: float(np.interp(u, cl[:, 0], cl[:, 1]))
+        fv = lambda u: float(np.interp(u, rg[:, 0], rg[:, 1]))
+        uls = np.arange(2650.0, 2861.0, 2.0)
+        ok = np.ones(len(uls), bool) if side > 0 else np.abs(uls - pocket[0]) > 30.0
+        for f in (0.1, 0.3, 0.5, 0.7, 0.85):
+            A = []
+            for ul in uls:
+                u = mu(ul)
+                k = cv(u)
+                n = _panel_normal(side, u, k + f * (fv(u) - k))
+                A.append((np.degrees(np.arctan2(n[2], abs(n[1]))), np.degrees(np.arctan2(n[0], abs(n[1])))))
+            A = np.array(A)
+            wave = np.abs(A - gaussian_filter1d(A, 10.0, axis=0, mode="nearest"))
+            wave[~ok] = 0.0
+            kink = np.abs(np.diff(A, 2, axis=0))
+            kink[~(ok[2:] & ok[1:-1] & ok[:-2])] = 0.0
+            assert wave[10:-10].max() < 5.0, (side, f, uls[10 + np.argmax(wave[10:-10].max(axis=1))], wave.max())
+            assert kink.max() < 1.0, (side, f, uls[1 + np.argmax(kink.max(axis=1))], kink.max())
+        out = V[T].mean(axis=1)[:, 1] * side > 0
+        fo = fn * np.sign(fn[:, 1] * side)[:, None]
+        vn = np.zeros_like(V)
+        for k in range(3):
+            np.add.at(vn, T[out, k], fo[out])
+        uv = cam.project(V)
+        ul = mu(uv[:, 0])
+        edge = cKDTree(Pn.px)
+        n_ = 0
+        for i in np.flatnonzero((ul > 2650) & (ul < 2860) & (V[:, 1] * side > 0.05)):
+            u, v = uv[i]
+            if (np.linalg.norm(pl.panel_point(side, u, v) - V[i]) > 2e-4 or edge.query((u, v))[0] < 6.0
+                    or abs(v - cv(u)) < 1.5 or abs(v - fv(u)) < 1.5
+                    or (side < 0 and np.hypot(ul[i] - pocket[0], v - pocket[1]) < 30.0)):
+                continue
+            g = np.degrees(np.arccos(np.clip(_panel_normal(side, u, v, 0.4) @ (vn[i] / np.linalg.norm(vn[i])), -1, 1)))
+            assert g < 10.0, (side, ul[i], v, g)
+            n_ += 1
+        assert n_ > 300, (side, n_)

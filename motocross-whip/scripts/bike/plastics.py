@@ -44,6 +44,53 @@ def smoothstep_arr(x):
     return x * x * (3 - 2 * x)
 
 
+# Fair surfaces (2026-11-13, decision 37 round 2). A gloss face shows every break in its curvature as a line in its
+# reflections: smoothstep (C1) blends, min / max clamps and straight-line interpolation of measured readings each left
+# one (the side panels' upper rear came out crumpled, "like a plastic bag", in the close-ups). Inside a face use these.
+def smootherstep(x):
+    """0..1 -> 0..1, level and without curvature at both ends (C2)."""
+    x = sat(x)
+    return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+
+
+def smin(a, b, k):
+    """min(a, b) rounded over a band k wide (cubic, C2): at most k/6 under the plain min."""
+    h = max(k - abs(a - b), 0.0) / k
+    return min(a, b) - h ** 3 * k / 6.0
+
+
+def smax(a, b, k):
+    return -smin(-a, -b, k)
+
+
+def fair_line(t, sig, step=1.0, level=None):
+    """A line measured at readings (x, value) to about SIG, as a dense table (x, value) every STEP: a cubic smoothing
+    spline through the readings. (Interpolated straight from reading to reading, a line has a kink at each one, and a
+    surface built on it a crease across its face at each.) level: carried on past both ends, levelling out from the
+    end's slope over about this length (np.interp holds a table level past its ends: a kink there)."""
+    from scipy.interpolate import UnivariateSpline
+    t = np.asarray(t, float)
+    t = t[np.argsort(t[:, 0], kind="stable")]
+    sp = UnivariateSpline(t[:, 0], t[:, 1], k=3, s=len(t) * sig ** 2)
+    q = np.arange(t[0, 0], t[-1, 0] + 1e-9, step)
+    out = np.column_stack([q, sp(q)])
+    if level:
+        e = np.arange(step, 6.0 * level, step)
+        lo, hi = out[0], out[-1]
+        s0, s1 = (out[1, 1] - lo[1]) / step, (hi[1] - out[-2, 1]) / step
+        out = np.vstack([np.column_stack([lo[0] - e, lo[1] - s0 * level * (1.0 - np.exp(-e / level))])[::-1], out,
+                         np.column_stack([hi[0] + e, hi[1] + s1 * level * (1.0 - np.exp(-e / level))])])
+    return out
+
+
+def spline_table(x, y, step):
+    """A table read on a grid, smoothed already, interpolated by a cubic spline (C2) as a dense table every STEP."""
+    from scipy.interpolate import CubicSpline
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    q = np.arange(x[0], x[-1] + 1e-12, step)
+    return np.column_stack([q, CubicSpline(x, y)(q)])
+
+
 # ---------------------------------------------------------------- plan tables from the top photo
 def _top_tables():
     xs, yl, yr, sl, sr, gl, gr = [], [], [], [], [], [], []
@@ -915,6 +962,14 @@ PANEL_H = 0.100      # the face reaches the plan envelope this far under the sea
 # Width of the bead along the panel's top edge, under the seam with the seat. LEFT: a bright band 8 px wide at
 # columns 2300..2540 (zoomed), a bright line 19 to 23 px under the seam at 2580..2820 (steps of +30 / -30).
 BEAD_U, BEAD_PX = [2300, 2540, 2600, 2820], [8, 8, 19, 21]
+
+
+def _bead_px(ul):
+    """The bead's width at LEFT column ul: BEAD_PX, its rise from 8 to 19 px (u 2540..2600) and on to 21 px (2820)
+    eased in and out (C2). (Straight from reading to reading, its kinks at u 2540 and 2600 bent the tucked facet 6 deg
+    across: two dents in the bead and the face under it.)"""
+    (_, u1, u2, u3), (b1, _, b2, b3) = BEAD_U, BEAD_PX
+    return b1 + (b2 - b1) * smootherstep((ul - u1) / (u2 - u1)) + (b3 - b2) * smootherstep((ul - u2) / (u3 - u2))
 # The seam between the seat's skirt and the side panel: SEAM_PX, the seat's hem line (SEAT_HEM_PX).
 
 # The panel's tail (round 3, 2026-11-11). Read per column of the LEFT photo (the RIGHT photo, mirrored, gives the same
@@ -996,6 +1051,9 @@ def _ease_in(s, a):
     return c * (s * s / (2.0 * a) if s < a else s - a / 2.0)
 
 
+PANEL_CREASE_BLEND = (2700.0, 2800.0)   # LEFT u: the crease from the bead's line to the tail's measured crease
+PANEL_PLAN_BLEND = (0.12, 0.26)          # x: the plan envelope from the tails' (TOP smoothed 11 mm) to the panel's (43 mm)
+PANEL_TOP_SIG = 0.5  # px: the top edge's smoothing spline through SEAM_PX and PANEL_TAIL_TOP_PX (read to 0.5 px)
 PANEL_TUCK = 0.010   # the free lower edge lies this far inside the fold (EST: D, dark, 15 to 40 px tall in LEFT)
 # The tail's end (round 5). TOP, the outer edge of the panel's red against the floor per column (z 0.93): y 0.1445 /
 # 0.1400 / 0.1355 / 0.1302 / 0.1257 / 0.1212 / 0.1159 / 0.1105 at x 0.081 / 0.074 / 0.067 / 0.059 / 0.052 / 0.045 /
@@ -1011,6 +1069,12 @@ PANEL_END_U = 2941.0
 # top edge leaves the hem's line at u 2836 (x 0.115). Ahead of x 0.15 the bead's tuck under the hem fades in; the
 # tail's facets (TOP: PANEL_CREASE_Y, measured to x 0.173) blend into the panel's face over x 0.15 .. 0.19.
 PANEL_TAIL_X = (0.110, 0.150, 0.190)
+# The tail's section takes over from the panel's over these x (decision 37 round 2; it was PANEL_TAIL_X[1..2]). Under
+# the crease the panel's section, the plan envelope leaned in from the seat's narrowing hem, sank 4 to 5 mm inside the
+# tail's (TOP's measured crease, PANEL_CREASE_Y, read to x 0.173) at x 0.17..0.18 and the tail's brought it back out
+# within 40 mm: a trough 20 deg deep in the normals, the dent beside the seat's tail. At x 0.23 the two agree within
+# 0.5 mm under the crease, 0.7 mm mid-face and 1.8 mm by the fold.
+PANEL_TAIL_BLEND = (0.165, 0.250)
 # The right panel's tail on the fender, which is built from the LEFT photo and is symmetric. The two side cameras put
 # mirrored pixels of the tail 3.0 mm apart in height and 2.4 mm in x (right higher and further forward, the same at
 # every pixel of the tail from u 2700 to 2940, on y 0.095 and 0.13): with each side cast through its own camera the
@@ -1031,7 +1095,8 @@ def _tail_to_left(side):
     d = np.array([a[0] - b[0], 0.0, a[2] - b[2]])
 
     def post(P):
-        return np.asarray(P, float) + d * smoothstep((PANEL_LEFT_X[1] - P[0]) / (PANEL_LEFT_X[1] - PANEL_LEFT_X[0]))
+        # (C2: with smoothstep the shift bent the right face 4 deg at each end of the blend, lines in its reflections)
+        return np.asarray(P, float) + d * smootherstep((PANEL_LEFT_X[1] - P[0]) / (PANEL_LEFT_X[1] - PANEL_LEFT_X[0]))
     return post
 
 
@@ -1109,45 +1174,55 @@ def _panel(side):
     E = Edges(view, px)
     run = _longest_run(E.top)
     seam = px[run]
-    bead = lambda u: float(np.interp(left_u(u), BEAD_U, BEAD_PX))
-    cl = seam - E.n[run] * np.array([bead(u) for u in seam[:, 0]])[:, None]
-    cl = np.stack([_gauss(cl[:, 0], 3.0), _gauss(cl[:, 1], 3.0)], axis=1)[6:-6]
-    clu = np.array([left_u(u) for u in cl[:, 0]])
-    cl = cl[(clu > 2080.0) & (clu < 2772.0)]           # not along the steep edge under the seat's nose; behind u 2780
+    bead = lambda u: _bead_px(left_u(u))
     kt = np.array(PANEL_CREASE_PX, float)              # the tail's crease (measured)
-    cl = np.vstack([cl, _mpx(view, kt), _mpx(view, [PANEL_TIP_PX])])
     rg = np.array(PANEL_FOLD_PX, float)
     shroud_w = _shroud_plan(side)
     # The section is a function of the column and of the height under the panel's top edge only (it was a function
     # of the distance to the traced outline and of the outline's height per 6 px column, smoothed over 18 px: each
     # wiggle of the trace became a dent; close-ups showed the face lumpy). Top edge: the seam (SEAM_PX) to u 2826,
-    # then the tail's upper edge (PANEL_TAIL_TOP_PX). Height of the panel per column: smoothed over 40 px.
+    # then the tail's upper edge (PANEL_TAIL_TOP_PX), one smoothing spline through both behind the seam's V at u 2266
+    # (decision 37 round 2: straight from reading to reading, the top edge kinked every 20 px and the whole face's
+    # lean with it, 2 to 3 deg: the creases across the upper rear in the close-ups). Height of the panel per column:
+    # smoothed over 40 px. Every measured line here is a smoothing spline through its readings (fair_line: the fold
+    # within 2 px of its readings, at 0.8 px its flat step at u 2760..2780 made a wave in the face over it; round 5).
     tp = np.array([q for q in SEAM_PX if q[0] <= 2826] + PANEL_TAIL_TOP_PX + [PANEL_TIP_PX], float)
+    tp = np.vstack([tp[tp[:, 0] < 2266], fair_line(tp[tp[:, 0] >= 2266], PANEL_TOP_SIG)])
     top_v = lambda ul: float(np.interp(ul, tp[:, 0], tp[:, 1]))
-    def _sm(t, sig=0.8):
-        # a measured line, read to 0.5 px at 10 to 20 px steps: a smoothing spline through it (a straight-line
-        # interpolation has a kink at every reading, and the face's lean, set by the rows, followed each kink)
-        from scipy.interpolate import UnivariateSpline
-        t = np.asarray(t, float)
-        sp = UnivariateSpline(t[:, 0], t[:, 1], k=3, s=len(t) * sig ** 2)
-        q = np.arange(t[0, 0], t[-1, 0] + 0.01, 2.0)
-        return np.column_stack([q, sp(q)])
-    # (the fold within 2 px of its readings: at 0.8 px its flat step at u 2760..2780 (916 to 913.5, between slopes of
-    # 0.37 and 0.5 px a px) made a wave in the face over it; round 5)
-    kt_, rg_ = _sm(np.vstack([kt, [PANEL_TIP_PX]])), _sm(np.vstack([rg, [PANEL_TIP_PX]]), 2.0)
-    low_s = _sm(low, 0.4)
-    seam_s = _sm(np.vstack(([low[-1:]] if low[-1, 0] < 2895 else []) + [PANEL_SEAM_TAIL_PX, [PANEL_TIP_PX]]), 0.4)
-    tp = np.vstack([tp[tp[:, 0] < 2780], _sm(tp[tp[:, 0] >= 2780])])
+    kt_, rg_ = fair_line(np.vstack([kt, [PANEL_TIP_PX]]), 0.8), fair_line(np.vstack([rg, [PANEL_TIP_PX]]), 2.0)
+    low_s = fair_line(low, 0.4)
+    seam_s = fair_line(np.vstack(([low[-1:]] if low[-1, 0] < 2895 else []) + [PANEL_SEAM_TAIL_PX, [PANEL_TIP_PX]]), 0.4)
     crease_v = lambda ul: float(np.interp(ul, kt_[:, 0], kt_[:, 1]))
     fold_v = lambda ul: float(np.interp(ul, rg_[:, 0], rg_[:, 1]))
+    f_sl = (rg_[8, 1] - rg_[0, 1]) / (rg_[8, 0] - rg_[0, 0])
+    fold_ext = lambda ul: fold_v(ul) if ul >= rg_[0, 0] else float(rg_[0, 1] + f_sl * (ul - rg_[0, 0]))
+
+    k_sl = (kt_[8, 1] - kt_[0, 1]) / (kt_[8, 0] - kt_[0, 0])
+
+    def crease_at(ul):
+        # the crease: the bead's line (its width under the top edge) ahead, the tail's measured crease behind (they
+        # meet within 4.5 px at u 2780, and cross at 2800), the measured one carried on ahead of its first reading
+        # at its slope there, the change over PANEL_CREASE_BLEND (decision 37 round 2: over u 2760..2800, with the
+        # measured line held level ahead of 2780, the crease bent twice and the face under it twisted 20 deg: a dent
+        # behind the seat's tail)
+        T, db = top_v(ul), _bead_px(ul)
+        c = crease_v(ul) if ul >= kt_[0, 0] else float(kt_[0, 1] + k_sl * (ul - kt_[0, 0]))
+        a_, b_ = PANEL_CREASE_BLEND
+        return T + db + (c - T - db) * smootherstep((ul - a_) / (b_ - a_))
+    # Its row of vertices is the surface's own crease line, every 2 px from u 2080 (not along the steep edge under the
+    # seat's nose). (It was the outline's top offset along its normal by the bead and smoothed over 3 px, then the
+    # tail's raw readings: 0.3 to 0.8 px off the surface's crease, so the triangles beside it bent across it: teeth
+    # along the bead in the close-ups.)
+    cq = np.arange(2080.0, PANEL_END_U, 2.0)
+    cl = _mpx(view, np.column_stack([cq, [crease_at(q) for q in cq]]))
     def edge_v(ul):
         # the free lower edge to its last column, then D's seam on the fender's flank (the left one meets it with a
         # short free rear edge at u 2900: two pieces)
         if ul <= low[-1, 0]:
             return float(np.interp(ul, low_s[:, 0], low_s[:, 1]))
         return float(np.interp(ul, seam_s[:, 0], seam_s[:, 1]))
-    cy = np.array(PANEL_CREASE_Y, float)
-    sy_ = np.array(PANEL_SEAM_Y, float)
+    cy = fair_line(PANEL_CREASE_Y, 0.0003, 0.0005, 0.01)    # TOP, read to 0.9 mm (1 px); levelling out over 10 mm
+    sy_ = fair_line(PANEL_SEAM_Y, 0.0003, 0.0005, 0.01)      # ahead of their last readings (x 0.17)
     pl_ = np.array([(left_u(a_), b_) for a_, b_ in px])
     ub = np.arange(pl_[:, 0].min(), pl_[:, 0].max() + 4.0, 4.0)
     hgt = np.array([pl_[np.abs(pl_[:, 0] - q) < 4.0, 1].max() - top_v(q) if (np.abs(pl_[:, 0] - q) < 4.0).any()
@@ -1156,42 +1231,52 @@ def _panel(side):
     # plan envelope (TOP), smoothed over 40 mm. Behind x 0.12 it is the tails' (TOP, the red outside the fender's
     # seam per column: out to 0.148 / 0.139 / 0.134 / 0.120 / 0.113 / 0.107 at x 0.087 / 0.074 / 0.060 / 0.047 /
     # 0.040 / 0.033, the point at x 0.027), smoothed over 10 mm only
+    # (all of them C2 inside the face, round 2 of decision 37: the plan tables by cubic splines, the seat's hem, the
+    # fender's lip and the tail's TOP lines by smoothing splines through their readings, the clamps rounded)
     tx_ = TT["x"]
-    tw_ = _gauss(_PLAN[1 if side > 0 else -1], 8.0)
+    tw_ = spline_table(tx_, _gauss(_PLAN[1 if side > 0 else -1], 8.0), 0.0005)
     fx, fhw = _fender_lines()[:2]
+    lip_ = fair_line(np.column_stack([fx, fhw]), 0.0002, 0.0005)       # the fender's lip (TOP, read to 0.5 px)
+    lip = lambda x: float(np.interp(x, lip_[:, 0], lip_[:, 1]))
+    hem_ = fair_line(np.column_stack(_seat_plan()), 0.0004, 0.0005)    # the seat's hem (TOP, read to 0.5 px)
+    hem = lambda x: float(np.interp(x, hem_[:, 0], hem_[:, 1]))
 
-    tw3 = _gauss(_PLAN[1 if side > 0 else -1], 2.0)         # behind x 0.12 less smoothed: the tails taper in plan
+    tw3 = spline_table(tx_, _gauss(_PLAN[1 if side > 0 else -1], 2.0), 0.0005)   # behind x 0.12 less smoothed: the
+    #                                                                              tails taper in plan
 
     def width(x):
-        W = float(np.interp(min(max(x, -0.19), 0.80), tx_, tw_))
-        W += (float(np.interp(x, tx_, tw3)) - W) * smoothstep((0.14 - x) / 0.03)
-        return max(W, float(np.interp(x, fx, fhw)) + 0.0035)
+        # (round 2 of decision 37: the change from one smoothing to the other over x 0.11..0.14, where they differ by
+        # 3 mm (left) and 6 mm (right), dented the fold 1 mm deep at x 0.125; now over PANEL_PLAN_BLEND)
+        W = float(np.interp(min(max(x, -0.19), 0.80), tw_[:, 0], tw_[:, 1]))
+        a_, b_ = PANEL_PLAN_BLEND
+        W += (float(np.interp(x, tw3[:, 0], tw3[:, 1])) - W) * smootherstep((b_ - x) / (b_ - a_))
+        return smax(W, lip(x) + 0.0035, 0.003)
 
     def surf(u, v):
         ul = left_u(u)
         T = top_v(ul)
         d = max(v - T, 0.0)                                # px under the panel's top edge
-        db = bead(u)
-        reach = min(PANEL_H / MPP, 0.92 * float(np.interp(ul, ub, hgt)))
+        # the face is at its widest on the fold, carried on ahead of its first reading at its slope there: where it
+        # lies higher than PANEL_H under the top edge it takes over, rounded over 30 px (decision 37 round 2: a blend
+        # from PANEL_H to the fold over u 2640..2700 twisted the face 20 deg out and back, the dent behind the 4)
         F = fold_v(ul)
-        if ul > rg[0, 0]:                                  # the face is at its widest on the fold
-            reach += (min(reach, max(F - T, 25.0)) - reach) * smoothstep((ul - rg[0, 0]) / 60.0)
+        reach = smin(smin(PANEL_H / MPP, 0.92 * float(np.interp(ul, ub, hgt)), 12.0),
+                     smax(fold_ext(ul) - T, 25.0, 6.0), 30.0)
         Ed = edge_v(ul)
-        # the crease: the bead's line (db under the top edge) ahead, the tail's measured crease behind (they meet
-        # within 4.5 px at u 2780)
-        K = T + db + (crease_v(ul) - T - db) * smoothstep((ul - 2760.0) / 40.0)
+        K = crease_at(ul)
+        db = K - T                                         # the bead's facet is A's (one crease, not two)
         # under the fold the face turns in (D) to the lower edge, from u 2730 (where the photo's band C begins); on
         # the fender's flank (u 2890 on) D's edge is the seam with the flank
-        wd = smoothstep((ul - 2715.0) / 80.0) if v > F else 0.0     # (over 50 px: a dent at its start)
-        on_flank = smoothstep((ul - 2840.0) / 60.0)
+        wd = smootherstep((ul - 2715.0) / 80.0) if v > F else 0.0     # (over 50 px: a dent at its start)
+        on_flank = smootherstep((ul - 2840.0) / 60.0)
 
         def f(x, z):
             W = width(x)
-            ys = min(max(seat_hem_hw(min(max(x, 0.09), 0.78)), 0.064), W - 0.004)
+            ys = smin(smax(hem(min(max(x, 0.09), 0.78)), 0.064, 0.004), W - 0.004, 0.004)
             y = ys + (W - ys) * (1.0 - (1.0 - sat(d / reach)) ** 1.3)
             # the bead tucks the top edge in under the seat's hem; toward the tail the edge comes out to the hem
             # (TOP: the seam leaves the hem at u 2678, x 0.147)
-            tuck = 0.55 * MPP * smoothstep((x - PANEL_TAIL_X[1]) / 0.05)
+            tuck = 0.55 * MPP * smootherstep((x - PANEL_TAIL_X[1]) / 0.05)
             if d < db:
                 y -= tuck * (db - d)
             # the tail's own section (facet A, the crease, B and C to the fold), in full behind PANEL_TAIL_X[1],
@@ -1199,7 +1284,7 @@ def _panel(side):
             # to the fender's lip over PANEL_TAIL_X[0..1] (round 5: the whole change over u 2790..2830, 31 mm, swept
             # the top edge 20 mm out and twisted the face with it: the ridge and lumps beside the seat's tail in
             # lr34 and rr34; the lap onto the fender's lip ahead of x 0.105, a third blend, is gone)
-            wt = smoothstep((PANEL_TAIL_X[2] - x) / (PANEL_TAIL_X[2] - PANEL_TAIL_X[1]))
+            wt = smootherstep((PANEL_TAIL_BLEND[1] - x) / (PANEL_TAIL_BLEND[1] - PANEL_TAIL_BLEND[0]))
             if wt > 0.0:
                 # facet A from the top edge out to the crease (TOP: PANEL_CREASE_Y), the face out to the fold (the
                 # plan envelope), convex as the panel's face ahead. The top edge: TOP's seam (PANEL_SEAM_Y), but at
@@ -1207,10 +1292,10 @@ def _panel(side):
                 # the lip in the lr34 close-up; the photo's facet runs on from the lip) (a function of x only: as a function of
                 # each vertex's height over the lip's roll, with the old tuck under the seat's hem ahead of x 0.105
                 # blended in, it came out jagged: the wrinkle at x 0.085..0.125 of round 2)
-                yk = min(float(np.interp(x, cy[:, 0], cy[:, 1])), W - 0.002)
-                yf = float(np.interp(x, fx, fhw))          # the fender's lip
-                y0 = max(min(float(np.interp(x, sy_[:, 0], sy_[:, 1])), yf + 0.0038), yf + 0.0035)
-                y0 += (ys - tuck * db - y0) * smoothstep((x - PANEL_TAIL_X[0]) / (PANEL_TAIL_X[1] - PANEL_TAIL_X[0]))
+                yk = smin(float(np.interp(x, cy[:, 0], cy[:, 1])), W - 0.002, 0.003)
+                yf = lip(x)                                # the fender's lip
+                y0 = smax(smin(float(np.interp(x, sy_[:, 0], sy_[:, 1])), yf + 0.0038, 0.002), yf + 0.0035, 0.0004)
+                y0 += (ys - tuck * db - y0) * smootherstep((x - PANEL_TAIL_X[0]) / (PANEL_TAIL_X[1] - PANEL_TAIL_X[0]))
                 if v <= K:
                     yt = y0 + (yk - y0) * sat((v - T) / max(K - T, 1.0))
                 else:
@@ -1221,7 +1306,7 @@ def _panel(side):
             if wd > 0.0:
                 # (a function of x only: through the fender's lip roll and under its lower edge, as a function of
                 # each vertex's height, it crumpled the lower tail in the close-ups)
-                yf = float(np.interp(x, fx, fhw)) + 0.0035
+                yf = lip(x) + 0.0035
                 ye = (W - PANEL_TUCK) + (yf - (W - PANEL_TUCK)) * on_flank
                 s = sat((v - F) / max(Ed - F, 1.0))   # (round 5: no longer 1 px early: the facet's end made a
                 #                                    crease between the outline and its first ring, zigzag)
@@ -1261,16 +1346,45 @@ def _panel(side):
     # across the face in the close-ups. The fold's row is its smoothed line rg_, the one the surface uses (on the raw
     # readings, 2 px off it, D's crease zigzagged across the triangles).
     uq = np.arange(2784.0, PANEL_END_U, 4.0)
-    bd_ = lambda q: float(np.interp(q, BEAD_U, BEAD_PX))
-    K_ = lambda q: top_v(q) + bd_(q) + (crease_v(q) - top_v(q) - bd_(q)) * smoothstep((q - 2760.0) / 40.0)
-    rows = [(lambda q, f=f: top_v(q) + f * (K_(q) - top_v(q))) for f in (0.3, 0.65)]
-    rows += [(lambda q, f=f: K_(q) + f * (fold_v(q) - K_(q))) for f in (0.25, 0.5, 0.75)]
+    rows = [(lambda q, f=f: top_v(q) + f * (crease_at(q) - top_v(q))) for f in (0.3, 0.65)]
+    rows += [(lambda q, f=f: crease_at(q) + f * (fold_v(q) - crease_at(q))) for f in (0.25, 0.5, 0.75)]
     rows += [(lambda q, f=f: fold_v(q) + f * (edge_v(q) - fold_v(q))) for f in (0.3, 0.6)]
     # (no row along the lower edge: the outline's own rings at 2.5 and 5 px carry it; a row 3 px in cut teeth)
     tail_lines = [_mpx(view, np.column_stack([uq, [r(q) for q in uq]])) for r in rows]
+    # Rows 2.5 px either side of the crease and of the fold, wherever the facets beside them are wider than 6 px
+    # (decision 37 round 2; the shrouds' rule in the bike-modelling skill: with the 70 deg auto-smooth a lone row turns
+    # a crease into a soft bend as wide as the triangles beside it, here the 9 px grid's, uneven: teeth along the bead
+    # and the fold in the close-ups; with these rows it is a bend 5 px wide, even)
+    sides = []
+
+    def runs(q, ok, line):
+        # the stretches where ok holds, each its own row
+        ok = np.asarray(ok, bool)
+        cut = np.flatnonzero(np.diff(ok.astype(int))) + 1
+        for a_, b_ in zip(np.r_[0, cut], np.r_[cut, len(q)]):
+            if ok[a_] and b_ - a_ > 1:
+                sides.append(_mpx(view, np.column_stack([q[a_:b_], [line(a) for a in q[a_:b_]]])))
+    fq = rg_[rg_[:, 0] < PANEL_END_U, 0]
+    # (and clear of the tail's rows: closer, plate_lines drops their points one by one and the triangles between
+    # zigzag)
+    clear = lambda a, v, g=4.0: a < uq[0] or min(abs(r(a) - v) for r in rows) >= g
+    for k in (-2.5, 2.5):
+        runs(cq, [((crease_at(a) - top_v(a) > 6.0) if k < 0 else (a < rg[0, 0] or fold_v(a) - crease_at(a) > 6.0))
+                  and clear(a, crease_at(a) + k) for a in cq], lambda a, k=k: crease_at(a) + k)
+        runs(fq, [a <= 2700.0 and ((fold_v(a) - crease_at(a) > 6.0) if k < 0 else (edge_v(a) - fold_v(a) > 6.0))
+                  for a in fq], lambda a, k=k: fold_v(a) + k)
+    # Behind u 2700 the fold is a round (FOLD_ROUND: C's last quarter, D's first 30 %), 10 to 17 px each side, that
+    # turns the face about 45 deg: rows every quarter of it each side (with rows only at its ends the turn lay across
+    # triangles 15 px tall, the shading up to 20 deg off the surface: a wobbling highlight along the fold)
+    for j in (1, 2, 3, 4):
+        cf = lambda a, j=j: fold_v(a) - j / 4.0 * FOLD_ROUND[0] * (fold_v(a) - crease_at(a))
+        df = lambda a, j=j: fold_v(a) + j / 4.0 * FOLD_ROUND[1] * (edge_v(a) - fold_v(a))
+        runs(fq, [a > 2700.0 and FOLD_ROUND[0] / 4.0 * (fold_v(a) - crease_at(a)) > 2.5 and clear(a, cf(a), 2.5)
+                  for a in fq], cf)
+        runs(fq, [a > 2715.0 and FOLD_ROUND[1] / 4.0 * (edge_v(a) - fold_v(a)) > 2.5 and clear(a, df(a), 2.5)
+                  for a in fq], df)
     return SimpleNamespace(view=view, px=px, E=E, width=width, surf=surf_pocket, seam=seam, crease=cl, extra=extra,
-                           tail_lines=tail_lines,
-                           ridge=_mpx(view, rg_))
+                           tail_lines=tail_lines, crease_sides=sides, ridge=_mpx(view, rg_))
 
 
 # ---------------------------------------------------------------- the left panel's air intake (round 4)
@@ -1514,7 +1628,7 @@ def side_panels():
                     else:
                         i += 1
         m.add(photo_panel(view, Pn.px, Pn.surf, 0.003, "plastic_red", holes_px=holes, step=9.0, rings=(2.5, 5.0),
-                          lines=[Pn.crease, Pn.ridge] + Pn.tail_lines + slines, line_step=4.0,
+                          lines=[Pn.crease, Pn.ridge] + Pn.crease_sides + Pn.tail_lines + slines, line_step=4.0,
                           post=_tail_to_left(side)))
         for piece in Pn.extra:
             # the red triangle under the seat's nose, between the seat and the shroud's traced top edge: outlines.py

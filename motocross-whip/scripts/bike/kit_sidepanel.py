@@ -2,7 +2,10 @@
 real panels (photos 02 and 03 of 2026-11-10, 06 and 07 of 2026-11-12; every element, number and source in
 research/detail-ledger/side-panels.md).
 
-python3 kit_sidepanel.py KIT_DIR        writes KIT_DIR/art/sidepanel_L.png and sidepanel_R.png
+python3 kit_sidepanel.py KIT_DIR        writes KIT_DIR/art/sidepanel_L.png and sidepanel_R.png, and their material
+                                        maps sidepanel_L_mr.png and sidepanel_R_mr.png (kit.json "mat": G roughness,
+                                        B metallic) and normal maps sidepanel_L_n.png and sidepanel_R_n.png (kit.json
+                                        "nrm": the flakes' tilts)
 
 The artwork keeps the size (2752 x 1536) and template crop of kit.json's side panel entries, so kit_canvas.py maps it
 unchanged: left art px (x, y) = template px ((x / K) + 1832, (y / K) + 516 - 27), K = 2752 / 1364, front at the
@@ -10,8 +13,9 @@ left. The right side's crop is the left's mirrored (kit.json "mirror_of"), so th
 with x -> 2752 - x.
 
 Layers, back to front:
-  zones   silver flake at the front (red ink over it lets the flake through), glossy black laminate along the top
-          edge and round the number, red glitter at the bottom with black splatter rising into the number's bottom
+  zones   flake vinyl at the front (dark navy charcoal with fine silver worms; red ink over it lets the flake
+          through), glossy black laminate along the top edge and round the number, the same pebbled flake printed
+          red at the bottom with black splatter rising into the number's bottom
           edge and red splatter over the silver; on the right side the zones' geometry is mirrored, their flake
           and splatter drawn afresh
   marks   the hole round the panel bolt, the panel's red plastic showing round the intake opening
@@ -42,14 +46,37 @@ SS = 3                               # supersampling of vector shapes
 # colours (ledger, element table): photos 02/03 (shade), plate.png (white), the official logo file (Leatt red)
 BLACK = (13, 13, 15)
 WHITE = (247, 247, 245)
-# silver flake vinyl (photo 02, shade): a dark base packed with bright flakes; its brightness at 10/35/50/65/90
-# percent of the area. Calibrated in linear light through 02's render (ledger "silver flake"): photo 02 has
-# p10/p50/p90 = 0.20/0.60/0.98 of the 114's white
-SILVER_Q = (8, 11, 18, 70, 250)
-SILVER_TINT = (0.99, 1.0, 1.03)
-FLAKE = 5                            # px, 1.45 mm (photo 02: speckles about 1.5 photo px)
+# Flake vinyl (decision 37 round 2; ledger "flake"). Photo 03, the closest view (0.88 mm per photo px up the panel,
+# 2.2 mm along it; box x 426..460, y 942..972 under the LEATT logo): a dark charcoal base with a navy cast, (43, 43, 51)
+# against the 1's white (145, 145, 151), and fine worm-like silver specks over 32 percent of it (Otsu), 1 to 2 photo
+# px, so 1 to 2 mm long and under 1 mm wide. Photo 07 (sun) reads it dark navy: (28, 38, 58) against the white's
+# (153, 179, 217), a linear ratio of 0.024 / 0.033 / 0.055, so an albedo near (45, 53, 66). The specks are metal flakes
+# (the material map makes them metallic, kit_canvas "mat"): how bright they read depends on what they reflect.
+FLAKE_BASE = (40, 46, 60)
+FLAKE_SPECK = (165, 168, 178)        # the flakes' colour: a metal's reflectance (F0), dim silver
+SPECK_LEN = (3.5, 7.0)               # art px: 1.0 to 2.0 mm long (0.29 mm per art px)
+SPECK_W = 2.2                        # art px: 0.65 mm wide
+SPECK_BEND = 0.6                     # rad (sd): worm-like, not straight dashes
+SPECK_AREA = 0.32                    # of the zone's area (photo 03: 0.32 over Otsu; 07: 0.33)
 INK = 0.45                           # red ink over the flake lets the flake through (photo 02: LEATT, splatter)
 RED = (198, 22, 30)
+# the red zone is the same pebbled flake vinyl printed red (photo 03: gaps (135, 33, 44), specks (139, 44, 56); 07:
+# (218, 55, 60) and (226, 62, 66)): light red worms on the red, the zone's mean kept at RED
+RED_GAP = (190, 18, 27)
+RED_SPECK = (216, 40, 47)
+# material map (kit_canvas "mat"; glTF's metallic-roughness convention: G roughness, B metallic). The kit's plastics
+# default to roughness 0.34 (build_bike MATS livery_*): the black laminate is gloss, the flake zone's base a pebbled
+# satin and its specks aluminium flakes (metallic) that sparkle; red ink and white print keep the default
+MAT_DEFAULT = (0.34, 0.0)
+MAT_BLACK = (0.12, 0.0)              # gloss vinyl laminate
+MAT_FLAKE_BASE = (0.40, 0.0)
+MAT_SPECK = (0.30, 1.0)              # aluminium flake (rough 0.25..0.35 per flake)
+# Each flake lies tilted in the film (a normal map, kit_canvas "nrm"): that is what makes a flake vinyl sparkle, one
+# flake catching a light while its neighbour reflects something dark. Photos 02, 03 and 07 show it (light silver in
+# shade, bright worms on dark in 03, dark navy in sun) but cannot measure it at about 1 mm a pixel. EST: tilts
+# Rayleigh-distributed with 12 deg per axis (median 14 deg, 9 in 10 under 26 deg), random azimuth; metal-flake
+# coatings hold their flakes within about 20 deg of the film. A check: a close photo of the panel in sun.
+FLAKE_TILT = 12.0                    # deg
 PLASTIC_RED = (208, 10, 22)          # kit_canvas.RED: the plastic itself, round the intake opening
 LEATT_RED = (233, 0, 41)
 
@@ -260,25 +287,58 @@ def fbm(rng, scales, shape=(H, W)):
     return acc / tot
 
 
-def glitter(rng, base, mottle, sparkle, flake):
-    """Metal-flake laminate: base colour mottled by flakes about flake px across (3 to 4 px, about 1 mm: 2 texels of
-    the side map), a few bright flakes."""
-    n = noise(rng, flake)
-    m = np.clip((n - 0.5) * 2.6, -1, 1)[..., None] * np.asarray(mottle, np.float32)
-    out = np.asarray(base, np.float32) + m
-    bright = noise(rng, 3) > 0.83
-    out[bright] = out[bright] * 0.4 + np.asarray(sparkle, np.float32) * 0.6
-    return out
+def specks(rng, area=SPECK_AREA, shape=(H, W), tilt=0.0):
+    """Worm-like flakes: short strokes SPECK_LEN long and SPECK_W wide, bent SPECK_BEND, at random places and angles,
+    as many as cover `area` of the canvas (overlaps counted: n = -ln(1 - area) * canvas / one stroke's area). Returns
+    their coverage (0..1) and their brightness (coverage times each flake's own 0.7..1.0: flakes lie at different
+    angles), both at SS x SS supersampling; with tilt (deg) also each flake's normal in the film's frame, its x and y
+    (H x W x 2, -1..1) times its coverage (0 where there is none: the film's own normal), drawn from a child of rng
+    so that the flakes' places and the rest of the artwork do not change with it."""
+    h, w = shape
+    one = np.mean(SPECK_LEN) * SPECK_W
+    n = int(-np.log(1.0 - area) * h * w / one)
+    ims = [Image.new("L", (w * SS, h * SS), v) for v in ((0, 0, 128, 128) if tilt else (0, 0))]
+    draw = [ImageDraw.Draw(im) for im in ims]
+    cx, cy = rng.uniform(-8, w + 8, n), rng.uniform(-8, h + 8, n)
+    ang, bend = rng.uniform(0, np.pi, n), rng.normal(0, SPECK_BEND, n)
+    half = rng.uniform(*SPECK_LEN, n) / 2
+    lv = rng.uniform(0.7, 1.0, n)
+    fills = [np.full(n, 255), (255 * lv).astype(int)]
+    if tilt:
+        tr = rng.spawn(1)[0]
+        th = np.radians(tilt) * np.sqrt(-2.0 * np.log(1.0 - tr.uniform(0, 1, n)))   # Rayleigh: 2D gaussian tilt
+        az = tr.uniform(0, 2 * np.pi, n)
+        fills += [np.round(128 + 127 * np.sin(th) * np.cos(az)).astype(int),
+                  np.round(128 + 127 * np.sin(th) * np.sin(az)).astype(int)]
+    wd = int(round(SPECK_W * SS))
+    for i in range(n):
+        a0, a1 = ang[i] - bend[i] / 2, ang[i] + bend[i] / 2
+        P = [((cx[i] - half[i] * np.cos(a0)) * SS, (cy[i] - half[i] * np.sin(a0)) * SS), (cx[i] * SS, cy[i] * SS),
+             ((cx[i] + half[i] * np.cos(a1)) * SS, (cy[i] + half[i] * np.sin(a1)) * SS)]
+        for d, f in zip(draw, fills):
+            d.line(P, fill=int(f[i]), width=wd, joint="curve")
+    down = lambda im: (np.asarray(im, np.float32) / 255.0).reshape(h, SS, w, SS).mean((1, 3))
+    if not tilt:
+        return down(ims[0]), down(ims[1])
+    t = np.stack([(down(im) * 255.0 - 128.0) / 127.0 for im in ims[2:]], -1)
+    return down(ims[0]), down(ims[1]), t
+
+
+def pebble(rng, gap, speck, tilt=0.0):
+    """Flake vinyl: the gap colour with the specks' colour over their brightness. Returns the colour (H x W x 3) and
+    the specks' coverage and brightness (for the material map and the red ink printed over it), and with tilt their
+    normals' x and y (specks)."""
+    c, b, *t = specks(rng, tilt=tilt)
+    gap, speck = np.asarray(gap, np.float32), np.asarray(speck, np.float32)
+    out = gap + (speck - gap) * b[..., None]
+    return (out + (fbm(rng, (40, 12))[..., None] - 0.5) * 6, c, b, *t)
 
 
 def flake(rng):
-    """Silver metal-flake vinyl as photo 02 shows it in shade: a dark base packed with bright flakes. Smooth noise
-    (flakes about FLAKE px, a finer grain on top) mapped through the measured brightness quantiles SILVER_Q.
-    Returns the colour and the flake brightness 0..1 (for the red ink printed over it)."""
-    n = noise(rng, FLAKE) + 0.35 * noise(rng, 2)
-    qn = np.percentile(n[::7, ::7], [0, 10, 35, 50, 65, 90, 100])
-    L = np.interp(n, qn, [SILVER_Q[0] * 0.5, *SILVER_Q, min(255, SILVER_Q[-1] + 15)]).astype(np.float32)
-    return L[..., None] * np.asarray(SILVER_TINT, np.float32), L / 255.0
+    """The flake zone (photos 03, 07): dark charcoal with a navy cast, fine silver worms, each tilted in the film.
+    Returns the colour, the specks' coverage, their brightness 0..1 (the red ink printed over it lets them through)
+    and their normals' x and y."""
+    return pebble(rng, FLAKE_BASE, FLAKE_SPECK, FLAKE_TILT)
 
 
 def laminate(rng):
@@ -359,12 +419,14 @@ def zones(side, rng):
     return black, (red * behind).astype(np.float32), behind.astype(np.float32), cut
 
 
-def build(side):
-    """The side panel artwork (H x W x 3 uint8) for side 'left' or 'right'."""
+def build(side, with_mat=False):
+    """The side panel artwork (H x W x 3 uint8) for side 'left' or 'right'; with_mat: also its material map (H x W x 3
+    uint8: R 255, G roughness, B metallic, as glTF's metallic-roughness texture) and its normal map (H x W x 3 uint8,
+    tangent space, 128 + 127 n: the flakes' tilts, flat elsewhere)."""
     rng = np.random.default_rng(114 if side == "left" else 91)
     black, red, behind, cut = zones(side, rng)
-    silver_l, s = flake(rng)
-    red_l = glitter(rng, RED, (30, 10, 11), (255, 120, 120), 3)
+    silver_l, sc, s, tl = flake(rng)
+    red_l, _, _ = pebble(rng, RED_GAP, RED_SPECK)
     black_l = laminate(rng)
     # splatter: black drops into the red under the number, red drops over the silver and the black above it, and a
     # spray of red over the front (photo 07: round the LEATT logo and the intake's front tip)
@@ -383,10 +445,23 @@ def build(side):
     # red ink on the silver: the flake shows through (dark base darker red, bright flakes full red)
     shade = (1 - (1 - bk) * (1 - keep) * INK * (1 - s))[..., None]
     out = out * (1 - spl[..., None]) + red_l * shade * spl[..., None]
+    # material (roughness, metallic): the flake zone's base and its metal specks (the brighter a flake, the flatter it
+    # lies: 0.25..0.35), the gloss black laminate, and the default for the red zone, the red ink and the black drops
+    lv = np.where(sc > 0.01, s / np.maximum(sc, 0.01), 1.0)
+    fr = MAT_FLAKE_BASE[0] + (MAT_SPECK[0] + 0.05 - 0.1 * (lv - 0.7) / 0.3 - MAT_FLAKE_BASE[0]) * sc
+    mat = np.stack([fr, MAT_SPECK[1] * sc], -1).astype(np.float32)
+    mat = mat * (1 - black[..., None]) + np.asarray(MAT_BLACK, np.float32) * black[..., None]
+    other = np.clip(np.maximum(keep, spl) * (1 - black) + sb * (1 - black), 0, 1)[..., None]
+    mat = mat * (1 - other) + np.asarray(MAT_DEFAULT, np.float32) * other
+    # the flakes' tilts where the flake's material is (flat under the laminate, the red ink and the red zone)
+    tilt = tl * (1 - black[..., None]) * (1 - other)
 
-    def put(alpha, colour):
-        nonlocal out
+    def put(alpha, colour, m=None):
+        nonlocal out, mat, tilt
         out = out * (1 - alpha[..., None]) + np.asarray(colour, np.float32) * alpha[..., None]
+        if m is not None:
+            mat = mat * (1 - alpha[..., None]) + np.asarray(m, np.float32) * alpha[..., None]
+            tilt = tilt * (1 - alpha[..., None])
 
     # the hole round the panel bolt: the dark recess shows through
     bx, by = mx([BOLT], side)[0]
@@ -414,25 +489,36 @@ def build(side):
     band = np.clip(band_y + NUMBER_GAP - r + 0.5, 0, 1) * np.clip(INTAKE[0][0] + 15 - xl, 0, 1)
     clear = np.maximum(np.maximum(keep_out, outline(psalm, 14)), band)
     num = num * under * (1 - clear)
+    # the number, PSALM 91 and their keylines are printed under the black zone's gloss laminate (its material stays)
     put(np.clip(outline(num, NUMBER_LINE) * (1 - keep_out), 0, 1), BLACK)
     put(num, WHITE)
     put(psalm, WHITE)
     leatt = fill(rings["leatt"], place["leatt"])
-    put(outline(leatt, LEATT_LINE), WHITE)
-    put(leatt, np.asarray(LEATT_RED, np.float32) * shade)
+    put(outline(leatt, LEATT_LINE), WHITE, MAT_DEFAULT)
+    put(leatt, np.asarray(LEATT_RED, np.float32) * shade, MAT_DEFAULT)
     name = fill(rings["name"], place["name"])
-    put(outline(name, NAME_LINE), BLACK)
-    put(name, WHITE)
-    put(np.maximum(rim - intake, 0), PLASTIC_RED)
-    put(intake, (6, 6, 7))
-    return np.clip(np.round(out), 0, 255).astype(np.uint8)
+    put(outline(name, NAME_LINE), BLACK, MAT_DEFAULT)
+    put(name, WHITE, MAT_DEFAULT)
+    put(np.maximum(rim - intake, 0), PLASTIC_RED, MAT_DEFAULT)
+    put(intake, (6, 6, 7), MAT_DEFAULT)
+    rgb = np.clip(np.round(out), 0, 255).astype(np.uint8)
+    if not with_mat:
+        return rgb
+    mr = np.empty((H, W, 3), np.uint8)
+    mr[..., 0] = 255
+    mr[..., 1:] = np.clip(np.round(mat * 255), 0, 255).astype(np.uint8)
+    nz = np.sqrt(np.clip(1.0 - (tilt ** 2).sum(-1), 0.0, 1.0))
+    nm = np.clip(np.round(128 + 127 * np.concatenate([tilt, nz[..., None]], -1)), 0, 255).astype(np.uint8)
+    return rgb, mr, nm
 
 
 def main(kdir=KIT):
-    for side, f in (("left", "sidepanel_L.png"), ("right", "sidepanel_R.png")):
-        a = build(side)
-        os.makedirs(os.path.join(kdir, "art"), exist_ok=True)
-        Image.fromarray(a).save(os.path.join(kdir, "art", f), optimize=True)
+    os.makedirs(os.path.join(kdir, "art"), exist_ok=True)
+    for side, f in (("left", "sidepanel_L"), ("right", "sidepanel_R")):
+        a, mr, nm = build(side, with_mat=True)
+        Image.fromarray(a).save(os.path.join(kdir, "art", f + ".png"), optimize=True)
+        Image.fromarray(mr).save(os.path.join(kdir, "art", f + "_mr.png"), optimize=True)
+        Image.fromarray(nm).save(os.path.join(kdir, "art", f + "_n.png"), optimize=True)
         print(side, f, a.shape)
 
 

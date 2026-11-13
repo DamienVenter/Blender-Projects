@@ -1,4 +1,9 @@
 {
+ "material": {
+  "roughness": 0.34,
+  "metallic": 0.0,
+  "source": "build_bike MATS livery_* (the kit plastics' satin: rough 0.34, not metallic); texels of panels without a \"mat\" map take it"
+ },
  "panels": [
   {
    "side": "left",
@@ -15,7 +20,9 @@
     27
    ],
    "close_slits": true,
-   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): drawn by script from Damien's photos 02, 03, 06, 07 (measurements in research/detail-ledger/side-panels.md); 114 and name logo traced from art/plate.png, LEATT from Leatt's official logo file, PSALM 91 in Inter Display Black"
+   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): drawn by script from Damien's photos 02, 03, 06, 07 (measurements in research/detail-ledger/side-panels.md); 114 and name logo traced from art/plate.png, LEATT from Leatt's official logo file, PSALM 91 in Inter Display Black",
+   "mat": "art/sidepanel_L_mr.png",
+   "nrm": "art/sidepanel_L_n.png"
   },
   {
    "side": "left",
@@ -80,7 +87,9 @@
     27
    ],
    "close_slits": true,
-   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): the left panel's layout mirrored, drawn afresh (zones, glitter, splatter) with every word and logo reading normally at the mirrored place and slant (kit makers' practice); the right side panel is in none of Damien's photos"
+   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): the left panel's layout mirrored, drawn afresh (zones, flake specks, splatter) with every word and logo reading normally at the mirrored place and slant (kit makers' practice); the right side panel is in none of Damien's photos",
+   "mat": "art/sidepanel_R_mr.png",
+   "nrm": "art/sidepanel_R_n.png"
   },
   {
    "side": "right",
