@@ -6,6 +6,17 @@ The body is built in body.py's MB frame (z up, facing -y) under an empty "rider"
 world it faces +x like the bike (x forward, y left, z up). views: comma list of front, side, back, three (renders
 on a white studio floor, 1200 x 1600) or none. POSE.json: {"bones": {name: [w, x, y, z] quaternion}, "root":
 [x, y, z, yaw_deg]} applied to the armature (pose.py writes it).
+
+Gear: RIDER_GEAR="a.npz,b.npz" adds gear modules' parts (helmet.py, boots.py, ...). A gear npz holds
+  names            part names
+  mats             material names; materials: JSON {name: {rgb: [r, g, b] sRGB 0..255, rough, metal, coat, sheen,
+                   alpha, image: file under textures/rider/ or absolute, normal: file, bump}}
+  <p>__V, <p>__F, <p>__FS   vertices (MB rest frame of body.py, metres), faces as a flat list with sizes
+  <p>__M           material index of each face (into mats)
+  <p>__UV          optional face-corner UVs (sum(FS) x 2)
+  <p>__bone        a bone name: the part rides that bone rigidly (helmet: "head"), or
+  <p>__wv, <p>__wb, <p>__ww   skin weights (vertex, bone index into body.npz "bones", weight): it deforms
+  <p>__smooth      optional: 1 = smooth shading (default), 0 = flat
 """
 import json
 import math
@@ -97,6 +108,93 @@ def build(d):
     return root, rig, body
 
 
+TEXDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "rider")
+
+
+def gear_material(name, spec):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    p = nt.nodes["Principled BSDF"]
+    if "rgb" in spec:
+        p.inputs["Base Color"].default_value = lin(spec["rgb"])
+    p.inputs["Roughness"].default_value = spec.get("rough", 0.5)
+    p.inputs["Metallic"].default_value = spec.get("metal", 0.0)
+    p.inputs["Coat Weight"].default_value = spec.get("coat", 0.0)
+    p.inputs["Sheen Weight"].default_value = spec.get("sheen", 0.0)
+    if "alpha" in spec:
+        p.inputs["Alpha"].default_value = spec["alpha"]
+    if "transmission" in spec:
+        p.inputs["Transmission Weight"].default_value = spec["transmission"]
+    if "image" in spec:
+        f = spec["image"] if os.path.isabs(spec["image"]) else os.path.join(TEXDIR, spec["image"])
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = bpy.data.images.load(f)
+        nt.links.new(t.outputs["Color"], p.inputs["Base Color"])
+    if "normal" in spec:
+        f = spec["normal"] if os.path.isabs(spec["normal"]) else os.path.join(TEXDIR, spec["normal"])
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = bpy.data.images.load(f)
+        t.image.colorspace_settings.name = "Non-Color"
+        n = nt.nodes.new("ShaderNodeNormalMap")
+        n.inputs["Strength"].default_value = spec.get("normal_strength", 1.0)
+        nt.links.new(t.outputs["Color"], n.inputs["Color"])
+        nt.links.new(n.outputs["Normal"], p.inputs["Normal"])
+    elif "bump" in spec:
+        b = nt.nodes.new("ShaderNodeBump")
+        b.inputs["Strength"].default_value = spec["bump"]
+        tx = nt.nodes.new("ShaderNodeTexNoise")
+        tx.inputs["Scale"].default_value = spec.get("bump_scale", 600.0)
+        nt.links.new(tx.outputs["Fac"], b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+    return m
+
+
+def add_gear(path, rig, body_bones):
+    g = np.load(path)
+    mats_spec = json.loads(str(g["materials"]))
+    mats = [str(m) for m in g["mats"]]
+    bmats = {m: bpy.data.materials.get(m) or gear_material(m, mats_spec.get(m, {})) for m in mats}
+    out = []
+    for name in [str(n) for n in g["names"]]:
+        V, F, FS, M = g[name + "__V"], g[name + "__F"], g[name + "__FS"], g[name + "__M"]
+        starts = np.concatenate([[0], np.cumsum(FS)[:-1]])
+        me = bpy.data.meshes.new(name)
+        me.from_pydata(V.tolist(), [], [F[s:s + n].tolist() for s, n in zip(starts, FS)])
+        used = sorted(set(M.tolist()))
+        for mi in used:
+            me.materials.append(bmats[mats[mi]])
+        slot = {mi: k for k, mi in enumerate(used)}
+        me.polygons.foreach_set("material_index", [slot[int(mi)] for mi in M])
+        if name + "__UV" in g:
+            uv = me.uv_layers.new(name="UVMap")
+            uv.data.foreach_set("uv", g[name + "__UV"].astype(np.float32).ravel())
+        smooth = bool(int(g[name + "__smooth"])) if name + "__smooth" in g else True
+        me.polygons.foreach_set("use_smooth", [smooth] * len(me.polygons))
+        me.validate()
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.scene.collection.objects.link(ob)
+        if name + "__bone" in g:                                  # rigid on one bone, at its rest place
+            bone = str(g[name + "__bone"])
+            ob.parent = rig
+            ob.parent_type = "BONE"
+            ob.parent_bone = bone
+            pb = rig.data.bones[bone]
+            ob.matrix_parent_inverse = (Matrix.Translation(pb.tail_local) @ pb.matrix_local.to_3x3().to_4x4()).inverted()
+        else:
+            ob.parent = rig
+            groups = {}
+            for vi, bi, w in zip(g[name + "__wv"].tolist(), g[name + "__wb"].tolist(), g[name + "__ww"].tolist()):
+                bn = body_bones[bi]
+                if bn not in groups:
+                    groups[bn] = ob.vertex_groups.new(name=bn)
+                groups[bn].add([vi], float(w), "REPLACE")
+            mod = ob.modifiers.new("skeleton", "ARMATURE")
+            mod.object = rig
+        out.append(ob)
+    return out
+
+
 def apply_pose(root, rig, pose):
     for n, q in pose.get("bones", {}).items():
         pb = rig.pose.bones.get(n)
@@ -158,6 +256,8 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     d = np.load(BODY)
     root, rig, body = build(d)
+    for gpath in [p for p in os.environ.get("RIDER_GEAR", "").split(",") if p]:
+        add_gear(os.path.abspath(gpath), rig, [str(n) for n in d["bones"]])
     if POSE:
         apply_pose(root, rig, json.load(open(POSE)))
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "rider.blend"))
