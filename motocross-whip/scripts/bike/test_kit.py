@@ -198,3 +198,99 @@ def test_barpad_lettering_on_the_faces_emblem_on_top():
     assert cols.min() < 0.12 * 840 and cols.max() > 0.88 * 840       # over most of the pad's length
     assert 0.01 < top.mean() < faces.mean()                          # the emblem, smaller, on the top
     assert caps.mean() == 0 and (a[:B, :, 0] > 180).mean() > 0.95     # red end caps (his pad is red all over)
+
+
+# ---- the side panels, drawn by script (kit_sidepanel.py, decision 37) ---------------------------------------------
+
+@pytest.fixture(scope="module")
+def sidepanels():
+    import kit_sidepanel
+    return kit_sidepanel, {s: kit_sidepanel.build(s) for s in ("left", "right")}
+
+
+def test_side_panel_art_is_the_scripts_output(sidepanels):
+    """The committed artwork is exactly what kit_sidepanel.py draws (no hand edits, nothing left over from the
+    image model's v1)."""
+    _, art = sidepanels
+    for side, f in (("left", "sidepanel_L.png"), ("right", "sidepanel_R.png")):
+        a = np.asarray(Image.open(os.path.join(KIT, "art", f)).convert("RGB"))
+        assert a.shape == art[side].shape == (1536, 2752, 3)
+        assert np.array_equal(a, art[side]), side
+
+
+def test_side_panel_entries_point_at_the_script(kit):
+    for p in kit["panels"]:
+        if p["part"] == "side_panels":
+            assert "kit_sidepanel.py" in p["source"] and p.get("close_slits"), p["side"]
+
+
+def test_side_panel_words_read_normally_on_both_sides(sidepanels):
+    """Every word and logo is placed without a reflection on both sides (positive determinant), the right one at
+    the mirrored place; and the right art there is the word drawn afresh, not the left art's pixels flipped."""
+    K, art = sidepanels
+    P = K.placements()
+    rings = {"number": K.number_rings(), "psalm": K.text_rings(K.PSALM["text"])[0], "leatt": K.leatt_rings(),
+             "name": K.name_rings()}
+    for k, M in P.items():
+        R = K.mirror_place(M, rings[k])
+        assert np.linalg.det(M[:, :2]) > 0 and np.linalg.det(R[:, :2]) > 0, k
+        allp = np.vstack(rings[k])
+        c = (allp.min(0) + allp.max(0)) / 2                          # the source's middle lands at the mirrored place
+        left, right = M[:, :2] @ c + M[:, 2], R[:, :2] @ c + R[:, 2]
+        assert abs(right[0] - (K.W - left[0])) < 0.5 and abs(right[1] - left[1]) < 0.5, k
+    ps = K.fill(rings["psalm"], K.mirror_place(P["psalm"], rings["psalm"])) > 0.5
+    ys, xs = np.nonzero(ps)
+    box = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+    wr = art["right"].min(-1)[box] > 200
+    wl_flipped = art["left"][:, ::-1].min(-1)[box] > 200
+    iou = lambda a, b: (a & b).sum() / max((a | b).sum(), 1)
+    assert iou(wr, ps[box]) > 0.9                                    # the right art shows PSALM 91 as drawn
+    assert iou(wr, wl_flipped) < 0.6                                 # ... and not the left one mirrored
+
+
+def test_side_panel_number_glyphs_are_whole(sidepanels):
+    """The 114 has no crack lines: closing its white by 2 px adds next to nothing (the image model's v1 had dark
+    ticks and slits through the 1s), and it is three digits apart from the clipping at the intake."""
+    from scipy import ndimage as ndi
+    K, art = sidepanels
+    P = K.placements()
+    num = K.fill(K.number_rings(), P["number"]) > 0.5
+    words = ndi.binary_dilation(K.fill(K.text_rings(K.PSALM["text"])[0], P["psalm"]) > 0.05, iterations=3)
+    ys, xs = np.nonzero(num)
+    box = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+    w = (art["left"].min(-1) > 200)[box] & num[box] & ~words[box]
+    closed = ndi.binary_closing(w, iterations=2) & num[box]
+    assert (closed & ~w).sum() < 0.002 * w.sum()
+    lab, n = ndi.label(w)
+    sizes = np.sort(ndi.sum(w, lab, range(1, n + 1)))[::-1]
+    assert len(sizes) >= 3 and sizes[2] > 0.1 * sizes[0] and sizes[3:].sum() < 0.01 * w.sum()
+
+
+def red_slits(a, box):
+    """Plain plastic red texels (kit_canvas.RED) inside box in thin strokes (at most 4 texels across) cut off
+    from the red round the panels and enclosing nothing: slits where the artwork failed to reach. Not counted: a
+    ring (the red rim round the intake encloses the intake) and a solid patch (a bolt head in front)."""
+    from scipy import ndimage as ndi
+    red = (a == kit_canvas.RED).all(-1)[box]
+    lab, n = ndi.label(red)
+    edge = set(np.unique(np.r_[lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    big = np.argmax(np.bincount(lab.ravel())[1:]) + 1 if n else 0
+    out = 0
+    for i, s in enumerate(ndi.find_objects(lab), 1):
+        if i in edge or i == big:
+            continue
+        m = lab[s] == i
+        if ndi.binary_fill_holes(m).sum() == m.sum() and not ndi.binary_erosion(m, iterations=2).any():
+            out += int(m.sum())
+    return out
+
+
+def test_side_textures_have_no_red_slits_through_the_side_panels():
+    maps = json.load(open(os.path.join(KIT, "maps.json")))["side"]
+    ppm = maps["ppm"]
+    for f, side in (("side_L.png", "left"), ("side_R.png", "right")):
+        a = np.asarray(Image.open(os.path.join(KIT, f)).convert("RGB"))
+        # the side panels: x 0.02 .. 0.82 m, z 0.58 .. 1.03 m (template crop of kit.json)
+        cols = sorted(round((maps["x1"] - x if side == "left" else x - maps["x0"]) * ppm) for x in (0.02, 0.82))
+        rows = [round((maps["z1"] - z) * ppm) for z in (1.03, 0.58)]
+        assert red_slits(a, (slice(*rows), slice(*cols))) == 0, f

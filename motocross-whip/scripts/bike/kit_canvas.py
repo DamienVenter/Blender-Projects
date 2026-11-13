@@ -22,6 +22,7 @@ kit.json: {"panels": [{"side": "left", "part": "side_panels", "art": "art/sidepa
   "side": "top": the tank sticker painted on a crop of the top view (template_top.png): top.png (build_top).
   "band": true (a wrap on bare metal, the swingarm): also writes the sticker's extent to KIT_DIR/bands.json
   ({part: {side: [[x, z_low, z_high], ...]}}) so the build wraps only the faces under the sticker.
+  "close_slits": true: the panel also takes its artwork on the slits and holes its texels enclose (close_slits).
 """
 import json
 import os
@@ -76,10 +77,24 @@ def build_side(kit, side, tdir, kdir):
             bands[p["part"]] = band(ok, x, z)
         else:
             ok = inr & (front == names.index(p["part"]) + 1)
+            if p.get("close_slits"):
+                others = [names.index(q["part"]) + 1 for q in kit["panels"]
+                          if q["side"] == side and q.get("target", "side") == "side" and q["part"] != p["part"]]
+                ok = close_slits(ok, front, others)
         out[ok] = a[ay[ok], ax[ok]]
         print(side, p["part"], "texels", int(ok.sum()))
     Image.fromarray(out).save(os.path.join(kdir, f"side_{'L' if side == 'left' else 'R'}.png"), optimize=True)
     return bands
+
+
+def close_slits(ok, front, others):
+    """A panel's texels plus every texel they enclose that no other kit panel claims. The side view's raster
+    (kit_template.py) leaves slits inside a panel where its faces meet edge-on (no part drawn: 'none') or where a
+    thin part behind leaks through (the subframe tube); the build projects the texture by x and z onto the panel's
+    own faces, so a slit left plain red showed as a red crack through the artwork (the 114, 2026-11-13). Holes
+    under parts really in front (the panel bolts) take the artwork too: it is hidden there."""
+    from scipy import ndimage as ndi
+    return ok | (ndi.binary_fill_holes(ok) & ~np.isin(front, others))
 
 
 def sticker(a, ax, ay, inr):

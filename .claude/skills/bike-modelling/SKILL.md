@@ -410,3 +410,36 @@ Every one of these was a number the whole bike hung on. An agent's claim is a le
 - Never read a test result through a pipe: `pytest ... | tail` exits 0 whatever pytest did. Write the output to a
   file and echo pytest's own exit code (`pytest ...  > out.txt; echo $?`). Renaming a material (the right grip's)
   broke four tests that pick faces by material name; one such run was reported as passing.
+
+## Side panels drawn by script (2026-11-13, decision 37, Damien: they "look weird")
+- Image-model art fails on lettering and repeats: cracks and ticks through the 1s, jagged wedges, a level centred
+  PSALM 91, and white cut-outs where kit_mirror lifted words. A panel that is mostly lettering is drawn by script
+  (`kit_sidepanel.py`): rings traced from clean sources (his plate art's own 114 and name, Leatt's official logo
+  file, a real font), filled at 3x supersampling; zones, flake and splatter procedural; every placement measured.
+  Same art size and crop as before, so `kit_canvas` maps it unchanged. Ledger: `research/detail-ledger/side-panels.md`.
+- Photo 03 ("right-side" in its file name) shows the LEFT side: chain, chain slider and shift lever. Check a photo's
+  side by such parts before measuring on it. No photo shows the right side panel.
+- Measuring a flat panel on a long-lens photo (07): an affine from 4 or more landmarks (2.2 px rms). A homography
+  from 5 points was badly skewed; it needs many more points than its 8 unknowns.
+- Lettering slanted along a sloped edge (PSALM 91, the name): a vertical shear, verticals stay vertical as in 07,
+  not a rotation.
+- Reflections are not graphics: the white "swoosh stripes" on the black tail move between 02 and 03 and are absent
+  in 06. The red band along the panel's lower rear in 03 is the plastic's own lip.
+- Silver flake reads navy in the sun (06, 07). Measure it in shade (02) against a known white (the 114): photo 02
+  p10/p50/p90 = 0.20/0.60/0.98 of the white, a dark base packed with bright flakes. Map smooth noise through
+  brightness quantiles and measure the result in a render through 02's camera against the render's own white. Pixels
+  average LIGHT (linear), not sRGB values: a few bright flakes lift a blurred median a lot, so the base must be far
+  darker than the photo's median (final 8/11/18/70/250 at 10/35/50/65/90 percent renders 0.24/0.56/0.88; the first
+  try, grey 170 +-52, rendered 0.62/0.82/0.89). Red ink over the flake lets the flake through (LEATT, splatter).
+- Raster slits: the template's side view leaves texel slits inside a panel where faces meet edge-on or the subframe
+  tube leaks through. Art mapped only onto the panel's part id leaves them plain red: red cracks through the 114.
+  kit.json `"close_slits": true` gives the panel the enclosed holes of its mask that no other kit part owns
+  (left 369 slit texels to 0, right 53 to 0; test_kit counts them).
+- Right side by the same script: zones from the mirrored geometry, each word placed by F M F_src (mirror the
+  placement and the word's source about its own box centre), so det > 0 and it reads normally. Test the determinant,
+  the mirrored place, and that the right art is not the left one flipped (IoU).
+- build_bike projects the livery on both faces of a plastic shell: the right panel's inner face shows its art
+  mirrored through gaps (a mirrored VENTER behind the left panel from the rear). A fix belongs in kit_materials
+  (inner faces plain plastic), not in the art.
+- Gloss: `build_bike.principled()` takes a base colour image only (livery roughness 0.34 everywhere), so the black
+  laminate is no glossier than the flake. A kit roughness map is proposed in the ledger, not done.

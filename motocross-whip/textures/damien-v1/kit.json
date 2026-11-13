@@ -14,7 +14,8 @@
     0,
     27
    ],
-   "source": "OpenArt Nano Banana Pro image2image 2026-11-12 (history udvwb2b4JtlUEiuQxluG, 2nd image): template crop + Damien's photos 03, 02, 07 (side panel crops)"
+   "close_slits": true,
+   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): drawn by script from Damien's photos 02, 03, 06, 07 (measurements in research/detail-ledger/side-panels.md); 114 and name logo traced from art/plate.png, LEATT from Leatt's official logo file, PSALM 91 in Inter Display Black"
   },
   {
    "side": "left",
@@ -78,7 +79,8 @@
     0,
     27
    ],
-   "source": "left side panel mirrored, its lettering and logos copied back unmirrored in place (kit makers' practice); the right side panel is hidden in all of Damien's photos"
+   "close_slits": true,
+   "source": "scripts/bike/kit_sidepanel.py 2026-11-13 (decision 37): the left panel's layout mirrored, drawn afresh (zones, glitter, splatter) with every word and logo reading normally at the mirrored place and slant (kit makers' practice); the right side panel is in none of Damien's photos"
   },
   {
    "side": "right",

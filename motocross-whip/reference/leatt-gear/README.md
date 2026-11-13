@@ -96,8 +96,14 @@ it (research/rider-ledger/goggle.md).
 | `leatt-wordmark-slanted_official_leatt-us_1200x300.png` | 1200x300, transparent | https://us.leatt.com/cdn/shop/files/Logo_2_NoBG.png?v=1782225910 (the header logo of https://us.leatt.com/, served there as Logo_2_NoBG_380x.png) |
 
 The slanted LEATT as printed on the goggle strap, the outriggers and the frame's lower band (Leatt ISO, his 07).
-`goggle.py` stamps it from this file at its own aspect (about 4.0 long per height); nothing is redrawn. Leatt's
-other logo file seen on the same site, Leatt_Logo_Red_HR_1200x1200.png, carries the icon as well and was not used.
+`goggle.py` stamps it from this file at its own aspect (about 4.0 long per height); nothing is redrawn.
+
+| File | Size | Source image URL |
+|---|---|---|
+| `leatt-logo-red-with-icon_official_leatt-us_1200x848.png` | 1200x848, transparent, red (233, 0, 41) | https://us.leatt.com/cdn/shop/files/Leatt_Logo_Red_HR_1200x1200.png?v=1755767101 (linked from the page head of https://us.leatt.com/, downloaded 2026-11-13; sha256 9126f5eb...0bc886) |
+
+The full Leatt logo: the slanted wordmark with the triangle icon, as on Damien's side panels and front plate.
+`scripts/bike/kit_sidepanel.py` traces it from its alpha and fills it in this red on the side panels (decision 37).
 
 ## Gloves: Leatt Moto 2.5 X-Flow (Black, and Purple for photo 05)
 
