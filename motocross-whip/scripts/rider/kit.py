@@ -37,23 +37,24 @@ TEXDIR = os.path.join(HERE, "..", "..", "textures", "rider")
 BODY_CHEST = 1.008        # m, BODY: convex girth at nipple height (z 1.36)
 BODY_WAIST_NATURAL = 0.805  # m, BODY: narrowest torso girth (z 1.18)
 BODY_WAIST_BELT = 0.884   # m, BODY: horizontal girth at belt height (z 1.06), where Leatt's chart figure measures
-BODY_WAIST_BAND = 0.903   # m, BODY: girth under the modelled waistband (front 1.05, back 1.115; test)
+BODY_WAIST_BAND = 0.844   # m, BODY: girth under the modelled waistband (front 1.09, back 1.15; test)
 BODY_INSEAM = 0.872       # m, BODY: crotch height
 JERSEY_SIZE = "L"         # CHART: arm length 80-82 (his 0.80), height 178-182 (his 1.85); chest 106-112 (his 101,
                           # which alone says S/M: L keeps the sleeves and body long enough for 1.85 m)
 JERSEY_CHEST = 1.12       # m, CHART top of L's chest range: a race fit stretches to it, so the garment girth
-PANT_SIZE = "XL / US36"   # CHART: waist 88-93 (his 88.4 at belt height, 90.3 under the band), height 180-185 (his
-                          # 185), inseam 83-85 (his 87: the cuff ends inside the boot, so it does not show)
-PANT_WAIST = 0.93         # m, CHART top of XL's waist range (the Waistlock ratchet closes it on him)
+PANT_SIZE = "L / US34"    # CHART: waist 83-88 (his 84.4 under the band, where the pant is worn); height 178-182
+                          # and inseam 81-83 are short of his 185 and 87: the cuff ends higher, inside the boot
+PANT_WAIST = 0.88         # m, CHART top of L's waist range (the Waistlock ratchet closes it on him)
 
 # ---------------------------------------------------------------- cut lines (ledger: "Cut lines")
 NECK_FRONT, NECK_SIDE, NECK_BACK = 1.515, 1.575, 1.565   # z of the "no-collar" neckline: front at the jugular
                                                          # notch (BODY 1.52), sides at the neck root, back below C7
 NECK_AXIS = (0.0, -0.015)                                # x, y of the neck's axis (BODY)
 CUFF_BACK = 0.012         # m, sleeve ends this far up the forearm from the wrist joint (PHOTO: glove cuff over it)
-HEM_Z = 0.95              # m, the jersey's straight hem (tucked: 10 cm inside the pant at the front, PHOTO 07)
-WAIST_FRONT, WAIST_BACK = 1.05, 1.115   # m, pant top: front at the iliac crest, the rear yoke higher (PHOTO)
-PANT_CUFF_Z = 0.30        # m, mid-calf: halfway from knee joint (0.532) to ankle joint (0.077) (BODY, brief)
+HEM_Z = 0.97              # m, the jersey's straight hem (tucked: 12 cm inside the pant at the front, PHOTO 07)
+WAIST_FRONT, WAIST_BACK = 1.09, 1.15    # m, pant top: front 22 cm over his crotch (PHOTO: Leatt front
+                                        # on-model, rise 499 px at 2200 px/m), the rear yoke higher
+PANT_CUFF_Z = 0.355       # m: inside the 6.5 boot's gaiter (top 400 front to 423 back), the band 330-380 (boots build)
 
 # ---------------------------------------------------------------- clearances (ledger: "Ease")
 C_SKIN = 0.003            # m, fabric on skin where it is pulled tight (shoulders, cuffs)
@@ -347,6 +348,10 @@ def weights_triplets(W, tol=1e-4):
 
 
 # ================================================================ UVs: least-squares conformal charts
+def cross2(a, b):
+    return a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
+
+
 def lscm(V, T):
     """Conformal flattening of one disk-like chart (V, triangles T). Pins the two vertices farthest apart."""
     n = len(V)
@@ -387,7 +392,7 @@ def lscm(V, T):
     # scale to true size (area-weighted) and turn the chart upright: its 3D "up" (z) along +v
     A3 = area.sum()
     t2 = uv[T]
-    A2 = np.abs(np.cross(t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0])).sum() / 2
+    A2 = np.abs(cross2(t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0])).sum() / 2
     uv *= np.sqrt(A3 / A2)
     g = np.linalg.lstsq(np.c_[uv - uv.mean(0), np.ones(n)], V[:, 2], rcond=None)[0][:2]
     ang = np.arctan2(g[1], g[0]) - np.pi / 2
@@ -395,7 +400,7 @@ def lscm(V, T):
     uv = (uv - uv.mean(0)) @ R.T
     # keep orientation (not mirrored): the chart's normal side faces the viewer
     t2 = uv[T]
-    if (np.cross(t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0]) < 0).sum() > len(T) / 2:
+    if (cross2(t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0]) < 0).sum() > len(T) / 2:
         uv[:, 0] *= -1
     return uv
 
@@ -776,7 +781,7 @@ def waistlock(pants_V, pants_N, waist_top):
     return parts
 
 
-def hidden_skin(body, parts, rings=1):
+def hidden_skin(body, parts, rings=0):
     """Body vertices under the garments, less `rings` rings from each garment opening."""
     n = len(body.V)
     cov = np.zeros(n, bool)
@@ -794,6 +799,706 @@ def hidden_skin(body, parts, rings=1):
         inner &= ~edge
         cov |= inner
     return np.nonzero(cov)[0]
+
+
+# ================================================================ graphics: UV charts
+REF = os.path.join(HERE, "..", "..", "reference", "leatt-gear")
+TEX_RES = 2048
+# raglan seam, his left side (mirror for the right): from the neckline at the front and back down to the armpit
+# (PHOTO: Leatt flat front and collar close-up, the seam from the neckline's side to the underarm; BODY points)
+RAGLAN_FRONT, RAGLAN_BACK, RAGLAN_PIT = (0.088, -0.072, 1.522), (0.078, 0.052, 1.556), (0.178, -0.005, 1.362)
+Y_SIDE = -0.005           # the side seam's plane (BODY: mid-depth of the chest under the arm)
+
+
+def raglan(body, P, sg):
+    a, b, c = (np.array(p) * [sg, 1, 1] for p in (RAGLAN_FRONT, RAGLAN_BACK, RAGLAN_PIT))
+    n = np.cross(b - a, c - a)
+    if np.dot(body.j(f"wrist.{'L' if sg > 0 else 'R'}") - a, n) < 0:
+        n = -n
+    return (P - a) @ (n / np.linalg.norm(n))                         # > 0 on the sleeve's side
+
+
+def arm_frame(body, s):
+    """Shoulder point, elbow, cuff end and the unit 'front' and 'outward' directions across the arm."""
+    S, E, W = body.j(f"upperarm01.{s}"), body.j(f"lowerarm01.{s}"), body.j(f"wrist.{s}")
+    W = W - (W - E) / np.linalg.norm(W - E) * CUFF_BACK
+    d = (W - S) / np.linalg.norm(W - S)
+    f = np.array([0, -1.0, 0]) - d * (-d[1])
+    f /= np.linalg.norm(f)
+    o = np.cross(f, d) * (1 if s == "L" else -1)
+    if o[0] * (1 if s == "L" else -1) < 0:
+        o = -o
+    return S, E, W, f, o
+
+
+def snap_to_field(V, Q, f, sel):
+    """Slide the vertices beside a seam (field f = 0) onto it, so the seam runs straight across the faces instead
+    of stair-stepping along their edges. sel: vertices allowed to move."""
+    V = V.copy()
+    fv = f(V)
+    E, _ = edges_of(Q)
+    cross = (np.sign(fv[E[:, 0]]) != np.sign(fv[E[:, 1]])) & sel[E[:, 0]] & sel[E[:, 1]]
+    cand = np.unique(np.where(np.abs(fv[E[cross, 0]]) < np.abs(fv[E[cross, 1]]), E[cross, 0], E[cross, 1]))
+    for _ in range(3):
+        p = V[cand]
+        f0 = f(p)
+        gr = np.stack([(f(p + e) - f0) / 1e-4 for e in np.eye(3) * 1e-4], 1)
+        V[cand] = p - (f0 / np.maximum((gr * gr).sum(1), 1e-9))[:, None] * gr
+    return V
+
+
+def straight_seams_jersey(body, V, Q):
+    """Raglan seams, side seams and the sleeves' split lines made straight."""
+    for s, sg in (("L", 1), ("R", -1)):
+        V = snap_to_field(V, Q, lambda P: raglan(body, P, sg), (V[:, 0] * sg > 0.04) & (V[:, 2] > RAGLAN_PIT[2] - 0.03))
+        V = snap_to_field(V, Q, lambda P: arm_front(body, s, P), (V[:, 0] * sg > 0.1) & (raglan(body, V, sg) > 0.005))
+    torso = (raglan(body, V, 1) < -0.005) & (raglan(body, V, -1) < -0.005)
+    return snap_to_field(V, Q, lambda P: P[:, 1] - Y_SIDE, torso & (np.abs(V[:, 0]) > 0.08))
+
+
+def straight_seams_pants(pants, V, Q):
+    V = snap_to_field(V, Q, lambda P: P[:, 0], np.ones(len(V), bool))
+    for s, sg in (("L", 1), ("R", -1)):
+        env = pants["lenv"][s]
+        V = snap_to_field(V, Q, lambda P: (P - env.o) @ env.e1, V[:, 0] * sg > 0.01)
+    return V
+
+
+def jersey_charts(body, V, Q):
+    """0 front, 1 back, 2/3 left sleeve front/back, 4/5 right sleeve front/back (one chart per pattern piece,
+    the sleeves halved along their top line)."""
+    c = V[Q].mean(1)
+    ch = np.where(c[:, 1] < Y_SIDE, 0, 1)
+    for s, sg, k in (("L", 1, 2), ("R", -1, 4)):
+        sl = (raglan(body, c, sg) > 0) & (c[:, 0] * sg > 0)
+        ch = np.where(sl, np.where(arm_front(body, s, c) > 0, k, k + 1), ch)
+    return ch
+
+
+def arm_front(body, s, P):
+    """> 0 in front of the arm: the plane through each segment's axis (upper arm, forearm) square to the front."""
+    S, E, W, f, o = arm_frame(body, s)
+    out = np.zeros(len(P))
+    for A, B, m in ((S, E, ((P - S) @ (E - S)) < np.dot(E - S, E - S)), (E, W, None)):
+        d = (B - A) / np.linalg.norm(B - A)
+        fs = np.array([0, -1.0, 0]) - d * (-d[1])
+        fs /= np.linalg.norm(fs)
+        v = (P - A) @ fs
+        out = np.where(m, v, out) if m is not None else np.where(((P - S) @ (E - S)) >= np.dot(E - S, E - S), v, out)
+    return out
+
+
+def pant_charts(pants, V, Q):
+    c = V[Q].mean(1)
+    ch = np.zeros(len(Q), int)
+    for s, k in (("L", 0), ("R", 2)):
+        h, r, th, _ = pants["lenv"][s].local(c)
+        side = c[:, 0] > 0 if s == "L" else c[:, 0] <= 0
+        ch = np.where(side, np.where(np.abs(th) < np.pi / 2, k, k + 1), ch)
+    return ch
+
+
+def corner_uvs(Q_all, n_main, UVmain, parent):
+    """UVs for every face corner: the main faces' own, the turned edges' from their edge vertex."""
+    per_v = {}
+    for f, uv in zip(Q_all[:n_main], UVmain):
+        for v, t in zip(f, uv):
+            per_v.setdefault(int(v), t)
+    out = np.zeros((len(Q_all), 4, 2))
+    out[:n_main] = UVmain
+    for i in range(n_main, len(Q_all)):
+        out[i] = [per_v[int(parent[v])] for v in Q_all[i]]
+    return out
+
+
+def raster(UV, V, N, Q, chart, res=TEX_RES):
+    """Texel maps from the charts: rest-pose position, normal and chart of the cloth at every texel centre (v up:
+    row 0 is v = 0, flipped when saved)."""
+    pos = np.zeros((res, res, 3))
+    nrm = np.zeros((res, res, 3))
+    chm = -np.ones((res, res), int)
+    T = np.concatenate([np.stack([Q[:, 0], Q[:, 1], Q[:, 2]], 1), np.stack([Q[:, 0], Q[:, 2], Q[:, 3]], 1)])
+    TU = np.concatenate([UV[:, [0, 1, 2]], UV[:, [0, 2, 3]]]) * res - 0.5
+    TC = np.concatenate([chart, chart])
+    for t in range(len(T)):
+        a, b, c = TU[t]
+        x0, x1 = int(np.floor(min(a[0], b[0], c[0]))), int(np.ceil(max(a[0], b[0], c[0])))
+        y0, y1 = int(np.floor(min(a[1], b[1], c[1]))), int(np.ceil(max(a[1], b[1], c[1])))
+        x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, res - 1), min(y1, res - 1)
+        if x1 < x0 or y1 < y0:
+            continue
+        gx, gy = np.meshgrid(np.arange(x0, x1 + 1), np.arange(y0, y1 + 1))
+        den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(den) < 1e-12:
+            continue
+        w0 = ((b[1] - c[1]) * (gx - c[0]) + (c[0] - b[0]) * (gy - c[1])) / den
+        w1 = ((c[1] - a[1]) * (gx - c[0]) + (a[0] - c[0]) * (gy - c[1])) / den
+        w2 = 1 - w0 - w1
+        m = (w0 >= -0.02) & (w1 >= -0.02) & (w2 >= -0.02)
+        if not m.any():
+            continue
+        W3 = np.stack([w0[m], w1[m], w2[m]], 1)
+        yy, xx = gy[m], gx[m]
+        pos[yy, xx] = W3 @ V[T[t]]
+        nrm[yy, xx] = W3 @ N[T[t]]
+        chm[yy, xx] = TC[t]
+    nrm /= np.maximum(np.linalg.norm(nrm, axis=2, keepdims=True), 1e-9)
+    return pos, nrm, chm
+
+
+def dilate(img, mask, px=12):
+    """Fill the texels outside the charts from the nearest painted texel (no seams when filtered)."""
+    from scipy import ndimage
+    d, (iy, ix) = ndimage.distance_transform_edt(~mask, return_indices=True)
+    out = img[iy, ix]
+    keep = d > px
+    out[keep] = img[mask].mean(0)
+    return out
+
+
+# ================================================================ graphics: photos
+class Photo:
+    """One of Leatt's photos, denoised (a 5 px median takes out the micro-mesh's dots, keeps the print's edges),
+    sampled bilinearly. exclude: boxes (x0, y0, x1, y1) that are not the garment (helmet, hands), filled from the
+    nearest garment pixel."""
+
+    def __init__(self, name, exclude=(), median=5):
+        from PIL import Image
+        from scipy import ndimage
+        im = Image.open(os.path.join(REF, name))
+        self.alpha = None
+        if im.mode in ("P", "RGBA", "LA"):
+            im = im.convert("RGBA")
+            self.alpha = np.asarray(im)[..., 3] > 128
+        a = np.asarray(im.convert("RGB")).astype(float) / 255
+        a = np.stack([ndimage.median_filter(a[..., k], size=median) for k in range(3)], 2)
+        if self.alpha is None:                     # a white studio background: near-white touching the border
+            lab, _ = ndimage.label(a.min(2) > 0.90)
+            edge = np.unique(np.r_[lab[0], lab[-1], lab[:, 0], lab[:, -1]])
+            bad = np.isin(lab, edge[edge > 0])
+            bad = ndimage.binary_dilation(bad, iterations=3)
+        else:
+            bad = ~ndimage.binary_erosion(self.alpha, iterations=2)
+        for x0, y0, x1, y1 in exclude:
+            bad[y0:y1, x0:x1] = True
+        if bad.any():
+            _, (iy, ix) = ndimage.distance_transform_edt(bad, return_indices=True)
+            a = a[iy, ix]
+        self.a = a
+
+    def sample(self, u, v):
+        H, W = self.a.shape[:2]
+        u = np.clip(u, 0, W - 1.001)
+        v = np.clip(v, 0, H - 1.001)
+        i, j = v.astype(int), u.astype(int)
+        fy, fx = (v - i)[:, None], (u - j)[:, None]
+        A = self.a
+        return (A[i, j] * (1 - fx) * (1 - fy) + A[i, j + 1] * fx * (1 - fy) + A[i + 1, j] * (1 - fx) * fy
+                + A[i + 1, j + 1] * fx * fy)
+
+
+# Jersey photo landmarks (PHOTO, Leatt on-model 1600 px; ledger "Graphics"): front: neckline centre (800, 290),
+# torso 575 px across at the chest for his 0.38 m; the pant top (centre) at 1130. Back: neckline (790, 258),
+# torso 613 px across, the pant top at 1040. The rows are fitted to his neckline and pant top.
+JF_C, JF_V0, JF_KX = 800.0, 290.0, 1513.0
+JB_C, JB_V0, JB_KX = 790.0, 258.0, 1580.0
+JF_KZ = (1130 - 290) / (NECK_FRONT - WAIST_FRONT)
+JB_KZ = (1040 - 258) / (NECK_BACK - WAIST_BACK)
+# sleeves (PHOTO): shoulder point and cuff end of each arm in each photo, pixels
+J_ARMS = {("front", "R"): ((400, 370), (350, 1300)), ("front", "L"): ((1205, 370), (1255, 1300)),
+          ("back", "L"): ((427, 400), (293, 1324)), ("back", "R"): ((1156, 409), (1271, 1324))}
+J_ARM_HALF = ((0.0, 0.2, 0.6, 1.0), (68, 72, 60, 48))   # px: 0.85 of half the sleeve's width (PHOTO front), so
+                                                        # the silhouette's soft edge is never sampled
+
+
+def jersey_photo_uv(body, P, view):
+    if view == "front":
+        return JF_C + JF_KX * P[:, 0], JF_V0 + JF_KZ * (NECK_FRONT - P[:, 2])
+    return JB_C - JB_KX * P[:, 0], JB_V0 + JB_KZ * (NECK_BACK - P[:, 2])
+
+
+def sleeve_photo_uv(body, P, s, view):
+    """A sleeve point in one of the photos: along the arm (shoulder point to cuff, upper arm then forearm) and
+    across it (outward from the arm's line, the photo's arm seen square on)."""
+    S, E, W, f, o = arm_frame(body, s)
+    L1, L2 = np.linalg.norm(E - S), np.linalg.norm(W - E)
+    d1, d2 = (E - S) / L1, (W - E) / L2
+    o1 = o - d1 * np.dot(o, d1)
+    o2 = o - d2 * np.dot(o, d2)
+    o1, o2 = o1 / np.linalg.norm(o1), o2 / np.linalg.norm(o2)
+    t1 = (P - S) @ d1
+    upper = t1 < L1
+    t = np.where(upper, t1, L1 + np.clip((P - E) @ d2, 0, None)) / (L1 + L2)
+    lat = np.where(upper, (P - S) @ o1, (P - E) @ o2)
+    rad = np.where(upper, np.linalg.norm((P - S) - np.outer(t1, d1), axis=1),
+                   np.linalg.norm((P - E) - np.outer((P - E) @ d2, d2), axis=1))
+    lat = lat / np.maximum(rad, 1e-6)                                   # -1 .. 1 across the arm seen square on
+    half = np.interp(t, J_ARM_HALF[0], J_ARM_HALF[1])
+    (u0, v0), (u1, v1) = J_ARMS[(view, s)]
+    A, B = np.array([u0, v0], float), np.array([u1, v1], float)
+    dd = (B - A) / np.linalg.norm(B - A)
+    out_px = np.array([dd[1], -dd[0]])                              # across the photo's arm, away from the body
+    if np.dot(out_px, (A + B) / 2 - [800.0, (v0 + v1) / 2]) < 0:
+        out_px = -out_px
+    q = A + t[:, None] * (B - A) + (lat * half)[:, None] * out_px
+    return q[:, 0], q[:, 1], t
+
+
+# Pant photo landmarks (PHOTO, Leatt US on-model 1920 px): rows of the waist top, crotch and boot top; the
+# pant's silhouette in each row (alpha) gives the across position, mapped onto his pant's silhouette.
+THIGH_LOGO = (0.19, -0.005, 0.26)   # m: centre above the knee joint, y, length (PHOTO: knee+5 to +31 cm)
+PF_ROWS = ((205, WAIST_FRONT), (None, 0.862), (1670, PANT_CUFF_Z + 0.005))   # crotch row: from alpha
+PB_ROWS = ((190, WAIST_BACK), (None, 0.862), (1650, PANT_CUFF_Z + 0.005))
+
+
+def pant_photo_uv(pants, P, view, alpha, sil3d):
+    rows = list(PF_ROWS if view == "front" else PB_ROWS)
+    r0 = np.nonzero(alpha[400])[0]
+    cx0 = int(np.median(r0))
+    cy = 400 + int(np.argmax(~alpha[400:1200, cx0 - 4:cx0 + 5].any(1)))   # the photo's crotch: first open row
+    rows[1] = (cy, rows[1][1])
+    ys = np.array([r[0] for r in rows], float)
+    zs = np.array([r[1] for r in rows], float)
+    v = np.interp(-P[:, 2], -zs, ys)
+    u = np.zeros(len(P))
+    vi = np.clip(v.astype(int), 0, alpha.shape[0] - 1)
+    crotch_y = cy
+    for y in np.unique(vi):
+        m = vi == y
+        r = alpha[y]
+        xs = np.nonzero(r)[0]
+        if len(xs) < 10:
+            continue
+        runs = [(q[0], q[-1]) for q in np.split(xs, np.nonzero(np.diff(xs) > 3)[0] + 1) if len(q) > 40]
+        if not runs:
+            continue
+        cx = alpha.shape[1] / 2
+        if y < crotch_y:                                     # the whole pant: the run nearest the middle
+            run = min(runs, key=lambda q: abs((q[0] + q[1]) / 2 - cx) if q[0] <= cx <= q[1] else 1e9)
+            spans = {"L": run, "R": run}
+        else:
+            legs = sorted([q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500],
+                          key=lambda q: q[0])
+            if len(legs) < 2:
+                continue
+            left_img, right_img = legs[0], legs[-1]
+            # front: his right leg on the image's left; back: his left leg on the image's left
+            spans = {"R": left_img, "L": right_img} if view == "front" else {"L": left_img, "R": right_img}
+        zq = P[m, 2]
+        xq = P[m, 0]
+        for s in "LR":
+            mm = (xq > 0) if s == "L" else (xq <= 0)
+            if not mm.any():
+                continue
+            xl = np.interp(zq[mm], sil3d[s][0], sil3d[s][1])
+            xr = np.interp(zq[mm], sil3d[s][0], sil3d[s][2])
+            if y < crotch_y:
+                xl = np.interp(zq[mm], sil3d["all"][0], sil3d["all"][1])
+                xr = np.interp(zq[mm], sil3d["all"][0], sil3d["all"][2])
+            t = (xq[mm] - xl) / np.maximum(xr - xl, 1e-6)
+            if view == "back":
+                t = 1 - t
+            a, b = spans[s]
+            idx = np.nonzero(m)[0][mm]
+            u[idx] = a + t * (b - a)
+    return u, v
+
+
+def pant_silhouette(V, crotch_z):
+    """His pant's front-view silhouette per height: (z, x_left, x_right) per leg below the crotch and whole above."""
+    zs = np.arange(PANT_CUFF_Z, WAIST_BACK + 0.005, 0.005)
+    out = {}
+    for key, sel in (("L", V[:, 0] > 0), ("R", V[:, 0] <= 0), ("all", np.ones(len(V), bool))):
+        lo, hi = [], []
+        for z in zs:
+            m = sel & (np.abs(V[:, 2] - z) < 0.006)
+            if key != "all" and z < crotch_z:
+                pass
+            lo.append(V[m, 0].min() if m.any() else np.nan)
+            hi.append(V[m, 0].max() if m.any() else np.nan)
+        lo, hi = np.array(lo), np.array(hi)
+        ok = ~np.isnan(lo)
+        out[key] = (zs[ok], lo[ok], hi[ok])
+    return out
+
+
+# ================================================================ graphics: stamps and Damien's additions
+def logo_stamps():
+    """Leatt's wordmark and brain icon as alpha masks, cut from the chest of the front on-model photo (PHOTO:
+    LEATT at x 610-1015, y 495-600; the brain at x 975-1020, y 452-492), white on pink."""
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(REF, "jersey", "jersey55_tigerpink_front-on-model_nz-distributor_"
+                                                    "LE5026000201-2_1600.jpg")).convert("RGB")).astype(float) / 255
+
+    def cut(x0, y0, x1, y1):
+        c = a[y0:y1, x0:x1]
+        w = smoothstep(0.55, 0.8, c.min(2)) * smoothstep(0.35, 0.15, c.max(2) - c.min(2))
+        return w
+    return cut(606, 492, 1018, 603), cut(972, 450, 1023, 494)
+
+
+def font(size, bold=True, italic=False):
+    from PIL import ImageFont
+    for f in (("/usr/share/fonts/truetype/freefont/FreeSansBoldOblique.ttf" if italic else
+               "/usr/share/fonts/opentype/inter/Inter-Bold.otf"), "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
+        if os.path.exists(f):
+            return ImageFont.truetype(f, size)
+    return ImageFont.load_default()
+
+
+class Canvas:
+    """A flat drawing in metres, laid on the cloth by a parallel projection: axes (a, b) are 3D unit vectors of
+    the canvas's right and up; a texel at P takes the canvas's pixel at ((P - o).a, (P - o).b)."""
+
+    def __init__(self, o, a, b, w, h, ppm=2000):
+        from PIL import Image
+        self.o, self.a, self.b = np.asarray(o, float), np.asarray(a, float), np.asarray(b, float)
+        self.w, self.h, self.ppm = w, h, ppm
+        self.W, self.H = int(w * ppm), int(h * ppm)
+        self.rgb = Image.new("RGB", (self.W, self.H), (0, 0, 0))
+        self.alpha = Image.new("L", (self.W, self.H), 0)
+
+    def px(self, x, y):                                          # canvas metres (from its centre) to pixels
+        return (self.W / 2 + x * self.ppm, self.H / 2 - y * self.ppm)
+
+    def text(self, x, y, s, size_m, fill, outline=None, outline_m=0.0, italic=False, spacing=0.0, anchor="mm",
+             shear=0.0):
+        from PIL import Image, ImageDraw
+        if shear:                                   # slanted lettering: drawn upright on a layer, then sheared
+            lay = Canvas(self.o, self.a, self.b, self.w, self.h, self.ppm)
+            lay.text(x, y, s, size_m, fill, outline, outline_m, italic, spacing, anchor)
+            cx, cy = self.px(x, y)
+            M = (1, shear, -shear * cy, 0, 1, 0)
+            r = lay.rgb.transform(lay.rgb.size, Image.AFFINE, M, resample=Image.BICUBIC)
+            al = lay.alpha.transform(lay.alpha.size, Image.AFFINE, M, resample=Image.BICUBIC)
+            self.rgb.paste(r, (0, 0), al)
+            self.alpha.paste(Image.fromarray(np.maximum(np.asarray(self.alpha), np.asarray(al))))
+            return
+        f = font(int(size_m * self.ppm * 1.3), italic=italic)
+        for img, col in ((self.rgb, fill), (self.alpha, 255)):
+            d = ImageDraw.Draw(img)
+            kw = {}
+            if outline is not None:
+                kw = dict(stroke_width=int(outline_m * self.ppm), stroke_fill=(outline if img is self.rgb else 255))
+            if spacing:
+                X = x - (len(s) - 1) * spacing / 2
+                for ch in s:
+                    d.text(self.px(X, y), ch, font=f, fill=col, anchor=anchor, **kw)
+                    X += spacing
+            else:
+                d.text(self.px(x, y), s, font=f, fill=col, anchor=anchor, **kw)
+
+    def rect(self, x0, y0, x1, y1, fill, r=0.0, outline=None, width_m=0.0):
+        from PIL import ImageDraw
+        for img, col, oc in ((self.rgb, fill, outline), (self.alpha, 255, 255 if outline else None)):
+            d = ImageDraw.Draw(img)
+            p0, p1 = self.px(x0, y1), self.px(x1, y0)
+            d.rounded_rectangle([p0, p1], radius=int(r * self.ppm), fill=col, outline=oc,
+                                width=max(1, int(width_m * self.ppm)) if outline else 0)
+
+    def stamp(self, mask, x, y, w_m, rot=0, color=(255, 255, 255)):
+        from PIL import Image
+        m = Image.fromarray((mask * 255).astype(np.uint8))
+        h_m = w_m * mask.shape[0] / mask.shape[1]
+        m = m.resize((max(1, int(w_m * self.ppm)), max(1, int(h_m * self.ppm))), Image.LANCZOS).rotate(rot, expand=True)
+        cx, cy = self.px(x, y)
+        box = (int(cx - m.width / 2), int(cy - m.height / 2))
+        self.rgb.paste(Image.new("RGB", m.size, color), box, m)
+        a = self.alpha.crop((box[0], box[1], box[0] + m.width, box[1] + m.height))
+        self.alpha.paste(Image.fromarray(np.maximum(np.asarray(a), np.asarray(m))), box)
+
+    def apply(self, img, pos, mask):
+        q = pos[mask] - self.o
+        x, y = q @ self.a, q @ self.b
+        u, v = self.px(x, y)
+        ok = (u >= 0) & (u < self.W - 1) & (v >= 0) & (v < self.H - 1)
+        A = np.asarray(self.alpha).astype(float) / 255
+        C = np.asarray(self.rgb).astype(float) / 255
+        idx = np.nonzero(mask)
+        ii, jj = idx[0][ok], idx[1][ok]
+        ui, vi = u[ok].astype(int), v[ok].astype(int)
+        al = A[vi, ui][:, None]
+        img[ii, jj] = img[ii, jj] * (1 - al) + C[vi, ui] * al
+        return img
+
+
+# Damien's own additions (PHOTO: his 06 back, 09 front; research section 1). Not Leatt's print.
+NUMBER = "114"
+NUMBER_H, NUMBER_Z = 0.20, 1.33      # m: digit height and centre on his back (PHOTO 06: shoulder blades to mid back)
+NUMBER_SLANT = 0.21                  # tan of the number's forward lean, 12 deg (PHOTO 06)
+NAME_BOX = (-0.13, 1.445, 0.13, 1.49)   # m (x0, z0, x1, z1) on the back: his name, unreadable in his photos
+BIKEWISE = (-0.098, 1.428, 0.050, 0.044)   # m: centre x, z, w, h: above the logo's LE (PHOTO 09)
+PIRELLI = (0.163, 1.372, 0.046, 0.022)     # m: past the logo's end, under the brain (PHOTO 09)
+USN_COLUMN = (-0.004, 1.30, 0.045, 0.030, 0.042)   # m: y, top z, badge w, h, pitch on his right side panel (PHOTO 09)
+
+
+def damien_canvases(body):
+    fr = Canvas((0, -0.3, 1.40), (1, 0, 0), (0, 0, 1), 0.5, 0.4)
+    x, z, w, h = BIKEWISE
+    fr.rect(x - w / 2, z - 1.40 - h / 2, x + w / 2, z - 1.40 + h / 2, (245, 245, 245), r=0.004)
+    fr.rect(x - w / 2 + 0.003, z - 1.40 - h / 2 + 0.003, x + w / 2 - 0.003, z - 1.40 + h / 2 - 0.003,
+            (245, 245, 245), r=0.003, outline=(25, 25, 28), width_m=0.0015)
+    fr.text(x, z - 1.40 + 0.009, "BIKE", 0.0135, (20, 20, 22))
+    fr.text(x, z - 1.40 - 0.010, "WISE", 0.0135, (20, 20, 22))
+    x, z, w, h = PIRELLI
+    fr.rect(x - w / 2, z - 1.40 - h / 2, x + w / 2, z - 1.40 + h / 2, (250, 205, 0), r=0.002)
+    fr.text(x, z - 1.40, "PIRELLI", 0.0095, (200, 16, 30), italic=True)
+    bk = Canvas((0, 0.3, 1.35), (-1, 0, 0), (0, 0, 1), 0.6, 0.5)        # seen from behind: his left on the left
+    bk.text(0.0, NUMBER_Z - 1.35, NUMBER, NUMBER_H, (250, 250, 250), outline=(26, 18, 34), outline_m=0.005,
+            shear=NUMBER_SLANT)
+    sd = Canvas((-0.3, 0, 1.2), (0, -1, 0), (0, 0, 1), 0.4, 0.4)        # his right side, seen from his right
+    y, z0, w, h, p = USN_COLUMN
+    sd.rect(-y - w / 2, z0 - 1.2 - h / 2, -y + w / 2, z0 - 1.2 + h / 2, (18, 40, 110), r=0.003)
+    sd.text(-y, z0 - 1.2, "USN", 0.02, (250, 250, 250))
+    sd.rect(-y - w / 2, z0 - p - 1.2 - h / 2, -y + w / 2, z0 - p - 1.2 + h / 2, (200, 20, 30), r=0.003)
+    sd.rect(-y - w / 2 + 0.006, z0 - p - 1.2 - 0.006, -y + w / 2 - 0.006, z0 - p - 1.2 + 0.006, (250, 250, 250))
+    sd.rect(-y - w / 2, z0 - 2 * p - 1.2 - h / 2, -y + w / 2, z0 - 2 * p - 1.2 + h / 2, (20, 70, 170), r=0.003)
+    sd.rect(-y - w / 2 + 0.006, z0 - 2 * p - 1.2 - 0.006, -y + w / 2 - 0.006, z0 - 2 * p - 1.2 + 0.006,
+            (250, 250, 250))
+    return fr, bk, sd
+
+
+# ================================================================ graphics: relief (normal map)
+def seam_points(V, Q, chart, pairs, step=0.002):
+    """Points every 2 mm along the edges where faces of the given chart pairs meet (real seams)."""
+    D = np.stack([Q, np.roll(Q, -1, 1)], 2).reshape(-1, 2)
+    fc = np.repeat(chart, 4)
+    key = {}
+    for e, c in zip(map(tuple, np.sort(D, 1)), fc):
+        key.setdefault(e, set()).add(int(c))
+    pts = []
+    for (a, b), cs in key.items():
+        if len(cs) == 2 and tuple(sorted(cs)) in pairs:
+            n = max(1, int(np.linalg.norm(V[a] - V[b]) / step))
+            t = np.linspace(0, 1, n + 1)[:, None]
+            pts.append(V[a] * (1 - t) + V[b] * t)
+    return np.concatenate(pts) if pts else np.zeros((0, 3))
+
+
+def seam_height(pos, mask, pts, width=0.004, depth=0.0006, stitch=0.003):
+    """A stitched seam: a groove with a row of stitch dents either side."""
+    h = np.zeros(pos.shape[:2])
+    if not len(pts):
+        return h
+    d, i = cKDTree(pts).query(pos[mask])
+    g = -depth * np.exp(-0.5 * (d / (width / 2)) ** 2)
+    # stitches: dents every 3 mm along the seam, 3 mm off it
+    along = (pts[i] @ np.array([0.37, 0.53, 0.76])) / stitch
+    st = (np.abs(d - 0.003) < 0.0006) & ((along % 1) < 0.55)
+    g -= 0.00025 * st
+    h[mask] = g
+    return h
+
+
+def perforations(pos, mask, centres, r=0.0009, depth=0.0008):
+    """Laser-cut holes: dents of radius r at the given 3D centres. Returns height and a darkening factor."""
+    h = np.zeros(pos.shape[:2])
+    dark = np.ones(pos.shape[:2])
+    if not len(centres):
+        return h, dark
+    d, _ = cKDTree(centres).query(pos[mask])
+    inside = smoothstep(r * 1.3, r * 0.7, d)
+    h[mask] = -depth * inside
+    dark[mask] = 1 - 0.75 * inside
+    return h, dark
+
+
+def hole_field(P, N, sel, pitch, count, rng=None):
+    """count hole centres on the cloth points P (rest pose) inside a selection, on a staggered grid of pitch."""
+    Q = P[sel]
+    if not len(Q):
+        return np.zeros((0, 3))
+    key = np.floor(Q[:, [0, 2]] / pitch).astype(int)
+    key[:, 0] += (key[:, 1] % 2)
+    _, first = np.unique(key, axis=0, return_index=True)
+    C = Q[first]
+    if len(C) > count:
+        C = C[np.linspace(0, len(C) - 1, count).astype(int)]
+    return C
+
+
+def normal_map(height, scale_m_per_px, mask):
+    """Tangent-space normal map (OpenGL convention: green = +v) from a height field in metres."""
+    from scipy import ndimage
+    h = ndimage.gaussian_filter(height, 0.6)
+    gy, gx = np.gradient(h, scale_m_per_px)
+    n = np.stack([-gx, -gy, np.ones_like(h)], 2)
+    n /= np.linalg.norm(n, axis=2, keepdims=True)
+    n[~mask] = (0, 0, 1)
+    return n
+
+
+def folds(pos, mask, specs):
+    """Wrinkles where the riding pose bends the cloth: each spec (centre, axis along the fold lines, across
+    direction, radius, wavelength, amplitude): ridges across `across`, fading out over `radius`."""
+    h = np.zeros(pos.shape[:2])
+    P = pos[mask]
+    acc = np.zeros(len(P))
+    for c, along, across, rad, lam, amp in specs:
+        q = P - np.asarray(c)
+        r = np.linalg.norm(q, axis=1)
+        w = np.exp(-0.5 * (r / rad) ** 2)
+        phase = (q @ np.asarray(across)) / lam + 0.15 * np.sin((q @ np.asarray(along)) / (lam * 3))
+        acc += amp * w * (np.abs(np.sin(np.pi * phase)) ** 3 - 0.3)
+    h[mask] = acc
+    return h
+
+
+def save_png(img, path, mask=None):
+    from PIL import Image
+    a = np.clip(img, 0, 1)
+    if mask is not None:
+        a = dilate(a, mask)
+    Image.fromarray((np.flipud(a) * 255 + 0.5).astype(np.uint8)).save(path, optimize=True)
+
+
+def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir):
+    """The Tiger Pink print on the jersey's charts: Leatt's on-model photos projected (front panel from the front
+    view, back panel from the back view, each sleeve half from its view, blended over the sleeve's top line),
+    then Damien's additions; the relief: raglan, side and underarm seams, 238 laser-cut holes, riding folds."""
+    pos, nrm, chm = raster(UV, V, N, Q, chart)
+    mask = chm >= 0
+    img = np.zeros(pos.shape)
+    pf = Photo(os.path.join("jersey", "jersey55_tigerpink_front-on-model_nz-distributor_LE5026000201-2_1600.jpg"),
+               exclude=[(560, 0, 1060, 345), (160, 1290, 470, 1600), (1130, 1290, 1440, 1600)])
+    pb = Photo(os.path.join("jersey", "jersey55_tigerpink_back-on-model_nz-distributor_LE5026000201-3_1600.jpg"),
+               exclude=[(600, 0, 1000, 266), (900, 60, 1120, 330), (120, 1330, 420, 1600), (1180, 1330, 1460, 1600)])
+    for c, view in ((0, "front"), (1, "back")):
+        m = chm == c
+        Pm = pos[m].copy()
+        Pm[:, 2] -= np.clip(0.02 - neck_cut(Pm), 0, None)
+        u, v = jersey_photo_uv(body, Pm, view)
+        img[m] = (pf if view == "front" else pb).sample(u, v)
+    for s, base in (("L", 2), ("R", 4)):
+        m = (chm == base) | (chm == base + 1)
+        P = pos[m]
+        S, E, W, f, o = arm_frame(body, s)
+        ax = W - S
+        ax /= np.linalg.norm(ax)
+        rr = P - S - ((P - S) @ ax)[:, None] * ax
+        wf = smoothstep(-0.35, 0.35, (rr @ f) / np.maximum(np.linalg.norm(rr, axis=1), 1e-6))
+        uf, vf, t = sleeve_photo_uv(body, P, s, "front")
+        ub, vb, _ = sleeve_photo_uv(body, P, s, "back")
+        cf = pf.sample(uf, vf)
+        cb = pb.sample(ub, vb)
+        ws = smoothstep(0.02, 0.14, t)[:, None]               # the raglan part over the shoulder: the trunk's views
+        cf = cf * ws + pf.sample(*jersey_photo_uv(body, P, "front")) * (1 - ws)
+        cb = cb * ws + pb.sample(*jersey_photo_uv(body, P, "back")) * (1 - ws)
+        img[m] = cf * wf[:, None] + cb * (1 - wf[:, None])
+    # Damien's additions
+    fr, bk, sd = damien_canvases(body)
+    img = fr.apply(img, pos, mask & np.isin(chm, (0, 2, 4)) & (nrm[..., 1] < -0.3))
+    img = bk.apply(img, pos, mask & (chm == 1) & (nrm[..., 1] > 0.3))
+    img = sd.apply(img, pos, mask & (nrm[..., 0] < -0.4) & (pos[..., 0] < -0.1))
+    # relief
+    h = np.zeros(pos.shape[:2])
+    seams = seam_points(V, Q, chart, {(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (0, 4), (0, 5), (1, 4), (1, 5)})
+    under = []
+    for s, k in (("L", 2), ("R", 4)):
+        S, E, W, f, o = arm_frame(body, s)
+        sp = seam_points(V, Q, chart, {(k, k + 1)})
+        if len(sp):
+            under.append(sp[((sp - S) @ o) < 0])                    # the underarm line only (not the top line)
+    h += seam_height(pos, mask, np.concatenate([seams] + under))
+    # laser-cut perforations (Leatt: 238): upper sleeves at the front, side panels, two rows across the lower back
+    P, Nn = pos[mask], nrm[mask]
+    holes = []
+    for s, sg in (("L", 1), ("R", -1)):
+        S, E, W, f, o = arm_frame(body, s)
+        t = ((P - S) @ (E - S)) / np.linalg.norm(E - S) ** 2
+        sel = (P[:, 0] * sg > 0.15) & (t > 0.05) & (t < 0.75) & (((P - S) @ f) > 0.01)
+        holes.append(hole_field(P, Nn, sel, 0.011, 50))
+        sel = (P[:, 0] * sg > 0.12) & (np.abs(P[:, 1] - Y_SIDE) < 0.03) & (P[:, 2] > 1.12) & (P[:, 2] < 1.33)
+        holes.append(hole_field(P, Nn, sel, 0.012, 40))
+    for zr in (1.155, 1.215):
+        sel = (Nn[:, 1] > 0.6) & (np.abs(P[:, 2] - zr) < 0.004) & (np.abs(P[:, 0]) < 0.14)
+        holes.append(hole_field(P, Nn, sel, 0.0095, 29))
+    C = np.concatenate(holes)
+    hp, dark = perforations(pos, mask, C)
+    h += hp
+    img *= dark[..., None]
+    # folds where riding bends the jersey: inner elbows, the belly over the bent hips, the shoulder blades reaching
+    spec = [((0, -0.135, 1.13), (1, 0, 0), (0, 0, 1), 0.07, 0.022, 0.0009)]
+    for s, sg in (("L", 1), ("R", -1)):
+        S, E, W, f, o = arm_frame(body, s)
+        d = (W - E) / np.linalg.norm(W - E)
+        spec.append((E + f * 0.03, np.cross(d, f), d, 0.045, 0.016, 0.0010))
+        spec.append(((0.11 * sg, 0.09, 1.40), (0, 0, 1), (sg * 0.7, 0, -0.7), 0.06, 0.03, 0.0006))
+    h += folds(pos, mask, spec)
+    nm = normal_map(h, 1.0 / (scale * TEX_RES), mask)
+    save_png(img, os.path.join(out_dir, "jersey_color.png"), mask)
+    save_png((nm + 1) / 2, os.path.join(out_dir, "jersey_normal.png"), mask)
+    return len(C)
+
+
+
+def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
+    """The pant's print: Leatt US's on-model front and back photos projected leg by leg, each photo row's pant
+    silhouette laid onto his pant's silhouette at the matching height (waist top, crotch, boot top rows). Relief:
+    centre, in- and outseams, the I.K.S panels' and the rear yoke's seams, the waistband's stitching, 250
+    laser-cut holes, the creases riding puts behind the knees and across the hips."""
+    pos, nrm, chm = raster(UV, V, N, Q, chart)
+    mask = chm >= 0
+    img = np.zeros(pos.shape)
+    pf = Photo(os.path.join("pants", "pant55iks_tigerpink_front-on-model_leatt-us_5026000320_1920.png"),
+               exclude=[(470, 140, 1010, 330)])                       # the Waistlock (modelled in 3D)
+    pb = Photo(os.path.join("pants", "pant55iks_tigerpink_back-on-model_leatt-us_5026000320_1920.png"))
+    crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
+    sil = pant_silhouette(V, crotch)
+    for cs, view, ph in (((0, 2), "front", pf), ((1, 3), "back", pb)):
+        m = np.isin(chm, cs)
+        u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
+        img[m] = ph.sample(u, v)
+    # the big LEATT on the outer left thigh: the photos see it edge-on, so it is printed flat from a side view
+    # (PHOTO: Leatt front on-model and back flat, his 07): reading up from the knee, letter tops to the front
+    word, _ = logo_stamps()
+    K = body.j("lowerleg01.L")
+    zc = K[2] + THIGH_LOGO[0]
+    side = Canvas((0.4, THIGH_LOGO[1], zc), (0, 1, 0), (0, 0, 1), 0.2, 0.40)
+    side.stamp(word, 0.0, 0.0, THIGH_LOGO[2], rot=90)
+    zone = mask & (pos[..., 0] > 0.10) & (nrm[..., 0] > 0.35) & (np.abs(pos[..., 2] - zc) < THIGH_LOGO[2] / 2 + 0.04)
+    c = img[zone]
+    whiteish = smoothstep(0.45, 0.7, c.min(1)) * smoothstep(0.25, 0.1, c.max(1) - c.min(1))
+    img[zone] = c * (1 - whiteish[:, None]) + np.array([0.11, 0.105, 0.13]) * whiteish[:, None]
+    img = side.apply(img, pos, zone)
+    iks = mask.copy()
+    iks[mask] = iks_field(pants, body, pos[mask]) > 0
+    img[iks] = (0.085, 0.085, 0.09)                                  # the black I.K.S panels
+    # relief
+    h = np.zeros(pos.shape[:2])
+    seams = [seam_points(V, Q, chart, {(0, 2), (1, 3), (0, 1), (2, 3), (0, 3), (1, 2)})]
+    P, Nn = pos[mask], nrm[mask]
+    _, wtop = pant_region(body)
+    wt = wtop(P)
+    yz = WAIST_BACK - 0.125 + 0.30 * np.abs(P[:, 0])                  # the rear yoke's V (PHOTO back views)
+    seams.append(P[(Nn[:, 1] > 0.4) & (np.abs(P[:, 2] - yz) < 0.0015) & (np.abs(P[:, 0]) < 0.17)])
+    seams.append(P[np.abs(P[:, 2] - (wt - 0.040)) < 0.0012])          # the waistband's lower edge
+    fi = iks_field(pants, body, P)
+    seams.append(P[(np.abs(fi) < 0.0015)])
+    h += seam_height(pos, mask, np.concatenate(seams))
+    holes = []
+    for s, sg in (("L", 1), ("R", -1)):
+        K = body.j(f"lowerleg01.{s}")
+        sel = (P[:, 0] * sg > 0.05) & (Nn[:, 1] < -0.6) & (P[:, 2] > K[2] + 0.20) & (P[:, 2] < K[2] + 0.33)
+        holes.append(hole_field(P, Nn, sel, 0.012, 60))
+        sel = (P[:, 0] * sg > 0.03) & (Nn[:, 1] > 0.5) & (np.abs(P[:, 2] - (yz + 0.02)) < 0.012) & (P[:, 0] * sg < 0.15)
+        holes.append(hole_field(P, Nn, sel, 0.011, 25))
+        sel = (P[:, 0] * sg > 0.05) & (Nn[:, 1] > 0.6) & (np.abs(P[:, 2] - (K[2] + 0.04)) < 0.04)
+        holes.append(hole_field(P, Nn, sel, 0.011, 40))
+    C = np.concatenate(holes)
+    hp, dark = perforations(pos, mask, C)
+    h += hp
+    img *= dark[..., None]
+    spec = []
+    for s, sg in (("L", 1), ("R", -1)):
+        K = body.j(f"lowerleg01.{s}")
+        spec.append((K + np.array([0, 0.06, 0]), (1, 0, 0), (0, 0, 1), 0.05, 0.018, 0.0012))   # behind the knee
+        spec.append(((0.10 * sg, -0.11, 0.90), (1, 0, 0), (0, 0.3, 1), 0.06, 0.025, 0.0008))  # across the hip
+    h += folds(pos, mask, spec)
+    nm = normal_map(h, 1.0 / (scale * TEX_RES), mask)
+    save_png(img, os.path.join(out_dir, "pants_color.png"), mask)
+    save_png((nm + 1) / 2, os.path.join(out_dir, "pants_normal.png"), mask)
+    return len(C)
 
 
 # ================================================================ posing (for the clearance tests)
@@ -868,14 +1573,24 @@ def to_part(name, V, faces, mat_index, W, smooth=True, UV=None):
     return out
 
 
+# Materials (ledger "Materials"): sublimated polyester knit with a soft sheen; the breathable mesh side panels
+# rougher and duller; the I.K.S panels black leather and ripstop (a fine relief); the Waistlock's Hypalon-rubber
+# strap, its textile tab, the moulded plastic buckle.
 MATERIALS = {
-    "jersey_print": {"rgb": [40, 38, 46], "rough": 0.62, "sheen": 0.35},
-    "pant_print": {"rgb": [40, 38, 46], "rough": 0.6, "sheen": 0.3},
-    "pant_iks": {"rgb": [22, 22, 24], "rough": 0.5, "sheen": 0.1, "bump": 0.15, "bump_scale": 900.0},
-    "strap": {"rgb": [18, 18, 19], "rough": 0.55},
-    "strap_tab": {"rgb": [20, 20, 22], "rough": 0.8, "sheen": 0.2},
-    "buckle": {"rgb": [16, 16, 17], "rough": 0.35, "coat": 0.1},
+    "jersey_print": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.58, "sheen": 0.18},
+    "jersey_mesh": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.74, "sheen": 0.1},
+    "pant_print": {"image": "pants_color.png", "normal": "pants_normal.png", "rough": 0.56, "sheen": 0.16},
+    "pant_iks": {"rgb": [22, 22, 24], "rough": 0.46, "sheen": 0.12, "coat": 0.05, "bump": 0.22, "bump_scale": 1400.0},
+    "strap": {"rgb": [18, 18, 19], "rough": 0.62},
+    "strap_tab": {"rgb": [20, 20, 22], "rough": 0.85, "sheen": 0.3},
+    "buckle": {"rgb": [16, 16, 17], "rough": 0.32, "coat": 0.15},
 }
+MESH_PANEL = (0.045, 0.12, 1.35)   # m: half width about the side seam, |x| beyond, top z (PHOTO side-panel close-up)
+
+
+def jersey_mesh_faces(V, Q):
+    c = V[Q].mean(1)
+    return (np.abs(c[:, 1] - Y_SIDE) < MESH_PANEL[0]) & (np.abs(c[:, 0]) > MESH_PANEL[1]) & (c[:, 2] < MESH_PANEL[2])
 
 
 def iks_field(pants, body, P):
@@ -940,6 +1655,8 @@ def main(body_path, out_path, tex=True):
     _, waist_top = pant_region(body)
     pants = build_pants(body)
     jersey = build_jersey(body, pants)
+    jersey["V"] = straight_seams_jersey(body, jersey["V"], jersey["Q"])
+    pants["V"] = straight_seams_pants(pants, pants["V"], pants["Q"])
     # pants: fly, knee panels, finished edges, weights
     pants["V"] = fly_placket(pants["V"], vnormals(pants["V"], pants["Q"]), waist_top)
     iks = knee_panels(pants, body)
@@ -957,10 +1674,25 @@ def main(body_path, out_path, tex=True):
     W0 = W0 * (1 - s) + Wp * s
     jV, jQ, jpar = add_rolls(jersey["V"], jersey["Q"], roll_spec_jersey)
     jW = W0[jpar]
+    # UV charts (one per pattern piece) and the print
+    jc = jersey_charts(body, jersey["V"], jersey["Q"])
+    jUV, jscale = chart_uvs(jersey["V"], jersey["Q"], jc)
+    pc = pant_charts(pants, pants["V"], pants["Q"])
+    pUV, pscale = chart_uvs(pants["V"], pants["Q"], pc)
+    if tex:
+        os.makedirs(TEXDIR, exist_ok=True)
+        nj = paint_jersey(body, jersey["V"], vnormals(jersey["V"], jersey["Q"]), jersey["Q"], jc, jUV, jscale, TEXDIR)
+        npn = paint_pants(body, pants, pants["V"], vnormals(pants["V"], pants["Q"]), pants["Q"], pc, pUV, pscale,
+                          TEXDIR)
+        print("laser-cut holes: jersey", nj, "pant", npn)
     names = ["jersey", "pants"]
     out = {"mats": np.array(mats), "materials": json.dumps(MATERIALS)}
-    out.update(to_part("jersey", jV, jQ, np.full(len(jQ), mats.index("jersey_print")), jW))
-    out.update(to_part("pants", pV, pQ, pM, pW))
+    jM = np.full(len(jQ), mats.index("jersey_print"))
+    jM[:len(jersey["Q"])][jersey_mesh_faces(jersey["V"], jersey["Q"])] = mats.index("jersey_mesh")
+    out.update(to_part("jersey", jV, jQ, jM, jW,
+                       UV=corner_uvs(jQ, len(jersey["Q"]), jUV, jpar)))
+    out.update(to_part("pants", pV, pQ, pM, pW, UV=corner_uvs(pQ, len(pants["Q"]), pUV, ppar)))
+    out["tex_scale"] = np.array([jscale, pscale])                   # texture units per metre (jersey, pant)
     # the Waistlock rides the pant's waist (weights of the pant under it)
     ptree = cKDTree(pants["V"])
     for name, item in waistlock(pants["V"], vnormals(pants["V"], pants["Q"]), waist_top).items():

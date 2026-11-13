@@ -70,8 +70,8 @@ def test_gear_file_loads_and_is_consistent(built):
 
 
 def test_sizes_against_the_charts(built):
-    """Jersey L: its girth at his chest is the chart's top of L (112 cm) within 3 cm; pant XL: the waistband's
-    inside, less the tucked jersey under it, inside XL's waist range (88 to 93 cm); cuffs where the brief puts
+    """Jersey L: its girth at his chest is the chart's top of L (112 cm) within 3 cm; pant L: the waistband's
+    inside, less the tucked jersey under it, inside L's waist range (83 to 88 cm); cuffs where the brief puts
     them."""
     body, g = built
     V, _ = part(g, "jersey")
@@ -82,7 +82,7 @@ def test_sizes_against_the_charts(built):
     band = P[(P[:, 2] < wtop(P) - 0.025) & (P[:, 2] > wtop(P) - 0.035)]
     inner = girth(band) - 2 * np.pi * (K.C_PANT_WAIST - K.C_TUCK - 0.001)     # band and facing: 2 x 4 mm
     body_band = inner - 2 * np.pi * (K.C_TUCK + 0.001)                        # his girth under it
-    assert 0.88 < body_band < K.PANT_WAIST, body_band
+    assert 0.83 < body_band < K.PANT_WAIST, body_band
     assert abs(body_band - K.BODY_WAIST_BAND) < 0.005
     # the cuffs' folded edges (the open edges of the mesh are the facings' inner edges, inside the cuff)
     edge = P[P[:, 2] < P[:, 2].min() + 0.004]
@@ -151,7 +151,7 @@ def test_no_skin_through_the_cloth_when_riding(built, seated):
         A = K.adjacency(len(V), Q)
         e = np.zeros(len(V), bool)
         e[np.unique(K.boundary_edges(Q))] = True
-        for _ in range(2):
+        for _ in range(4):                 # the facing, the fold, the edge and the first ring inside
             e |= (A @ e.astype(float)) > 0
         pts.append(V)
         nrm.append(N)
