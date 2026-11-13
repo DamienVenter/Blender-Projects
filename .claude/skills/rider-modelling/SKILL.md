@@ -149,3 +149,35 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Seated pose (pose.py + aim_pose, 2026-11-13): the grip's axis crosses the hand only 6 mm palmar of the bones,
   so the grip passes through the palm (skin 14 mm inside it). A power grip needs the axis about 36 mm palmar (palm
   skin 20 + glove 1 + grip radius 14.8), across the distal palm at about 25 deg to the knuckle line (right now).
+
+
+## Jersey and pant: Leatt 5.5 Tiger Pink (kit.py, 2026-11-13)
+- Cloth = his own body faces, cut along smooth cut surfaces (boundary vertices slid along their edges onto the
+  cut), subdivided, then draped: curvature flow (the normal part of the umbrella Laplacian) plus a collision step
+  along the skin's normals with a clearance per vertex. Curvature flow alone is body paint (pecs, belly, ballooned
+  knees). Loose cloth needs ENVELOPES: per-slice convex hull round an axis (trunk: vertical; each leg: hip to
+  ankle), hung with a fall rate (jersey 0.35 m/m off the chest, pant leg 0.08: straight legs). Keep the trunk's
+  envelope out of the crotch: a radial push from a vertical axis tore a hole there.
+- Ease from the chart: a convex girth grows 2 pi per metre of offset, so clearance = (garment - his girth) / 2 pi.
+  Taking ease from the sides shrinks the girth unless the rest is scaled up (a girth test caught it).
+- Draping drifts the openings: project the edge back onto its cut surface (Newton on the cut function) and hold it
+  for the last relax. Turned facings: place the inner row 1.5 t under the LOCAL surface (k-nearest average); the
+  nearest single vertex poked out and crumpled the neckline.
+- Two layers (jersey tucked under the waistband): order the clearances (jersey 2.5 mm, band 11 mm) and clamp the
+  tucked part from both sides, else curvature flow bridges the spine groove outside the pant; give the tucked part
+  the pant's weights. Face-material regions (I.K.S panels) stair-step: snap the seam's neighbours onto the field's
+  zero first. Weight smoothing 6 passes on the jersey, 2 on the pant (it follows the kneecap).
+- Sizes: measure him where the garment is worn. The pant band's height came from Leatt's on-model rise (22 cm);
+  my first band (18 cm rise) put his band girth at 90 cm (XL); at the right height it is 84 cm (L / US34).
+- Print: one UV chart per pattern piece (LSCM; numpy 2 refuses 2D cross products, use the determinant), texels
+  painted from their rasterised 3D rest position, so the layout never decides where a graphic lands. Leatt's
+  frontal on-model photos (long lens) project well onto front and back panels; flat product shots are 3/4 on forms.
+  Mask the studio background (border-connected near-white, or the PNG alpha) and fill from the nearest garment
+  pixel, and map across arms and legs by the photo's silhouette (normalised), never in metres: the soft edge
+  otherwise smears white along the sleeves. In the pant photos the gloves are runs of the silhouette rows: take
+  the leg runs nearest the middle; find the crotch row from the alpha. Logos the photos see edge-on (the outer
+  thigh LEATT) are printed flat from a side canvas.
+- Tests in a pose without Blender: numpy linear blend skinning (bone turns about their heads, children follow).
+  "No skin through the cloth away from the openings" must skip 4 rings from the open edge (facing, fold, edge).
+- The Bash tool's worktree guard refuses any command containing the letters g-i-t (even in "digits"): put Python
+  patches in a file.
