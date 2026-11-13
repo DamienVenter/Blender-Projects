@@ -394,6 +394,13 @@ def photo_camera(spec, scale=2):
     return cam
 
 
+# close-ups: RIDER_CLOSEUPS="name:x,y,z:tx,ty,tz:lens[:w,h];..." (world frame: x forward, y left, z up)
+for _spec in filter(None, os.environ.get("RIDER_CLOSEUPS", "").split(";")):
+    _f = _spec.split(":")
+    VIEWDEF[_f[0]] = (tuple(map(float, _f[1].split(","))), float(_f[3]), tuple(map(float, _f[2].split(","))),
+                      tuple(map(int, _f[4].split(","))) if len(_f) > 4 else (1200, 900))
+
+
 def render(name):
     sc = bpy.context.scene
     if name.startswith("photo:"):                                 # photo:<camera name> from RIDER_CAMS json
