@@ -181,3 +181,38 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   "No skin through the cloth away from the openings" must skip 4 rings from the open edge (facing, fold, edge).
 - The Bash tool's worktree guard refuses any command containing the letters g-i-t (even in "digits"): put Python
   patches in a file.
+
+## Jersey: his number, name and sponsors (round 2, 2026-11-13, kit.py "Damien's additions")
+- **Read his photos upright**: rotate each crop so his body stands vertical (PIL rotate about a centre, enlarged
+  7x, unsharp mask) and read positions on a labelled grid, converting back to photo pixels by script. Rotated, 09
+  and 08 showed the front sponsors under the yoke either side of the centre chevron; round 1 had read 09 sideways
+  as "a column on the side panel".
+- **The photos' names are the bike's side**, not his: he is twisted in a whip. Each of 09 and 08 sees one side of
+  his chest nearer (patch widths disagree by up to 30 %): combine both (geometric mean), never trust one.
+- **Ruler on the cloth**: Leatt's chest LEATT is already on the model at known places. Fit it to his photo by
+  normalised cross-correlation of Leatt's logo mask with his light letters: affine coarse to fine (blur 2.5, 1.5,
+  0.8 px), then a little perspective with a penalty (a free homography collapses to a sliver: NCC is blind to
+  scale). Check the outline overlay. The fitted plane extrapolates badly above and below the logo (the chest turns
+  35 deg toward the collar; photos from below): use it near the logo, and local ratios (patch to letter height,
+  to logo length) plus the official artwork's aspect for sizes.
+- **Official logos, where they are**: BikeWise and USN: the og:image of their own Shopify sites; Motul: the inline
+  SVG in motul.com's header (white `fill` on a `#ed1c24` box in its CSS); Pirelli: pirelli.com's og image;
+  Cycleworx Suspension (Randburg) has no site: `graph.facebook.com/<page>/picture?width=1000` returns its profile
+  logo while the page itself answers 400 (cycleworx.co.za is a different firm, a bicycle shop). Files and URLs in
+  `reference/sponsors/README.md`. A small SVG path filler (M L H V C S Q Z, even-odd) rasterises vector logos.
+- **His 114 is his own art**: lift the white glyph components from his plate art (largest three in the number's
+  field; drop the bolt hole and logos), keep its keylines; outline by a distance transform.
+- **Print like sublimation**: the back in unrolled coordinates (arc length across each horizontal section from the
+  spine, up each vertical from z 1.45), so the number wraps the curved back and crosses the raglan seams in one
+  piece; small front patches on their tangent plane. Building the unroll: keep only the outer back (cloth round
+  the front of the neck also faces back at the same (x, z); y above the side seam), one point per 3 mm cell (seams
+  carry duplicate vertices: Delaunay slivers made a 20 cm jump), median-filter, and integrate up from shoulder-blade
+  height (from the hem the armpits' steep cloth sheared the letters at the sides).
+- **Sharper print without new UVs**: an overlay part = the jersey faces under the graphics, 0.1 mm out, with the
+  jersey vertices' own weights; UVs = the jersey's UVs scaled and moved per island, never rotated (tangent frames
+  agree, so the jersey's normal map can be copied); the background sampled from the jersey's own print at the same
+  cloth point. Check it by rendering with and without the overlay and differencing: 0.3 mm lift drew 2 px contact-
+  shadow lines along the island edges. build_rider's gear materials take no alpha, so a cut-out decal is not an
+  option.
+- His name replaced Leatt's back LEATT (06 shows none beside it): erase it from Leatt's photo before projecting
+  (normalised Gaussian fill).

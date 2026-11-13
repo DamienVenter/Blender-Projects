@@ -167,6 +167,78 @@ def test_no_skin_through_the_cloth_when_riding(built, seated):
     assert (hidden & (d > 0.06)).sum() <= 10        # nothing slid off (the kneecap's skin is the only spot)
 
 
+def test_print_overlay_rides_the_jersey(built):
+    """Damien's additions' sharper overlay: every vertex PRINT_LIFT outside a jersey vertex, with that vertex's own
+    skin weights (it moves with the cloth), UVs inside the atlas, the overlay's two materials only."""
+    body, g = built
+    nb = len(body.names)
+    J, _ = part(g, "jersey")
+    P, faces = part(g, "jersey_print")
+    d, k = cKDTree(J).query(P)
+    assert np.abs(d - K.PRINT_LIFT).max() < 2e-5
+    Wj, Wp = weights(g, "jersey", len(J), nb), weights(g, "jersey_print", len(P), nb)
+    assert np.abs(Wp - Wj[k]).max() < 1e-3
+    uv = g["jersey_print__UV"]
+    assert uv.min() >= 0 and uv.max() <= 1
+    mats = [str(m) for m in g["mats"]]
+    assert {mats[i] for i in np.unique(g["jersey_print__M"])} <= {"jersey_print_hd", "jersey_print_hd_mesh"}
+    assert len(faces) > 300
+
+
+def test_prints_at_their_measured_places(built):
+    """Number (PHOTO 06: 0.30 m across the flat back, its top 0.37 of its height under the collar), name over its
+    left half (his left), sponsors at the ledger's places and widths, heights from the official artwork."""
+    body, g = built
+    pr = json.loads(str(g["prints"]))
+    n = pr["number"]
+    assert abs(n["w"] - K.NUMBER_W) < 0.003 and 0.18 < n["h"] < 0.21
+    assert abs(n["P0"][0]) < 1e-3 and 1.38 < n["P0"][2] < 1.44 and n["P0"][1] > 0.08      # on his back, centred
+    nm = pr["name"]
+    assert nm["P0"][0] > 0.05                                    # his left (seen from behind: the left)
+    assert nm["P0"][2] - nm["h"] / 2 > n["P0"][2] + n["h"] / 2 - 0.01   # above the number
+    assert abs(nm["w"] - (K.NAME_RIGHT - K.NAME_LEFT) * n["w"]) < 0.003
+    for k, (x, z, w) in K.FRONT.items():
+        p = pr[k]
+        assert p["kind"] == "front" and p["P0"][1] < -0.1
+        assert abs(p["P0"][0] - x) < 1e-6 and abs(p["P0"][2] - z) < 1e-6 and abs(p["w"] - w) < 1e-6
+    assert pr["bikewise"]["P0"][0] < 0 < pr["pirelli"]["P0"][0]                  # BikeWise his right, Pirelli left
+    assert pr["usn"]["P0"][0] < 0 < pr["cworx"]["P0"][0] and pr["motul"]["P0"][2] < pr["usn"]["P0"][2]
+    assert abs(pr["pirelli"]["w"] / pr["pirelli"]["h"] - 476 / 147) < 0.05      # Pirelli's own box
+
+
+def test_prints_read_the_right_way_round(built):
+    """The 114 is the plate's art, not mirrored; on his back the reader's right is his right (-x), so the 4 lies on
+    his right; on his chest the reader's right is his left (+x)."""
+    from PIL import Image
+    body, g = built
+    V, faces = part(g, "jersey")
+    Q = np.array([f for f in faces if len(f) == 4])
+    N = K.vnormals(V, Q)
+    prints = {p.name: p for p in K.damien_prints(V, N)}
+    num = prints["number"]
+    a = num.art.rgba[..., :3].mean(2)                          # white glyphs, dark outline
+    plate = np.asarray(Image.open(os.path.join(K.ART, "plate.png")).convert("L")).astype(float)[635:1425, 256:1498]
+    plate = np.asarray(Image.fromarray(plate).resize((a.shape[1], a.shape[0])))
+    c = lambda p, q: np.corrcoef(p.ravel(), q.ravel())[0, 1]
+    assert c(a, plate) > 0.6 and c(a, plate) > c(a, plate[:, ::-1]) + 0.3
+    back = (N[:, 1] > 0.3) & (np.abs(V[:, 2] - num.P0[2]) < 0.05)
+    s, t, ok = num.st(V[back], N[back])
+    assert (V[back][ok & (s > 0.08), 0] < 0).all() and (V[back][ok & (s < -0.08), 0] > 0).all()
+    for k in K.FRONT:
+        p = prints[k]
+        assert p.R[0] > 0.9 and p.U[2] > 0.5                   # reader's right = +x (his left), up = up
+
+
+def test_logos_are_official_files():
+    """Every sponsor's artwork is a file in reference/sponsors with its source URL in the README there."""
+    readme = open(os.path.join(K.SPONSORS, "README.md")).read()
+    for f in ("bikewise_logo.png", "usn_logo.png", "motul_logo.svg", "pirelli_logo.png",
+              "cycleworx_suspension_logo.jpg"):
+        assert os.path.exists(os.path.join(K.SPONSORS, f)), f
+        line = [ln for ln in readme.splitlines() if f in ln]
+        assert line and "https://" in line[0], f
+
+
 def test_materials_cover_every_part(built):
     body, g = built
     spec = json.loads(str(g["materials"]))
