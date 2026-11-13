@@ -1222,40 +1222,485 @@ class Canvas:
         return img
 
 
-# Damien's own additions (PHOTO: his 06 back, 09 front; research section 1). Not Leatt's print.
-NUMBER = "114"
-NUMBER_H, NUMBER_Z = 0.20, 1.33      # m: digit height and centre on his back (PHOTO 06: shoulder blades to mid back)
-NUMBER_SLANT = 0.21                  # tan of the number's forward lean, 12 deg (PHOTO 06)
-NAME_BOX = (-0.13, 1.445, 0.13, 1.49)   # m (x0, z0, x1, z1) on the back: his name, unreadable in his photos
-BIKEWISE = (-0.098, 1.428, 0.050, 0.044)   # m: centre x, z, w, h: above the logo's LE (PHOTO 09)
-PIRELLI = (0.163, 1.372, 0.046, 0.022)     # m: past the logo's end, under the brain (PHOTO 09)
-USN_COLUMN = (-0.004, 1.30, 0.045, 0.030, 0.042)   # m: y, top z, badge w, h, pitch on his right side panel (PHOTO 09)
+# ================================================================ graphics: Damien's additions (his own print)
+# Ledger "Damien's additions". Not Leatt's print: his number and name on the back (PHOTO 06), his sponsors on the
+# front (PHOTO 09 and 08; 07 shows nothing on the left side). Every graphic is lifted from his own bike art or from
+# the sponsors' official files (reference/sponsors, README there: URLs and the check against his photos), never
+# retyped in a font; only the name is set in a font (his photos do not resolve its lettering).
+ART = os.path.join(HERE, "..", "..", "textures", "damien-v1", "art")
+SPONSORS = os.path.join(HERE, "..", "..", "reference", "sponsors")
+INK_WHITE, INK_DARK = (246, 245, 250), (34, 24, 44)   # PHOTO 06: white digits, dark purple-grey outline
+NUMBER_W = 0.300         # m, the 114 with its outline across the flat back panel (PHOTO 06: 0.59 of his 0.49 m
+                         # deltoid breadth as seen = 0.29 m; plus 3 % for the back's wrap)
+NUMBER_OUTLINE = 0.0045  # m (PHOTO 06: 0.024 of the number's height)
+NUMBER_TOP = 0.37        # the back collar's centre to the number's top, in number heights (PHOTO 06)
+NAME = "DAMIEN"          # Damien (2026-11-13)
+NAME_FONT = "/usr/share/fonts/opentype/inter/InterDisplay-Black.otf"
+NAME_LEFT, NAME_RIGHT = -0.585, 0.0   # the name's ends (seen from behind) in number widths from the number's centre:
+                                      # from 0.085 W outside its left end (his left) to its centre (PHOTO 06)
+NAME_H = 0.146           # letter height with the outline, in number heights (PHOTO 06)
+NAME_GAP = 0.05          # the name's bottom above the number's top, in number heights (PHOTO 06)
+NAME_OUTLINE = 0.0022    # m
+GLYPH_SLANT = 0.23       # tan of the italic lean of the 114 on his plate art (stems: 114 px over 500); the name too
+# front patches: centre (x, z) on the front (Leatt's photo frame, as the print) and width with any contour, m;
+# heights follow the official artwork (PHOTO 09 and 08 against the chest LEATT, then the photo-matched renders)
+FRONT = {"bikewise": (-0.091, 1.447, 0.095), "pirelli": (0.102, 1.446, 0.080), "usn": (-0.063, 1.320, 0.080),
+         "motul": (-0.057, 1.286, 0.064), "cworx": (0.064, 1.313, 0.077)}
+CONTOUR = 0.0016         # m, white contour round the USN and Cycleworx inks on the black jersey (PHOTO 08)
+PRINT_LIFT = 0.0001      # m, the print overlay over the cloth (0.3 mm left a contact-shadow line at its edges)
+PRINT_TEXEL = {"number": 0.25e-3, "name": 0.15e-3, "front": 0.10e-3}   # m per texel of the print atlas
+ATLAS_RES = 2048
 
 
-def damien_canvases(body):
-    fr = Canvas((0, -0.3, 1.40), (1, 0, 0), (0, 0, 1), 0.5, 0.4)
-    x, z, w, h = BIKEWISE
-    fr.rect(x - w / 2, z - 1.40 - h / 2, x + w / 2, z - 1.40 + h / 2, (245, 245, 245), r=0.004)
-    fr.rect(x - w / 2 + 0.003, z - 1.40 - h / 2 + 0.003, x + w / 2 - 0.003, z - 1.40 + h / 2 - 0.003,
-            (245, 245, 245), r=0.003, outline=(25, 25, 28), width_m=0.0015)
-    fr.text(x, z - 1.40 + 0.009, "BIKE", 0.0135, (20, 20, 22))
-    fr.text(x, z - 1.40 - 0.010, "WISE", 0.0135, (20, 20, 22))
-    x, z, w, h = PIRELLI
-    fr.rect(x - w / 2, z - 1.40 - h / 2, x + w / 2, z - 1.40 + h / 2, (250, 205, 0), r=0.002)
-    fr.text(x, z - 1.40, "PIRELLI", 0.0095, (200, 16, 30), italic=True)
-    bk = Canvas((0, 0.3, 1.35), (-1, 0, 0), (0, 0, 1), 0.6, 0.5)        # seen from behind: his left on the left
-    bk.text(0.0, NUMBER_Z - 1.35, NUMBER, NUMBER_H, (250, 250, 250), outline=(26, 18, 34), outline_m=0.005,
-            shear=NUMBER_SLANT)
-    sd = Canvas((-0.3, 0, 1.2), (0, -1, 0), (0, 0, 1), 0.4, 0.4)        # his right side, seen from his right
-    y, z0, w, h, p = USN_COLUMN
-    sd.rect(-y - w / 2, z0 - 1.2 - h / 2, -y + w / 2, z0 - 1.2 + h / 2, (18, 40, 110), r=0.003)
-    sd.text(-y, z0 - 1.2, "USN", 0.02, (250, 250, 250))
-    sd.rect(-y - w / 2, z0 - p - 1.2 - h / 2, -y + w / 2, z0 - p - 1.2 + h / 2, (200, 20, 30), r=0.003)
-    sd.rect(-y - w / 2 + 0.006, z0 - p - 1.2 - 0.006, -y + w / 2 - 0.006, z0 - p - 1.2 + 0.006, (250, 250, 250))
-    sd.rect(-y - w / 2, z0 - 2 * p - 1.2 - h / 2, -y + w / 2, z0 - 2 * p - 1.2 + h / 2, (20, 70, 170), r=0.003)
-    sd.rect(-y - w / 2 + 0.006, z0 - 2 * p - 1.2 - 0.006, -y + w / 2 - 0.006, z0 - 2 * p - 1.2 + 0.006,
-            (250, 250, 250))
-    return fr, bk, sd
+class Art:
+    """A flat graphic: premultiplied RGBA (float, rows top down), w metres wide; sampled at (s, t) metres from its
+    centre (s to the reader's right, t up), box-filtered to the texel size it is printed at."""
+
+    def __init__(self, rgba, w):
+        self.rgba = np.ascontiguousarray(rgba, np.float32)
+        H, W = self.rgba.shape[:2]
+        self.w, self.h = w, w * H / W
+        self.levels = {}
+
+    def level(self, texel):
+        from PIL import Image
+        H, W = self.rgba.shape[:2]
+        n = int(np.clip(round(self.w / texel), 4, W))
+        if n not in self.levels:
+            m = max(2, int(round(H * n / W)))
+            self.levels[n] = self.rgba if n == W else np.stack(
+                [np.asarray(Image.fromarray(self.rgba[..., k]).resize((n, m), Image.BOX)) for k in range(4)], 2)
+        return self.levels[n]
+
+    def sample(self, s, t, texel):
+        from scipy import ndimage
+        A = self.level(texel)
+        H, W = A.shape[:2]
+        u = (s / self.w + 0.5) * W - 0.5
+        v = (0.5 - t / self.h) * H - 0.5
+        return np.stack([ndimage.map_coordinates(A[..., k], [v, u], order=1, mode="constant", cval=0.0)
+                         for k in range(4)], 1)
+
+
+def contoured(rgba, px, colour):
+    """Premultiplied RGBA with a contour px wide in `colour` round its ink (padded to fit)."""
+    from scipy import ndimage
+    p = int(np.ceil(px)) + 4
+    a = np.pad(rgba, ((p, p), (p, p), (0, 0)))
+    d = ndimage.distance_transform_edt(a[..., 3] < 0.5)
+    ring = smoothstep(px + 0.7, px - 0.7, d)
+    out = a.copy()
+    out[..., 3] = np.maximum(a[..., 3], ring)
+    out[..., :3] += np.array(colour, np.float32) / 255 * (out[..., 3] - a[..., 3])[..., None]
+    return out
+
+
+def ink(mask, colour):
+    return np.dstack([mask[..., None] * (np.array(colour, np.float32) / 255), mask]).astype(np.float32)
+
+
+def number_art():
+    """His 114 lifted from his plate art (the cleanest of his bike's 114s): the three white glyphs (the plate's bolt
+    hole and small logo dropped), anti-aliased by the art's own edges; the plate's black keyline where the 4 overlaps
+    the second 1 and the slashes stay dark; a dark outline round the whole (PHOTO 06)."""
+    from PIL import Image
+    from scipy import ndimage
+    a = np.asarray(Image.open(os.path.join(ART, "plate.png")).convert("RGB")).astype(np.float32) / 255
+    zone = np.zeros(a.shape[:2], bool)
+    zone[600:1480, 220:1540] = True                      # the number's field on the plate
+    hard = (a.min(2) > 0.6) & zone
+    lab, n = ndimage.label(hard)
+    size = ndimage.sum(hard, lab, range(1, n + 1))
+    keep = np.isin(lab, 1 + np.argsort(-size)[:3])       # 1, 1, 4
+    near = ndimage.binary_dilation(keep, iterations=2) & ~ndimage.binary_dilation(hard & ~keep, iterations=3)
+    soft = smoothstep(0.35, 0.8, a.min(2)) * near
+    ys, xs = np.nonzero(keep)
+    px = (xs.max() - xs.min() + 1) / (NUMBER_W - 2 * NUMBER_OUTLINE)     # art pixels per metre
+    p = int(NUMBER_OUTLINE * px) + 4
+    m = soft[ys.min() - p:ys.max() + 1 + p, xs.min() - p:xs.max() + 1 + p]
+    rgba = contoured(ink(m, INK_WHITE)[p:-p, p:-p], NUMBER_OUTLINE * px, INK_DARK)
+    return Art(rgba, rgba.shape[1] / px)
+
+
+def name_art(number):
+    """DAMIEN in heavy capitals stretched to the measured length, leaned like his 114, white with the number's dark
+    outline (PHOTO 06: wide bold capitals with an outline; the photo does not resolve the typeface)."""
+    from PIL import Image, ImageDraw, ImageFont
+    f = ImageFont.truetype(NAME_FONT, 600)
+    l, t, r, b = f.getbbox(NAME)
+    im = Image.new("L", (r - l + 40, b - t + 40), 0)
+    ImageDraw.Draw(im).text((20 - l, 20 - t), NAME, font=f, fill=255)
+    m = np.asarray(im).astype(np.float32) / 255
+    ys, xs = np.nonzero(m > 0.5)
+    m = m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    H = NAME_H * number.h                                # letter height with the outline, m
+    L = (NAME_RIGHT - NAME_LEFT) * number.w              # length with the outline, m
+    px = (m.shape[0] - 1) / (H - 2 * NAME_OUTLINE)       # art pixels per metre (letters' height fixed)
+    w_up = (L - 2 * NAME_OUTLINE) * px - GLYPH_SLANT * m.shape[0]   # upright width, so the leaned name has length L
+    im = Image.fromarray(m).resize((int(round(w_up)), m.shape[0]), Image.LANCZOS)
+    h, sh = im.height, int(np.ceil(GLYPH_SLANT * im.height))
+    im = im.transform((im.width + sh, h), Image.AFFINE, (1, GLYPH_SLANT, -GLYPH_SLANT * h, 0, 1, 0), Image.BICUBIC)
+    rgba = contoured(ink(np.clip(np.asarray(im), 0, 1), INK_WHITE), NAME_OUTLINE * px, INK_DARK)
+    return Art(rgba, rgba.shape[1] / px)
+
+
+def svg_mask(path, scale):
+    """A minimal SVG path filler (M L H V C S Q Z, absolute and relative; curves flattened; even-odd): the mask of
+    every <path> in the file at `scale` pixels per SVG unit."""
+    import re
+    from PIL import Image, ImageDraw
+    s = open(path).read()
+    vb = [float(v) for v in re.search(r'viewBox="([^"]+)"', s).group(1).split()]
+    W, H = int(np.ceil(vb[2] * scale)), int(np.ceil(vb[3] * scale))
+    acc = np.zeros((H, W), bool)
+    for d in re.findall(r'<path[^>]* d="([^"]+)"', s):
+        toks = re.findall(r"[MmLlHhVvCcSsQqZz]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?", d)
+        polys, cur, start, last_c, cmd, i = [], [], np.zeros(2), None, None, 0
+        pos = np.zeros(2)
+
+        def num(k):
+            return np.array([float(toks[i + j]) for j in range(k)])
+        while i < len(toks):
+            if toks[i].isalpha():
+                cmd = toks[i]
+                i += 1
+                if cmd in "Zz":
+                    if cur:
+                        polys.append(cur)
+                    cur, pos = [], start.copy()
+                    continue
+            rel = cmd.islower()
+            c = cmd.upper()
+            if c == "M":
+                p = num(2) + (pos if rel else 0)
+                i += 2
+                if cur:
+                    polys.append(cur)
+                cur, pos, start = [p], p, p.copy()
+                cmd = "l" if rel else "L"
+            elif c in "LHV":
+                if c == "L":
+                    p = num(2) + (pos if rel else 0)
+                    i += 2
+                elif c == "H":
+                    p = np.array([float(toks[i]) + (pos[0] if rel else 0), pos[1]])
+                    i += 1
+                else:
+                    p = np.array([pos[0], float(toks[i]) + (pos[1] if rel else 0)])
+                    i += 1
+                cur.append(p)
+                pos = p
+            elif c in "CSQ":
+                k = {"C": 6, "S": 4, "Q": 4}[c]
+                q = num(k).reshape(-1, 2) + (pos if rel else 0)
+                i += k
+                if c == "S":
+                    c1 = 2 * pos - last_c if last_c is not None else pos
+                    q = np.vstack([c1, q])
+                ctrl = np.vstack([pos, q])
+                tt = np.linspace(0, 1, 17)[1:, None]
+                if len(ctrl) == 4:
+                    pts = ((1 - tt) ** 3 * ctrl[0] + 3 * (1 - tt) ** 2 * tt * ctrl[1] + 3 * (1 - tt) * tt ** 2
+                           * ctrl[2] + tt ** 3 * ctrl[3])
+                else:
+                    pts = (1 - tt) ** 2 * ctrl[0] + 2 * (1 - tt) * tt * ctrl[1] + tt ** 2 * ctrl[2]
+                cur.extend(list(pts))
+                last_c = ctrl[-2]
+                pos = ctrl[-1]
+                continue
+            last_c = None
+        if cur:
+            polys.append(cur)
+        for poly in polys:
+            if len(poly) < 3:
+                continue
+            im = Image.new("1", (W, H), 0)
+            ImageDraw.Draw(im).polygon([tuple((p - vb[:2]) * scale) for p in poly], fill=1)
+            acc ^= np.asarray(im)
+    return acc
+
+
+def logo(name):
+    from PIL import Image
+    return np.asarray(Image.open(os.path.join(SPONSORS, name)).convert("RGBA")).astype(np.float32) / 255
+
+
+def front_arts():
+    """The sponsors' official artwork (reference/sponsors) as printed on his jersey (PHOTO 09 and 08)."""
+    from PIL import Image
+    arts = {}
+    # BikeWise: the logo (black on white, red sprocket) on its white box, a white margin of 4 % of its width
+    a = logo("bikewise_logo.png")
+    ys, xs = np.nonzero(a[..., :3].max(2) < 0.6)
+    a = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    p = int(0.04 * a.shape[1])
+    a = np.pad(a, ((p, p), (p, p), (0, 0)), constant_values=1.0)
+    arts["bikewise"] = a
+    # Pirelli: its yellow box with the red long-P PIRELLI, exactly the box
+    a = logo("pirelli_logo.png")
+    ys, xs = np.nonzero((a[..., 0] > 0.8) & (a[..., 1] > 0.7) & (a[..., 2] < 0.3))
+    arts["pirelli"] = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    # USN: navy atom and letters (the registered sign included), a white contour on the black jersey
+    a = logo("usn_logo.png")
+    a[..., :3] *= a[..., 3:]
+    ys, xs = np.nonzero(a[..., 3] > 0.05)
+    arts["usn"] = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    # Motul: the site's white wordmark on its red box (#ed1c24), the box being the SVG's viewBox
+    m = svg_mask(os.path.join(SPONSORS, "motul_logo.svg"), 12).astype(np.float32)
+    m = np.asarray(Image.fromarray(m).resize((m.shape[1] // 2, m.shape[0] // 2), Image.BOX))   # 2x2 anti-aliasing
+    red = np.array([0xED, 0x1C, 0x24], np.float32) / 255
+    arts["motul"] = np.dstack([red * (1 - m[..., None]) + m[..., None], np.ones_like(m)])
+    # Cycleworx Suspension: the JPEG cleaned to its three inks (red C and slash, blue W, black ORX and SUSPENSION)
+    a = logo("cycleworx_suspension_logo.jpg")[..., :3]
+    cov = smoothstep(0.12, 0.82, 1 - a.min(2))
+    mix = (a - (1 - cov[..., None])) / np.maximum(cov[..., None], 1e-3)        # the ink under the white
+    redm = (mix[..., 0] > 0.5) & (mix[..., 2] < 0.5)
+    blum = (mix[..., 2] > 0.5) & (mix[..., 0] < 0.5)
+    col = np.where(redm[..., None], [254 / 255, 0, 2 / 255], np.where(blum[..., None], [0, 0, 254 / 255], [0.02] * 3))
+    ys, xs = np.nonzero(cov > 0.5)
+    sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+    arts["cworx"] = np.dstack([col[sl] * cov[sl][..., None], cov[sl]]).astype(np.float32)
+    out = {}
+    for k, a in arts.items():
+        x, z, w = FRONT[k]
+        if k in ("usn", "cworx"):                       # contour on the jersey's black
+            px = a.shape[1] / (w - 2 * CONTOUR)
+            a = contoured(a, CONTOUR * px, (255, 255, 255))
+        out[k] = Art(a, w)
+    return out
+
+
+class BackUnroll:
+    """The back as it is printed, flat: s = arc length across the back's horizontal sections from the spine, t = arc
+    length up its vertical sections, on the jersey's back-facing surface y(x, z). Sublimation prints the flat panel,
+    so a graphic laid out in (s, t) wraps the curved back (and runs on over the raglan seams) as the real print."""
+
+    def __init__(self, V, N):
+        from scipy import ndimage
+        from scipy.integrate import cumulative_trapezoid
+        from scipy.interpolate import RegularGridInterpolator, griddata
+        sel = (N[:, 1] > 0.05) & (np.abs(V[:, 0]) < 0.24) & (V[:, 2] > 1.05) & (V[:, 1] > Y_SIDE + 0.02)
+        xs, zs = np.arange(-0.24, 0.2401, 0.002), np.arange(1.06, 1.6201, 0.002)
+        X, Z = np.meshgrid(xs, zs, indexing="ij")
+        # the outer back only: cloth round the front of the neck also faces back at the same (x, z), and the cut
+        # seams carry duplicate vertices (Delaunay slivers): one point per 3 mm cell, the one furthest back
+        P = V[sel]
+        key = np.round(P[:, [0, 2]] / 0.003).astype(int)
+        o = np.lexsort((-P[:, 1], key[:, 1], key[:, 0]))
+        _, first = np.unique(key[o], axis=0, return_index=True)
+        pts, ys = P[o[first]][:, [0, 2]], P[o[first]][:, 1]
+        Y = griddata(pts, ys, (X, Z), method="linear")
+        Y = np.where(np.isnan(Y), griddata(pts, ys, (X, Z), method="nearest"), Y)
+        Y = ndimage.median_filter(Y, size=3)
+        gx = np.sqrt(1 + np.clip(np.gradient(Y, xs, axis=0), -4, 4) ** 2)
+        gz = np.sqrt(1 + np.clip(np.gradient(Y, zs, axis=1), -4, 4) ** 2)
+        S = cumulative_trapezoid(gx, xs, axis=0, initial=0)
+        S -= S[np.argmin(np.abs(xs))][None]
+        T = cumulative_trapezoid(gz, zs, axis=1, initial=0)
+        T -= T[:, np.argmin(np.abs(zs - 1.45))][:, None]    # from shoulder-blade height: from the hem, the armpits'
+                                                             # steep cloth offset the columns at the sides
+        self.s = RegularGridInterpolator((xs, zs), S, bounds_error=False, fill_value=np.nan)
+        self.t = RegularGridInterpolator((xs, zs), T, bounds_error=False, fill_value=np.nan)
+        self.y = RegularGridInterpolator((xs, zs), Y, bounds_error=False, fill_value=np.nan)
+
+    def __call__(self, P):
+        q = P[:, [0, 2]]
+        return self.s(q), self.t(q)
+
+
+class Print:
+    """One graphic placed on the jersey. back: laid out on the unrolled back (reader's right = his right); front: on
+    the tangent plane at its centre (small patches: under 1 mm off over 5 cm of chest)."""
+
+    def __init__(self, art, kind, P0, texel, unroll=None, N0=None):
+        self.art, self.kind, self.P0, self.texel, self.unroll = art, kind, np.asarray(P0, float), texel, unroll
+        if kind == "back":
+            s0, t0 = unroll(self.P0[None])
+            self.s0, self.t0 = float(s0[0]), float(t0[0])
+        else:
+            self.N0 = N0 / np.linalg.norm(N0)
+            up = np.array([0, 0, 1.0]) - self.N0[2] * self.N0
+            self.U = up / np.linalg.norm(up)
+            self.R = np.cross(-self.N0, self.U)          # front: +x, his left, is the reader's right
+
+    def st(self, P, Nn):
+        if self.kind == "back":
+            s, t = self.unroll(P)
+            s, t = -(s - self.s0), t - self.t0          # seen from behind his right (-x) is the reader's right
+            ok = (Nn[:, 1] > 0.05) & np.isfinite(s) & np.isfinite(t)
+            return np.nan_to_num(s), np.nan_to_num(t), ok
+        d = P - self.P0
+        return d @ self.R, d @ self.U, (Nn @ self.N0) > 0.4
+
+    def inside(self, s, t, margin=0.0):
+        return (np.abs(s) <= self.art.w / 2 + margin) & (np.abs(t) <= self.art.h / 2 + margin)
+
+
+def damien_prints(V, N):
+    """His number, name and sponsors as Print objects on this jersey (rest pose)."""
+    un = BackUnroll(V, N)
+    num = number_art()
+    # the number's top lies NUMBER_TOP of its height below the back collar's centre, measured along the back
+    collar = np.array([0.0, float(un.y([[0.0, NECK_BACK]])[0]), NECK_BACK])
+    t_c = float(un.t([[0.0, NECK_BACK]])[0])
+    zs = np.arange(1.2, NECK_BACK, 0.0005)
+    tz = un.t(np.c_[np.zeros_like(zs), zs])
+    z_of_t = lambda t: float(np.interp(t, tz, zs))
+    zc = z_of_t(t_c - (NUMBER_TOP + 0.5) * num.h)
+    prints = [Print(num, "back", [0.0, float(un.y([[0.0, zc]])[0]), zc], PRINT_TEXEL["number"], un)]
+    name = name_art(num)
+    # the name's centre: along the back from the number's centre (s to his left is negative for the reader)
+    s_c = (NAME_LEFT + NAME_RIGHT) / 2 * num.w
+    t_n = t_c - NUMBER_TOP * num.h + (NAME_GAP + NAME_H / 2) * num.h
+    xs = np.arange(-0.2, 0.2, 0.0005)
+    zn = z_of_t(t_n)
+    sx = un.s(np.c_[xs, np.full_like(xs, zn)])
+    xn = float(np.interp(-s_c, sx, xs))                  # reader's s = -(his s): a negative s_c lies at +x (his left)
+    prints.append(Print(name, "back", [xn, float(un.y([[xn, zn]])[0]), zn], PRINT_TEXEL["name"], un))
+    front = (N[:, 1] < -0.05) & (V[:, 1] < 0)
+    tree = cKDTree(V[front][:, [0, 2]])
+    for k, art in front_arts().items():
+        x, z, _ = FRONT[k]
+        d, i = tree.query([x, z], k=6)
+        w = 1 / np.maximum(d, 1e-4)
+        y = float((V[front][i, 1] * w).sum() / w.sum())
+        n0 = (N[front][i] * w[:, None]).sum(0)
+        prints.append(Print(art, "front", [x, y, z], PRINT_TEXEL["front"], N0=n0))
+    prints[0].name, prints[1].name = "number", "name"
+    for p, k in zip(prints[2:], FRONT):
+        p.name = k
+    return prints
+
+
+LEATT_BACK_LOGO = (478, 310, 648, 388)   # px in Leatt's back on-model photo: the LEATT on the upper left back, where
+                                         # his name is printed instead (PHOTO 06: no Leatt logo beside the name)
+
+
+def erase_back_logo(photo):
+    """Fill Leatt's back LEATT (white letters) from the print round it (normalised Gaussian convolution)."""
+    from scipy import ndimage
+    u0, v0, u1, v1 = LEATT_BACK_LOGO
+    a = photo.a
+    m = np.zeros(a.shape[:2], bool)
+    m[v0:v1, u0:u1] = a[v0:v1, u0:u1].min(2) > 0.6
+    m = ndimage.binary_dilation(m, iterations=4)
+    keep = (~m).astype(float)
+    num = np.stack([ndimage.gaussian_filter(a[..., k] * keep, 10) for k in range(3)], 2)
+    den = ndimage.gaussian_filter(keep, 10)[..., None]
+    a[m] = (num / np.maximum(den, 1e-6))[m]
+
+
+def lay_prints(img, pos, nrm, mask, prints, texel=None):
+    """Print the graphics over img (rest-pose texel positions pos, normals nrm) where mask: each texel takes the art
+    at its (s, t), box-filtered to the texel size."""
+    P, Nn = pos[mask], nrm[mask]
+    C = img[mask]
+    for pr in prints:
+        s, t, ok = pr.st(P, Nn)
+        tx = texel or pr.texel
+        ok &= pr.inside(s, t, tx)
+        if not ok.any():
+            continue
+        a = pr.art.sample(s[ok], t[ok], tx)
+        C[ok] = C[ok] * (1 - a[:, 3:]) + a[:, :3]
+    img[mask] = C
+    return img
+
+
+def print_overlay(V, N, Q, chart, UV, scale, prints, margin=0.004):
+    """The print overlay: the jersey faces under Damien's additions, copied PRINT_LIFT out along the normals, with
+    UVs that are the jersey's own scaled and moved per island (never rotated: the tangent frames, and so the normal
+    map, agree) into a ATLAS_RES atlas at PRINT_TEXEL. Returns the faces, per-corner atlas UVs, island per face, and
+    the islands (chart, jersey-UV origin, scale k = atlas pixels per jersey-UV unit, atlas origin)."""
+    from scipy.sparse.csgraph import connected_components
+    c = V[Q]
+    texel = np.full(len(Q), np.inf)
+    for pr in prints:
+        s, t, ok = pr.st(c.reshape(-1, 3), N[Q].reshape(-1, 3))
+        hit = (ok & pr.inside(s, t, margin)).reshape(-1, 4).any(1)
+        texel = np.where(hit, np.minimum(texel, pr.texel), texel)
+    F = np.nonzero(np.isfinite(texel))[0]
+    # islands: faces of one chart joined by shared vertices
+    inc = sparse.coo_matrix((np.ones(4 * len(F)), (np.repeat(np.arange(len(F)), 4), Q[F].ravel())),
+                            (len(F), len(V))).tocsr()
+    adj = (inc @ inc.T).tocoo()
+    same = chart[F][adj.row] == chart[F][adj.col]
+    g = sparse.coo_matrix((np.ones(same.sum()), (adj.row[same], adj.col[same])), (len(F), len(F)))
+    n_isl, lab = connected_components(g, directed=False)
+    isl = []
+    for i in range(n_isl):
+        f = F[lab == i]
+        uv = UV[f].reshape(-1, 2)
+        lo, hi = uv.min(0), uv.max(0)
+        k = 1.0 / (scale * texel[f].min())               # atlas px per jersey-UV unit (scale: UV units per metre)
+        isl.append([lo, hi, k, f])
+    # shelf packing into the atlas (shrink every island together until they fit)
+    pad, shrink = 6, 1.0
+    while True:
+        order = sorted(range(n_isl), key=lambda i: -(isl[i][1][1] - isl[i][0][1]) * isl[i][2])
+        x = y = rowh = 0
+        org, ok = {}, True
+        for i in order:
+            lo, hi, k, _ = isl[i]
+            w, h = (hi - lo) * k * shrink + 2 * pad
+            if x + w > ATLAS_RES:
+                x, y, rowh = 0, y + rowh, 0
+            if y + h > ATLAS_RES or w > ATLAS_RES:
+                ok = False
+                break
+            org[i] = (x + pad, y + pad)
+            x, rowh = x + w, max(rowh, h)
+        if ok:
+            break
+        shrink *= 0.93
+    fis = np.zeros(len(Q), int) - 1
+    out_uv = np.zeros((len(F), 4, 2))
+    islands = []
+    for i in range(n_isl):
+        lo, hi, k, f = isl[i]
+        k *= shrink
+        islands.append((lo, k, np.array(org[i], float)))
+        fis[f] = i
+    for j, f in enumerate(F):
+        lo, k, o = islands[fis[f]]
+        out_uv[j] = ((UV[f] - lo) * k + o) / ATLAS_RES
+    return F, out_uv, fis[F], islands, shrink
+
+
+def bilinear(img, u, v):
+    """Sample an image stored with row 0 at v = 0 (as painted, before the flip on saving) at UVs."""
+    R = img.shape[0]
+    x, y = np.clip(u * R - 0.5, 0, R - 1.001), np.clip(v * R - 0.5, 0, R - 1.001)
+    i, j = y.astype(int), x.astype(int)
+    fy, fx = (y - i)[:, None], (x - j)[:, None]
+    I = img.reshape(R, R, -1)
+    out = (I[i, j] * (1 - fx) * (1 - fy) + I[i, j + 1] * fx * (1 - fy) + I[i + 1, j] * (1 - fx) * fy
+           + I[i + 1, j + 1] * fx * fy)
+    return out.reshape((len(u),) + img.shape[2:])
+
+
+def paint_print_atlas(V, N, Q, F, auv, fis, islands, scale, prints, base, dark, nm, out_dir):
+    """The overlay's atlas: per texel the jersey's own print and normal map sampled at the same cloth point (so the
+    overlay matches the cloth round it), then Damien's graphics at the atlas's resolution."""
+    pos, nrm, isl = raster(auv, V, N, Q[F], fis, res=ATLAS_RES)
+    m = isl >= 0
+    col = np.zeros(pos.shape)
+    nrmm = np.tile(np.array([0, 0, 1.0]), pos.shape[:2] + (1,))
+    iy, ix = np.nonzero(m)
+    I = isl[m]
+    lo = np.array([islands[i][0] for i in range(len(islands))])[I]
+    k = np.array([islands[i][1] for i in range(len(islands))])[I]
+    o = np.array([islands[i][2] for i in range(len(islands))])[I]
+    juv = lo + (np.c_[ix + 0.5, iy + 0.5] - o) / k[:, None]
+    col[m] = bilinear(base, juv[:, 0], juv[:, 1])
+    dk = bilinear(dark[..., None], juv[:, 0], juv[:, 1])
+    n = bilinear(nm, juv[:, 0], juv[:, 1])
+    nrmm[m] = n / np.linalg.norm(n, axis=1, keepdims=True)
+    for i in range(len(islands)):
+        lay_prints(col, pos, nrm, isl == i, prints, texel=1.0 / (scale * islands[i][1]))
+    col[m] *= dk
+    save_png(col, os.path.join(out_dir, "jersey_print_color.png"), m)
+    save_png((nrmm + 1) / 2, os.path.join(out_dir, "jersey_print_normal.png"), m)
 
 
 # ================================================================ graphics: relief (normal map)
@@ -1352,10 +1797,12 @@ def save_png(img, path, mask=None):
     Image.fromarray((np.flipud(a) * 255 + 0.5).astype(np.uint8)).save(path, optimize=True)
 
 
-def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir):
+def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     """The Tiger Pink print on the jersey's charts: Leatt's on-model photos projected (front panel from the front
     view, back panel from the back view, each sleeve half from its view, blended over the sleeve's top line),
-    then Damien's additions; the relief: raglan, side and underarm seams, 238 laser-cut holes, riding folds."""
+    then Damien's additions (`prints`); the relief: raglan, side and underarm seams, 238 laser-cut holes, riding
+    folds. Returns the hole count and the print-free colour, the holes' darkening and the normal map (for the print
+    overlay)."""
     pos, nrm, chm = raster(UV, V, N, Q, chart)
     mask = chm >= 0
     img = np.zeros(pos.shape)
@@ -1363,6 +1810,8 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir):
                exclude=[(560, 0, 1060, 345), (160, 1290, 470, 1600), (1130, 1290, 1440, 1600)])
     pb = Photo(os.path.join("jersey", "jersey55_tigerpink_back-on-model_nz-distributor_LE5026000201-3_1600.jpg"),
                exclude=[(600, 0, 1000, 266), (900, 60, 1120, 330), (120, 1330, 420, 1600), (1180, 1330, 1460, 1600)])
+    if prints:
+        erase_back_logo(pb)                                  # his name is printed there instead (Damien's additions)
     for c, view in ((0, "front"), (1, "back")):
         m = chm == c
         Pm = pos[m].copy()
@@ -1385,11 +1834,9 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir):
         cf = cf * ws + pf.sample(*jersey_photo_uv(body, P, "front")) * (1 - ws)
         cb = cb * ws + pb.sample(*jersey_photo_uv(body, P, "back")) * (1 - ws)
         img[m] = cf * wf[:, None] + cb * (1 - wf[:, None])
-    # Damien's additions
-    fr, bk, sd = damien_canvases(body)
-    img = fr.apply(img, pos, mask & np.isin(chm, (0, 2, 4)) & (nrm[..., 1] < -0.3))
-    img = bk.apply(img, pos, mask & (chm == 1) & (nrm[..., 1] > 0.3))
-    img = sd.apply(img, pos, mask & (nrm[..., 0] < -0.4) & (pos[..., 0] < -0.1))
+    # Damien's additions (also printed sharper on the print overlay, which takes `base` round them)
+    base = img.copy()
+    img = lay_prints(img, pos, nrm, mask, prints, texel=1.0 / (scale * TEX_RES))
     # relief
     h = np.zeros(pos.shape[:2])
     seams = seam_points(V, Q, chart, {(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (0, 4), (0, 5), (1, 4), (1, 5)})
@@ -1428,7 +1875,7 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir):
     nm = normal_map(h, 1.0 / (scale * TEX_RES), mask)
     save_png(img, os.path.join(out_dir, "jersey_color.png"), mask)
     save_png((nm + 1) / 2, os.path.join(out_dir, "jersey_normal.png"), mask)
-    return len(C)
+    return len(C), dict(base=base, dark=dark, nm=nm)
 
 
 
@@ -1579,6 +2026,11 @@ def to_part(name, V, faces, mat_index, W, smooth=True, UV=None):
 MATERIALS = {
     "jersey_print": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.58, "sheen": 0.18},
     "jersey_mesh": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.74, "sheen": 0.1},
+    # the print overlay over Damien's additions: the same cloth, its own sharper atlas
+    "jersey_print_hd": {"image": "jersey_print_color.png", "normal": "jersey_print_normal.png", "rough": 0.58,
+                        "sheen": 0.18},
+    "jersey_print_hd_mesh": {"image": "jersey_print_color.png", "normal": "jersey_print_normal.png", "rough": 0.74,
+                             "sheen": 0.1},
     "pant_print": {"image": "pants_color.png", "normal": "pants_normal.png", "rough": 0.56, "sheen": 0.16},
     "pant_iks": {"rgb": [22, 22, 24], "rough": 0.46, "sheen": 0.12, "coat": 0.05, "bump": 0.22, "bump_scale": 1400.0},
     "strap": {"rgb": [18, 18, 19], "rough": 0.62},
@@ -1679,9 +2131,11 @@ def main(body_path, out_path, tex=True):
     jUV, jscale = chart_uvs(jersey["V"], jersey["Q"], jc)
     pc = pant_charts(pants, pants["V"], pants["Q"])
     pUV, pscale = chart_uvs(pants["V"], pants["Q"], pc)
+    jN = vnormals(jersey["V"], jersey["Q"])
+    prints = damien_prints(jersey["V"], jN)                        # his number, name and sponsors
     if tex:
         os.makedirs(TEXDIR, exist_ok=True)
-        nj = paint_jersey(body, jersey["V"], vnormals(jersey["V"], jersey["Q"]), jersey["Q"], jc, jUV, jscale, TEXDIR)
+        nj, jinfo = paint_jersey(body, jersey["V"], jN, jersey["Q"], jc, jUV, jscale, TEXDIR, prints)
         npn = paint_pants(body, pants, pants["V"], vnormals(pants["V"], pants["Q"]), pants["Q"], pc, pUV, pscale,
                           TEXDIR)
         print("laser-cut holes: jersey", nj, "pant", npn)
@@ -1693,6 +2147,19 @@ def main(body_path, out_path, tex=True):
                        UV=corner_uvs(jQ, len(jersey["Q"]), jUV, jpar)))
     out.update(to_part("pants", pV, pQ, pM, pW, UV=corner_uvs(pQ, len(pants["Q"]), pUV, ppar)))
     out["tex_scale"] = np.array([jscale, pscale])                   # texture units per metre (jersey, pant)
+    # Damien's additions, sharper: the print overlay rides the jersey (its vertices' own weights)
+    F, auv, fis, islands, _ = print_overlay(jersey["V"], jN, jersey["Q"], jc, jUV, jscale, prints)
+    if tex:
+        paint_print_atlas(jersey["V"], jN, jersey["Q"], F, auv, fis, islands, jscale, prints, jinfo["base"],
+                          jinfo["dark"], jinfo["nm"], TEXDIR)
+    used, inv = np.unique(jersey["Q"][F], return_inverse=True)
+    oM = np.where(jersey_mesh_faces(jersey["V"], jersey["Q"])[F], mats.index("jersey_print_hd_mesh"),
+                  mats.index("jersey_print_hd"))
+    out.update(to_part("jersey_print", jersey["V"][used] + PRINT_LIFT * jN[used], inv.reshape(-1, 4), oM, W0[used],
+                       UV=auv))
+    names.append("jersey_print")
+    out["prints"] = json.dumps({p.name: dict(kind=p.kind, P0=p.P0.round(5).tolist(), w=round(p.art.w, 5),
+                                             h=round(p.art.h, 5)) for p in prints})
     # the Waistlock rides the pant's waist (weights of the pant under it)
     ptree = cKDTree(pants["V"])
     for name, item in waistlock(pants["V"], vnormals(pants["V"], pants["Q"]), waist_top).items():
