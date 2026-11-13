@@ -569,22 +569,95 @@ def outrigger_frames(gp=None):
     return out
 
 
-def build_outriggers(gp=None):
-    """Black outriggers, white vertical LEATT on the outer face (letter tops towards the strap; Leatt's ISO view
-    and the Pinata kit photo, right side), one image half per side."""
-    o = H.Part("goggle_outriggers")
+OR_GAP = 0.0015            # m, a mounted outrigger's inner face off the shell (it rests on it, strap tension)
+OR_BEND = math.tan(math.radians(60))   # steepest outward bend of a mounted outrigger (lift per length)
+OR_ANCHOR = 0.010          # m, the strap's end sits this far inside the outrigger's back end (its buckle slot)
+OR_NU, OR_NV = 13, 7       # grid of each outrigger face (along x up)
+
+
+def shell_mount(prof):
+    """For the goggle on the helmet: the half width an outrigger point (GOGGLE frame) must clear, i.e. the shell's
+    outer surface where the point lies behind the eyeport's edge in the side view (helmet.py's profile), else 0
+    (in the eyeport opening nothing is in the way)."""
+    def need(Pg):
+        Ph = g2h(Pg)
+        ins = prof.inside(Ph[:, 1:])
+        return np.where(ins, H.shell_hw(prof, Ph[:, 1], Ph[:, 2]), 0.0)
+    return need
+
+
+def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
+    """Each outrigger's outer and inner faces as (nu x nv x 3) grids (i along it, front to back; j up) and the strap's
+    anchor (GOGGLE frame). Free (mount None, as in Leatt's ISO): the flat plate of outrigger_frames. On the helmet
+    (mount = shell_mount(prof)): the strap pulls the outriggers onto the shell, as on every goggle worn over a helmet
+    (his 07 and 09, Leatt's MY27 kit views: the strap leaves the outrigger and lies on the shell). The free plate
+    starts inside the eyeport opening and its back 35 % would sink 22 to 41 mm into the shell, so each row of the
+    plate is lifted outwards (x only, the front edge fixed on the frame) to clear the shell by OR_GAP behind the
+    eyeport's edge, bending out at most OR_BEND before it reaches the edge and never back in towards its end."""
+    out = {}
     for sg, (box, end, n) in outrigger_frames(gp).items():
-        # corners: 0 front-top, 1 front-bottom, 2 back-bottom, 3 back-top (outer), 4..7 inner
-        quads = [[0, 1, 2, 3], [7, 6, 5, 4], [4, 5, 1, 0], [3, 2, 6, 7], [4, 0, 3, 7], [1, 5, 6, 2]]
+        u = np.linspace(0.0, 1.0, nu)[:, None, None]
+        v = np.linspace(0.0, 1.0, nv)[None, :, None]
+
+        def bil(c):                       # corners: front-top, front-bottom, back-bottom, back-top
+            return (1 - u) * ((1 - v) * c[1] + v * c[0]) + u * ((1 - v) * c[2] + v * c[3])
+        Go, Gi = bil(box[:4]), bil(box[4:])
+        if mount is not None:
+            need = mount(Gi.reshape(-1, 3)).reshape(nu, nv)
+            req = np.maximum(0.0, np.where(need > 0, need + OR_GAP - np.abs(Gi[..., 0]), 0.0))
+            ds = np.linalg.norm(np.diff(Gi[:, nv // 2], axis=0), axis=1)
+            s = np.r_[0.0, np.cumsum(ds)]                          # length along the plate
+            lift = np.zeros_like(req)
+            for i in range(nu):                                    # rise early enough to reach each later need
+                ahead = req[i:] - OR_BEND * (s[i:, None] - s[i])
+                lift[i] = np.maximum(0.0, ahead.max(0))
+            lift = np.minimum(lift, OR_BEND * s[:, None])          # fixed on the frame at its front edge
+            lift = np.maximum.accumulate(lift, axis=0)             # bends outwards only, towards the back
+            Go = Go.copy()
+            Gi = Gi.copy()
+            Go[..., 0] += sg * lift
+            Gi[..., 0] += sg * lift
+        L = np.linalg.norm(Gi[-1, nv // 2] - Gi[0, nv // 2])
+        i_a = np.clip(1.0 - OR_ANCHOR / L, 0, 1) * (nu - 1)
+        i0 = int(i_a)
+        f = i_a - i0
+        mid = 0.5 * (Go + Gi)[:, nv // 2]
+        anchor = mid[i0] * (1 - f) + mid[min(i0 + 1, nu - 1)] * f
+        out[sg] = (Go, Gi, anchor)
+    return out
+
+
+def build_outriggers(gp=None, mount=None):
+    """Black outriggers, white vertical LEATT on the outer face (letter tops towards the strap; Leatt's ISO view
+    and the Pinata kit photo, right side), one image half per side. mount: see outrigger_grids."""
+    o = H.Part("goggle_outriggers")
+    for sg, (Go, Gi, anchor) in outrigger_grids(gp, mount).items():
+        nu, nv = Go.shape[:2]
+        V = np.vstack([Go.reshape(-1, 3), Gi.reshape(-1, 3)])
+        O = lambda i, j: i * nv + j                               # noqa: E731
+        I = lambda i, j: nu * nv + i * nv + j                     # noqa: E731
+        quads, mats, uvs = [], [], []
+        h0, h1 = (0.0, 0.5) if sg > 0 else (0.5, 1.0)
+        # outer face: texture u = height (h0 bottom .. h1 top) in its image half, v = along (0 front .. 1 back)
+        tex = lambda i, j: (h0 + (h1 - h0) * j / (nv - 1), i / (nu - 1))   # noqa: E731
+        for i in range(nu - 1):
+            for j in range(nv - 1):
+                quads.append([O(i, j + 1), O(i, j), O(i + 1, j), O(i + 1, j + 1)])
+                uvs.append([tex(i, j + 1), tex(i, j), tex(i + 1, j), tex(i + 1, j + 1)])
+                quads.append([I(i + 1, j + 1), I(i + 1, j), I(i, j), I(i, j + 1)])
+                uvs.append([(0.5, 0.5)] * 4)
+        for i in range(nu - 1):                                   # top and bottom edges
+            quads.append([I(i, nv - 1), O(i, nv - 1), O(i + 1, nv - 1), I(i + 1, nv - 1)])
+            quads.append([O(i, 0), I(i, 0), I(i + 1, 0), O(i + 1, 0)])
+            uvs += [[(0.5, 0.5)] * 4] * 2
+        for j in range(nv - 1):                                   # front and back ends
+            quads.append([I(0, j + 1), I(0, j), O(0, j), O(0, j + 1)])
+            quads.append([O(nu - 1, j + 1), O(nu - 1, j), I(nu - 1, j), I(nu - 1, j + 1)])
+            uvs += [[(0.5, 0.5)] * 4] * 2
         if sg < 0:
             quads = [q[::-1] for q in quads]
-        uvs = [[(0.5, 0.5)] * 4 for _ in quads]
-        # outer face: u = height (0 bottom .. 1 top) in its image half, v = along the outrigger (0 front .. 1 back)
-        h0, h1 = (0.0, 0.5) if sg > 0 else (0.5, 1.0)
-        c = {0: (h1, 0.0), 1: (h0, 0.0), 2: (h0, 1.0), 3: (h1, 1.0)}
-        q = quads[0]
-        uvs[0] = [c[i] for i in q]
-        o.add(box, quads, "goggle_outrigger", uvs)
+            uvs = [w[::-1] for w in uvs]
+        o.add(V, quads, "goggle_outrigger", uvs)
     return o
 
 
@@ -793,8 +866,10 @@ def build_goggle(body, Rt, prof):
     skin = body["V"][H.head_skin(body, ("head",))]
     skin_G = h2g((skin - t) @ R)
     foam, foam_back = build_foam(rings, info, skin_G)
-    parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(), build_nose_guard(), foam]
-    ends = {sg: g2h(e[None])[0] @ R.T + t for sg, (box, e, n) in outrigger_frames().items()}
+    mount = shell_mount(prof)                         # on the helmet: outriggers drape over the shell
+    parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(mount=mount),
+             build_nose_guard(), foam]
+    ends = {sg: g2h(a[None])[0] @ R.T + t for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items()}
     for P in parts:
         P.V = g2h(P.V) @ R.T + t
     strap = H.build_strap(Rt, prof, ends)

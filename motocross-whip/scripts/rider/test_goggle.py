@@ -90,6 +90,38 @@ def test_velocity55_shape_from_leatts_iso():
         assert (P - front) @ N > 0.012                                      # more than 12 mm behind the lens front
 
 
+def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
+    """On the helmet the outriggers lie on the shell and the strap comes out of their back ends (Damien 2026-11-13:
+    "The actual goggles is not properly connected to it's strap"; round 3 had them 22 to 41 mm inside the shell
+    with the strap starting 30 to 40 mm further out). Behind the eyeport's edge the inner face clears the shell by
+    OR_GAP; the plate stays fixed on the frame at its front edge; the strap's end lies inside the outrigger, between
+    its faces, and its first ring starts there."""
+    Vo, Fo, prof = H.shell_outer()
+    mount = G.shell_mount(prof)
+    free = G.outrigger_grids()
+    R, t = built["Rt"]
+    strap = built["parts"]["goggle_strap"].V
+    m = len(strap) // 4
+    first = G.h2g((np.vstack([strap[:1], strap[m:m + 1]]) - t) @ R)        # the strap's first ring, GOGGLE frame
+    for sg, (Go, Gi, anchor) in G.outrigger_grids(mount=mount).items():
+        need = mount(Gi.reshape(-1, 3)).reshape(Gi.shape[:2])
+        back = need[-4:] > 0
+        assert back.all()                                                   # its back lies over the shell
+        gap = np.abs(Gi[..., 0]) - need
+        assert gap[-4:][back].min() > G.OR_GAP - 1e-4                       # ... resting on it, not inside
+        assert np.allclose(Gi[0], free[sg][1][0]) and np.allclose(Go[0], free[sg][0][0])   # front edge on the frame
+        # the anchor sits between the faces near the back end, at mid height
+        i = -2
+        lo, hi = sorted([abs(Gi[i, :, 0]).mean(), abs(Go[i, :, 0]).mean()])
+        assert lo < abs(anchor[0]) < hi
+        assert Gi[:, 0, 2].max() < anchor[2] < Gi[:, -1, 2].min()
+        assert np.linalg.norm(Gi[-1, Gi.shape[1] // 2] - anchor) < G.OR_ANCHOR + 0.004
+        # the strap starts at this side's anchor (left side first in the strap's rows)
+        if sg > 0:
+            mid = first.mean(0)
+            assert np.linalg.norm(mid[[0, 1]] - anchor[[0, 1]]) < 0.012
+
+
 def test_frame_width_and_wrap():
     """Outer frame about 195 to 205 mm across (the ends' red stops 25 to 32 mm behind the lip in the side views:
     the 170 deg WideVision lens wraps back round the face)."""

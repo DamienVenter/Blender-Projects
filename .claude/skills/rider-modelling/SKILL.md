@@ -135,6 +135,12 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   only. Foam: march it along the lens normal from a 13 mm band inside the face opening (march tolerance 2.5 mm,
   fill misses from the neighbouring rows) or it pokes through his cheeks.
 - render.sh needs its full output path: with an unset `$W` it wrote to /r3w/his at the filesystem root.
+- **Worn gear is not the product shot: check every join where two parts meet on the body.** The goggle fitted
+  alone to Leatt's ISO had its outriggers 22 to 41 mm inside the helmet shell and the strap starting 30 to 40 mm
+  further out on the shell; Damien saw it at once ("not properly connected to it's strap"). Keep the free shape for
+  the product-shot comparison and build a worn shape on the helmet (goggle.outrigger_grids(mount=shell_mount(prof)):
+  the outriggers draped over the shell, the strap anchored inside their back ends). Plot the parts in plan and side
+  view (shell grey, frame red, outrigger black, strap magenta) before rendering: the gap is obvious there.
 - **Head close-ups in any pose: `head_closeups.py RIDER.blend OUT`**. Its views are set once in the rest frame
   (rider at the origin facing +x) and carried with the head: posed = helmet_shell.matrix_world @ Rz(90)^-1 (rigid
   parts' mesh coordinates are the MB rest frame). `cam07` renders through photo 07's fitted camera, cropped round
