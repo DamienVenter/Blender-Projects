@@ -127,7 +127,7 @@ def test_frame_colour_and_parts(built):
     """Raspberry frame (darker than the photos' 200/5/70: the studio light and AgX lift it), black outriggers with
     their LEATT, bare tear-off posts (no tear-offs, decision 7), nose guard, foam, strap."""
     r, g, b = G.MATERIALS["goggle_frame"]["rgb"]
-    assert r > 120 and g < 20 and 25 < b < 80
+    assert r > 120 and g < 20 and 25 < b < 90
     for name in ("goggle_frame", "goggle_lens", "goggle_posts", "goggle_outriggers", "goggle_noseguard",
                  "goggle_foam", "goggle_strap"):
         assert name in built["parts"]

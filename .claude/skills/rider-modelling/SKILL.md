@@ -78,6 +78,38 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - A head pitch put on the head bone alone drives the chin bar into the throat; share it over neck01-03 and head.
 - Test closure and orientation of the solid (every directed edge once each way) before trusting winding numbers.
 
+## Goggle round 2, eyes, brow badge (2026-11-13, `goggle.py`, ledger research/rider-ledger/goggle.md)
+- **Leatt shows the Velocity 5.5 alone only from five angles** (ISO, Front = the same angle, Back, Exploded,
+  lens) in all 70 colourway images. The views that measure it are the MY27 8.5 kit's ("Velocity 5.5 goggles are
+  included"; moto-8-5-helmet-kit): four sides with the goggle on the same shell. The kits' image order differs by
+  colourway (Blue_Red _3 is the right side, _4 the back): check each.
+- **Camera fits to a shell model carry the shell's errors**: front-iso cameras fitted to the helmet silhouette put
+  the goggle 20 to 60 mm off sideways (the shell's estimated brow and chin bias them); the near-orthographic side
+  views agreed within 2 mm. Measure depths and heights in side views (back-project the mask onto x = 0) and take
+  only shapes from oblique views, averaged left and right so a common bias cancels. A 50-parameter silhouette
+  optimisation over all views wandered into nonsense (an outline point at -600 mm): fix what the side views give,
+  then compare by overlay.
+- Fitting cameras: grid-start (az, el, roll; scale and shift from the masks' area and centroid) before Powell, or
+  it walks off to a wrong azimuth. Ignore the face port (the goggle) and z-buffer the goggle against the helmet
+  when comparing it (numpy rasteriser); the photo's goggle = red components mostly inside the grown port zone.
+- **A projected texture doubles detail where the model's depth is wrong**: the brow badge under the visor stands
+  16 mm ahead of the real brow, so the two side views put "LEATT" 19 mm either side: repaint such details by script
+  from back-projected outlines, each view centred on itself.
+- Goggle shape: a lens cylinder (ellipse plan) with outlines in (arc length, height); the frame is rings round its
+  cross-section swept along the outlines. Outlines as straight runs with 5 mm fillets look moulded; a smooth spline
+  through the same points looked generic. Add support rings 0.35 mm either side of every edge or smooth shading
+  turns the bezel into a tube. The Velocity's nose: the opening arches up (19 mm), the bridge hangs in front of the
+  nose to the beak, the frame is shallow there and the foam runs on the opening's edge (the first foam sat on his
+  nose tip). Outrigger LEATT: letter tops towards the strap on both sides (reads up on his right, down on his left).
+- Colour under the studio (white world, AgX): saturated flat colours render pastel; a goggle frame base of
+  200/6/70 rendered 188/85/97. Take a darker base (132/0/44) and check the render against the photo's hue.
+- Purple mirror lens: metallic 0.94 on a purple base with a 430 nm thin film (IOR 1.33) reads deep purple square
+  on; test swatches first (curved strips under the studio), the film's colour swings fast with thickness.
+- **Eyes**: MakeHuman's eye proxy is fitted to helper vertices (not in body.npz); rebuild the shaped mesh from the
+  body's macro (body.npz meta) to get them. The proxy eyeball is a 15.8 mm sphere (larger than anatomy) at the
+  helper sphere's centre: that is where his lids close round it. A separate refracting cornea dome over a painted
+  iris looked like a glass bead: bulge the eyeball itself over the iris and give it a clear coat.
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

@@ -173,18 +173,21 @@ def build_eyes(body, nth=40, nph=64):
 GP = dict(
     a=0.118, A=0.072, tilt=0.0,
     # lens opening (the frame front face's inner edge), half outline (s, z) in m
-    open=[(0, 0.029), (0.045, 0.030), (0.080, 0.028), (0.091, 0.020), (0.094, -0.006), (0.090, -0.032),
-          (0.066, -0.038), (0.028, -0.032), (0, -0.014)],
+    open=[(0, 0.029), (0.050, 0.030), (0.084, 0.029), (0.093, 0.021), (0.095, -0.008), (0.090, -0.031),
+          (0.064, -0.038), (0.030, -0.033), (0, -0.014)],
     # frame outer edge (front face), half outline; the bottom centre is the bridge over the nose (it hangs lower)
-    out=[(0, 0.042), (0.045, 0.043), (0.085, 0.040), (0.104, 0.032), (0.107, -0.006), (0.102, -0.046),
-         (0.072, -0.052), (0.028, -0.050), (0, -0.062)],
+    out=[(0, 0.042), (0.050, 0.043), (0.088, 0.041), (0.104, 0.033), (0.107, -0.008), (0.100, -0.047),
+         (0.070, -0.053), (0.030, -0.051), (0, -0.062)],
+    # corner fillets at each control point (moulded edges 5 mm; the nose arch and the beak rounder)
+    fillet_open=[0.005, 0.005, 0.006, 0.006, 0.005, 0.006, 0.006, 0.008, 0.012],
+    fillet_out=[0.005, 0.005, 0.005, 0.005, 0.005, 0.006, 0.006, 0.006, 0.008],
     # frame depth behind the lens front at each control point (front face to the back face); shallow over the nose
     depth=[0.024, 0.024, 0.022, 0.020, 0.018, 0.016, 0.016, 0.012, 0.006],
     t_front=0.0035,        # front face ahead of the lens front
     taper=0.004,           # the outer wall leans out this much going back
     back_in=0.006,         # back face width (the foam's seat), measured inward from the outer wall's back
 )
-VENT_ROWS = (0.25, 0.75)           # the top vents' slots run between these fractions of the outer wall's depth
+VENT_ROWS = (0.35, 0.65)           # the top vents' slots run between these fractions of the outer wall's depth
 CREASE, FACET_DROP = 0.45, 0.0035  # front face: crease at 45 % of its width, outer facet sloping back 3.5 mm
 # rings round the frame's cross-section: a lens, b lip, c face, d crease, e face edge, e' wall top, e1, e2 (vent
 # rows), f wall back, g back face, h inner wall
@@ -222,29 +225,37 @@ class LensSurface:
         return P + N * np.asarray(off)[..., None] if np.ndim(off) else P + N * off, N
 
 
-def catmull_closed(P, per=12):
-    """Closed centripetal Catmull-Rom through P (k x 2), per samples per segment; returns samples and, for each,
-    the index of the control point that starts its segment and the fraction along it."""
+FILLET = 0.005                      # m, the frame's moulded corners: straight runs between the control points with
+                                   # 5 mm fillets (a smooth spline through them read as a soft generic goggle)
+
+
+def fillet_closed(P, per=12, r=FILLET):
+    """Closed polygon through P (k x 2) with each corner rounded (a quadratic Bezier between points r from it on
+    either side, r at most 0.4 of the shorter side); per samples per side. Returns the samples and, for each, the
+    side it lies on and the fraction along it: outlines sampled alike correspond point for point."""
     P = np.asarray(P, float)
     k = len(P)
+    tin, tout = [], []
+    for i in range(k):
+        a, b, c = P[(i - 1) % k], P[i], P[(i + 1) % k]
+        ri = r[i] if np.ndim(r) else r
+        d = min(ri, 0.4 * np.linalg.norm(b - a), 0.4 * np.linalg.norm(c - b))
+        tin.append(b + (a - b) / max(np.linalg.norm(a - b), 1e-12) * d)
+        tout.append(b + (c - b) / max(np.linalg.norm(c - b), 1e-12) * d)
+
+    def bez(i, t):
+        return (1 - t) ** 2 * tin[i] + 2 * (1 - t) * t * P[i] + t * t * tout[i]
+    n1 = max(per // 4, 1)
+    n2 = per - 2 * n1
     out, seg, frac = [], [], []
     for i in range(k):
-        p0, p1, p2, p3 = P[(i - 1) % k], P[i], P[(i + 1) % k], P[(i + 2) % k]
-        t0 = 0.0
-        t1 = t0 + max(np.linalg.norm(p1 - p0), 1e-9) ** 0.5
-        t2 = t1 + max(np.linalg.norm(p2 - p1), 1e-9) ** 0.5
-        t3 = t2 + max(np.linalg.norm(p3 - p2), 1e-9) ** 0.5
-        for j in range(per):
-            u = j / per
-            t = t1 + (t2 - t1) * u
-            A1 = (t1 - t) / (t1 - t0) * p0 + (t - t0) / (t1 - t0) * p1
-            A2 = (t2 - t) / (t2 - t1) * p1 + (t - t1) / (t2 - t1) * p2
-            A3 = (t3 - t) / (t3 - t2) * p2 + (t - t2) / (t3 - t2) * p3
-            B1 = (t2 - t) / (t2 - t0) * A1 + (t - t0) / (t2 - t0) * A2
-            B2 = (t3 - t) / (t3 - t1) * A2 + (t - t1) / (t3 - t1) * A3
-            out.append((t2 - t) / (t2 - t1) * B1 + (t - t1) / (t2 - t1) * B2)
-            seg.append(i)
-            frac.append(u)
+        j = (i + 1) % k
+        pts = [bez(i, 0.5 + 0.5 * u / n1) for u in range(n1)]
+        pts += [tout[i] + (tin[j] - tout[i]) * u / n2 for u in range(n2)]
+        pts += [bez(j, 0.5 * u / n1) for u in range(n1)]
+        out += pts
+        seg += [i] * per
+        frac += list(np.arange(per) / per)
     return np.array(out), np.array(seg), np.array(frac)
 
 
@@ -275,8 +286,8 @@ def frame_rings(gp=None, per=12):
     lip, front face, outer wall, back face, inner wall."""
     gp = gp or GP
     L = LensSurface(gp)
-    Co, seg, frac = catmull_closed(full_loop(gp["open"]), per)
-    Cu, _, _ = catmull_closed(full_loop(gp["out"]), per)
+    Co, seg, frac = fillet_closed(full_loop(gp["open"]), per, loop_values(gp["fillet_open"]))
+    Cu, _, _ = fillet_closed(full_loop(gp["out"]), per, loop_values(gp["fillet_out"]))
     D = loop_values(gp["depth"])
     d = D[seg] + (D[(seg + 1) % len(D)] - D[seg]) * frac
     no, nu = outward2d(Co), outward2d(Cu)
@@ -357,7 +368,7 @@ def build_frame(gp=None):
 
 def lens_region(gp, grow):
     """Lens outline in (s, z): the opening grown by grow (under the frame's lip)."""
-    Co, _, _ = catmull_closed(full_loop(gp["open"]), 12)
+    Co, _, _ = fillet_closed(full_loop(gp["open"]), 12, loop_values(gp["fillet_open"]))
     return Co + outward2d(Co) * grow
 
 
@@ -536,7 +547,7 @@ def build_nose_guard(gp=None):
     """The black flexible nose guard under the nose arch (Leatt exploded view)."""
     gp = gp or GP
     L = LensSurface(gp)
-    Cu, seg, frac = catmull_closed(full_loop(gp["out"]), 12)
+    Cu, seg, frac = fillet_closed(full_loop(gp["out"]), 12, loop_values(gp["fillet_out"]))
     n = len(gp["out"])
     # the arch: from half-way between the left bottom corner and the nose foot (controls 6, 7), over the nose
     # (control 8, the bottom centre) to the mirror point on the right (full-loop segments 6 .. 9)
@@ -723,7 +734,7 @@ def paint_brow_badge(path):
 
 MATERIALS = {
     "eye_ball": dict(image="goggle_eyes_brown.png", rough=0.35, coat=1.0),        # wet: a clear coat over it all
-    "goggle_frame": dict(rgb=[150, 0, 45], rough=0.45),                     # raspberry: Pinata kit photo frame
+    "goggle_frame": dict(rgb=[132, 0, 44], rough=0.45),                     # raspberry: Pinata kit photo frame
                                                                             # median 209/0/61, his 09: 190/8/88
     "goggle_vent": dict(rgb=[16, 16, 18], rough=0.95),                      # foam-backed slots
     "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.6),
