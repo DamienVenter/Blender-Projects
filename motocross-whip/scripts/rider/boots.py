@@ -246,7 +246,7 @@ def surface_nets(f, origin, h, iters=6):
         flip = inside_first if ax != 1 else ~inside_first
         q[flip] = q[flip][:, ::-1]
         quads.append(q)
-    Q = np.concatenate(quads)
+    Q = np.concatenate(quads)[:, ::-1]                              # the orientation rule above gives inward faces
     # Newton steps onto the zero level
     for _ in range(iters):
         val, g = trilinear(f, P)
@@ -905,17 +905,305 @@ def screw_head(c, n, d, mat="boot_screw"):
     return m
 
 
+# ---------------------------------------------------------------- component 3: graphics by projection, gaiter
+# The shell's colours come from Leatt's photos projected along the view each face looks at: its outer side from
+# 02, its inner side from 03, its back from 05. Each photo is turned into paint (black rubber and print where the
+# photo is dark, red where red, TPU white elsewhere: the photo's shading is not baked in), with a normal map of the
+# moulding (the triangle patterns, the debossed LEATT on the calf panel). The left boot's paint is the right's
+# with every logo box flipped back so it reads right on the mirrored boot.
+PROJ_VIEWS = {"out": ("02", (380, 180, 1700, 1720)), "in": ("03", (280, 180, 1500, 1720)),
+              "back": ("05", (930, 190, 1520, 1760))}
+LOGO_BOXES = {"02": [(676, 322, 830, 410),       # LEATT SLIDELOCK badge (dark-pixel bounding boxes + margin)
+                     (895, 425, 1085, 725),      # the brain logo on the shin plate
+                     (636, 1430, 800, 1505),     # LEATT on the outer ankle
+                     (1228, 1505, 1355, 1558)],  # 6.5 on the toe box
+              "03": [(990, 500, 1390, 740),      # debossed LEATT and 6.5 on the calf panel
+                     (1150, 1150, 1300, 1320)],  # brain icon on the ankle rubber
+              "05": [(1170, 570, 1250, 800),     # vertical LEATT on the spine (rotated: flipped top to bottom)
+                     (1160, 1255, 1250, 1300),   # 6.5 on the heel
+                     (1170, 1370, 1240, 1440)]}  # brain icon on the heel
+VERTICAL_LOGOS = {("05", 0)}
+TEX_SCALE = 0.6
+WHITE = np.array([236, 239, 242], float)
+LEAN_03 = 0.08          # photo 03's shaft leans further forward than 02's: 0.08 m per m above v 170 mm (rows)
+
+
+def paint(photo):
+    a = np.asarray(Image.open(ref(photo)).convert("RGB")).astype(float)
+    lum = a.mean(2)
+    kd = np.clip((95 - lum) / 40, 0, 1)[..., None]                  # black rubber, print and fabric
+    black = np.clip(20 + 0.35 * (lum - 20), 16, 44)[..., None] * np.ones(3)
+    red = np.clip((a[..., 0] - np.maximum(a[..., 1], a[..., 2]) - 50) / 40, 0, 1)[..., None]
+    alb = WHITE * (1 - kd) + black * kd
+    alb = alb * (1 - red) + np.array([196, 28, 38]) * red
+    hp = lum - ndi.gaussian_filter(lum, 2.5)
+    gy, gx = np.gradient(ndi.gaussian_filter(hp, 0.8))
+    k = 0.03
+    n = np.stack([-gx * k, gy * k, np.ones_like(gx)], -1)
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    return alb, (n * 0.5 + 0.5) * 255
+
+
+def write_shell_textures(out_dir):
+    for view, (photo, (x0, y0, x1, y1)) in PROJ_VIEWS.items():
+        alb, nrm = paint(photo)
+        for side in ("R", "L"):
+            A, N = alb.copy(), nrm.copy()
+            if side == "L":
+                for k, (bx0, by0, bx1, by1) in enumerate(LOGO_BOXES[photo]):
+                    if (photo, k) in VERTICAL_LOGOS:
+                        A[by0:by1, bx0:bx1] = A[by0:by1, bx0:bx1][::-1]
+                        N[by0:by1, bx0:bx1] = N[by0:by1, bx0:bx1][::-1] * [1, -1, 1] + [0, 255, 0]
+                    else:
+                        A[by0:by1, bx0:bx1] = A[by0:by1, bx0:bx1][:, ::-1]
+                        N[by0:by1, bx0:bx1] = N[by0:by1, bx0:bx1][:, ::-1] * [-1, 1, 1] + [255, 0, 0]
+            size = (int((x1 - x0) * TEX_SCALE), int((y1 - y0) * TEX_SCALE))
+            Image.fromarray(np.clip(A[y0:y1, x0:x1], 0, 255).astype(np.uint8)).resize(size, Image.LANCZOS).save(
+                os.path.join(out_dir, f"boot_{view}_{side}.jpg"), quality=92)
+            Image.fromarray(np.clip(N[y0:y1, x0:x1], 0, 255).astype(np.uint8)).resize(size, Image.LANCZOS).save(
+                os.path.join(out_dir, f"boot_{view}_{side}_n.png"))
+
+
+def proj_uv(view, P, L, H):
+    """Texture coordinates of boot-frame points P in a view's crop."""
+    photo, (x0, y0, x1, y1) = PROJ_VIEWS[view]
+    u, v, w = P[:, 0], P[:, 1], P[:, 2]
+    if view == "out":
+        x, y = Side(P02, L).px(u, v)
+    elif view == "in":
+        x, y = Side(P03, L).px(u + LEAN_03 * np.clip(v - 0.17, 0, None), v)
+    else:
+        s5 = H / (P05["ground_y"] - P05["top_y"])
+        w_ff = (P06["xc_heel"] - P06["xc_ff"]) * L / (P06["heel_y"] - P06["toe_y"])
+        x, y = P05["xc"] + (w - w_ff) / s5, P05["ground_y"] - v / s5
+    return np.stack([(x - x0) / (x1 - x0), 1 - (y - y0) / (y1 - y0)], 1)
+
+
+def face_view(n):
+    """Which photo a face looking along n (boot frame) takes its paint from."""
+    if n[2] > 0.35:
+        return "out"
+    if n[2] < -0.35:
+        return "in"
+    if n[0] < -0.5:
+        return "back"
+    return "out" if n[2] >= 0 else "in"
+
+
+def paint_shell(m, L, H, side):
+    V = np.asarray(m.V)
+    for i, f in enumerate(m.F):
+        p = V[list(f)]
+        n = np.cross(p[2] - p[0], p[3] - p[1] if len(f) == 4 else p[1] - p[0])
+        n /= np.linalg.norm(n) + 1e-12
+        view = face_view(n)
+        m.M[i] = f"boot_{view}_{side}"
+        m.uv[i] = [tuple(x) for x in proj_uv(view, p, L, H)]
+    return m
+
+
+GAITER_T = 0.0025       # the stretch gaiter, 2.5 mm (photo 12)
+GAITER_IN = 0.003       # it rises from inside the shell's top edge, 3 mm in from its outer surface
+
+
+def build_gaiter(build):
+    """The black stretch gaiter: a sleeve on the boot's outline sections from 15 mm under the shell's lowest top
+    edge up to the gaiter's top (photo 02 columns: 423 mm at the back, 400 at the front), GAITER_IN inside the
+    outline's surface, its inside red (photo 12), the top edge rolled."""
+    f, o = shell_field(build.sec, top="gaiter")
+    sdf = ShellSDF(f, o, H_VOX)
+    sec = build.sec
+    ub, uf = row_edges(sec["us_m"], sec["M"])
+    ok = np.isfinite(ub) & np.isfinite(uf)
+    vs_ok, uc_ok = sec["vs"][ok], ndi.gaussian_filter1d(0.5 * (ub + uf)[ok], 10)
+    na, nt = 96, 10
+    ang = np.linspace(0, 2 * np.pi, na, endpoint=False)
+    d = np.stack([np.cos(ang), np.zeros(na), np.sin(ang)], 1)
+    v0 = min(SHELL_TOP_OUT) - 0.015
+
+    def ring(vv, off):
+        out = []
+        for k in range(na):
+            v = vv[k]
+            c = np.array([np.interp(min(v, 0.40), vs_ok, uc_ok), v, np.interp(v, sec["vs"], sec["wcs"])])
+            r = np.arange(0.0, 0.14, 0.0005)
+            P = c + r[:, None] * d[k]
+            hit = sdf(P) > -(GAITER_IN + off)
+            j = np.argmax(hit) if hit.any() else len(r) - 1
+            out.append(P[max(j - 1, 0)])
+        return np.array(out)
+
+    base = ring(np.full(na, v0), 0.0)
+    vtop = np.interp(base[:, 0], TOP_U, GAITER_TOP)
+    rings_o, rings_i = [], []
+    for t in np.linspace(0, 1, nt):
+        vv = v0 + t * (vtop - v0)
+        rings_o.append(ring(vv, 0.0))
+        rings_i.append(ring(vv, GAITER_T))
+    roll = 0.5 * (rings_o[-1] + rings_i[-1]) + [0, 0.0015, 0]
+    m = G.Mesh()
+    G.grid(m, rings_o, "boot_gaiter")
+    G.grid(m, [rings_o[-1], roll, rings_i[-1]], "boot_gaiter")
+    G.grid(m, rings_i[::-1], "boot_lining")
+    return m
+
+
+# ---------------------------------------------------------------- component 2: plates, buckles, straps, spine
+# Positions read on grid crops of photo 02 (pixels; the boot frame through Side(P02)).
+SLIDELOCK_PLATE = [(688, 305), (780, 285), (850, 330), (852, 470), (790, 520), (700, 470)]
+SHIN_PLATE = [(850, 345), (960, 330), (1050, 380), (1085, 470), (1080, 640), (1040, 720), (960, 760), (880, 730),
+              (845, 640), (845, 450)]
+# buckles: (bail centre, lever's front end, keeper) in photo 02 pixels, top to bottom
+BUCKLES = [((575, 592), (762, 598), (885, 592)),
+           ((572, 905), (782, 908), (918, 905)),
+           ((620, 1215), (805, 1158), (975, 1105)),
+           ((875, 1460), (1005, 1335), (1060, 1280))]
+PLATE_T = 0.0028        # TPU overlay plates 2.8 mm (EST, photo 08's plate edges)
+
+
+def surface_point(build, u, v, side=+1, off=0.0):
+    """The shell's outer surface point at (u, v) on its outer (side +1) or inner (-1) face, off metres out of it,
+    and the surface normal there (boot frame)."""
+    sdf = build.sdf
+    w = np.linspace(0.12 * side, -0.02 * side, 281)
+    P = np.stack([np.full_like(w, u), np.full_like(w, v), w], 1)
+    hit = sdf(P) < 0
+    j = np.argmax(hit) if hit.any() else len(w) - 1
+    p = sdf.project(P[max(j - 1, 0)], off)[0]
+    return p, sdf.grad(p)[0]
+
+
+def photo_plate(build, poly_px, side, mat, t=PLATE_T, step=0.003, view="out"):
+    """A plate laid on the shell from 0 to t out of it over a polygon traced in photo 02 (side +1) or 03 (-1),
+    UV-mapped with that view's paint so the photo's graphics sit on it."""
+    P = P02 if side > 0 else P03
+    sd = Side(P, build.fit.L)
+    uv = np.array([sd.uv(x, y) for x, y in poly_px])
+    loop = G.smooth_poly(G.resample(uv, 0.002), 2)
+
+    def to3d(u, v, tt):
+        p, n = surface_point(build, u, v, side)
+        return tuple(p + n * (tt + t / 2 + 0.0002))
+
+    m = G.plate2d(loop, [], t, mat, to3d, step=step, rings=(0.0012,))
+    V = np.asarray(m.V)
+    for i, f in enumerate(m.F):
+        m.uv[i] = [tuple(x) for x in proj_uv(view, V[list(f)], build.fit.L, build.fit.H)]
+    return m
+
+
+def buckle(build, bail_px, front_px, keeper_px, side_tag):
+    """One forged aluminium buckle on its white base plate, its wire bail, the white strap to the keeper loop
+    (photos 02, 08, 09): the lever 13 mm wide (02: 45 px) and 5.4 mm thick, raised at its hinge, the bail 21 x 30
+    mm of 3.6 mm wire, the strap 20 mm wide."""
+    sd = Side(P02, build.fit.L)
+    a = np.array(sd.uv(*bail_px))
+    b = np.array(sd.uv(*front_px))
+    k = np.array(sd.uv(*keeper_px))
+    m = G.Mesh()
+    e1 = (b - a) / np.linalg.norm(b - a)
+    e2 = np.array([-e1[1], e1[0]])
+    # base plate under the lever
+    plate = np.array([a - 0.006 * e1 - 0.014 * e2, b + 0.004 * e1 - 0.011 * e2, b + 0.004 * e1 + 0.011 * e2,
+                      a - 0.006 * e1 + 0.014 * e2])
+    px = [sd.px(*p) for p in plate]
+    m.add(photo_plate(build, [(float(x), float(y)) for x, y in px], +1, "boot_out_X", t=0.0025, step=0.004))
+    # lever: a bar along a-b, raised 6.5 mm at the hinge end, 3.5 at the front, its top domed
+    n_l = 14
+    s = np.linspace(0, 1, n_l)
+    rings = []
+    for si in s:
+        c2 = a + 0.008 * e1 + si * (b - a - 0.008 * e1)
+        p, n = surface_point(build, *c2)
+        h = 0.0065 - 0.003 * si
+        e2_3 = np.array([0, e2[1], 0]) + np.array([e2[0], 0, 0])
+        e2_3 = e2_3 - n * np.dot(e2_3, n)
+        e2_3 /= np.linalg.norm(e2_3)
+        sec = [(-0.0065, 0.0), (-0.0065, 0.0026), (-0.0048, 0.0046), (0.0, 0.0054), (0.0048, 0.0046),
+               (0.0065, 0.0026), (0.0065, 0.0)]
+        rings.append(np.array([p + n * (h - 0.004 + z) + e2_3 * x for x, z in sec]))
+    G.grid(m, rings, "boot_alu", closed_u=True, cap0=True, cap1=True)
+    # bail: a wire loop (3 mm) round the hinge end
+    pa, na_ = surface_point(build, *a)
+    loop = []
+    for th in np.linspace(0, 2 * np.pi, 20, endpoint=False):
+        q = a + 0.0105 * np.cos(th) * e1 + 0.0150 * np.sin(th) * e2
+        p, n = surface_point(build, *q)
+        loop.append(p + n * 0.0035)
+    loop = np.array(loop + [loop[0]])
+    m.add(G.tube(loop, 0.0018, 8, "boot_alu", cap0=False, cap1=False))
+    # strap from the lever's front to the keeper, 20 mm wide, 2 mm thick, on the shell
+    pts = [b + f * (k - b) for f in np.linspace(0, 1, 10)]
+    rings = []
+    for q in pts:
+        p, n = surface_point(build, *q)
+        d = (k - b) / np.linalg.norm(k - b)
+        e = np.array([-d[1], d[0]])
+        e3 = np.array([e[0], e[1], 0.0])
+        e3 = e3 - n * np.dot(e3, n)
+        e3 /= np.linalg.norm(e3)
+        rings.append(np.array([p + n * (z + 0.0006) + e3 * x for x, z in
+                               [(-0.010, 0), (-0.010, 0.002), (0.010, 0.002), (0.010, 0)]]))
+    G.grid(m, rings, "boot_white", closed_u=True, cap0=True, cap1=True)
+    # keeper: a white loop round the strap
+    p, n = surface_point(build, *k)
+    kk = []
+    for x, z in [(-0.013, 0), (-0.013, 0.0055), (0.013, 0.0055), (0.013, 0)]:
+        e3 = np.array([-((k - b) / np.linalg.norm(k - b))[1], ((k - b) / np.linalg.norm(k - b))[0], 0.0])
+        e3 = e3 - n * np.dot(e3, n)
+        e3 /= np.linalg.norm(e3)
+        kk.append(p + n * z + e3 * x)
+    kk = np.array(kk)
+    t3 = np.cross(n, e3)
+    m.add(G.tube(np.array([kk.mean(0) - 0.004 * t3, kk.mean(0) + 0.004 * t3]),
+                 np.array([[0.0145, 0.004]] * 2), 12, "boot_white"))
+    return m
+
+
+def build_spine(build):
+    """The rear spine: the black torsion blade limiter, a tapered wedge standing out of the back of the shaft from
+    above the heel (v 125 mm) to the calf (v 265 mm), 38 mm wide at its foot, 14 mm at its top, standing 16 to 6
+    mm out (photos 02, 05, 11)."""
+    m = G.Mesh()
+    rings = []
+    for v in np.linspace(0.125, 0.265, 12):
+        t = (v - 0.125) / 0.14
+        hw = 0.019 - 0.012 * t
+        out = 0.016 - 0.010 * t
+        i = int(round(v / GRID))
+        wc = float(np.interp(v, build.sec["vs"], build.sec["wcs"]))
+        # the back of the shell at this height along the centre line
+        u = np.linspace(-0.04, 0.10, 281)
+        Pp = np.stack([u, np.full_like(u, v), np.full_like(u, wc)], 1)
+        hit = build.sdf(Pp) < 0
+        u0 = u[np.argmax(hit)]
+        ring = []
+        for x, z in [(-hw, 0.002), (-hw * 0.7, -out * 0.7), (0, -out), (hw * 0.7, -out * 0.7), (hw, 0.002)]:
+            ring.append([u0 + z, v, wc + x])
+        rings.append(np.array(ring))
+    G.grid(m, rings, "boot_rubber", closed_u=True, cap0=True, cap1=True)
+    return m
+
+
 # ---------------------------------------------------------------- materials (sRGB starting values from the photos)
 MATERIALS = {
     "boot_white": {"rgb": [236, 239, 242], "rough": 0.38, "coat": 0.15},     # TPU shell, cool white (01, 02)
-    "boot_sole": {"rgb": [30, 30, 32], "rough": 0.78},                       # outsole rubber (02, 06)
+    "boot_gaiter": {"rgb": [24, 24, 26], "rough": 0.9, "sheen": 0.5},        # black PA stretch gaiter (12)
+    "boot_lining": {"rgb": [168, 22, 32], "rough": 0.85, "sheen": 0.5},      # its red lining (12)
+    "boot_sole": {"rgb": [33, 32, 31], "rough": 0.8},                        # outsole rubber, dusty (02; his 07)
     "boot_tread_R": {"image": "boot_tread_R.png", "normal": "boot_tread_R_n.png", "rough": 0.82},
     "boot_tread_L": {"image": "boot_tread_L.png", "normal": "boot_tread_L_n.png", "rough": 0.82},
-    "boot_welt": {"rgb": [226, 227, 224], "rough": 0.55},                    # white welt (10)
-    "boot_stitch": {"rgb": [236, 234, 226], "rough": 0.85, "sheen": 0.4},    # thick white welt cord (10)
-    "boot_cap": {"rgb": [205, 206, 210], "rough": 0.28, "metal": 1.0},       # Zamak toe cap (07)
+    "boot_welt": {"rgb": [206, 200, 189], "rough": 0.6},                     # white welt, grimy (10; his 07, 08)
+    "boot_stitch": {"rgb": [214, 207, 194], "rough": 0.85, "sheen": 0.4},    # thick white welt cord, dusty (10)
+    "boot_cap": {"rgb": [200, 200, 203], "rough": 0.38, "metal": 1.0},       # Zamak toe cap, scuffed (07; his 07)
     "boot_screw": {"rgb": [190, 190, 196], "rough": 0.3, "metal": 1.0},
+    "boot_alu": {"rgb": [196, 199, 204], "rough": 0.32, "metal": 1.0},       # forged aluminium buckles (08, 09)
+    "boot_rubber": {"rgb": [28, 28, 30], "rough": 0.7},                      # torsion blade, grip rubber (05, 11)
 }
+for _v in PROJ_VIEWS:                                                       # the shell, painted from the photos
+    for _s in ("R", "L"):
+        MATERIALS[f"boot_{_v}_{_s}"] = {"image": f"boot_{_v}_{_s}_worn.jpg", "normal": f"boot_{_v}_{_s}_n.png",
+                                       "normal_strength": 0.6, "rough": 0.42, "coat": 0.1}
 
 
 # ---------------------------------------------------------------- assembly
@@ -939,11 +1227,31 @@ class Build:
 
     def build(self):
         L = self.fit.L
-        self.parts["shell"] = self.shell()
+        self.parts["shell"] = {s: paint_shell(self.shell(), L, self.fit.H, s) for s in ("R", "L")}
+        self.parts["gaiter"] = build_gaiter(self)
+        plates = photo_plate(self, SLIDELOCK_PLATE, +1, "boot_out_X")
+        plates.add(photo_plate(self, SHIN_PLATE, +1, "boot_out_X"))
+        self.parts["plates"] = sided(plates)
+        bk = G.Mesh()
+        for bb in BUCKLES:
+            bk.add(buckle(self, *bb, "X"))
+        self.parts["buckles"] = sided(bk)
+        self.parts["spine"] = build_spine(self)
         self.parts["sole"] = {"R": build_sole(L, "R"), "L": build_sole(L, "L")}
         self.parts["welt"] = build_welt(L)
         self.parts["toecap"] = build_toecap(L, self.sdf)
         return self
+
+
+def sided(m):
+    """Right and left copies of a part whose painted faces use the per-side material boot_<view>_X."""
+    out = {}
+    for s in ("R", "L"):
+        c = G.Mesh()
+        c.V, c.F, c.uv = list(m.V), list(m.F), dict(m.uv)
+        c.M = [x.replace("_X", "_" + s) if x.endswith("_X") else x for x in m.M]
+        out[s] = c
+    return out
 
 
 def mesh_arrays(m):
@@ -1004,6 +1312,7 @@ def assemble(build, out_npz):
             out[pn + "__ww"] = np.concatenate([ws[keep_s], 1 - ws[keep_f]])
             if name == "sole":
                 out[pn + "__smooth"] = np.array(0)                  # moulded rubber: flat facets, crisp lugs
+    out["hide_body"] = covered_skin(build)
     out["names"] = np.array(out["names"])
     out["mats"] = np.array(out["mats"])
     out["materials"] = json.dumps(MATERIALS)
@@ -1039,9 +1348,140 @@ def skin_clearance(build, vmax=None):
     return idx, Q, depth
 
 
+# ---------------------------------------------------------------- component 4: articulation, covered skin, wear
+def _rot_x(p, c, a):
+    """Points p rotated by a about the axis through c along MB x (his knee and ankle hinge axes)."""
+    d = p - c
+    ca, sa = np.cos(a), np.sin(a)
+    return np.stack([d[:, 0], d[:, 1] * ca - d[:, 2] * sa, d[:, 1] * sa + d[:, 2] * ca], 1) + c
+
+
+def leg_pose(P, w_shank, w_foot, knee, ankle, k_deg, a_deg):
+    """Linear blend skinning of MB points P for a sagittal pose of one leg: the shank bones turned k_deg about the
+    knee (flexion +), the foot a further a_deg about the moved ankle (plantar flexion +, dorsiflexion -)."""
+    k, a = np.radians(k_deg), np.radians(a_deg)
+    shank = _rot_x(P, knee, k)
+    ankle_p = _rot_x(ankle[None], knee, k)[0]
+    foot = _rot_x(shank, ankle_p, a)
+    rest = 1 - w_shank - w_foot
+    return rest[:, None] * P + w_shank[:, None] * shank + w_foot[:, None] * foot
+
+
+def body_leg_weights(body, side="R"):
+    """Per body vertex: weight on his shank bones (lowerleg01/02) and on his foot bones (foot, toes)."""
+    names = [str(b) for b in body["bones"]]
+    n = len(body["V"])
+    ws, wf = np.zeros(n), np.zeros(n)
+    for bi, nm in enumerate(names):
+        if not nm.endswith("." + side):
+            continue
+        sel = body["w_bone"] == bi
+        if nm.startswith("lowerleg"):
+            np.add.at(ws, body["w_vert"][sel], body["w_val"][sel])
+        elif nm.startswith("foot") or nm.startswith("toe"):
+            np.add.at(wf, body["w_vert"][sel], body["w_val"][sel])
+    return ws, wf
+
+
+def posed_clearance(build, k_deg, a_deg):
+    """Depth of his right leg's covered skin inside the boot with the knee flexed k_deg and the ankle a_deg
+    (plantar +): skin and boot both skinned (the skin with MakeHuman's weights, the boot with its own), each
+    posed skin point taken back through the boot's deformation (fixed point) and measured in the shell's field."""
+    fit, body = build.fit, build.fit.body
+    names = [str(b) for b in body["bones"]]
+    knee = np.asarray(body["heads"][names.index("lowerleg01.R")])
+    ankle = np.asarray(body["heads"][names.index("foot.R")])
+    idx, Q, _ = skin_clearance(build)
+    ws_b, wf_b = body_leg_weights(body)
+    S = body["V"][idx]
+    S1 = leg_pose(S, ws_b[idx], wf_b[idx], knee, ankle, k_deg, a_deg)
+
+    # the boot's deformation at a point is the affine blend A x + b of its two bones' motions: invert it per point,
+    # re-evaluating the boot's weights at the estimate
+    k, a = np.radians(k_deg), np.radians(a_deg)
+    Rx = lambda t: np.array([[1, 0, 0], [0, np.cos(t), -np.sin(t)], [0, np.sin(t), np.cos(t)]])
+    Rk, Ra = Rx(k), Rx(a)
+    ankle_p = Rk @ (ankle - knee) + knee
+    b_sh = knee - Rk @ knee
+    A_ft = Ra @ Rk
+    b_ft = Ra @ (b_sh - ankle_p) + ankle_p
+    x = S1.copy()
+    for _ in range(6):
+        _, _, wsh = weights(fit, fit.to_boot(x), names)
+        A = wsh[:, None, None] * Rk + (1 - wsh)[:, None, None] * A_ft
+        bb = wsh[:, None] * b_sh + (1 - wsh)[:, None] * b_ft
+        x = np.einsum("nij,nj->ni", np.linalg.inv(A), S1 - bb)
+    p = fit.to_boot(x)
+    depth = -build.sdf(p)
+    low = p[:, 1] < welt_top(p[:, 0])
+    if low.any():
+        from scipy.spatial import cKDTree
+        loop = sole_loop(fit.L, 0.001)
+        d = cKDTree(loop).query(p[low][:, [0, 2]])[0]
+        depth[low] = np.maximum(depth[low], np.where(G.inside(loop, p[low][:, [0, 2]]), d, -d))
+    return depth
+
+
+def covered_skin(build, margin=0.006):
+    """Body vertex ids the boots hide completely (both legs): inside the boot's outline volume up to the gaiter's
+    top, at least `margin` under that top and inside the surface (MakeHuman's body is left-right symmetric)."""
+    fit = build.fit
+    V = fit.body["V"]
+    f, o = shell_field(build.sec, top="gaiter")
+    sdf = ShellSDF(f, o, H_VOX)
+    out = []
+    for sgn in (1, -1):
+        idx = np.nonzero(V[:, 0] * sgn < -0.06)[0]
+        Pm = V[idx] * [sgn, 1, 1]
+        Q = fit.to_boot(Pm)
+        lo, hi = o, o + (np.array(f.shape) - 1) * H_VOX
+        ok = (Q >= lo).all(1) & (Q <= hi).all(1)
+        top = np.interp(Q[:, 0], TOP_U, GAITER_TOP) - margin
+        ok &= Q[:, 1] < top
+        ins = np.zeros(len(Q), bool)
+        ins[ok] = sdf(Q[ok]) < -0.0005
+        ins |= ok & (Q[:, 1] < welt_top(Q[:, 0]) + 0.01)
+        out.append(idx[ins])
+    return np.concatenate(out)
+
+
+# wear: scuffs and dirt on the sole's edge and the toe (his photos 2026-11-10/05, 2026-11-12/07 and 08: grey-brown
+# grime along the welt and the sole's side, scuffed toe and toe cap, the white shell dusty low down)
+DIRT = np.array([120, 104, 86], float)       # dry dusty soil, the grime colour on his welt in 07 (sRGB)
+
+
+def write_wear(out_dir):
+    """Dirt layers painted into the shell's textures low down (fading up 60 mm from the welt) and on the welt
+    texture, by a fixed-seed noise: the clean Leatt paint is kept in boot_<view>_<side>.jpg, the worn one in
+    boot_<view>_<side>_worn.jpg."""
+    rng = np.random.default_rng(65)
+    for view, (photo, (x0, y0, x1, y1)) in PROJ_VIEWS.items():
+        for side in ("R", "L"):
+            f = os.path.join(out_dir, f"boot_{view}_{side}.jpg")
+            A = np.asarray(Image.open(f).convert("RGB")).astype(float)
+            h, w = A.shape[:2]
+            # height above the ground of each texel (rows: the crop's bottom is near the ground line)
+            gy = P02["ground_y"] if view != "back" else P05["ground_y"]
+            s = Side(P02, 0.33).s if view != "back" else 0.4247 / (P05["ground_y"] - P05["top_y"])
+            rows = y0 + np.arange(h) / h * (y1 - y0)
+            v = (gy - rows) * s
+            low = np.clip(1 - (v - 0.028) / 0.06, 0, 1)[:, None]
+            n1 = ndi.gaussian_filter(rng.random((h, w)), 6)
+            n2 = ndi.gaussian_filter(rng.random((h, w)), 1.5)
+            n1 = (n1 - n1.min()) / (np.ptp(n1) + 1e-9)
+            n2 = (n2 - n2.min()) / (np.ptp(n2) + 1e-9)
+            amt = np.clip(low * (0.25 + 0.6 * n1) * (0.6 + 0.4 * n2), 0, 0.75)[..., None]
+            white = (A.mean(2) > 150)[..., None]
+            B_ = A * (1 - amt * white) + DIRT * amt * white
+            Image.fromarray(B_.astype(np.uint8)).save(os.path.join(out_dir, f"boot_{view}_{side}_worn.jpg"),
+                                                      quality=92)
+
+
 def main(body_path, out_npz):
     body = dict(np.load(body_path))
     write_tread_textures(TEXDIR)
+    write_shell_textures(TEXDIR)
+    write_wear(TEXDIR)
     b = Build(body).build()
     out = assemble(b, out_npz)
     nv = sum(len(out[n + "__V"]) for n in out["names"])

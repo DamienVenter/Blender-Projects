@@ -46,7 +46,7 @@ def test_boot_height_from_photo_02(build):
     """Ground line to the gaiter's top in photo 02 at its scale: 425 mm; the white shell's top 360 to 409 mm."""
     assert abs(build.fit.H - 0.4247) < 0.002
     P = B.ShellSDF(build.field, build.origin, B.H_VOX)
-    sh = build.parts["shell"]
+    sh = build.parts["shell"]["R"]
     V = np.asarray(sh.V)
     assert 0.400 < V[:, 1].max() < 0.412
     assert P is not None
@@ -58,7 +58,7 @@ def test_shell_follows_photo_02_outline(build):
     90 % under 12 mm, all under 22 mm (the blade at v 220 to 250 mm, 21 mm)."""
     us, vs, M = B.side_mask(build.fit.L)
     ub, uf = B.row_edges(us, M)
-    V = np.asarray(build.parts["shell"].V)
+    V = np.asarray(build.parts["shell"]["R"].V)
     gaps = []
     for v in np.arange(0.06, 0.36, 0.005):
         if B.HEEL_BAND[0] <= v <= B.HEEL_BAND[1]:
@@ -113,3 +113,21 @@ def test_left_boot_is_the_right_mirrored(gear):
     for n in [str(x) for x in gear["names"] if str(x).startswith("bootR_") and str(x) != "bootR_sole"]:
         R, L = gear[n + "__V"], gear[n.replace("bootR_", "bootL_") + "__V"]
         assert np.allclose(L, R * [-1, 1, 1], atol=1e-9)
+
+
+@pytest.mark.parametrize("knee,ankle", [(0, -15), (0, 20), (60, 0), (60, -15), (60, 20)])
+def test_skin_inside_the_boot_posed(build, knee, ankle):
+    """Riding: knee flexed 60 deg, the ankle 15 deg up (dorsiflexion) and 20 deg down; skin (MakeHuman's weights)
+    and boot (shaft on lowerleg02, foot shell on foot, blended over the Dual Axis hinge) skinned alike: no skin
+    through the boot."""
+    depth = B.posed_clearance(build, knee, ankle)
+    assert depth.min() > 0.0005
+
+
+def test_hidden_skin_is_covered(gear, body):
+    """The skin build_rider hides (hide_body) is the feet and lower calves inside both boots, nothing else."""
+    h = gear["hide_body"]
+    V = body["V"][h]
+    assert 1500 < len(h) < 4000
+    assert V[:, 2].max() < 0.40 and (np.abs(V[:, 0]) > 0.06).all()
+    assert (V[:, 0] > 0).sum() == (V[:, 0] < 0).sum()
