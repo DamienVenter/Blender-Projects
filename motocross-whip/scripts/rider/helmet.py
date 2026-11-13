@@ -591,12 +591,15 @@ def build(body):
         Vt, Ft, Nt, UVt = visor.top
         info["paint"] = paint_atlas([(Vo, Fo, normals(Vo, Fo), uv_o), (Vt, Ft, Nt, UVt)],
                                     os.path.join(TEXDIR, "helmet_pinata.png"))
+        import goggle as G                            # the projection doubles the brow badge: repaint it
+        G.paint_brow_badge(os.path.join(TEXDIR, "helmet_pinata.png"))
     for P in parts:                                   # faces without art: any UV (their materials have no image)
         P.UV = [u if u is not None else [(0.0, 0.0)] * len(f) for u, f in zip(P.UV, P.F)]
     for P in parts:
         P.V = P.V @ R.T + tr
     info.update(shell_thickness_mm=[round(float(thick.min()) * 1000, 1), round(float(thick.max()) * 1000, 1)])
-    gparts, ginfo = build_goggle(body, (R, tr), prof)
+    import goggle as G                                # the goggle and his eyes (goggle.py)
+    gparts, ginfo = G.build_goggle(body, (R, tr), prof)
     info.update(ginfo)
     return parts + gparts, info, (R, tr)
 
@@ -776,14 +779,7 @@ def paint_atlas(surfaces, out_path):
     return dict(texels=int(len(P)), seen=float(has.mean()), mirrored=float((~has & has_m).mean()))
 
 
-# ---------------------------------------------------------------- goggle: Leatt Velocity 5.5 Iriz, Pinata Teal
-G_HALF_W = 0.094                   # m, frame half width (fills the port at eye height, outriggers just outside it)
-G_TOP, G_BOT = 0.035, -0.057       # m, frame top and bottom at the sides, from his eye centres (94 mm: MY27 side
-                                   # view with the goggle on, 386 px x 0.241 mm/px = 93 mm; fills the port as in 09)
-G_NOSE, G_NOSE_W = 0.030, 0.042   # m, the nose cut-out: rise of the bottom edge at the centre, half width
-G_RIM = (0.008, 0.009, 0.010)      # m, frame rim width at the top, sides and bottom (Leatt goggle iso)
-G_DEPTH, G_FOAM = 0.020, 0.014     # m, frame depth behind the lens; triple-layer face foam (compressed)
-G_PLAN = (0.115, 0.075)            # m, lens plan: ellipse half axes (170 deg WideVision wrap, 36 mm back at the ends)
+# ---------------------------------------------------------------- goggle strap (the goggle itself: goggle.py)
 STRAP_W, STRAP_T = 0.045, 0.002    # m, strap width (Leatt) and thickness
 # strap centre line on the shell, Royal_Left px: its front point from Leatt's MY27 side view (goggle on) mapped
 # through the registration; it runs back 5 deg down in the helmet frame (13 deg up in his rest frame) as on his
@@ -832,159 +828,6 @@ def strap_texture(path, w=2048, h=160):
         for poly in polys:
             d.polygon([(start + px, h * 0.5 + ch / 2 - py) for px, py in poly], fill=(250, 250, 250))
     im.save(path)
-
-
-def outrigger_texture(path, w=256, h=512):
-    """Black outriggers with the vertical white LEATT, letter tops towards the frame on both sides (Pinata
-    iso-right: reads top to bottom on the right side). Left half of the image: the left outrigger (text turned
-    anticlockwise), right half: the right one (clockwise); front of each at the image's outer edge."""
-    from PIL import Image, ImageDraw
-    band = Image.new("RGB", (h, w), (16, 16, 18))
-    d = ImageDraw.Draw(band)
-    ch = 0.5 * w
-    polys, lw = logo_polys(0, 0, ch)
-    x0 = (h - lw) / 2
-    for poly in polys:
-        d.polygon([(x0 + px, w / 2 + ch / 2 - py) for px, py in poly], fill=(245, 245, 245))
-    im = Image.new("RGB", (2 * w, h))
-    im.paste(band.rotate(90, expand=True), (0, 0))
-    im.paste(band.rotate(-90, expand=True), (w, 0))
-    im.save(path)
-
-
-def goggle_outline(z_e, inset=(0.0, 0.0, 0.0), n=96):
-    """Front outline (x, z) of the frame, closed, starting at the top centre going towards +x. inset: (top, side,
-    bottom) in metres for the lens opening."""
-    it, isd, ib = inset
-    W = G_HALF_W - isd
-    out = []
-    for k in range(n):
-        th = 2 * np.pi * k / n
-        c, s_ = np.sin(th), np.cos(th)                    # x-ish, z-ish
-        x = W * np.sign(c) * abs(c) ** 0.35
-        top = z_e + G_TOP - it - 0.014 * (x / G_HALF_W) ** 2      # follows the port's brow edge
-        bot = z_e + G_BOT + ib
-        tt = abs(x) / G_NOSE_W
-        bot = bot + (G_NOSE + 0.6 * ib) * ((1 - tt * tt) ** 2 if tt < 1 else 0.0)
-        zc, zh = 0.5 * (top + bot), 0.5 * (top - bot)
-        z = zc + zh * np.sign(s_) * abs(s_) ** 0.35
-        out.append((x, z))
-    return np.array(out)
-
-
-def lens_y(x, y_c):
-    a, b = G_PLAN
-    return y_c + b * (1 - np.sqrt(np.clip(1 - (x / a) ** 2, 0, 1)))
-
-
-def ring_quads(rings, part, mat, closed=True):
-    m = len(rings[0])
-    ids = [part.add(r, [], mat) + np.arange(m) for r in rings]
-    for k in range(len(ids) - (0 if closed else 1)):
-        A_, B_ = ids[k], ids[(k + 1) % len(ids)]
-        for i in range(m):
-            j = (i + 1) % m
-            part.F.append([A_[i], A_[j], B_[j], B_[i]]); part.M.append(mat); part.UV.append(None)
-    return ids
-
-
-def build_goggle(body, Rt, prof):
-    """The goggle in the rest frame (MB): frame, double lens, face foam conforming to his face, outriggers,
-    bare tear-off posts, and the strap round the helmet's back."""
-    R, t = Rt
-    L = head_landmarks(body)
-    z_e = L["eye"][2]
-    skin = body["V"][head_skin(body, ("head",))]
-    front = skin[skin[:, 1] < L["eye"][1] + 0.02]
-    tree = cKDTree(front[:, [0, 2]])
-
-    def face_y(x, z):
-        out = []
-        for xi, zi in zip(np.atleast_1d(x), np.atleast_1d(z)):
-            nb = tree.query_ball_point([xi, zi], 0.008)
-            out.append(front[nb, 1].min() if nb else np.nan)
-        return np.array(out)
-
-    oo = goggle_outline(z_e)
-    ii = goggle_outline(z_e, G_RIM)
-    # foam back on his face, the frame's back the foam's depth in front of it, the lens the frame's depth in front
-    fy = face_y(oo[:, 0] * 0.97, oo[:, 1])
-    fy = np.where(np.isnan(fy), np.nanmax(fy), fy)
-    lens_back = np.min(fy - (G_FOAM + G_DEPTH) - (lens_y(oo[:, 0], 0.0)))
-    y_c = lens_back
-    gog = Part("goggle_frame")
-    yo, yi = lens_y(oo[:, 0], y_c), lens_y(ii[:, 0], y_c)
-    fr = [np.c_[oo[:, 0], yo - 0.002, oo[:, 1]], np.c_[ii[:, 0], yi - 0.002, ii[:, 1]],
-          np.c_[ii[:, 0], yi + G_DEPTH, ii[:, 1]], np.c_[oo[:, 0], yo + G_DEPTH, oo[:, 1]]]
-    ring_quads(fr, gog, "goggle_frame")
-    # face foam: frame back to his face, conforming
-    fo = goggle_outline(z_e, (-0.001, -0.001, -0.001))
-    fi = goggle_outline(z_e, tuple(r + 0.004 for r in G_RIM))
-    yb_o = np.maximum(face_y(fo[:, 0] * 0.97, fo[:, 1]), lens_y(fo[:, 0], y_c) + G_DEPTH + 0.004) - 0.001
-    yb_i = np.maximum(face_y(fi[:, 0] * 0.97, fi[:, 1]), lens_y(fi[:, 0], y_c) + G_DEPTH + 0.004) - 0.001
-    yb_o = np.where(np.isnan(yb_o), lens_y(fo[:, 0], y_c) + G_DEPTH + G_FOAM, yb_o)
-    yb_i = np.where(np.isnan(yb_i), lens_y(fi[:, 0], y_c) + G_DEPTH + G_FOAM, yb_i)
-    foam = Part("goggle_foam")
-    ring_quads([np.c_[fo[:, 0], lens_y(fo[:, 0], y_c) + G_DEPTH - 0.001, fo[:, 1]],
-                np.c_[fi[:, 0], lens_y(fi[:, 0], y_c) + G_DEPTH - 0.001, fi[:, 1]],
-                np.c_[fi[:, 0], yb_i, fi[:, 1]], np.c_[fo[:, 0], yb_o, fo[:, 1]]], foam, "goggle_foam")
-    # lens: two sheets 2 mm apart, 3 mm larger than the opening (edges in the frame's groove)
-    lo = goggle_outline(z_e, tuple(r - 0.003 for r in G_RIM), n=96)
-    from scipy.spatial import Delaunay as _D
-    gx, gz = np.meshgrid(np.linspace(lo[:, 0].min(), lo[:, 0].max(), 40), np.linspace(lo[:, 1].min(), lo[:, 1].max(), 14))
-    pts = np.vstack([lo, np.c_[gx.ravel(), gz.ravel()]])
-    o = Profile.__new__(Profile)
-    o.outline = lo
-    keep = np.r_[np.ones(len(lo), bool), Profile.inside(o, pts[len(lo):]) &
-                 (cKDTree(lo).query(pts[len(lo):])[0] > 0.003)]
-    pts = pts[keep]
-    T = _D(pts).simplices
-    T = T[Profile.inside(o, pts[T].mean(1))]
-    lens = Part("goggle_lens")
-    for dy, flip in ((0.0, False), (0.002, True)):
-        V = np.c_[pts[:, 0], lens_y(pts[:, 0], y_c) + 0.004 + dy, pts[:, 1]]
-        lens.add(V, T[:, ::-1] if not flip else T, "goggle_lens")
-    # outriggers (both sides) and bare tear-off posts
-    parts_ = [gog, foam, lens]
-    orig = Part("goggle_outriggers")
-    posts = Part("goggle_posts")
-    ends = {}
-    for sgn in (1, -1):
-        x0 = sgn * G_HALF_W
-        y0 = lens_y(G_HALF_W, y_c)
-        P0 = np.array([x0 - sgn * 0.004, y0 + 0.002, z_e - 0.002])
-        P1 = np.array([x0 + sgn * 0.010, y0 + 0.042, z_e - 0.002])
-        d = (P1 - P0) / np.linalg.norm(P1 - P0)
-        nrm = np.cross(d, [0, 0, 1.0]) * sgn
-        nrm /= np.linalg.norm(nrm)
-        box = []
-        for (u, hz, off) in ((0, 1, 0), (1, 1, 0), (1, -1, 0), (0, -1, 0), (0, 1, 1), (1, 1, 1), (1, -1, 1), (0, -1, 1)):
-            box.append(P0 + (P1 - P0) * u + np.array([0, 0, 0.025 * hz]) + nrm * (0.007 * off - 0.0035))
-        box = np.array(box)
-        quads = [[0, 1, 2, 3], [7, 6, 5, 4], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]]
-        if sgn < 0:
-            quads = [q[::-1] for q in quads]
-        uv = [None] * 6
-        outer = 1                                           # the face with offset +1 is the outer face
-        uvq = [(0, 1), (1, 1), (1, 0), (0, 0)]
-        uvs = [[(0.5, 0.5)] * 4 for _ in quads]
-        # outer face corners (front bottom, back bottom, back top, front top); image halves per side
-        if sgn > 0:
-            uvs[1] = [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]
-        else:
-            uvs[1] = [(1.0, 1.0), (0.5, 1.0), (0.5, 0.0), (1.0, 0.0)]     # front top, back top, back bottom, front bottom
-        orig.add(box, quads, "goggle_outrigger", uvs)
-        ends[sgn] = P1 + nrm * 0.0035
-        c = np.array([sgn * 0.083, lens_y(0.083, y_c) - 0.003, z_e + 0.006])
-        cyl = []
-        for k in range(10):
-            a_ = 2 * np.pi * k / 10
-            cyl.append(c + np.array([0.0025 * np.cos(a_), 0, 0.0025 * np.sin(a_)]))
-        cyl = np.array(cyl)
-        ring_quads([cyl, cyl + [0, -0.004, 0]], posts, "goggle_post")
-    parts_ += [orig, posts]
-    parts_.append(build_strap(Rt, prof, ends))
-    return parts_, dict(lens_centre_ahead_of_eye_mm=round(float(L["eye"][1] - y_c) * 1000, 1))
 
 
 def build_strap(Rt, prof, ends, n=160):
@@ -1075,21 +918,17 @@ MATERIALS = {
     "helmet_trim": dict(rgb=[18, 18, 20], rough=0.65),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
-    "goggle_frame": dict(rgb=[196, 28, 78], rough=0.35, coat=0.3),         # raspberry pink (his photos 07, 09)
-    "goggle_foam": dict(rgb=[46, 46, 50], rough=0.95, sheen=0.6),
-    "goggle_lens": dict(rgb=[214, 190, 226], rough=0.02, transmission=1.0,  # Iriz Purple, 78 % VLT
-                        thin_film=dict(thickness_nm=520, ior=1.6)),         # the Iriz mirror's colour shift
-    "goggle_post": dict(rgb=[22, 22, 24], rough=0.4),
-    "goggle_outrigger": dict(rough=0.45, image="goggle_outrigger.png"),
     "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),
     "goggle_strap_in": dict(rgb=[24, 24, 26], rough=0.8),
 }
 
 
 def write_npz(path, parts, extra=None):
+    import goggle as G
+    allm = {**MATERIALS, **G.MATERIALS}
     mats = sorted({m for P in parts for m in P.M})
     out = dict(names=np.array([P.name for P in parts]), mats=np.array(mats),
-               materials=json.dumps({m: MATERIALS[m] for m in mats}))
+               materials=json.dumps({m: allm[m] for m in mats}))
     for P in parts:
         FS = np.array([len(f) for f in P.F])
         out[P.name + "__V"] = P.V.astype(np.float64)
@@ -1108,8 +947,11 @@ if __name__ == "__main__":
     body = np.load(sys.argv[1])
     PAINT = "--paint" in sys.argv
     os.makedirs(TEXDIR, exist_ok=True)
+    import goggle as G
     strap_texture(os.path.join(TEXDIR, "goggle_strap.png"))
-    outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
+    G.outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
+    G.eye_texture(os.path.join(TEXDIR, "goggle_eyes_brown.png"))
     parts, info, Rt = build(body)
+    info["badge"] = G.paint_brow_badge(os.path.join(TEXDIR, "helmet_pinata.png"))      # one LEATT on the brow
     write_npz(sys.argv[2], parts, extras(body, parts, Rt))
     print(json.dumps(info), sum(len(P.V) for P in parts), "vertices")

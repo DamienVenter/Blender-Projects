@@ -70,15 +70,6 @@ no skin inside the shell at rest and with the head pitched down 20 deg).
 | Finding | the big white LEATT on the iridescent band behind the eyeport (Leatt iso-right, his 07 and 09) is the **goggle strap's** print; the helmet's side there carries the iridescent field and white chevrons (Leatt iso-left, no goggle) | photos |
 | Limits | studio reflections are baked into the art; the chin front reads too dark (the model's chin is blunter than the real one, so the black vent grille spreads); small print is 5 texels high | review sheets |
 
-## 4. Goggle: Velocity 5.5 Iriz, Pinata Teal frame, Purple 78 %
-| Number | Value | Source |
-|---|---|---|
-| Frame outer | 188 x 92 mm (half width 94, top 35 above the eye centres, bottom 57 below), rim 8 / 9 / 10 mm, nose cut 30 mm high, 84 mm wide | height: MY27 side view with the goggle on (386 px x 0.241 mm/px = 93 mm); width: fits the port at eye height; rims and nose: Leatt goggle iso (EST) |
-| Lens | double sheet 2 mm, elliptical plan 115 / 75 mm half axes (170 deg wrap, ends 36 mm back), centre 74 mm ahead of his eye centres | Leatt features (WideVision 170 deg), EST |
-| Frame depth, face foam | 20 mm, 14 mm (foam's back on his face, conforming) | EST (triple-layer foam) |
-| Outriggers | 46 mm long, 50 mm tall, 7 mm thick, black, white vertical LEATT, letter tops to the frame (reads top to bottom on the right) | Leatt goggle iso, Pinata iso-right |
-| Tear-off posts | bare, 5 mm, 83 mm off centre | Leatt features; decision 7 (no tear-offs) |
-| Strap | 45 mm, 2 mm, 4 mm off the shell, front point from the MY27 side view, running back 5 deg down in the helmet frame as in his photo 07 (Leatt's product shot: 7 deg up); print: orange-yellow at the goggle, magenta, purple, teal round the back, white LEATT each side reading from outside | Leatt features (45 mm), MY27 view, his 07, Leatt goggle iso |
-| Frame colour | sRGB 196, 28, 78 raspberry | his photos 07, 09 (Leatt's render is hot pink) |
-| Lens material | transmissive, light purple; Iriz mirror wants a thin film (520 nm, IOR 1.6) that build_rider does not read yet | Leatt 78 % VLT |
-| Contacts with the shell | frame 8, face foam 48, outriggers 2, strap 18, visor 45 vertices inside the shell solid (pads and trim pressed, visor seated): lens none | winding numbers, not yet driven to zero |
+## 4. Goggle
+Rebuilt on 2026-11-13 (round 2): `scripts/rider/goggle.py`, ledger `goggle.md` (frame, purple mirror lens, his eyes,
+and the brow badge, which the projection had doubled and is now repainted by script).

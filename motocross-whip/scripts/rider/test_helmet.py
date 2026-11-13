@@ -156,7 +156,7 @@ def test_npz_loads_for_build_rider(built):
     mats = json.loads(str(g["materials"]))
     for name in g["names"]:
         name = str(name)
-        assert str(g[name + "__bone"]) == "head"
+        assert str(g[name + "__bone"]) in ("head", "eye.L", "eye.R")        # his eyes ride their eye bones
         FS, F, M = g[name + "__FS"], g[name + "__F"], g[name + "__M"]
         assert FS.sum() == len(F) and len(M) == len(FS) and F.max() < len(g[name + "__V"])
         if name + "__UV" in g:
@@ -167,7 +167,7 @@ def test_npz_loads_for_build_rider(built):
 
 def test_goggle_in_the_port_on_his_eyes(body, built):
     """Lens ahead of both eyes, nothing of the lens inside the shell; the strap 45 mm wide (Leatt); the frame
-    raspberry (his photos, not Leatt's hot pink render)."""
+    raspberry (his photos, not Leatt's hot pink render). More in test_goggle.py."""
     P = built["parts"]
     L = H.head_landmarks(body)
     lens = P["goggle_lens"].V
@@ -175,15 +175,16 @@ def test_goggle_in_the_port_on_his_eyes(body, built):
         e = L["eye"] + [sgn * 0.031, 0, 0]
         near = lens[np.abs(lens[:, 0] - e[0]) < 0.004]
         assert near[:, 2].min() < e[2] < near[:, 2].max()            # the eye's height is inside the lens
-        assert 0.05 < e[1] - near[:, 1].max() < 0.09                 # lens 50 to 90 mm ahead of the eye centre
+        assert 0.035 < e[1] - near[:, 1].max() < 0.09                # lens back 35 to 90 mm ahead of the eye centre
     sh = P["helmet_shell"]
     assert (winding(lens, sh.V, tris(sh)) < 0.5).all()
     st = P["goggle_strap"]
     n = len(st.V) // 4
     w = np.linalg.norm(st.V[n:2 * n] - st.V[:n], axis=1)
     assert np.allclose(np.median(w), H.STRAP_W, atol=0.002)
-    r, g, b = H.MATERIALS["goggle_frame"]["rgb"]
-    assert r > 150 and g < 60 and b < 110
+    import goggle as G
+    r, g, b = G.MATERIALS["goggle_frame"]["rgb"]
+    assert r > 120 and g < 60 and b < 110
 
 
 def test_textures_present():
