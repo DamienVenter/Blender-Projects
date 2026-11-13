@@ -74,6 +74,18 @@ Product pages: https://us.leatt.com/products/goggle-velocity-5-5-iriz-my27, http
 |---|---|---|
 | `goggle-velocity55-iriz_pinatateal-purple78_iso_leatt-us_8026000150_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/39281_Leatt_Moto_Goggle_Velocity_5.5_Iriz_ISO_Pinata_Teal_Purple_8026000150.jpg |
 | `lens-velocity-iriz_purple78_leatt-us_8019100070_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/42928_Leatt_Lens_Iriz_Purple78_8019100070.jpg |
+| `goggle-velocity55_exploded-view-frame-lens-noseguard_leatt-us_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Goggles_5.5_Exploded_View.jpg (product goggle-velocity-5-5-iriz-sale) |
+| `goggle-velocity55-iriz_forge_back-strap-foam_leatt-us_8024070250_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Goggle_5.5Iriz_Forge_Back_8024070250.png (PNG composited on the studio grey 236) |
+| `velocity55-on-helmet85-kit-my27_bluered_1-front-iso-left_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_1_1027000180.jpg |
+| `velocity55-on-helmet85-kit-my27_bluered_2-left-side_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_2_1027000180.jpg |
+| `velocity55-on-helmet85-kit-my27_bluered_3-right-side_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_3_1027000180.jpg |
+| `velocity55-on-helmet85-kit-my27_bluered_4-back_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_4_1027000180.jpg |
+
+The Velocity 5.5 frame is the same in every colourway (Leatt US handles goggle-velocity-5-5-*: 70 images, all the
+same five angles: ISO, Front (the ISO angle), Back, Exploded, lens). Leatt publishes no front, top or side view of
+the goggle alone, and no dimensions but the 45 mm strap and the 48 mm Roll-Off film; the MY27 Moto 8.5 kit
+(product moto-8-5-helmet-kit, "Velocity 5.5 goggles are included") shows the goggle on the helmet from four sides:
+those are the measured views (cameras fitted to the helmet shell, `scripts/rider/goggle.py`).
 
 ## Gloves: Leatt Moto 2.5 X-Flow (Black, and Purple for photo 05)
 
