@@ -69,16 +69,16 @@ costs nothing): PLACE fixes it on the helmet. Round 3's single ISO camera (az -4
 | Lens plan | ellipse a 134.8, A 93.9 mm (round 4: 137.7, 89.8; round 3: 118, 72) | round 5 fit, free global; kept in round 6 |
 | Width | 206.2 mm outer (round 5: 205.2; round 4: 212.6; round 3: 197) | round 6 fit; the size is not pinned (see "Scale") |
 | Outlines | GP in goggle.py, 15 control points a half (goggle.CTRL: top_c, step_hi, step_lo, fin_root, top_corner, side_top, side_end, bot_corner, cheek, cheek_step, leg_out, tab_tip, notch_side, arch_step, notch_apex), out (frame edge) and open (the lens's visible edge, the foot of the frame's inner wall); inner (face side opening) round 2's, 4 mm higher (PLACE moved the goggle 4 mm down) | round 4 joint fit, hand-cleaned (crossed steps, a zigzag at the side, an undercut leg) and refined |
-| Recessed lens | the frame's front face stands proud of the lens front by 9.2 to 9.5 mm at the top band (7.3 at the fin root), 6.6 to 6.9 mm at the side pillars and lower corners, 8.5 to 9.3 mm at the cheeks and nose (round 6: GP lip a smooth field, values at the control points; round 5: one per control point, 6.7 to 10.1; round 4: 8.8 everywhere; round 3: 1.5) | round 6 fit (section 8), held near round 5's: the photos' inner walls between the frame face and the lens; at most 9.2 at the top centre (the side views) |
+| Recessed lens | round 7: top band 9.2 to 10.9 mm, pillars 3.9 to 4.5, lower band 7.3 to 7.7 (section 9). Round 6: the frame's front face stands proud of the lens front by 9.2 to 9.5 mm at the top band (7.3 at the fin root), 6.6 to 6.9 mm at the side pillars and lower corners, 8.5 to 9.3 mm at the cheeks and nose (round 6: GP lip a smooth field, values at the control points; round 5: one per control point, 6.7 to 10.1; round 4: 8.8 everywhere; round 3: 1.5) | round 6 fit (section 8), held near round 5's: the photos' inner walls between the frame face and the lens; at most 9.2 at the top centre (the side views) |
 | Outline offsets | between the control points the outer edge and the lens edge bow off their polygons by a smooth normal offset (round 6: GP out_dk, open_dk, cubic B-splines of 24 coefficients a half, near 0 at the control points): median 0.06 / 0.05 mm, at most 1.45 / 1.32 mm (round 5: one offset per sample, 197 a half, median 1.6 / 1.5, up to 7.0 / 9.7 mm: the overfit that read as crumpled) | round 6 fit (section 8) |
-| Top band, pillars, lower band as built | round 6: top band 10.7 mm over the lens at the centre, 9.5 mm at s 50; side pillar's face 9.6 mm wide at the end; lower band 12.3 mm under the lens at s 80; lowest -55.2 mm at s 49.0; nose arch apex -31.7 mm, 23.4 mm above the legs (round 5: 10.6, 9.2, 7.7, 12.5, -55.1 at s 49.5, -33.4 and 21.2; the apex 1.7 mm higher brings the NOTCH landmark in iso55 from 1.7 to 0.5 mm) | round 6 fit, measured on the built outlines (control points plus offsets); the round 4 rows below give the control points only |
+| Top band, pillars, lower band as built | round 7: section 9 (test_velocity55_shape_from_leatts_photos lists the built values). Round 6: top band 10.7 mm over the lens at the centre, 9.5 mm at s 50; side pillar's face 9.6 mm wide at the end; lower band 12.3 mm under the lens at s 80; lowest -55.2 mm at s 49.0; nose arch apex -31.7 mm, 23.4 mm above the legs (round 5: 10.6, 9.2, 7.7, 12.5, -55.1 at s 49.5, -33.4 and 21.2; the apex 1.7 mm higher brings the NOTCH landmark in iso55 from 1.7 to 0.5 mm) | round 6 fit, measured on the built outlines (control points plus offsets); the round 4 rows below give the control points only |
 | Vent teeth | the top band's lens edge steps down at the vents: two teeth, |s| 43.6 to 59 mm (drop 0 to 1.5 mm) and 59 to 79.5 mm (1.7 to 1.4 mm) (GP teeth, goggle.tooth_drop; round 5: 0 to 0.9 and 1.1 to 1.9; round 6 eases each step over 0.4 mm) | Leatt's ISO renders (iso55, white 39278): steps at |s| 43.6, 59 and 79.5 mm on the near side, back-projected; drops fitted. The sawtooth's individual steps (1 to 2 mm) are only partly reproduced |
 | Nose ribs | a comb on the nose bridge behind the lens: centre finger (tip z -16.4 mm), a finger each side at s 10.3 mm (tip -17.9), an outer lobe each side (s 16.7 to 29.0 mm, top -18.7 to -21.5) with a closed slot (s 21.7, z -29.1 to -22.5), open slots between down to z -25; in frame colour, the bridge round it black within |s| 30 mm; front face 0.3 mm in front of the bridge's nearest point; clipped to clear his nose by 0.5 mm on him | iso55 (pink and white) back-projected with the round 5 camera (ribs_bp.py), the pattern centred on s 0; seen through the clear lens in phr. Depth NOT pinned: the exploded view agrees in height only 8.5 mm back and never in s, every slot reads sheared (a bridge sloping back): question for Damien. From behind (phyb) the model shows the ribs in frame colour through the nose opening where the photo shows only dark foam and shadow: what covers their back is not pinned either |
 | Top band | out top_c +48.4, step_hi (s 38.9) +42.5, step_lo (s 43.9) +44.2, fin_root (s 89.8) +35.6; open +35.0 at the centre, +32.2 past the step: 13.4 mm deep at the centre, 12 mm at the step; the centre raised 4.2 mm, the lens edge stepped 2.7 mm | round 4 fit |
 | Side pillars | top_corner (100.6, +32.6), side_top (107.2, +24.9), side_end (114.0, -4.3) against open s 89.5 to 92.9: the face 11 to 23 mm wide | round 4 fit |
 | Lower band, cheeks | bot_corner (101.3, -43.4), cheek (64.4, -55.0), cheek_step (51.1, -60.9, the lowest point), leg_out (36.0, -58.1); open -34.0 to -48.3: 9 to 13 mm under the lens | round 4 fit |
-| Beak and nose arch | tab_tip (26.6, -58.6), notch_side (12.7, -56.0), arch_step (9.5, -46.1), notch_apex (0, -34.5): the arch 21 mm high from the tab tips; pointed (1.2 to 1.5 mm fillets) | round 4 fit (NOTCH landmark: 1.7 mm in iso55, 4.6 mm in iso45) |
-| Cross-section | front rim 2.5 to 3.0 mm, chamfer 0.7 to 1.9 mm, fillets as round 3; band (the face's fall back to the outline edge) 1.4 to 10.5 mm, the face's crease (ring RING_MID) at mid_t 0.29 to 0.59 of the face, mid_w -2.2 to +1.4 mm off the straight face (round 6: smooth fields, values at the control points; round 4: band 1 to 12, mid_t 0.19 to 0.66, mid_w -2.5 to +1.3) | round 4 fit (crease chamfer in iso55, phy, phr), round 5 and 6 refits |
+| Beak and nose arch | round 7: a round-topped arch, top -37.9 mm, feet z -49.8 at s 12.5 (section 9). Round 4: tab_tip (26.6, -58.6), notch_side (12.7, -56.0), arch_step (9.5, -46.1), notch_apex (0, -34.5): the arch 21 mm high from the tab tips; pointed (1.2 to 1.5 mm fillets) | round 4 fit (NOTCH landmark: 1.7 mm in iso55, 4.6 mm in iso45) |
+| Cross-section | round 7: section 9 (a wide flat front face, a 0.1 mm crease land, the inner wall leaning out). Round 4: front rim 2.5 to 3.0 mm, chamfer 0.7 to 1.9 mm, fillets as round 3; band (the face's fall back to the outline edge) 1.4 to 10.5 mm, the face's crease (ring RING_MID) at mid_t 0.29 to 0.59 of the face, mid_w -2.2 to +1.4 mm off the straight face (round 6: smooth fields, values at the control points; round 4: band 1 to 12, mid_t 0.19 to 0.66, mid_w -2.5 to +1.3) | round 4 fit (crease chamfer in iso55, phy, phr), round 5 and 6 refits |
 | Fins | at the top band's ends, s 90 to 99 mm, rising 5 mm above the band, 3.5 mm thick, tip leaning out | ISO, right end (8 x 5 mm) |
 | Nose | the face side's opening rises to z -10 mm (round 3: -14; PLACE 4 mm lower); frame 5 mm deep at the notch side, 2.5 mm at the arch step and apex (the bridge over his nose, behind the recessed lens); foam leaves the bridge and runs on the opening's edge | exploded view; clearance test (at 5 mm his nose bridge was 2 to 5 mm inside the frame) |
 | Depth | 23 mm top to 16 mm bottom, 9.5 mm at the tabs, 5.6 to 2.2 mm over the nose (round 6's smooth field; round 4: 24, 16, 10, 5 / 2.5) | EST (exploded view proportions), clearance |
@@ -93,7 +93,7 @@ costs nothing): PLACE fixes it on the helmet. Round 3's single ISO camera (az -4
 | Mirror | metallic 0.94, purple base 90/30/125, thin film 430 nm IOR 1.33, rough 0.03 | Damien (purple, eyes hidden); lens swatch renders (deep purple square on, blue-pink at grazing) |
 | Tear-off posts | bare: 4.5 mm boss, 2.4 mm stud, 3.4 mm head (centre 3.9 mm off the lens front), at s 86.7 mm, z -1.2 mm on the lens (round 4: 87.5, -1.5) | round 5: refitted on round 5's lens with the cameras fixed (POST_R, POST_L landmarks in iso55, phy, phr: 0.5 to 1.0 mm; 0.2 to 1.8 mm at round 4's place); decision 7 (no tear-offs) |
 | Outriggers | start behind the frame's tall side faces (more than 12 mm behind the lens front, the pink face shows ahead), 30 mm long, 8 mm thick, turned out 24 deg towards the strap (round 4: 22), 59 mm high at the strap; black gloss (round 6: rough 0.05, no coat, section 8); white official LEATT at its own aspect, letter tops towards the strap | ISO (59 mm = 1.3 x the 45 mm strap beside it), the Pinata kit photo (right side); round 5 fit (GP or_*: or_turn 0.44, the far edge seen in iso55, phy, phw, the back view) |
-| Nose guard | black flap from half-way up the arch's legs, 7 mm under the apex, its drop scaled to the arch (0 at the legs) | ISO, exploded view; round 4 (the flat 7 mm drop hung below the shorter legs) |
+| Nose guard | round 7: a closed black rubber shell 2.5 mm thick filling the arch from behind its top (z -37.5 mm) to -54.6 mm, 17 mm half-wide at the bottom, its sides sweeping back 3 mm; on him it gives way to his nose (section 9; rounds 4 to 6: a flap from half-way up the arch's legs) | phy, phr (bottom edge z -55.1 to -56.1, about 34 mm wide), the exploded view (smooth, no ribs); fitted on the silhouettes |
 | Foam | a 13 mm band inside the face opening, along the lens normal to his face, 0.5 mm off the skin, 1.5 to 30 mm, 14 mm where no skin is in reach; the frame's back beyond it stays bare (nose channel) | EST (triple-layer); clearance (march tolerance 2.5 mm, no skin vertex inside) |
 | Outriggers on the helmet | the free plate above (Leatt's ISO, goggle alone) starts inside the eyeport opening and its back 35 % would sink 22 to 41 mm into the shell; worn, the strap pulls it onto the shell: each row lifted outwards (x only, front edge fixed on the frame) to clear the shell by 1.5 mm behind the eyeport's edge, bending out at most 60 deg (55 left the top corner 2 mm inside); the strap's end sits 10 mm inside the outrigger's back end, mid height and mid thickness, so the strap leaves the outrigger and lies on the shell | Damien 2026-11-13 ("not properly connected to it's strap"), his 07 and 09, Leatt's MY27 kit views (strap from the outrigger straight onto the shell); goggle.outrigger_grids, test_outriggers_rest_on_the_shell_and_hold_the_strap |
 | Strap | helmet.py's (45 mm, path unchanged), its two white logos now Leatt's official slanted LEATT at 70 % of the strap height | Leatt features, his 07, reference/leatt-gear/leatt-wordmark-slanted_official_leatt-us_1200x300.png |
@@ -394,6 +394,223 @@ glossy frame reflects the blue sky and the bright ground (green 0.05 and blue 0.
 renders/checkpoints/2026-11-13_goggle-r6/07_frame_colour_daylight_his_08_09.jpg (the Standard panels are the 0 EV
 render scaled by +1.5 EV in linear, exact for that view below white). Whether his photo comparisons should go
 through the Standard view (or AgX Punchy) is a render-wide choice, not the goggle's: put to the coordinator.
+Decided (coordinator, round 7 brief): AgX stays for every render, it is the project's look. The base colour is
+verified under the Standard view (frame / shell red 0.36 to 0.38 against his 0.37 to 0.42) and stays 150/0/58; AgX
+shifts that ratio to 0.66 to 0.69 at +2 EV in daylight (0.58 to 0.59 in the studio), which is the look, not an error.
+
+## 9. Round 7: Leatt's details at 1:1
+Why: the coordinator's 1:1 review of round 6 (sheets 08, 09, 11 against iso55 and phr): the silhouette is close
+(IoU 0.97) but the frame reads as soft, inflated plastic where Leatt's is crisp and faceted. Seven points, in the
+order they show. Scale at the goggle: iso55 and the white ISO 0.177 mm per px, phr 0.21.
+
+### The nose arch
+| | Leatt (evidence) | Round 6 | Round 7 |
+|---|---|---|---|
+| Top | z -38.2 to -39.1 mm: the frame's arch top back-projected at the front face in iso55, phy, phr and the white ISO; landmark NOTCH re-picked there (iso55 px 1506, 1160) | -31.7: the lens edge's top, taken for the arch top since round 4 (NOTCH sat on it) | -37.9 |
+| Round top | phy 0.2 mm below the top at s 2.0 mm, iso55 0.8 at s 3.2 (a 46 deg V drops 2.0 and 3.3) | a pointed 54 deg apex, fillet 1.5 mm | 0.4 at 2.0, 1.2 at 3.2 |
+| Legs | lean 46 to 51 deg from horizontal; phy's mid leg z -45.0 at s 7.8 | V legs | 51 deg; z -44.3 at 7.8 |
+| Feet | s 12 to 13 mm, z -49.3 to -49.7 (FOOT landmarks, iso55, phy, phr) | about 6 mm lower | z -49.8 at s 12.5 |
+| Ears | a small corner at the lens edge's top of each leg (EAR landmarks; iso55 px 1451, 1128 and 1551, 1122) | none | ring c at notch_side, both sides |
+Why rounds 4 to 6 drew a V: the photos' arch outline is the frame plus the black nose guard and foam inside it, and
+with no guard in the model the fit bent the frame over them. The round 7 fit (scratch fit7.py, runs F1 to P1)
+still narrowed the arch: photo points more than the 8 mm cap from the start got no weight. The arch's control points
+were moved by hand to the back-projected points (arch_step at s 2.6 mm, z -37.85, fillet 2.4 mm) and the fit run
+from there. Not as briefed: no photo shows near-vertical legs; they lean 46 to 51 deg, and that is what is built.
+
+### Creases (the crisp look)
+Each designed crease measured at 1:1 (scratch probe.py): the 10 to 90 % width of the shading step across it, against
+the photo's own blur (a silhouette edge's width: white ISO 0.85 px, iso55 1.4). The model's turn runs between the
+support rings either side of the crease; projected with the photo's camera and blurred alike, its width is
+hypot(0.8 x the projected span, blur) (test_round7_creases_are_as_crisp_as_leatts: every probe within 1 px, mean
+within 0.6).
+| Probe (photo px) | Leatt | Round 7 (0.1 mm) | Round 6 (0.35 mm) |
+|---|---|---|---|
+| white ISO, top band's upper crease (1250, 732) | 2.2 | 1.6 | 3.5 |
+| white ISO, same crease (1150, 744) | 2.1 | 1.7 | 3.6 |
+| white ISO, top band's lens edge (1250, 768) | 2.0 | 1.1 | 2.6 |
+| iso55, upper crease (1250, 728) | 1.9 | 2.0 | 3.7 |
+| iso55, upper crease (1150, 740) | 1.2 | 2.0 | 3.7 |
+| iso55, lens edge (1250, 765) | 1.3 | 1.6 | 2.8 |
+| iso55, lens edge (1150, 771) | 1.6 | 1.6 | 2.8 |
+Built: goggle.CREASE_R 0.1 mm support rings at every ring (smooth shading stays flat inside each facet and turns
+only there), and a 0.1 mm land at the top crease (GP chamfer) in place of round 6's 0.7 to 2.0 mm 45 deg chamfer.
+The land drops at 45 deg only where the outer facet behind the crease falls back that steeply or more; where that
+facet is nearly flat (the lower band and the arch, band under 1 mm) it lies on the facet. The first round 7 build
+dropped it everywhere and drew a thin dark, kinked line across the arch's face, which Leatt's shows plain.
+phw and phr read alike (0.8 to 2.5 px) but their cameras are less sure at that scale: not in the test. The white
+ISO reads a little softer than the model at the lens edge (2.0 against 1.1 px); iso55 alone bounds the radius at
+0.1 mm or less (its blur hides anything finer), so the white ISO's probes are a check, not the source. Note: the
+white ISO was a round 4 source (creases, teeth, ribs at iso55's camera, section "Cameras"), so it is not a clean
+hold-out.
+
+### Section (GP fields, values at the control points; round 6 in brackets)
+| Field | Round 7 | Evidence |
+|---|---|---|
+| lip, front face proud of the lens | top band 9.2 to 10.9 mm, pillars 3.9 to 4.5 (6.6: a fit limit, not evidence), lower band 7.3 to 7.7 | fit; the post heads stand in front of the pillar face in iso55 and phr |
+| rim, the flat front face | 6.5 mm on the top band, 4.9 to 5.8 elsewhere (2.4 to 3.0) | fit on the creases (iso55, phy, phr, expl) |
+| chamfer, the top crease's land | 0.1 mm (0.7 to 2.0 at 45 deg) | crease widths above |
+| bevel, the inner wall's lean out from the lens edge | 0 on the top band, 1.6 to 2.7 on the pillars, 0.2 to 0.8 on the lower band beside the nose (new) | fit; the lit foot (below) |
+| band, the outer facet's lean back to the outline edge | 2.1 to 4.2 on the top band, 5.7 to 6.4 on the pillars, 0.4 to 2.4 on the lower band (pillars 8.5 to 11.7) | fit |
+
+### Pillars
+Leatt's are straight bands with a clean step to the outrigger (iso55, phr). Round 6's outer edge bowed 6.3 mm off its
+chord and its outer facet leaned back 8.5 to 11.7 mm. Round 7, over the pillar's middle three quarters (z +13.9 to
+-30.2 mm): the outer edge 0.015 mm off its chord; the fields along it near linear (lip 3.9 to 4.5 mm, 0.29 off a
+line; bevel 1.9 to 3.1, 0.43; rim 5.0, 0.04; band 5.8 to 6.6, 0.12; test_round7_side_pillars_are_straight, bound
+0.3 and 0.5 mm). side_top, side_end and bot_corner are collinear; side_end now sits at the lens edge's pillar corner
+height (z -17.13 mm, was -3.75), so the rulings between the lens edge and the outer edge run across the pillar, not
+up it (the outline moves under 0.06 mm; before, the crease and chamfer wobbled 0.5 mm there and failed fairness:
+ripple 33 um). The outriggers' depth is now taken at their own centre height (z -5.2 mm; 15.395 against 15.396 mm).
+
+### The lower band's foot
+Leatt's lower band either side of the arch juts forward with a lit near-horizontal top face and a sharp crease
+(iso55, white ISO). Built: the band stands 7.3 to 7.7 mm proud of the lens there, its top face (the inner wall from
+the lens edge) leaning out by 0.2 to 0.8 mm, so it faces up, and meets the front face at a CREASE_R crease.
+
+### Top band, tab and notches
+A flat front face 6.5 mm wide, the crisp upper crease (0.1 mm land), the top surface behind it. The raised tab with
+the Leatt icon: the top silhouette steps up at s -32.0 mm (iso55, +11 px), -32.0 (phy, +6 px), -29.9 (phw, +6 px)
+and in the white ISO (+9 to 10 px, 1.6 to 1.8 mm); its far end reads at +22.7 to +38.8 (phr, phw, phy, where the
+step faces away), so it is mirrored from the near end. Built: goggle.TAB_S 31 mm, TAB_H 1.7 mm, a 2 mm ramp each
+end, behind the front face's crease (the crease does not move); the ICON landmark sits on it. The white ISO's
+1.6 to 1.8 mm is one of the four sources of the height. The notches: the tab's two steps, and the lens edge's
+sawtooth at s 43.6, 59 and 79.5 mm (teeth, refitted: 0 to 0.3 mm and 2.0 to 1.5 mm drops; round 6 0 to 1.5 and
+1.7 to 1.4). The smaller 1 to 2 mm steps between them are still not modelled: at 0.18 mm per px they are 6 to 11 px
+in iso55 and the white ISO, too few edge pixels to fit apart from the teeth.
+
+### The far side in phr
+The far pillar now reads as a thin sliver: 14 px wide at mid-height against Leatt's 16 (round 6: a thick rounded
+bulge). Not matched: the far outrigger. In phr it stands 50 to 65 px beyond the pillar, swung open on the strap; the
+model's is closed behind the pillar. The silhouette fit gets no gradient from a hidden part, and phw and phy show it
+at other angles (a free plate on the strap: its angle varies photo to photo), so round 5's outrigger is kept.
+
+### The nose guard (new) and the ribs
+Leatt's exploded view shows the guard as a smooth faceted rubber block with no ribs; the ribbed part is the comb on
+the nose bridge behind the lens (five elements: a centre finger, a finger and an outer lobe each side, modelled since
+round 5, section 1). In phy and phr the guard fills the arch and hangs below it, its bottom edge back-projecting to
+z -55.1 to -56.1 mm, about 34 mm wide. Built (goggle.build_nose_guard, GP ng, fitted with the shape on the
+silhouettes): a closed rubber shell 2.5 mm thick from z -37.5 (behind the arch's top) to -54.6 mm, 17 mm half-wide at
+the bottom with 3 mm round corners, a rounded nose ridge whose sides sweep back 3 mm. On him the rubber gives way to
+his nose: where its back would cut his skin it comes forward (goggle.guard_clear; up to 7 mm at the top corners
+beside the bridge of his nose; test_frame_and_lens_clear_his_face now includes it). The guard shows below and
+inside the arch in every view (dark, matte, smooth, as in phy, phr and phw). The sweep was fitted at 10.2 mm with
+the frame still moving; on the finished frame its far side left the backdrop showing inside the arch's far leg in
+phr, phy and phw, where Leatt's guard fills the arch. Set on the finished frame by the error table (scratch
+ngsweep.py, repo cameras), outline p90s model to photo / photo to model:
+| Sweep | iso55 | phy | phr | phw | ink | ind | iso45 | phyb |
+|---|---|---|---|---|---|---|---|---|
+| 10.2 mm | 4.14 / 3.48 | 3.54 / 3.01 | 3.16 / 3.54 | 1.43 / 1.43 | 1.50 / 1.42 | 1.65 / 1.56 | 2.28 / 2.29 | 1.87 / 1.77 |
+| 6 mm | 4.20 / 3.42 | 3.44 / 2.98 | 3.04 / 3.49 | 1.35 / 1.49 | 1.24 / 1.39 | 1.45 / 1.65 | | |
+| 3 mm (built) | 4.26 / 3.43 | 3.32 / 2.89 | 3.01 / 3.41 | 1.30 / 1.43 | 1.14 / 1.27 | 1.45 / 1.70 | 2.03 / 2.59 | 1.87 / 1.96 |
+| 0 | 4.26 / 3.45 | 3.29 / 2.84 | 2.89 / 3.33 | 1.30 / 1.43 | 1.14 / 1.27 | 1.51 / 1.73 | 1.98 / 2.75 | 1.87 / 1.97 |
+The sum over these views falls 1.0 mm from 10.2 to 3 mm and 0.05 more to 0; 3 mm keeps a nose ridge (the exploded
+view's guard is a faceted nose cover, not a flat plate). The validation views were not used (frg, chee also improve).
+Test: test_round7_nose_guard_fills_the_arch_in_the_photos projects the frame and the guard with the iso55, phy, phr
+and phw cameras and counts the arch's opening (its front and back edges between the feet) left uncovered: 0 px
+from 6 mm down to 0; at 10.2 mm 95, 37, 56 and 59 px (iso45 112, phyb 31; scratch guardcover.py).
+
+The ribbed part (the brief's point 7) is the comb, and it is frame plastic, not rubber: it takes the frame's colour
+in every photo that shows it (yellow in phy, red in phr and on the kit helmet, pink in iso55, white-grey in the white
+ISO, black in the exploded view). His purple mirror hides it (Damien asked for a mirror his eyes do not show
+through), so on him it never shows. Behind Leatt's see-through lenses (goggle_views GOGGLE_VIEWS_LENS_VLT: Light
+Grey 58 % for the white ISO, Iriz Purple 78 % for iso55, Clear 83 % for phr, the VLTs in Leatt's colourway names)
+it shows where Leatt's does (checkpoint 07). phr at 4x (scratch comb_phr_z4): Leatt's gaps between the tongues
+start at px 1365, 1399, 1429 and about 1450, the model's at 1360, 1397, 1425 and 1455 (1 to 1.5 mm at 3.9 px per
+mm); the tips at y 1006 to 1019 against 1005 to 1015. iso55: tips at 1038, 1035, 1048 against 1043, 1036, 1040.
+Not matched:
+- Leatt's gaps lean, more the further out (phr 10 to 35 deg from upright, iso55 and the white ISO 23 to 40 deg);
+  ours read upright. Round 5 put the shear down to the bridge sloping back (goggle.py's comb note) and kept a flat,
+  lens-parallel comb. Every photo that shows the comb sees it from his right (az -38 to -52 deg; the exploded view,
+  from his left, shows it black on black), so a fan cannot be told apart from a slope and a wrap round the nose.
+- Leatt's outer lobe is split from the first finger by a slanted slot open at its outer end and sits lower (its top
+  about 25 px, 6 mm, below the finger's in phr): seven tongues (two lobes, five fingers) where ours has five (two
+  lobes, three fingers). The three middle fingers match; our closed slot sits where Leatt's open one is.
+- Leatt's tips are rounder (corner radius near a third of the width; ours 1.8 mm on 7.6 to 8.1 mm).
+Left for a later round: it shows only behind a see-through lens.
+
+### Fairness (test_goggle.frame_fairness; round 6 in brackets)
+| Measure | Round 7 | Where |
+|---|---|---|
+| dturn | 0.81 deg (0.50) | the back face's inner edge |
+| ripple | 7.0 um (9.4) | the front face's inner edge |
+| kink | 0.49 deg (0.57) | crease / edge face |
+| wave | 0.17 deg (0.50) | crease / edge face |
+| fold | 45.3 deg (66.5) | the pillar's top corner |
+
+### Round 7 errors (final geometry and cameras, full resolution; scratch errtab.py; round 6 in brackets)
+| View | Outline model to photo | Photo to model | Creases m to p | Creases p to m | IoU |
+|---|---|---|---|---|---|
+| iso55 | 0.89 / 4.26 (0.64 / 4.01) | 1.03 / 3.43 (0.89 / 3.36) | 1.24 / 3.74 (1.19 / 3.26) | 0.56 / 1.60 (0.53 / 2.05) | 0.968 (0.974) |
+| phy | 0.81 / 3.32 (0.81 / 3.96) | 1.01 / 2.89 (1.01 / 3.03) | 1.01 / 3.84 (1.01 / 3.73) | 0.57 / 1.99 (0.61 / 1.62) | 0.966 (0.965) |
+| phr | 0.76 / 3.01 (0.96 / 4.33) | 1.20 / 3.41 (1.22 / 3.87) | 0.96 / 2.90 (1.29 / 3.85) | 0.96 / 2.19 (0.68 / 1.87) | 0.923 (0.927) |
+| iso45 | 0.46 / 2.03 (0.49 / 1.98) | 0.49 / 2.59 (0.49 / 2.45) | | | 0.970 (0.970) |
+| phw | 0.60 / 1.30 (0.60 / 1.27) | 0.64 / 1.43 (0.60 / 1.29) | | | 0.978 (0.978) |
+| expl | 1.20 / 4.59 (1.30 / 5.51) | 1.20 / 4.12 (1.30 / 4.74) | 0.99 / 3.22 (1.21 / 3.35) | 1.20 / 3.36 (1.41 / 3.99) | 0.870 (0.872) |
+| phyb | 0.49 / 1.87 (0.44 / 1.52) | 0.49 / 1.96 (0.44 / 1.52) | | | 0.971 (0.975) |
+| ink | 0.42 / 1.14 (0.42 / 1.26) | 0.42 / 1.27 (0.42 / 1.26) | | | 0.981 (0.982) |
+| ind | 0.43 / 1.45 (0.43 / 1.44) | 0.43 / 1.70 (0.43 / 1.50) | | | 0.978 (0.981) |
+| frg (validation) | 0.31 / 1.11 (0.44 / 1.09) | 0.31 / 1.27 (0.44 / 1.09) | | | 0.982 (0.983) |
+| chee (validation) | 0.45 / 1.32 (0.32 / 1.30) | 0.45 / 1.37 (0.32 / 1.31) | | | 0.981 (0.982) |
+| white ISO (held out, camera only) | 0.89 / 4.07 | 0.89 / 2.86 | 1.25 / 3.37 | 0.75 / 1.77 | 0.964 |
+With the guard's 3 mm sweep (the nose guard section; before it, scratch err2.json). Better than round 6: phr
+(outline p90 4.33 / 3.87 to 3.01 / 3.41, creases model to photo 3.85 to 2.90), expl (every number), phy's outline
+p90s (3.96 / 3.03 to 3.32 / 2.89), ink's model-to-photo p90, iso55's photo-to-model crease p90 (2.05 to 1.60).
+Worse: iso55's outline median (+0.25 mm), p90 (+0.25) and IoU (0.974 to 0.968) and its crease p90 model to photo
+(+0.48); the photo-to-model crease p90s of phy and phr (+0.37, +0.32); the silhouette p90s of phyb (+0.35, +0.44),
+ind's and iso45's photo to model (+0.20, +0.14) and phw's (+0.14); the validation views by 0.02 to 0.18 mm. Where
+(scratch heat.py maps, iso55 and chee, before the sweep change): the arch and the guard inside and below it (the
+guard is a few smooth planes, the photos' a moulded rubber part; in chee the guard's left foot and the arch's right
+leg), in iso55 also the near lower band's lens edge and the far end of the top band. The others are not mapped.
+Round 6 had the arch bent over the guard, which scored better on the silhouettes for the wrong reason. frg and chee:
+cameras refitted to the finished shape only (fitcam, as round 6). Landmarks: test_landmarks_in_leatts_photos.
+Blender 5.2.0 (Damien's) renders the final model as 5.2.3 does: iso55 studio and the white ISO with its see-through
+lens at half resolution, mean absolute difference 0.36 and 0.38 of 255, p99 3.0 and 4.0 (sampling noise).
+
+### Cameras
+iso55, phy and phr frozen at round 5's landmark fit (as round 6); iso45, phw, expl, ind, ink, phyb fitted with the
+shape; frg and chee refitted to the finished shape; the white ISO (wiso) fitted to the finished shape only:
+-50.83, 0.13, -0.64 deg, 1.464 m, f 8263 px, u0 502.6, v0 -16.5 px (iso55's own: -50.90, -0.34, -1.15, 1.465,
+8260, 505.7, -18.5: the same camera, as Leatt's file names say). research/goggle-cameras.json.
+
+### Held-out checks (cameras only)
+Neither set is a clean hold-out, and the brief took both as unused: the white ISO was a round 4 source (creases,
+teeth, ribs) and one of the four tab-height sources this round; the MY27 8.5 kit Blue_Red views _2 and _3 were the
+placement, scale and top lip sources of rounds 3 to 5 and all four the outriggers-on-the-shell and frame-lettering
+sources (sections 1 and 2). Neither moved the shape this round.
+
+White ISO (white frame, Light Grey 58 % lens: Leatt SKU 8024070390, sold as "White / Light Grey 58%", e.g.
+johnstonsmoto.co.nz/products/le8024070390): its error row is in the table above, in line with iso55 (the same
+camera). Rendered white (236, 236, 232), studio light, a see-through 58 % lens; 1:1 beside r6 and r7 (checkpoint
+03). The creases read as Leatt's: thin lines on the arch, the foot and the top band where r6 rolled. The far end
+of the top band does not: Leatt's sweeps up and rounds over with a lit top, ours steps down at the teeth. The comb shows
+through the lens (above). Not compared: the lens's tone (under AgX a 58 % lens looks paler than in Leatt's render,
+the bright backdrop seen through it compressed) and what shows behind it (black in Leatt's, most likely its far
+strap, which runs straight back behind the goggle there; the backdrop in ours, as the free goggle has no strap). The see-through lens: each of the four lens faces a
+Fresnel reflection over a grey see-through, Fresnel taken from outside on both faces (on a back face the Fresnel
+node's own inside view gave total reflection past 42 deg and the lens turned into a grey mirror; a Principled
+transmission tints at every face and stops the lights' rays: a 150 grey tint left 0.3^4 of the light).
+
+On the helmet (kit views _1 to _4; scratch hcam2.py fits each camera to the helmet's silhouette in the GOGGLE frame,
+IoU on the helmet 0.927 front iso left, 0.925 left, 0.927 right, 0.939 back; sheets in checkpoint 08 to 11).
+Measured from Leatt's red frame pixels against the model frame's projection (scratch onhelmet_meas.py):
+| View | Frame front | Frame top | Frame bottom |
+|---|---|---|---|
+| left (az 96 deg, 3.8 px per mm) | model 31 px (8.2 mm) ahead | 11 px (2.9 mm) higher | not read (the red runs into the helmet's) |
+| right (az -96 deg, 3.9 px per mm) | model 35 px (9.0 mm) ahead | 4 px (1.0 mm) higher | 19 px (4.9 mm) higher |
+- Front: the placement has stood 3.9 mm ahead of these views' top lip (y -149 mm) since round 4, because further back
+  put his nose bridge into the recessed lens (section 1); at these cameras, fitted to our shell (not Leatt's to the
+  mm), it reads 8 to 9 mm. The front iso left view shows the frame 60 to 70 px (13 to 15 mm) to the image left of
+  Leatt's; the forward offset explains about 6 mm of that (az 44 deg), the rest is that camera's fit, so it is not
+  used for position.
+- Bottom: the frame is 100 mm tall where these views read about 106 (the open scale question, section 1).
+- How it sits: in both, the frame fills the eyeport, the top band just under the eyeport's brow, the lower band on
+  the chin bar's ledge, the outriggers out on the shell behind the eyeport's edge.
+- Outriggers: Leatt's plate shows 17 mm wide in the right view, ours 23 mm: ours turns out less once worn, or is
+  longer. Not changed (round 5's fit; section 2).
+- Strap (back view; helmet.py's, not changed here): ours runs about 23 mm lower on the shell than Leatt's (the strap's
+  centre 62 % down the helmet's image height against 54 %), and the shell pokes 1.5 to 1.9 mm through it near
+  x +-45 mm, the same with round 6's goggle (scratch strapchk.py); Leatt's has its adjuster slides at the back,
+  ours none. For the helmet agent.
 
 ## 3. Eyes
 | Number | Value | Source |

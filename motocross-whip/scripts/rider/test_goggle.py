@@ -64,39 +64,40 @@ def edge_z(C, s, top):
 
 
 def test_velocity55_shape_from_leatts_photos():
-    """Round 5: the shape fitted with the cameras of nine goggle-alone photos (Leatt's 5.5 and 4.5 ISO renders, the
-    exploded view, six studio photographs of the 5.5) at full resolution on outlines and creases (ledger goggle.md),
-    measured on the outlines as built (control points plus the smooth offsets, round 6): the lens recessed 7 to 10 mm
-    behind the frame's front face (deepest at the top band and the cheeks, least at the side pillars); a top band
-    about 10.6 mm over the lens at the centre and 9.2 mm at s 50 mm, the frame stepped down past the centre; the
-    side pillar's face 7 to 10 mm wide at the end (round 4's 23 mm read too chunky); a lower band 12 to 13 mm under
-    the lens at the corners, lowest (-55 mm) at the cheek step; the beak's legs either side of a nose arch 23 mm
-    high (apex -31.7 mm: round 6's fair fit raised it 1.7 mm from round 5's -33.4, and the NOTCH landmark in iso55,
-    which the fit does not see, came from 1.7 to 0.5 mm); crisp edges; posts on the lens at s 86.7 mm; outriggers
-    behind the side faces."""
+    """Round 5 to 7: the shape fitted with the cameras of nine goggle-alone photos (Leatt's 5.5 and 4.5 ISO renders,
+    the exploded view, six studio photographs of the 5.5) at full resolution on outlines and creases (ledger
+    goggle.md), measured on the outlines as built (control points plus the smooth offsets): the frame's front face
+    3.9 to 10.9 mm proud of the lens front (round 7: the side pillars 3.9 to 4.5 mm, the post heads showing in front of
+    them in iso55 and phr; round 6's 6.6 mm was a fit limit, not evidence), deepest at the top band; a top band 8.8 mm
+    over the lens at the centre (10.5 with the tab) and 8.7 mm at s 50 mm, stepped down past the centre; the side
+    pillar's face 9 to 14 mm wide at the end (inner wall, front face and outer facet); a lower band 12 mm under the
+    lens at the corners, lowest (-55.3 mm) at the tab's tip either side of the nose; the nose arch's top at -37.9 mm,
+    14.5 mm over the lower band at s 20 mm (round 7: rounds 4 to 6 read the lens edge's top, -31.7, for it); a flat
+    front face 4 to 6.5 mm wide with a crisp crease; posts on the lens at s 86.7 mm; outriggers behind the side
+    faces."""
     gp = G.GP
     u = {n: gp["out"][G.ci(n)] for n in G.CTRL}
     Co, Cu = G.outlines(gp)[:2]
     lip = G.xs_at(gp, "lip", G.cp_t(gp))                                  # at the control points
-    assert 0.0065 < lip.min() and lip.max() < 0.0105                        # recessed lens
+    assert 0.0035 < lip.min() and lip.max() < 0.0115                        # recessed lens
     assert lip[G.ci("top_c")] - lip[G.ci("side_end")] > 0.0015              # ... deepest at the top band
-    assert 0.0095 < edge_z(Cu, 0.0, True) - edge_z(Co, 0.0, True) < 0.012   # raised top band
-    assert 0.008 < edge_z(Cu, 0.05, True) - edge_z(Co, 0.05, True) < 0.0105
+    assert 0.0080 < edge_z(Cu, 0.0, True) - edge_z(Co, 0.0, True) < 0.0115  # raised top band
+    assert 0.0075 < edge_z(Cu, 0.05, True) - edge_z(Co, 0.05, True) < 0.0105
     assert edge_z(Cu, 0.0, True) - edge_z(Cu, 0.05, True) > 0.0025          # stepped centre
     end = Cu[:, 0].argmax()
-    assert 0.005 < Cu[end, 0] - Co[end, 0] < 0.010                          # side pillar's face at the end
+    assert 0.009 < Cu[end, 0] - Co[end, 0] < 0.014                          # side pillar's face at the end
     assert 0.010 < edge_z(Co, 0.08, False) - edge_z(Cu, 0.08, False) < 0.014   # lower band at the corners
-    assert -0.057 < Cu[:, 1].min() < -0.053                                 # lowest at the cheeks
-    assert abs(Cu[Cu[:, 1].argmin(), 0]) > 0.035
+    assert -0.057 < Cu[:, 1].min() < -0.053                                 # lowest at the tab's tip
+    assert abs(Cu[Cu[:, 1].argmin(), 0]) > 0.025
     notch = edge_z(Cu, 0.0, False)
-    assert -0.033 < notch < -0.030                                          # nose arch apex
-    assert 0.021 < notch - edge_z(Cu, 0.02, False) < 0.025                  # ... 23 mm above the legs
+    assert -0.0395 < notch < -0.0370                                        # nose arch's top
+    assert 0.012 < notch - edge_z(Cu, 0.02, False) < 0.017                  # ... 14.5 mm over the lower band
     assert gp["fillet_out"][G.ci("tab_tip")] <= 0.0015 and gp["fillet_out"][G.ci("step_lo")] <= 0.001
     rings, info = G.frame_rings()
     rim = np.linalg.norm(rings[G.RING_RIM] - rings[2], axis=1)
     W = np.linalg.norm(info["Cu"] - info["Co"], axis=1)
     room = 0.85 * W >= G.xs_at(gp, "rim", info["t"]) + G.xs_at(gp, "chamfer", info["t"])   # not the arch's apex
-    assert 0.0018 < rim[room].min() and rim.max() < 0.0035                 # flat front rim, crisp chamfer behind
+    assert 0.0035 < rim[room].min() and rim.max() < 0.0075                 # wide flat front face, crisp crease
     # fins rise above the top band's edge as built at their tips
     f = G.build_fins()
     z_band = edge_z(Cu, G.FIN_S[1], True)
@@ -138,7 +139,7 @@ def test_round5_offsets_teeth_and_nose_ribs():
     assert abs(r.V[:, 0].min() + r.V[:, 0].max()) < 1e-6                   # symmetric
     tips = [z for s_, w, z in G.RIB_FINGERS]
     assert all(-0.019 < z < -0.016 for z in tips)
-    assert r.V[:, 2].max() < edge_z(Cu, 0.0, False) + 0.020                # under the frame's top band, at the nose
+    assert r.V[:, 2].max() < edge_z(Co, 0.0, False) + 0.020                # under the frame's top band, at the nose
     assert {"goggle_frame", "goggle_foam", "goggle_noseguard"} <= set(r.M)
 
 
@@ -171,7 +172,8 @@ RING_NAMES = ("lens", "lip", "rim in", "rim out", "chamfer", "crease", "edge", "
 
 def frame_fairness(gp=None):
     """Round 6 fairness of the frame (goggle.frame_rings), inside each run of loop samples between its corners (a
-    fillet's samples and one either side, and 1.5 mm round the top band's tooth steps, are left out):
+    fillet's samples and one either side, 1.5 mm round the top band's tooth steps and, round 7, round the tab's
+    ramps, are left out):
       along every ring (an edge or crease running round the frame): dturn, the change of the turning angle from one
         sample to the next (deg), and ripple, how far a point lies off the least-squares quadratic through the 9
         samples round it (um);
@@ -190,6 +192,7 @@ def frame_fairness(gp=None):
     for t in gp.get("teeth", []):
         for e in t[:2]:
             corner |= (Co[:, 1] > 0) & (np.abs(np.abs(Co[:, 0]) - e) < 0.0015)
+    corner |= (Co[:, 1] > 0) & (np.abs(np.abs(Co[:, 0]) - G.TAB_S) < 0.5 * G.TAB_RAMP + 0.0015)
     ok = ~(corner | np.roll(corner, 1) | np.roll(corner, -1))
     start, runs, cur = int(np.argmin(ok)), [], []
     for j in range(1, len(ok) + 1):
@@ -267,10 +270,159 @@ def test_round6_front_face_does_not_fold():
     R = np.array([rings[k] for k in (2, G.RING_RIM, G.RING_CHAMFER, G.RING_MID, G.RING_EDGE)])
     V = np.diff(R, axis=0)                                                  # steps across the face
     n = np.linalg.norm(V, axis=2)
-    assert n.min() > 0.0001
+    assert n.min() > 0.00002                    # round 7: the crease land, 0.1 mm, narrows with the face at the apex
     cos = np.einsum("kij,kij->ki", V[1:], V[:-1]) / (n[1:] * n[:-1])
     worst = np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))).max()
     assert worst < 90.0, worst
+
+
+def test_round7_nose_arch_has_a_round_top_and_feet():
+    """Round 7: Leatt's nose arch is a round-topped opening (iso55, phy, phr, the white ISO at 1:1): its top at z
+    -38.2 to -39.1 mm, rounding over |s| 1 to 7 mm, legs leaning about 46 deg down to feet at |s| 12 to 13 mm,
+    z -49.3 to -49.7 (back-projected at the front face; the NOTCH and FOOT landmarks), the black nose guard below and
+    between them. Rounds 4 to 6 took the lens edge's top (-31.7 mm) for the opening's top: a pointed V 23 mm tall."""
+    Cu = G.outlines()[1]
+    apex = edge_z(Cu, 0.0, False)
+    assert -0.0395 < apex < -0.0370
+    assert apex - edge_z(Cu, 0.0020, False) < 0.0005            # round: phy 0.2 mm under the top at |s| 2.0 mm,
+    assert apex - edge_z(Cu, 0.0032, False) < 0.0013            # iso55 0.8 mm at 3.2 (a 46 deg V: 2 and 3.3 mm)
+    leg = edge_z(Cu, 0.0078, False)
+    assert abs(leg - (-0.0450)) < 0.0010                         # phy's mid-leg point
+    foot = edge_z(Cu, 0.0125, False)
+    assert -0.0515 < foot < -0.0480
+    assert apex - foot < 0.014                                   # an arch 11 to 12 mm tall over the feet, not 23
+
+
+def test_round7_nose_guard_fills_the_arch():
+    """Round 7: the dark nose guard shows inside and below the arch in every Leatt photo (phy, phr: it fills the
+    opening and hangs below the feet, its bottom edge back-projecting to z -55.1 to -56.1 mm, about 34 mm wide).
+    The guard is a closed rubber shell: its top hidden behind the arch's top, wider than the opening at every
+    height, its bottom 4 to 7 mm under the feet; it stays clear of his nose (test_frame_and_lens_clear_his_face)."""
+    ng = dict(zip(G.NG_KEYS, G.GP["ng"]))
+    Cu = G.outlines()[1]
+    apex, foot = edge_z(Cu, 0.0, False), edge_z(Cu, 0.0125, False)
+    assert ng["top_z"] > apex                                     # starts behind the arch's top
+    assert -0.0575 < ng["bot_z"] < foot - 0.004                   # hangs below the feet
+    assert 0.014 < ng["hw_bot"] < 0.020                           # 28 to 40 mm wide at the bottom
+    g = G.build_nose_guard()
+    arch = Cu[(Cu[:, 0] >= 0.0) & (Cu[:, 0] < 0.0125) & (Cu[:, 1] < -0.03)]
+    arch = arch[np.argsort(arch[:, 1])]
+    for z in np.linspace(foot + 0.001, apex - 0.001, 6):          # wider than the opening at every height
+        open_hw = np.interp(z, arch[:, 1], arch[:, 0])
+        row = g.V[np.abs(g.V[:, 2] - z) < 0.0015]
+        assert len(row) and np.abs(row[:, 0]).max() > open_hw, z
+
+
+def arch_backdrop_px(view, gp=None):
+    """Pixels of the nose arch's opening (its front and back edges between the feet, each closed by the line between
+    them, projected with the photo's camera) that neither the frame nor the nose guard covers: backdrop showing
+    through the arch."""
+    from PIL import Image, ImageDraw
+    x = np.array(json.load(open(G.CAMERAS))[view]["x"])
+
+    def fill(polys):
+        im = Image.new("1", (1920, 1920), 0)
+        d = ImageDraw.Draw(im)
+        for p in polys:
+            d.polygon([tuple(c) for c in p], fill=1)
+        return np.asarray(im, bool)
+
+    rings, info = G.frame_rings(gp)
+    Cu = info["Cu"]
+    i = np.nonzero((np.abs(Cu[:, 0]) <= 0.0125) & (Cu[:, 1] < -0.03))[0]
+    i = i[np.argsort(Cu[i, 0])]
+    cover = np.zeros((1920, 1920), bool)
+    for part in (G.build_frame(gp)[0], G.build_nose_guard(gp)):
+        q = G.photo_project(x, part.V, 1920, 1920)[0]
+        cover |= fill(q[t] for t in tris(part))
+    return [int((fill([G.photo_project(x, rings[k][i], 1920, 1920)[0]]) & ~cover).sum())
+            for k in (G.RING_EDGE, G.RING_BACK_OUT)]
+
+
+def test_round7_nose_guard_fills_the_arch_in_the_photos():
+    """Round 7: in Leatt's photos from his right (iso55, phy, phr, phw) the guard fills the arch out to its far leg.
+    Swept back 10.2 mm (the shape fit) its far side left 37 to 95 px of backdrop inside the arch; at 3 mm none."""
+    for view in ("iso55", "phy", "phr", "phw"):
+        assert max(arch_backdrop_px(view)) == 0, view
+    gp = dict(G.GP, ng=list(G.GP["ng"]))
+    gp["ng"][G.NG_KEYS.index("sweep")] = 0.01017
+    assert min(arch_backdrop_px("phr", gp)) > 20                  # the check sees the round 7 fit's gap
+
+
+def test_round7_creases_are_as_crisp_as_leatts():
+    """Round 7: Leatt's facets meet in sharp lines: across each designed crease the shading turns over 1.2 to 2.4 px
+    at 1:1 (10 to 90 %), the photos' own blur (their silhouettes) 0.8 to 1.5 px (white ISO and iso55, goggle.py
+    CREASE_PROBES). The model's turn runs between the support rings either side of each crease (CREASE_R, and the
+    crease land); projected with the photo's camera, blurred alike, it matches each probe within 1 px and on average
+    within 0.6 px. Round 6's 0.35 mm support rings and 45 deg chamfer read 2.5 to 4 px: a rolled, tube-like edge."""
+    cams = {k: v["x"] for k, v in json.load(open(G.CAMERAS)).items() if not k.startswith("_")}
+    rings, _ = G.frame_rings()
+    R = G.CREASE_R
+    diffs = []
+    for view, u, v, meas, (k0, k1) in G.CREASE_PROBES:
+        x = np.array(cams[view])
+        q = G.photo_project(x, 0.5 * (rings[k0] + rings[k1]), 1920, 1920)[0]
+        i = int(np.argmin(np.hypot(q[:, 0] - u, q[:, 1] - v)))
+        assert np.hypot(q[i, 0] - u, q[i, 1] - v) < 12.0, (view, u, v)      # the probe is on that crease
+        a = rings[k0][i] + R * (rings[k0 - 1][i] - rings[k0][i]) / np.linalg.norm(rings[k0 - 1][i] - rings[k0][i])
+        b = rings[k1][i] + R * (rings[k1 + 1][i] - rings[k1][i]) / np.linalg.norm(rings[k1 + 1][i] - rings[k1][i])
+        pa, pb = G.photo_project(x, np.array([a, b]), 1920, 1920)[0]
+        pred = np.hypot(0.8 * np.linalg.norm(pb - pa), G.CREASE_BLUR[view])
+        diffs.append(pred - meas)
+    diffs = np.array(diffs)
+    assert np.abs(diffs).max() < 1.0, diffs
+    assert np.abs(diffs).mean() < 0.6, diffs
+
+
+def pillar_samples(gp=None):
+    """The side pillar's outline samples (left), its middle 3/4 between side_top and bot_corner (clear of their
+    fillets), top to bottom."""
+    gp = gp or G.GP
+    Co, Cu, Ci, seg, frac = G.outlines(gp)
+    a, b = G.ci("side_top"), G.ci("side_end")
+    z0, z1 = gp["out"][a][1], gp["out"][G.ci("bot_corner")][1]
+    h = 0.125 * (z0 - z1)
+    m = np.isin(seg, (a, b)) & (Cu[:, 0] > 0) & (Cu[:, 1] < z0 - h) & (Cu[:, 1] > z1 + h)
+    i = np.nonzero(m)[0]
+    return i[np.argsort(-Cu[i, 1])], Co, Cu
+
+
+def test_round7_side_pillars_are_straight():
+    """Round 7: Leatt's side pillars are straight bands with a clean step down to the outrigger (iso55, phr at 1:1);
+    round 6's swelled outward at mid-height (its outer edge bowed 6.3 mm off the chord, and the outer facet leaned
+    back 8.5 to 11 mm). In the front view the pillar's outer edge stays within 0.3 mm of its chord; in plan its
+    section changes linearly along it (front face offset, inner wall lean, face width and outer facet within 0.5 mm
+    of a straight line), so no part of it swells."""
+    i, Co, Cu = pillar_samples()
+    P = Cu[i]
+    d = P[-1] - P[0]
+    n = np.array([-d[1], d[0]]) / np.linalg.norm(d)
+    assert np.abs((P - P[0]) @ n).max() < 0.0003
+    t = G.outline_t(G.GP)[i]
+    for k in ("lip", "bevel", "rim", "band"):
+        f = G.xs_at(G.GP, k, t)
+        assert np.abs(f - np.polyval(np.polyfit(t, f, 1), t)).max() < 0.0005, k
+
+
+def test_round7_top_band_tab():
+    """Round 7: the raised tab on the top band carrying the Leatt icon: the top silhouette steps up at s -32.0
+    (iso55, phy), -29.9 (phw) and in the white ISO, by 6 to 11 px (1.6 to 1.9 mm at the white ISO's 0.177 mm per px);
+    its far end faces away from those cameras and is mirrored. Behind the front face's top crease the top surface
+    stands TAB_H higher inside |s| TAB_S, the front face's crease does not move."""
+    assert abs(G.TAB_S - 0.031) < 0.002 and 0.0015 < G.TAB_H < 0.0020
+    rings, info = G.frame_rings()
+    h, G.TAB_H = G.TAB_H, 0.0
+    try:
+        flat, _ = G.frame_rings()
+    finally:
+        G.TAB_H = h
+    Cu = G.outlines()[1]
+    top = Cu[:, 1] > 0.02
+    mid, out = top & (np.abs(Cu[:, 0]) < 0.025), top & (np.abs(Cu[:, 0]) > 0.040)
+    for k in (G.RING_EDGE, G.RING_TOP):                                     # the top surface rises on the tab
+        dz = rings[k][:, 2] - flat[k][:, 2]
+        assert np.abs(dz[mid] - h).max() < 0.0003 and np.abs(dz[out]).max() < 1e-6
+    assert np.abs(rings[G.RING_RIM] - flat[G.RING_RIM]).max() < 1e-9       # the front face's crease stays
 
 
 def test_landmarks_in_leatts_photos():
@@ -348,13 +500,13 @@ def test_frame_width_and_wrap():
 
 
 def test_frame_and_lens_clear_his_face(body, built):
-    """No skin inside the frame, the lens, the outriggers or the nose ribs (round 5: they give way to his nose), at
-    rest and with the head pitched down 20 deg (the goggle rides the head bone); the face foam is pressed onto the
-    skin by at most 3 mm (compressed foam)."""
+    """No skin inside the frame, the lens, the outriggers, the nose guard (round 7) or the nose ribs (round 5: they
+    give way to his nose), at rest and with the head pitched down 20 deg (the goggle rides the head bone); the face
+    foam is pressed onto the skin by at most 3 mm (compressed foam)."""
     P = built["parts"]
     for pitch in (0.0, 20.0):
         Vs, (R, d) = deform_head(body, pitch)
-        for name in ("goggle_frame", "goggle_lens", "goggle_outriggers", "goggle_noseribs"):
+        for name in ("goggle_frame", "goggle_lens", "goggle_outriggers", "goggle_noseguard", "goggle_noseribs"):
             Vh = P[name].V @ R.T + d
             lo, hi = Vh.min(0) - 0.005, Vh.max(0) + 0.005
             near = np.all((Vs > lo) & (Vs < hi), axis=1)

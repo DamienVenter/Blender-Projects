@@ -14,6 +14,14 @@ backdrop (camera rays only; a dim world lights the rest) and three area lights, 
 spread a highlight over 15 % of the frame's face in iso55, where Leatt's photo shows small, crisp ones; at 1 m its
 edge width matches the photo, the ledger goggle.md section 8).
 
+Round 7: GOGGLE_VIEWS_CAMS another camera file (same format), GOGGLE_VIEWS_FRAME_RGB "r,g,b" the frame's base colour
+(sRGB) for another colourway (the white ISO held-out check: 236,236,232), GOGGLE_VIEWS_LENS_VLT a plain grey
+see-through lens of that visible light transmission in place of his mirror (Leatt's Light Grey 58 %: 0.58), so the
+nose comb behind it shows as in Leatt's photos. Each of the double lens's four faces is a thin surface: a Fresnel
+(IOR 1.5) reflection over a grey see-through that lets the lights' rays pass, tinted so that the four faces together
+pass the VLT at normal incidence (a Principled transmission tints and refracts at every face and stops the lights'
+rays: a 150 grey tint left 0.3^4 of the light, and the comb did not show at all).
+
 light (round 6): "studio" (default) or a raking sun that shows every dent and wave in the frame as a dark or light
 streak (after the bike's rake.py: the studio lights off, the ambient at 12 %, a 0.5 deg sun, AgX Punchy):
 "rakeT" from above, "rakeB" from below, "rakeL" from his left, "rakeR" from his right, each 20 deg in front of the
@@ -30,7 +38,8 @@ from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEXDIR = os.path.normpath(os.path.join(HERE, "..", "..", "textures", "rider"))
-CAMS = os.path.normpath(os.path.join(HERE, "..", "..", "research", "goggle-cameras.json"))
+CAMS = os.environ.get("GOGGLE_VIEWS_CAMS") or os.path.normpath(os.path.join(HERE, "..", "..", "research",
+                                                                  "goggle-cameras.json"))
 argv = sys.argv[sys.argv.index("--") + 1:]
 NPZ, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1])
 SPEC = json.load(open(CAMS))
@@ -41,6 +50,8 @@ RAKE = {"rakeT": (0.0, -0.36, 1.0), "rakeL": (1.0, -0.36, 0.15), "rakeR": (-1.0,
         "rakeB": (0.0, -0.36, -1.0)}   # towards the sun
 SCALE = float(os.environ.get("GOGGLE_VIEWS_SCALE", "0.5"))
 LIGHT_SIZE = float(os.environ.get("GOGGLE_VIEWS_LIGHT_SIZE", "1.0"))       # the studio's area lights (m; round 6)
+FRAME_RGB = [int(v) for v in os.environ.get("GOGGLE_VIEWS_FRAME_RGB", "").split(",") if v]   # sRGB 0..255
+LENS_VLT = float(os.environ.get("GOGGLE_VIEWS_LENS_VLT", "0") or 0)                          # 0..1, 0: his mirror
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -54,6 +65,33 @@ def material(name, spec):
     m.use_nodes = True
     nt = m.node_tree
     p = nt.nodes["Principled BSDF"]
+    if "thin_vlt" in spec:                         # round 7: one face of a see-through lens (LENS_VLT)
+        nt.nodes.remove(p)
+        # Fresnel from outside the plastic on both faces: the see-through does not bend the ray, so on a back face
+        # the Fresnel node's own inside view (IOR 1/1.5) gave total internal reflection past 42 deg, and the lens
+        # turned into a grey mirror where the camera looks through it obliquely
+        fr, fb = nt.nodes.new("ShaderNodeFresnel"), nt.nodes.new("ShaderNodeFresnel")
+        fr.inputs["IOR"].default_value, fb.inputs["IOR"].default_value = 1.5, 1.0 / 1.5
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        d, w, a = (nt.nodes.new("ShaderNodeMath") for _ in range(3))
+        d.operation, w.operation, a.operation = "SUBTRACT", "MULTIPLY", "ADD"
+        nt.links.new(fb.outputs["Fac"], d.inputs[0])
+        nt.links.new(fr.outputs["Fac"], d.inputs[1])
+        nt.links.new(d.outputs[0], w.inputs[0])
+        nt.links.new(geo.outputs["Backfacing"], w.inputs[1])
+        nt.links.new(w.outputs[0], a.inputs[0])
+        nt.links.new(fr.outputs["Fac"], a.inputs[1])
+        see = nt.nodes.new("ShaderNodeBsdfTransparent")
+        t = min(1.0, spec["thin_vlt"] ** 0.25 / (1.0 - 0.04))       # 4 % reflected per face at normal incidence
+        see.inputs["Color"].default_value = (t, t, t, 1.0)
+        gl = nt.nodes.new("ShaderNodeBsdfGlossy")
+        gl.inputs["Roughness"].default_value = 0.02
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        nt.links.new(a.outputs[0], mix.inputs[0])
+        nt.links.new(see.outputs[0], mix.inputs[1])
+        nt.links.new(gl.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+        return m
     if "rgb" in spec:
         p.inputs["Base Color"].default_value = lin(spec["rgb"])
     p.inputs["Roughness"].default_value = spec.get("rough", 0.5)
@@ -75,6 +113,11 @@ def material(name, spec):
 def load(path):
     g = np.load(path)
     spec = json.loads(str(g["materials"]))
+    if FRAME_RGB:                                  # round 7: the frame in another colourway (the white ISO)
+        spec["goggle_frame"] = dict(spec["goggle_frame"], rgb=FRAME_RGB)
+    if LENS_VLT:                                   # ... and a plain see-through lens (no mirror)
+        for m in ("goggle_lens_mirror", "goggle_lens_clear"):
+            spec[m] = dict(thin_vlt=LENS_VLT)
     mats = [str(m) for m in g["mats"]]
     bm = {m: material(m, spec.get(m, {})) for m in mats}
     for name in [str(n) for n in g["names"]]:

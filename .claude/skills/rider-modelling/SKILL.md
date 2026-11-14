@@ -266,6 +266,67 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   undershoots: +1.3 EV left his white shell at 0.45 to 0.51 (linear) against the photos' 0.84 to 0.86; +2.0 gives
   0.55 to 0.59 with the frame and sky still holding colour (+2.6: washed out).
 
+## Goggle round 7: Leatt's details at 1:1 (2026-11-14, goggle.py, test_goggle.py, ledger goggle.md section 9)
+- **Model every part the photo's silhouette contains before fitting outlines near it.** The nose arch fitted as a
+  pointed V for three rounds because the photos' arch outline includes the black nose guard and the foam, which the
+  model lacked: the frame bent to cover them. With the guard modelled (a closed rubber shell, NG_KEYS), the arch
+  came out round-topped. A landmark can carry the same error: NOTCH had been picked on the lens edge's top
+  (z -31.7 mm), not the frame's arch top (-38.2 to -39.1).
+- **A capped ICP ignores what starts too far away**: arch photo points more than the cap (8 mm) from the start got
+  zero weight and the fit narrowed the arch further. Move the start within the cap (by hand, from back-projected
+  points) before fitting.
+- **Hidden parts get no gradient from a silhouette fit**: the far outrigger behind the pillar in phr never moved.
+  Check such parts by projecting them (all vertices, hidden or not) and say plainly what the photos cannot pin.
+- **Crease width, measured**: across each designed crease, the 10 to 90 % width of the shading step at 1:1 (probe
+  points on the photo), against the photo's own blur (a silhouette edge's width); predicted width =
+  hypot(0.8 x the crease's projected span, blur). Leatt's creases turn in 1.2 to 2.4 px (0.2 to 0.4 mm): a 0.1 mm
+  support ring each side of every ring and a 0.1 mm land at the top crease, so shading is flat inside each facet
+  and turns only at the crease. Round 6's 0.35 mm support rings and 45 deg chamfer read as soft, inflated plastic.
+  A fixed 45 deg land on a crease whose facets are nearly coplanar draws a false dark line (the arch's face): let
+  the land follow the facet behind it where that facet is shallower than 45 deg.
+- **A control point that does not turn needs a token fillet**: fillet_closed gave it d = 0, two identical points
+  and a NaN normal downstream (the foam's march). Such a point is free to slide along its line without changing the
+  outline, which makes it a handle on how two outlines pair up (next point).
+- **Rings ruled between two outlines pair them by sample index**: where the lens edge's corner sits at another
+  height than the outer edge's control point, the rulings sweep along the face and every offset ring wobbles (the
+  pillar's chamfer failed fairness at 33 um ripple; the crease bent 0.5 mm). Moving the collinear side_end to the
+  lens edge's corner height (outline unchanged to 60 um) made the rulings run across the pillar: ripple 7 um.
+- **Re-check a jointly fitted part once the rest has settled**: the nose guard's sweep, fitted at 10.2 mm while the
+  arch was still being reshaped, left the backdrop showing inside the finished arch's far leg in phr, phy and phw
+  (Leatt's guard fills it). A one-key sweep through the error table on the finished frame (scratch ngsweep.py) put
+  it at 3 mm: the fit views' outline p90s fell 1.0 mm in sum. Look at the 1:1 crops of every part, not only the
+  part you changed last. Test such a fix in the views that showed it: the guard's front-view test passed at 10.2 mm;
+  rasterising the frame and guard with PIL at each photo camera and counting the arch's uncovered pixels
+  (test_round7_nose_guard_fills_the_arch_in_the_photos, about 1 s) catches it, and the test asserts the old value
+  fails so the check is known to be live.
+- **A worn soft part gives way to the face**: the nose guard's back sheet cut 10 skin vertices beside his nose
+  bridge; on him it comes forward by up to 7 mm where needed (goggle.guard_clear), like the nose ribs.
+- **Validation cameras are refitted to the final shape before the table**: frg and chee left at round 6's cameras
+  read 0.3 mm worse in median for the camera, not the shape.
+- **Check the ledger before calling a photo held out**: the white ISO was already a round 4 source (creases, teeth,
+  ribs at iso55's camera), and the MY27 kit Blue_Red views were the placement, scale, top lip and outrigger sources
+  of rounds 3 to 5. Grep the ledger for the file's SKU before the check; say so in the report rather than claim a
+  clean hold-out.
+- **On-helmet camera fits in the goggle frame**: fit the camera to the helmet's silhouette with the mesh taken into
+  the GOGGLE frame by the head transform (helmet.build's Rt), so az and el read like the goggle-alone cameras and the
+  grid start works; render by moving the mesh so the camera's target is the origin (goggle_views looks at it).
+  Fitted to our shell (not Leatt's to the mm) such a camera carries several mm of error: read the goggle's position
+  from the side views (az +-96 deg), not the oblique one (the front iso left view put the frame 13 to 15 mm off, of
+  which about 6 mm is real).
+- **A part's material: check every colourway before believing a description.** The "dark ribbed rubber" in the
+  brief is the comb behind the lens, and it is frame plastic: yellow in the Neon Yellow photo, red in the Royal,
+  pink in the Pinata, white-grey in the White, black in the exploded view. The dark matte part below the arch is the
+  guard.
+- **A see-through lens in Cycles** (goggle_views GOGGLE_VIEWS_LENS_VLT): a Principled transmission tints at every
+  face and stops the lights' rays, so a double lens (four faces) at a 150 grey tint left 0.3^4 of the light and hid
+  everything behind it. Use a Transparent BSDF (tint VLT^(1/4) per face, shadow rays pass) under a Fresnel-weighted
+  Glossy. On a back face the Fresnel node uses 1/IOR and, since the see-through does not bend the ray, reflects
+  totally past 42 deg: the lens turned into a flat grey mirror where the camera looked through it obliquely. Feed
+  back faces a Fresnel at IOR 1/1.5 (Geometry Backfacing). Under AgX a 58 % lens looks paler than in Leatt's
+  renders (the bright backdrop behind it is compressed), and Leatt's goggle-alone renders show black behind the
+  lens (most likely the far strap, which runs straight back behind the goggle in them) where our free goggle (no
+  strap) shows the backdrop. Compare the frame and the comb, not the lens's tone.
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

@@ -182,6 +182,11 @@ def build_eyes(body, nth=40, nph=64):
 # and their fillets) follow CTRL. The front face between the lens edge and the outline edge has a crease across it
 # (mid ring, at mid_t of the way out, mid_w proud of the straight face): two facets per cross-section, and a
 # transverse crease at every control point (straight runs between them, joined by fillets).
+# Round 7 (crisp and faceted, Leatt's white ISO at 1:1): the cross-section is three flat facets meeting in sharp
+# creases, an inner wall (leaning out from the lens edge by "bevel": the lit top face of the lower band's foot), the
+# front face (rim wide, flat), an outer facet leaning back to the outline edge (the top band's lighter top plane);
+# the chamfer is only the outer crease's land and the mid ring lies on the outer facet (mid_w 0: no bulge). Every
+# designed crease is shaded over CREASE_R either side, the width its highlight and shading step have in the photos.
 # Round 6 (fair by construction, a moulded part): the outlines' offsets and every cross-section value are low-order
 # smooth curves along the frame (bspline_half: a uniform cubic B-spline over the half loop, 24 coefficients for the
 # outlines, 16 for the fields, mirrored at the centre line), fitted with a bending penalty; round 5's per-sample
@@ -195,65 +200,67 @@ def ci(name):
 
 
 GP = dict(
-    a=0.13480, A=0.09390, tilt=0.0,          # lens plan (round 5 fit, kept in round 6; round 4: 137.7, 89.8 mm)
-    # frame outer edge (the outline seen from the front): control polygon (the corners)
-    out=[(0.0, 0.04489), (0.03851, 0.04150), (0.04566, 0.04091), (0.08819, 0.03407), (0.09441, 0.02973),
-         (0.10524, 0.02513), (0.11323, -0.00422), (0.10345, -0.04097), (0.06352, -0.05291), (0.05004, -0.05525),
-         (0.03354, -0.05470), (0.02951, -0.05494), (0.01580, -0.05518), (0.00797, -0.04647), (0.0, -0.03102)],
+    a=0.13480, A=0.09390, tilt=0.0,          # lens plan (round 5 fit, kept since; round 4: 137.7, 89.8 mm)
+    # frame outer edge (the outline seen from the front): control polygon (the corners). Round 7: the pillar's side_top,
+    # side_end and bot_corner are collinear (one straight pillar); side_end sits at the lens edge's pillar corner's
+    # height (z -17.13 mm, was -3.75), so the rings' rulings between the two edges run across the pillar, not up it
+    # (the outline is the same to 60 um; the crease and chamfer wobbled 0.5 mm and failed the fairness test)
+    out=[(0.0, 0.04394), (0.03950, 0.04056), (0.04495, 0.04135), (0.08844, 0.03407), (0.09272, 0.02977),
+         (0.11247, 0.02380), (0.10827, -0.01713), (0.10588, -0.04047), (0.06294, -0.05308), (0.04993, -0.05515),
+         (0.03280, -0.05465), (0.03101, -0.05542), (0.01250, -0.05019), (0.00260, -0.03785), (0.0, -0.03785)],
     # the lens's visible edge (the foot of the frame's inner wall, lip deep)
-    open=[(0.0, 0.03415), (0.04188, 0.03179), (0.04273, 0.03173), (0.07949, 0.03150), (0.09042, 0.02911),
-          (0.10022, 0.01908), (0.10347, -0.00965), (0.09294, -0.03374), (0.05517, -0.04209), (0.04572, -0.04627),
-          (0.03065, -0.05070), (0.01903, -0.04168), (0.01085, -0.03193), (0.00794, -0.03220), (0.0, -0.03035)],
+    open=[(0.0, 0.03508), (0.04177, 0.03248), (0.04230, 0.03232), (0.07923, 0.03156), (0.08977, 0.02874),
+          (0.09986, 0.01868), (0.09986, -0.01713), (0.09430, -0.03279), (0.05716, -0.04098), (0.04860, -0.04590),
+          (0.02838, -0.04954), (0.01850, -0.04125), (0.01411, -0.03073), (0.00670, -0.03291), (0.0, -0.03025)],
     # the face side's opening (frame inner wall, foam inner edge), rising over the bridge of his nose
-    inner=[(0.0, 0.02814), (0.04009, 0.03305), (0.04100, 0.03408), (0.08544, 0.03274), (0.09361, 0.02503),
-           (0.09492, 0.01517), (0.08997, -0.00039), (0.09085, -0.02743), (0.05791, -0.02800), (0.04233, -0.03199),
-           (0.03293, -0.02899), (0.02502, -0.02757), (0.01468, -0.02037), (0.00667, -0.01684), (0.0, -0.01296)],
-    # corner fillets at each control point: moulded edges, small (the tabs, the step and the notch pointed;
-    # round 5's, kept in round 6)
+    inner=[(0.0, 0.02761), (0.04014, 0.03231), (0.04100, 0.03409), (0.08607, 0.03256), (0.09364, 0.02506),
+           (0.09548, 0.01486), (0.08955, 0.00042), (0.08982, -0.02606), (0.05510, -0.02633), (0.04300, -0.03185),
+           (0.03364, -0.02758), (0.02517, -0.02659), (0.01529, -0.02062), (0.00611, -0.01904), (0.0, -0.01474)],
+    # corner fillets at each control point: moulded edges, small (the tabs and the step pointed; round 7:
+    # the nose arch's round top and feet fitted; a control point that does not turn gets a token fillet)
     fillet_out=[0.00300, 0.00050, 0.00050, 0.00300, 0.00300, 0.00300, 0.00300, 0.00300, 0.00200, 0.00200, 0.00120,
-                0.00120, 0.00200, 0.00150, 0.00150],
+                0.00120, 0.00218, 0.00240, 0.00040],
     fillet_open=[0.00300, 0.00300, 0.00300, 0.00300, 0.00400, 0.00400, 0.00300, 0.00400, 0.00300, 0.00300, 0.00300,
                  0.00300, 0.00300, 0.00300, 0.00400],
     fillet_inner=[0.00500, 0.00500, 0.00500, 0.00600, 0.00600, 0.00600, 0.00500, 0.00600, 0.00600, 0.00600,
                   0.00600, 0.00600, 0.00800, 0.01000, 0.01200],
     # cross-section fields (round 6: the coefficients of a bspline_half over outline_t, the outer edge's arc
-    # length from the top centre, 0, to the bottom centre, 1; m): frame depth behind the lens front (to the foam
-    # seat), front rim width, the 45 deg chamfer behind it, the depth of the outline edge behind the rim (the
-    # front face rises back to it), the depth of the top surface's back edge (the step in to the vent row), and
-    # the face's crease (mid_t of the way out, mid_w proud)
-    depth=[0.02259, 0.02250, 0.02314, 0.02345, 0.02303, 0.02120, 0.01809, 0.01633, 0.01609, 0.01638, 0.01676,
-           0.01656, 0.01380, 0.00893, 0.00250, 0.00200],
-    rim=[0.00294, 0.00297, 0.00289, 0.00274, 0.00275, 0.00295, 0.00293, 0.00241, 0.00252, 0.00283, 0.00286,
-         0.00287, 0.00301, 0.00303, 0.00298, 0.00290],
-    chamfer=[0.00089, 0.00091, 0.00086, 0.00072, 0.00067, 0.00080, 0.00080, 0.00071, 0.00083, 0.00105, 0.00138,
-             0.00178, 0.00203, 0.00153, 0.00121, 0.00126],
-    band=[0.00084, 0.00267, 0.00456, 0.00488, 0.00499, 0.00948, 0.01172, 0.00960, 0.00889, 0.00827, 0.00574,
-          0.00218, 0.00280, 0.00383, 0.00318, 0.00367],
-    top=[0.01301, 0.01300, 0.01306, 0.01318, 0.01315, 0.01368, 0.01424, 0.01408, 0.01239, 0.01024, 0.00899,
-         0.00834, 0.00730, 0.00558, 0.00453, 0.00440],
-    mid_w=[-0.00216, -0.00215, -0.00172, -0.00052, 0.00039, 0.00026, -0.00072, -0.00080, 0.00020, 0.00139, 0.00196,
-           0.00181, -0.00008, 0.00001, 0.00037, 0.00076],
-    mid_t=[0.6293, 0.5186, 0.4312, 0.4250, 0.3189, 0.3461, 0.5595, 0.5511, 0.3827, 0.2371, 0.3941, 0.5839, 0.5072,
-           0.5094, 0.4032, 0.5767],
-    # the frame's front face stands this far proud of the lens front (the same kind of field: the top band 9.2 to
-    # 9.5 mm, the side pillars and lower corners 6.6 to 6.9 mm, the cheeks and nose 8.5 to 9.3 mm at the corners)
-    lip=[0.00905, 0.00951, 0.00963, 0.00873, 0.00804, 0.00660, 0.00660, 0.00660, 0.00660, 0.00660, 0.00778,
-         0.00959, 0.00872, 0.00820, 0.00957, 0.00899],
-    step=0.00184,           # the vent row's step in
-    taper=0.00187,          # the outer wall leans out this much from the step to the back
+    # length from the top centre, 0, to the bottom centre, 1; m). Round 7 section (Leatt at 1:1): the inner wall
+    # leans out by bevel from the lens edge (the lit "foot" beside the nose), a wide flat front face (rim), a
+    # crisp crease with a 0.1 mm land (chamfer), the outer facet leaning back by band to the outline edge (the
+    # lighter top plane), the top surface back to top, the frame's depth behind the lens front (the foam seat)
+    depth=[0.01962, 0.01954, 0.02008, 0.02104, 0.02140, 0.02010, 0.01735, 0.01507, 0.01560, 0.01755, 0.01831,
+           0.01653, 0.01231, 0.00728, 0.00327, 0.00212],
+    rim=[0.00653, 0.00655, 0.00653, 0.00645, 0.00602, 0.00544, 0.00507, 0.00494, 0.00497, 0.00495, 0.00482,
+         0.00478, 0.00503, 0.00545, 0.00578, 0.00586],
+    chamfer=0.00010,
+    bevel=[0.0, 0.0, 0.0, 0.00015, 0.00109, 0.00207, 0.00274, 0.00317, 0.00287, 0.00139, 0.00008, 0.0, 0.0,
+           0.00016, 0.00071, 0.00084],
+    band=[0.00195, 0.00253, 0.00393, 0.00488, 0.00553, 0.00580, 0.00567, 0.00591, 0.00651, 0.00669, 0.00535,
+          0.00288, 0.00169, 0.00134, 0.00048, 0.00030],
+    top=[0.01354, 0.01361, 0.01386, 0.01415, 0.01442, 0.01435, 0.01389, 0.01332, 0.01244, 0.01117, 0.00970,
+         0.00814, 0.00659, 0.00532, 0.00458, 0.00441],
+    mid_w=0.0,
+    mid_t=0.5,
+    # the frame's front face stands this far proud of the lens front (the same kind of field; round 7: the top
+    # band 9 to 11 mm, the side pillars 3 to 5 mm with the post heads showing in front, the lower band 7 to 8)
+    lip=[0.00906, 0.00963, 0.01129, 0.01033, 0.00619, 0.00325, 0.00396, 0.00471, 0.00419, 0.00361, 0.00515,
+         0.00765, 0.00789, 0.00718, 0.00743, 0.00785],
+    step=0.00167,           # the vent row's step in
+    taper=0.00211,          # the outer wall leans out this much from the step to the back
     # samples per control segment of the left half (fillet_closed), and (round 6) the outer edge's and the lens
     # edge's smooth outward offsets (m): bspline_half coefficients over each polygon's own arc length, fitted on
     # nine photos with a bending penalty and held near 0 at the control points (ledger goggle.md)
-    per=[40, 6, 40, 6, 6, 15, 21, 20, 7, 8, 6, 7, 6, 8],
-    out_dk=[-0.00011, 0.00023, 0.00038, -0.00018, 0.00010, 0.00182, 0.00105, -0.00023, 0.00003, -0.00001, -0.00045,
-            -0.00004, -0.00006, 0.00022, -0.00008, -0.00025, -0.00019, 0.00003, 0.00003, -0.00003, 0.00001,
-            0.00002, -0.00002, 0.0],
-    open_dk=[-0.00003, 0.00007, 0.00006, 0.0, 0.00001, -0.00010, -0.00024, 0.00005, -0.00001, 0.00018, -0.00044,
-             -0.00095, 0.00038, 0.00189, -0.00004, -0.00135, -0.00101, -0.00011, 0.00014, -0.00010, 0.00008,
-             -0.00001, -0.00001, 0.00001],
+    per=[40, 6, 40, 6, 6, 22, 14, 20, 7, 8, 6, 7, 6, 8],
+    out_dk=[0.00010, -0.00023, -0.00041, -0.00009, 0.00015, 0.00149, 0.00067, -0.00012, 0.00002, -0.00001, 0.0,
+            -0.00001, 0.00001, -0.00003, 0.00007, -0.00030, -0.00036, -0.00012, 0.00013, -0.00009, -0.00004,
+            0.00018, -0.00008, 0.00017],
+    open_dk=[-0.00003, 0.00006, 0.00004, -0.00005, 0.00001, 0.00013, -0.00016, 0.00003, 0.0, 0.00001, -0.00001,
+             0.00002, -0.00004, 0.00012, -0.00007, -0.00039, -0.00018, 0.00002, 0.00003, -0.00008, 0.00004,
+             -0.00001, 0.00001, -0.00001],
     # the top band's teeth (tooth_drop): |s| in, |s| out, drop at each end (m)
-    teeth=[[0.04360, 0.05900, 0.0, 0.00150], [0.05900, 0.07950, 0.00166, 0.00138]],
-    # outriggers (outrigger_frames): fitted with the shape (round 5, kept in round 6)
+    teeth=[[0.04360, 0.05900, 0.0, 0.00033], [0.05900, 0.07950, 0.00196, 0.00151]],
+    # outriggers (outrigger_frames): fitted with the shape (round 5, kept; round 7 checked the far one in phr: ledger)
     or_len=0.03040,
     or_back_h=0.05870,
     or_turn=0.44010,
@@ -261,8 +268,12 @@ GP = dict(
     or_bot_in=0.00350,
     or_back_dz=0.00060,
     or_front=0.00220,
+    # round 7: the nose guard (build_nose_guard, NG_KEYS), fitted with the shape on the photos' silhouettes; the sweep
+    # then set on the finished frame (10.2 to 3 mm: swept back 10 mm its far side left the backdrop showing inside the
+    # arch in phr, phy and phw, where Leatt's guard fills it; the fit views' outline p90s 0.1 to 0.4 mm better)
+    ng=[-0.03750, -0.05464, 0.00850, 0.01738, 0.00300, -0.00100, 0.00159, 0.00300, 0.00250],
 )
-NOSE_S = 0.030                     # |s| inside which the foam leaves the frame's back for the nose bridge
+NOSE_S = 0.030                    # |s| inside which the foam leaves the frame's back for the nose bridge
 VENT_ROWS = (0.3, 0.7)             # the top vents' slots run between these fractions of the outer wall's depth
 # rings round the frame's cross-section: a lens contact, b lip, c rim inner edge, d rim outer edge, e chamfer,
 # e2 the front face's crease, f outline edge, f2 top surface back, g step, v1 v2 vent rows, k outer wall back,
@@ -272,6 +283,28 @@ RING_RIM, RING_CHAMFER, RING_MID, RING_EDGE, RING_TOP = 3, 4, 5, 6, 7
 RING_VENT, RING_BACK_OUT, RING_BACK_IN = 9, 11, 12
 LENS_T, LENS_GAP, LENS_IN_T = 0.0012, 0.0016, 0.0006     # outer lens, foam spacer gap, inner lens (m)
 LENS_GROOVE = 0.003                                     # the lens runs this far under the frame's front rim
+# round 7: the frame's moulded creases (Leatt's white ISO 39278 and iso55 at 1:1, 0.177 mm per px: across every
+# designed crease the shading steps in 1.2 to 2.4 px, 10 to 90 %, against 0.8 to 1.5 px for the silhouettes' own
+# blur; phw and phr read alike, 0.8 to 2.5 px; ledger goggle.md section 9): each crease turns its shading over
+# CREASE_R either side (support rings), the inner crease has a land of that size and the top crease a land of
+# GP["chamfer"] (0.1 mm). Round 6 rolled them over 0.35 mm (3 to 4 px) and a 45 deg chamfer: the soft, inflated look.
+CREASE_R = 0.00010
+# the probes (probe.py, 10 to 90 % of the shading step across each crease, px at 1:1): view, photo point, measured
+# width, the rings either side of the turn (the top crease is the rim's outer edge d and the land e behind it, one
+# line at 1:1; the lens edge is the front face's inner edge c). test_goggle checks the built rings against them.
+# Each photo's own blur is its silhouette's width (wiso 0.9 at the top, x 1250, and 0.8 at the pillar, y 880;
+# iso55 1.3 and 1.5 at the top, x 1250 and 1150). phw and phr read alike but their cameras are less sure at that
+# scale, so they stay out of the test.
+CREASE_PROBES = [
+    ("wiso", 1250, 731.5, 2.2, (3, 4)),      # the top band's upper crease
+    ("wiso", 1150, 744.5, 2.1, (3, 4)),
+    ("wiso", 1250, 767.5, 2.0, (2, 2)),      # the top band's lens edge
+    ("iso55", 1250, 728.5, 1.9, (3, 4)),
+    ("iso55", 1150, 740.0, 1.2, (3, 4)),
+    ("iso55", 1250, 765.0, 1.3, (2, 2)),
+    ("iso55", 1150, 771.0, 1.6, (2, 2)),
+]
+CREASE_BLUR = dict(wiso=0.85, iso55=1.4)
 
 
 class LensSurface:
@@ -309,16 +342,24 @@ FILLET = 0.005                      # m, the frame's moulded corners: straight r
 
 def fillet_closed(P, per=12, r=FILLET):
     """Closed polygon through P (k x 2) with each corner rounded (a quadratic Bezier between points r from it on
-    either side, r at most 0.4 of the shorter side); per samples per side (one number, or one per side). Returns the
+    either side, r at most 0.45 of the shorter side); per samples per side (one number, or one per side). Returns the
     samples and, for each, the side it lies on and the fraction along it: outlines sampled alike correspond point
     for point."""
     P = np.asarray(P, float)
     k = len(P)
+    # round 7: a control point that does not turn the outline (under 3 degrees: the nose arch's apex between its
+    # mirrored flat top, a straight pillar's middle) gets only a token fillet (0.04 of its sides, a straight run), and
+    # its neighbours may use 0.95 of the shared side (the arch's round top, about 4 mm radius under a 3.4 mm flat,
+    # Leatt's front photos; ledger goggle.md section 9)
+    e = np.roll(P, -1, 0) - P
+    e /= np.maximum(np.linalg.norm(e, axis=1), 1e-12)[:, None]
+    flat = np.einsum("ij,ij->i", np.roll(e, 1, 0), e) > np.cos(np.radians(3.0))
     tin, tout = [], []
     for i in range(k):
         a, b, c = P[(i - 1) % k], P[i], P[(i + 1) % k]
-        ri = r[i] if np.ndim(r) else r
-        d = min(ri, 0.4 * np.linalg.norm(b - a), 0.4 * np.linalg.norm(c - b))
+        ri = 0.04 * min(np.linalg.norm(b - a), np.linalg.norm(c - b)) if flat[i] else (r[i] if np.ndim(r) else r)
+        fa, fc = (0.95 if flat[(i - 1) % k] else 0.45), (0.95 if flat[(i + 1) % k] else 0.45)
+        d = min(ri, fa * np.linalg.norm(b - a), fc * np.linalg.norm(c - b))
         tin.append(b + (a - b) / max(np.linalg.norm(a - b), 1e-12) * d)
         tout.append(b + (c - b) / max(np.linalg.norm(c - b), 1e-12) * d)
 
@@ -479,6 +520,21 @@ def outlines(gp=None, per=None, teeth=True):
     return Co, Cu, Ci, seg, frac
 
 
+# Round 7: the raised tab on the top band (it carries the Leatt icon): behind the front face's top crease the top
+# surface stands TAB_H higher for |s| < TAB_S, ramping over TAB_RAMP at each end. The top silhouette steps up there in
+# four photos: at s -32.0 (iso55, +11 px), -32.0 (phy, +6 px), -29.9 (phw, +6 px), and the white ISO (+9 to 10 px at
+# 0.177 mm per px, 1.6 to 1.8 mm); its far end reads at +22.7 to +38.8 (phr, phw, phy: the step faces away, so it
+# is mirrored from the near end). Ledger goggle.md section 9.
+TAB_S, TAB_RAMP, TAB_H = 0.0310, 0.0020, 0.0017
+
+
+def tab_rise(Cu, nu):
+    """How far the tab lifts each outer outline point (along its outward normal): on the top band only."""
+    a = np.abs(Cu[:, 0])
+    x = np.clip((TAB_S + 0.5 * TAB_RAMP - a) / TAB_RAMP, 0.0, 1.0)
+    return TAB_H * x * x * (3.0 - 2.0 * x) * ((Cu[:, 1] > 0.0) & (nu[:, 1] > 0.7))
+
+
 def frame_rings(gp=None, per=None):
     """The frame as rings (closed loops of 3D points, GOGGLE frame) round its cross-section (see RING_*)."""
     gp = gp or GP
@@ -492,8 +548,9 @@ def frame_rings(gp=None, per=None):
     nu = outward2d(Cu)
     W = np.linalg.norm(Cu - Co, axis=1)
     U = (Cu - Co) / np.maximum(W, 1e-9)[:, None]                   # rim direction: lens edge -> outer edge
-    st, r = gp["step"], 0.0004
+    st, r = gp["step"], CREASE_R
     bv = xs_at(dict(bevel=gp.get("bevel", 0.0)), "bevel", tu)
+    bv = np.minimum(bv, 0.5 * W)                                    # the inner wall leaves room for the front face
     # round 6: at the nose arch's apex the face narrows to 1.0 to 4.6 mm (|s| < 4.5 mm), less than the rim and the
     # chamfer (4.2 mm): there both shrink with it (to 0.85 of the width), so the rings keep their order across the
     # face. Before, they ran past the outer edge and the face folded back: a pinch at the apex in the 1:1 crops
@@ -503,14 +560,21 @@ def frame_rings(gp=None, per=None):
 
     def ring(C, off):
         return L.point(C[:, 0], C[:, 1], off)[0]
+    Cu = Cu + nu * tab_rise(Cu, nu)[:, None]                        # round 7: the raised tab behind the top crease
     c0 = Co + U * bv[:, None]                                       # the front face's inner edge
+    # round 7: the top crease's land drops at 45 deg only where the outer facet behind it falls back that steeply or
+    # more; where that facet is nearly flat (the lower band and the nose arch, band under 1 mm) the land lies on it,
+    # so the crease does not draw a dark line across a face Leatt's shows plain (the 1:1 crop of the arch)
+    run = np.linalg.norm(Cu - c0 - U * rim[:, None], axis=1)
+    drop = ch * np.minimum(1.0, bd / np.maximum(run, 1e-6))
+    fw = r / np.hypot(bv, lip)                                      # round 7: b on the (leaning) inner wall, r short
     rings = [ring(Co, 0.0003),                                      # a: against the lens front (in the groove)
-             ring(c0, lip - r),                                     # b: the inner wall up from the lens (bevel)
+             ring(c0 - U * (bv * fw)[:, None], lip * (1 - fw)),     # b: the inner wall up from the lens (bevel)
              ring(c0 + U * r, lip),                                 # c: front rim, inner edge
              ring(c0 + U * rim[:, None], lip),                      # d: front rim, outer edge
-             ring(c0 + U * (rim + ch)[:, None], lip - ch),          # e: 45 deg chamfer
+             ring(c0 + U * (rim + ch)[:, None], lip - drop),        # e: the crease's land
              ring(c0 + U * (rim + ch)[:, None] + (Cu - c0 - U * (rim + ch)[:, None]) * mt[:, None],
-                  lip - ch + (ch - bd) * mt + mw),                  # e2: the crease across the front face
+                  lip - drop + (drop - bd) * mt + mw),              # e2: the crease across the front face
              ring(Cu, lip - bd),                                    # f: the band face up to the outline edge
              ring(Cu, lip - top),                                   # f2: the top surface back to the step
              ring(Cu - nu * st, lip - top - 0.0003)]                # g: step in to the vent row
@@ -562,14 +626,15 @@ def build_frame(gp=None):
     Co = info["Co"]
     for k in (RING_BACK_OUT, RING_BACK_IN, RING_BACK_IN + 1):
         mats[k] = ["goggle_foam" if abs(c[0]) < RIB_BRIDGE_S and c[1] < 0 else "goggle_frame" for c in Co]
-    # support rings 0.35 mm either side of every edge: smooth shading then turns only at the edges, and the faces
-    # read flat (without them the bezel shaded like a tube)
+    # support rings CREASE_R either side of every edge: smooth shading then turns only at the edges, and the faces
+    # read flat (without them the bezel shaded like a tube; round 6's 0.35 mm rolled each crease over 3 to 4 px at
+    # 1:1, Leatt's turn in 1.3 to 2.4 px)
     R2, M2 = [], []
     K = len(rings)
     for k in range(K):
         A_, B_ = rings[k], rings[(k + 1) % K]
         gap = np.linalg.norm(B_ - A_, axis=1)[:, None]
-        f_ = np.clip(0.00035 / np.maximum(gap, 1e-6), 0, 0.3)
+        f_ = np.clip(CREASE_R / np.maximum(gap, 1e-6), 0, 0.3)
         R2 += [A_, A_ + (B_ - A_) * f_, B_ + (A_ - B_) * f_]
         M2 += [mats[k]] * 3
     fr = H.Part("goggle_frame")
@@ -621,9 +686,19 @@ def photo_landmarks(gp=None):
     z_top = np.interp(0.0, *zip(*sorted((p[0], p[1]) for p in c[c[:, 1] > 0])))
     z_notch = np.interp(0.0, *zip(*sorted((p[0], p[1]) for p in c[c[:, 1] < 0])))
     band0, band1 = (float(xs_at(gp, "band", t)) for t in (0.0, 1.0))
-    return dict(ICON=L.point(0.0, z_top - 0.002, lip_at(gp, 0.0) - band0)[0],
+    # round 7: the nose arch's ears, the top corners of its legs on the front face's inner edge (ring c at the lens
+    # edge's notch_side control point, both sides)
+    rings, info = frame_rings(gp)
+    per = loop_per(gp)
+    i_ear = int(np.sum(per[:ci("notch_side")])) if np.ndim(per) else int(per) * ci("notch_side")
+    ear_l, ear_r = rings[2][i_ear], rings[2][len(rings[2]) - i_ear]
+    # and its feet: where each leg meets the lower band's bottom edge (the outline edge, ring f, at the outer
+    # outline's notch_side control point)
+    foot_l, foot_r = rings[RING_EDGE][i_ear], rings[RING_EDGE][len(rings[RING_EDGE]) - i_ear]
+    return dict(ICON=L.point(0.0, z_top + TAB_H - 0.002, lip_at(gp, 0.0) - band0)[0],     # on the tab (round 7)
                 NOTCH=L.point(0.0, z_notch, lip_at(gp, 1.0) - band1)[0],
-                POST_R=L.point(-s_post, z_post, POST_HEAD)[0], POST_L=L.point(s_post, z_post, POST_HEAD)[0])
+                POST_R=L.point(-s_post, z_post, POST_HEAD)[0], POST_L=L.point(s_post, z_post, POST_HEAD)[0],
+                EAR_R=ear_r, EAR_L=ear_l, FOOT_R=foot_r, FOOT_L=foot_l)
 
 
 FIN_S = (0.090, 0.099)             # the fins at the top band's outer ends: root and tip along the top (|s|)
@@ -820,7 +895,12 @@ def outrigger_frames(gp=None):
     zb = gp["out"][ci("bot_corner")][1] + gp.get("or_bot_in", 0.003)
     zc = 0.5 * (zt + zb)
     zbk = zc + gp.get("or_back_dz", 0.0)                           # the back end's centre height
-    d_end = float(xs_at(gp, "depth", cp_t(gp)[ci("side_end")]))
+    # the frame's depth at the outrigger's centre height on the pillar (round 7; before, at side_end, which then
+    # moved down the straight pillar: GP's outline note)
+    Cu, seg = (outlines(gp)[k] for k in (1, 3))
+    m = (Cu[:, 0] > 0) & np.isin(seg, (ci("side_top"), ci("side_end")))
+    o = np.argsort(Cu[m, 1])
+    d_end = float(xs_at(gp, "depth", np.interp(zc, Cu[m, 1][o], outline_t(gp)[m][o])))
     for sg in (1, -1):
         P0, N0 = L.point(sg * (s_end + gp["taper"] - gp["step"]), zc, -d_end + gp.get("or_front", 0.002))
         Pa = L.point(sg * (s_end - 0.001), zc, 0.0)[0]
@@ -1034,35 +1114,78 @@ def build_frame_logo(gp=None, cell=0.0002):
     return lg
 
 
-NOSE_GUARD_DROP = 0.007            # the flexible nose guard hangs this far under the notch, inside the tabs (ISO)
+# Round 7: the nose guard as Leatt's photos show it (phy, phr: dark textured rubber filling the arch and hanging below
+# it; the exploded view: a faceted nose cover, a clip loop on top). Its bottom edge back-projects to z -55.1 to -56.1
+# in phy and phr (either depth guess), 34 to 35 mm wide there (the s values carry the depth's bias, the width does
+# not); iso55 (from above) sees it only inside the arch, so it sits well behind the lower band. Ledger goggle.md
+# section 9.
+# GP["ng"]: [top z, bottom z, half width at the top, at the bottom, bottom corner radius, ridge offset from the lens
+# front at the top (behind the frame's nose bridge) and at the bottom, how far the sides sweep back at the outer edges,
+# rubber thickness]
+NG_KEYS = ("top_z", "bot_z", "hw_top", "hw_bot", "corner", "front_top", "front_bot", "sweep", "thick")
 
 
-def build_nose_guard(gp=None):
-    """The black flexible nose guard under the nose arch (Leatt exploded view)."""
+def guard_clear(L, S, Z, skin_G, back):
+    """How far (m, along the lens normal) each nose guard point (S, Z; back sheet at back behind the lens front) must
+    come forward so the back clears his skin by 0.5 mm: the first skin along the normal within 2.5 mm."""
+    tree = cKDTree(skin_G)
+    P, N = L.point(S.ravel(), Z.ravel(), 0.0)
+    push = np.zeros(len(P))
+    for j in range(len(P)):
+        idx = tree.query_ball_point(P[j], 0.04)
+        if not idx:
+            continue
+        q = skin_G[idx] - P[j]
+        along = -(q @ N[j])
+        m = np.linalg.norm(q + np.outer(along, N[j]), axis=1) < 0.0025
+        if m.any():
+            push[j] = max(0.0, -along[m].min() + 0.0005 - back.ravel()[j])
+    return push.reshape(S.shape)
+
+
+def build_nose_guard(gp=None, skin_G=None):
+    """The black flexible nose guard filling the nose arch and hanging below it (round 7, Leatt's phy, phr and the
+    exploded view): a closed rubber shell, a rounded nose ridge whose sides sweep back, rounded bottom corners. On
+    him (skin_G, GOGGLE frame) the rubber gives way to his nose: where its back would cut his skin it comes forward
+    (the top corners, beside the bridge of his nose, by up to 7 mm)."""
     gp = gp or GP
     L = LensSurface(gp)
-    _, Cu, _, seg, frac = outlines(gp)
-    n = len(gp["out"])
-    t = ci("notch_side")
-    # the arch: from half-way up the left leg's inner side (notch side to arch step), over the apex (the bottom
-    # centre) to the mirror point on the right
-    nl = 2 * (n - 1)                                   # control points round the full loop
-    idx = np.nonzero(((seg == t) & (frac >= 0.5)) | ((seg > t) & (seg < nl - t - 1)) |
-                     ((seg == nl - t - 1) & (frac <= 0.5)))[0]
-    C = Cu[idx]
-    # it hangs deepest under the arch's apex and not at all at its sides (inside the beak's legs)
-    zs, za = C[:, 1].min(), C[:, 1].max()
-    k = np.clip((C[:, 1] - zs) / max(za - zs, 1e-6), 0.0, 1.0)
-    rings = []
-    for drop, off in ((0.0, -0.002), (NOSE_GUARD_DROP * 0.6, -0.006), (NOSE_GUARD_DROP, -0.012)):
-        P = L.point(C[:, 0], C[:, 1] - drop * k, off)[0]
-        rings.append(P)
+    ng = dict(zip(NG_KEYS, gp.get("ng", GP["ng"])))
+    nu, nv = 25, 16
+    v = np.linspace(0.0, 1.0, nv)
+    z = ng["top_z"] + (ng["bot_z"] - ng["top_z"]) * v
+    hw = ng["hw_top"] + (ng["hw_bot"] - ng["hw_top"]) * v
+    c = ng["corner"]
+    dz = np.clip((ng["bot_z"] + c - z) / c, 0.0, 1.0)     # the rounded bottom corners pull the sides in
+    hw = hw - c * (1.0 - np.sqrt(np.clip(1.0 - dz ** 2, 0.0, 1.0)))
+    u = np.linspace(-1.0, 1.0, nu)
+    S = u[None, :] * hw[:, None]
+    Z = np.repeat(z[:, None], nu, 1)
+    W = (ng["front_top"] + (ng["front_bot"] - ng["front_top"]) * v)[:, None] - ng["sweep"] * u[None, :] ** 2
+    if skin_G is not None:
+        push = guard_clear(L, S, Z, skin_G, W - ng["thick"])
+        sm = push.copy()                                            # eased into the rubber round it (one pass)
+        sm[1:-1, 1:-1] = (push[1:-1, 1:-1] * 4 + push[:-2, 1:-1] + push[2:, 1:-1] + push[1:-1, :-2] +
+                          push[1:-1, 2:]) / 8
+        W = W + np.maximum(push, sm)
     g = H.Part("goggle_noseguard")
-    m = len(C)
-    ids = [g.add(r, [], "goggle_noseguard") + np.arange(m) for r in rings]
-    for a_, b_ in zip(ids[:-1], ids[1:]):
-        for i in range(m - 1):
-            g.F.append([a_[i], a_[i + 1], b_[i + 1], b_[i]]); g.M.append("goggle_noseguard"); g.UV.append([(0.0, 0.0)] * 4)
+    sheets = []
+    for off in (0.0, -ng["thick"]):
+        P = L.point(S.ravel(), Z.ravel(), (W + off).ravel())[0]
+        sheets.append(g.add(P, [], "goggle_noseguard"))
+    vid = [o + np.arange(nu * nv).reshape(nv, nu) for o in sheets]
+    q = [(0.0, 0.0)] * 4
+    for i in range(nv - 1):
+        for j in range(nu - 1):
+            f = [vid[0][i, j], vid[0][i + 1, j], vid[0][i + 1, j + 1], vid[0][i, j + 1]]
+            g.F.append(f); g.M.append("goggle_noseguard"); g.UV.append(q)
+            g.F.append([vid[1][i, j], vid[1][i, j + 1], vid[1][i + 1, j + 1], vid[1][i + 1, j]])
+            g.M.append("goggle_noseguard"); g.UV.append(q)
+    ring = [(0, j) for j in range(nu)] + [(i, nu - 1) for i in range(1, nv)] + \
+           [(nv - 1, j) for j in range(nu - 2, -1, -1)] + [(i, 0) for i in range(nv - 2, 0, -1)]
+    for k in range(len(ring)):
+        a_, b_ = ring[k], ring[(k + 1) % len(ring)]
+        g.F.append([vid[0][a_], vid[0][b_], vid[1][b_], vid[1][a_]]); g.M.append("goggle_noseguard"); g.UV.append(q)
     return g
 
 
@@ -1316,7 +1439,7 @@ def build_goggle(body, Rt, prof):
     foam, foam_back = build_foam(rings, info, skin_G)
     mount = shell_mount(prof)                         # on the helmet: outriggers drape over the shell
     parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(mount=mount),
-             build_nose_guard(), build_nose_ribs(skin_G=skin_G), foam]
+             build_nose_guard(skin_G=skin_G), build_nose_ribs(skin_G=skin_G), foam]
     ends = {sg: g2h(a[None])[0] @ R.T + t for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items()}
     for P in parts:
         P.V = g2h(P.V) @ R.T + t
