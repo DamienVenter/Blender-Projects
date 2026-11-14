@@ -148,6 +148,124 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   and gear npz files rebuilt from main (helmet.py, kit.py regenerate their textures byte-identical); its
   rider.blend is already packed, compressing it saves little (86 to 85 MB).
 
+## Goggle round 4: joint fit on five goggle-alone photos (2026-11-13, goggle.py, goggle_views.py)
+- **Fit the shape and all the cameras together, and pin the cameras with landmarks.** Silhouette-only cameras slid
+  sideways about 20 mm (the icon landed 22 to 34 mm off centre) and the shape grew lopsided to follow. Four
+  hand-picked points fixed it: the Leatt icon (top band front edge, s 0), the nose arch's top (s 0) and both
+  tear-off stud heads. Their model points come from the shape (goggle.photo_landmarks), so they also hold it.
+- **Read what the photos say about depth before fitting the outline**: the Velocity's lens is recessed (the frame's
+  front face stands 8.8 mm proud of it; round 3 had 1.5 mm). Free the globals (lens plan a, A; lip) or the fit
+  bends the outline to make up for them. The height origin is free in a photo fit (a common z shift costs nothing):
+  fix it on the helmet (PLACE) and re-check his nose, since a recessed lens sits further back on his face.
+- **Masks lie in clear-lens photos**: the frame's inner walls and the frame-coloured nose guard show through the
+  lens. Use a white-frame render at the same camera (Leatt's 39278 shares the Pinata ISO's) to keep only the faces
+  seen directly, mask the nose guard with ignore polygons, and use a photo whose frame and outriggers are the same
+  colour (white) as a silhouette only.
+- **CMA on 30+ control points needs a leash**: without it the steps crossed, the band went negative and the lens
+  edge zigzagged. Penalise the lens edge leaving the outline (1.5 mm minimum), self-crossings and spikes under
+  35 deg, clip the band to 1 to 16 mm; then hand-clean the result and refine with a small sigma (0.4).
+- **Crease terms need named facets**: give each band face a crease ring (RING_MID at mid_t, offset mid_w) and fit
+  its position; the logo then lies on the two facets either side of it, not on a flat chord through them.
+- Result: outline medians 1.3 to 2.2 mm, creases 0.5 to 1.5 mm, IoU 0.92 to 0.95 (round 3: 1.5 to 3.1 mm, IoU
+  0.86 to 0.91). At 0.5 photo scale (2 to 3 px per mm) 1.5 mm is near the resolution: a 1 mm target needs full
+  resolution, an unseen side photographed, and the vent sawtooth and nose ribs modelled.
+- goggle_views.py renders the free goggle at every fitted camera: the backdrop through Light Path "Is Camera Ray"
+  (strength 5.0 renders Leatt's grey, about 234 under AgX) while a dim world lights the goggle.
+- The flat 7 mm nose-guard drop hung below a shorter arch's legs: scale it to the arch (0 at the legs).
+
+## Goggle round 5: full-resolution fit on nine photos (2026-11-13, goggle.py, ledger goggle.md)
+- **Fit edges, not masks, at full resolution**: a Gauss-Newton ICP (model edge pixels matched to photo edge pixels
+  of the same orientation, Huber weights, a trust cap on each step) with one normal offset per outline sample on
+  top of the control points took the outline medians from 1.3 to 2.2 mm to 0.2 to 0.8 mm. At half scale (2 to 3 px
+  per mm) a 1 mm target is out of reach.
+- **Clear lenses show the inside**: drop photo edges more than 3 mm inside the model's lens window from the
+  photo-to-model term (the nose ribs, inner walls and foam seen through it); keep every model edge.
+- **Read landmarks and test numbers off what is built**: once offsets move the outline, the bare control points
+  are no longer the frame (photo_landmarks put the nose arch's top 10 mm off in iso45 until it read the built
+  outline). The same for tests: measure the built outline (test_goggle.edge_z).
+- **The photos give the shape, never the size**: with the camera distance fixed and the focal length free, the fit
+  shrank the goggle 5.5 % (every f grew 4 to 8 %) with nothing to stop it. Check an absolute reference after every
+  fit: the 45 mm strap beside the outrigger (measured at the outrigger's depth) and the calibrated kit side views.
+  They disagree here by 12 %: the size is a question for Damien (measure the frame).
+- **A fit without landmark terms lets the cameras slide** (tear-off studs 1.5 to 5 mm off afterwards): refit the
+  cameras with the landmarks (shape fixed) after the shape fit, refit the shape with those cameras frozen
+  (fit5.py FREEZE), then refit the landmark cameras once more and remeasure.
+- **A sibling model is not the same part**: the Velocity 4.5 render fits its outline to 0.4 mm with a camera that
+  puts its nose arch 10 mm and its studs 4 to 5 mm off the 5.5's, and no camera fits both. When the outline fits
+  and the landmarks never do, the part differs there: keep its outline, drop its landmarks, say so.
+- **Offsets of a fitted outline loop at its sharp corners**: per-sample offsets give the outline sharp inward
+  corners, and growing it (the lens edge 3 mm under the frame) made small loops there that triangulated as
+  see-through wedges (white "teeth" at the nose arch in the Blender render, invisible in the numeric errors).
+  Cut the loops (goggle.untangle) and test every grown loop for self-crossings; look at the Blender renders
+  close up, not only the error table.
+- **Never re-centre the goggle on the helmet without the clearance checks**: lowering round 5's smaller frame
+  2.5 mm to centre it on the side views put the lens's lower corners into the shell's eyeport edge and his nose
+  bridge into the frame. Check the lens against the shell and the skin against frame and lens (scratch
+  shell_diag.py: winding numbers) for each candidate place before writing PLACE.
+- **Colour on him: compare against a white reference in linear light, then switch things off.** The frame / shell
+  ratio per channel in his photo and in the render of the same view says whether the albedo is wrong; rendering
+  with the frame's specular off (and the Standard view) isolates the albedo. Here the albedo matched (0.416 vs
+  0.37 to 0.42 in red) and the washed-out raspberry came from the soft studio's white sheen on a glossy frame
+  (+0.05 of the shell in every channel); his photos are daylight. Do not retune an albedo to fix the lighting.
+- Sort a product's back or front photos by camera: scale each silhouette to the same area, centre it and compare
+  IoU pairwise (0.96 to 0.98 shared rig, 0.92 to 0.95 its own angle).
+
+## Goggle round 6: fair by construction (2026-11-13, goggle.py, test_goggle.py, ledger goggle.md section 8)
+- **Look at a 1:1 crop before calling a surface done.** Round 5's numbers were good and its 1100 px sheets looked
+  fine; at native resolution the frame read as crumpled, melted plastic. Per-sample outline offsets and
+  per-control-point section values let every sample pull the surface on its own (overfitting): the error table
+  cannot see it, a crop and a raking light can (goggle_views.py rakeT / rakeB / rakeL / rakeR).
+- **A moulded part's freedoms are smooth curves**: every crease, edge and section value is a low-order curve along
+  the part (goggle.bspline_half: a uniform cubic B-spline over the half loop, mirrored at the centre line so it is C2
+  across it; 24 coefficients for the outline offsets, 16 for the fields), corners come from the control polygon and
+  its fillets (the offsets held near 0 at the control points), and the fit carries a bending penalty (second
+  differences of the coefficients). Same lesson as the bike's side panel (bike-modelling decision 37).
+- **Measure fairness, and test it so it fails on the bad mesh** (test_goggle.frame_fairness, between corners only:
+  fillet samples and tooth steps left out): along each ring the change of turning angle sample to sample (dturn)
+  and the ripple off a local quadratic through 9 samples; across each face strip the normal's kink against its
+  neighbours and its wave off a running mean. Round 5 / round 6: dturn 9.1 / 0.5 deg, ripple 75 / 9.4 um, kink
+  3.0 / 0.6 deg, wave 6.0 / 0.5 deg.
+- **A fairness test that skips corners cannot see a fold at one**: after the fit, the 1:1 crop still showed a pinch
+  at the nose arch's apex, where the face narrows to 1 mm but the rim and chamfer rings sat 4.2 mm out from the lens
+  edge, so they ran past the outer edge and the face folded back. Place rings across a face as fractions of its
+  width, or cap fixed widths by it (frame_rings: rim and chamfer at most 0.85 of the width), and test the order
+  across the face (test_round6_front_face_does_not_fold: consecutive steps across the face turn by under 90 deg;
+  the fold read 111 to 117 deg, the designed edges 67 at most).
+- **Write fitted numbers with enough digits**: GP at 4 decimals (0.1 mm) quantises smooth coefficients into steps
+  that show as ripple; round 6 writes 5 (10 um).
+- **Weak bending lets a field fold**: at a third of the bending weight one field ran into its neighbour (the top
+  surface's back edge onto the outline edge: a sliver face, kink 90 deg). Keep ordered fields apart coefficient-wise
+  (enough for a shared B-spline basis: the curve is a convex mix of its coefficients).
+- **Hold weakly seen fields near their evidence, not just smooth**: with the bending penalty alone the section
+  fields that the photos see only edge on (lip, rim, depth, the face crease's mid_t / mid_w) drifted in a few
+  iterations (lip 3 mm, the crease to its limit, depth 9 mm at the top centre) and broke the shape and side-profile
+  tests. A ridge of every field to round 5's values, converted and lightly smoothed (fit6 XREF / LAMX), keeps what
+  the photos do pin and lets the rest stay put.
+- **Freeze the landmark views' cameras from the start**: the ICP has no landmark term, so with those cameras free the
+  shape and cameras slide together and the landmarks walk off (phr posts 3.5 mm). Starting from the last
+  landmark-fitted cameras with FREEZE on iso55, phy and phr avoids the refit-and-refit-again loop.
+- **A p90 can be held up by something that is not modelled**: phr's photo-to-model p90 sits on the far outrigger,
+  swung open in that photo and closed in the model; round 5's overfit bulged the frame's far pillar towards it and
+  scored better. Split the p90 by where its pixels lie (scratch p90parts.py) before trading fairness for it. A p90
+  over a small pixel set is fragile too: iso55's photo-to-model crease p90 (275 pixels) rests on 28 of them.
+- **Huber at 3 mm, not 1, when p90 must not get worse**: at 1 mm the tails weigh almost nothing and a smooth fit
+  trades them for medians; at 3 mm the p90s held. Apply the hard limits to the start as well as to each step, or a
+  start outside them stalls the fit at iteration 0.
+- **Gloss from the photo, measured**: inside the frame's mask, the highlights' edge width (25 to 75 % of the way to
+  their top along the gradient), their area above 2.5 x the median, and the white (min of R, G, B) part's median as
+  haze. Roughness 0.4 gave 4.0 px edges against Leatt's 2.4; 0.05 gives 2.5 with the studio's lights at 1 m (2 m
+  lights spread every highlight over 15 % of the frame). A clear coat over a rough base does not help: the base
+  still hazes every face.
+- **Daylight for his outdoor photos** (head_closeups.py light "daylight"): a 0.53 deg sun lamp plus Blender 5.2's
+  multiple-scattering sky with its own disc off; the sky's strength from the clear-sky diffuse fraction (about 12 %
+  of the global light at a high sun) and its measured light on a horizontal plane at strength 1 (14.9 at sun
+  elevations 60 to 75 deg); a ground colour below the horizon (albedo times the light on it over pi). Blender's sky
+  convention, checked with a lamp and the sky on a matte sphere: sun_elevation = asin(d.z), sun_rotation =
+  atan2(d.x, d.y). Aim the sun per view in the camera's frame from the photo's own shadows and shading, and set the
+  exposure from a white reference (his shell), as his phone did. AgX compresses the highlights, so the linear ratio
+  undershoots: +1.3 EV left his white shell at 0.45 to 0.51 (linear) against the photos' 0.84 to 0.86; +2.0 gives
+  0.55 to 0.59 with the frame and sky still holding colour (+2.6: washed out).
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

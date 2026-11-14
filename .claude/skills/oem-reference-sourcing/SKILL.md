@@ -39,6 +39,13 @@ powersports.honda.com, RevZilla, Partzilla, CMSNL, BikeBandit, Babbitts / hondap
 - Product renders can be off in colour (Velocity goggle frame: hot pink render, raspberry in photos): take colours
   from photographs.
 - RevZilla, Rocky Mountain ATV/MC (empty to WebFetch) and the Enduro21 article (404) did not load; search snippets did.
+- **Leatt's goggle images (2026-11-13)**: the ISO renders share one camera per model line (every Velocity 5.5 MY26
+  ISO, file numbers 39274 to 39282; the 4.5 ISOs 39260 to 39268 another, more frontal), so a white colourway at
+  the same camera shows the facets a dark one hides. The older "Front" PNGs (2022 to 2025 colourways, transparent)
+  are studio photographs of the real goggle, each at its own angle: more views for free. The 4.5 shares the 5.5's
+  front frame (no outriggers); the 6.5 has another nose part. Every goggle-alone view is from the right side: no
+  left, top, bottom or square front. YouTube frames cannot be fetched from the build server (media requests need a
+  browser token) and retailers reuse Leatt's images.
 
 ## Lessons
 - Specs can differ by market for the same model year (CRF250R rake: 27.6° US vs 28°24' Europe/Australia). Always ask for the owner's market or VIN.

@@ -1,0 +1,235 @@
+{
+ "_doc": "Round 6 cameras of the goggle-alone photos, GOGGLE frame (goggle.py photo_project): x = [az, el, roll (deg), d (m), f (px), u0, v0 (px)]; landmarks in photo px (goggle.py photo_landmarks). Fitted jointly with the fair shape (research/rider-ledger/goggle.md); frg and chee are validation views (camera only, fitted to the finished shape).",
+ "iso55": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55-iriz_pinatateal-purple78_iso_leatt-us_8026000150_1920.jpg",
+  "note": "Leatt render, 5.5 MY26 ISO camera (the white 39278 shares it): outline, frame faces, creases",
+  "x": [
+   -50.9,
+   -0.3391,
+   -1.1526,
+   1.4646,
+   8260.0496,
+   505.6521,
+   -18.4559
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {
+   "ICON": [
+    1496,
+    694
+   ],
+   "NOTCH": [
+    1497,
+    1121
+   ],
+   "POST_R": [
+    1076,
+    950
+   ],
+   "POST_L": [
+    1690,
+    948
+   ]
+  }
+ },
+ "phy": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_neonyellow-lightgrey_front-photo_leatt-us_8022010380_1920.png",
+  "note": "studio photograph: outline, frame faces, creases",
+  "x": [
+   -52.0617,
+   -3.1332,
+   -0.3377,
+   1.4252,
+   7050.2531,
+   515.3472,
+   -31.6217
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {
+   "ICON": [
+    1503,
+    708
+   ],
+   "POST_R": [
+    1141,
+    918
+   ],
+   "POST_L": [
+    1662,
+    955
+   ]
+  }
+ },
+ "phr": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_royal-clear_front-photo_leatt-us_8025200590_1920.png",
+  "note": "studio photograph (clear lens): outline, frame faces, creases",
+  "x": [
+   -44.4258,
+   -1.6046,
+   -1.2187,
+   1.4608,
+   6086.4518,
+   459.422,
+   -21.7884
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {
+   "POST_R": [
+    1104,
+    945
+   ],
+   "POST_L": [
+    1617,
+    948
+   ]
+  }
+ },
+ "iso45": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity45_purple-clear_iso-frontal_leatt-us_8026000200_1920.jpg",
+  "note": "Leatt render of the 4.5 (same front frame, no outriggers): silhouette only",
+  "x": [
+   -49.7356,
+   -1.257,
+   -1.0151,
+   1.3386,
+   8217.1765,
+   471.9227,
+   -15.3751
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {
+   "ICON": [
+    1453,
+    674
+   ],
+   "NOTCH": [
+    1400,
+    1140
+   ],
+   "POST_R": [
+    968,
+    950
+   ],
+   "POST_L": [
+    1708,
+    952
+   ]
+  }
+ },
+ "phw": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55-iriz_white-bronze_front-photo_leatt-us_8025200510_1920.png",
+  "note": "studio photograph: silhouette only (white frame and outriggers)",
+  "x": [
+   -39.0395,
+   -1.9691,
+   2.0494,
+   1.4194,
+   6689.9097,
+   430.1531,
+   -28.1045
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "expl": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_exploded-view-frame-lens-noseguard_leatt-us_1920.jpg",
+  "note": "Leatt exploded view, the bare frame from his left front three-quarter (round 5): outline, lens window, creases; the far outrigger stands upright (ignored)",
+  "x": [
+   50.2292,
+   24.0644,
+   -0.242,
+   1.3168,
+   5462.5558,
+   170.27,
+   -147.77
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "ind": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_indigo-lightgrey_front-photo_leatt-us_8023020310_1920.png",
+  "note": "studio photograph (round 5; the studio front three-quarter, within 1.5 deg of phw): silhouette",
+  "x": [
+   -39.4641,
+   -1.3057,
+   -0.9267,
+   1.3917,
+   6485.1404,
+   456.5266,
+   -42.9332
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "ink": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_ink_front-photo_leatt-us_8024070350_1920.png",
+  "note": "studio photograph (round 5; the studio front three-quarter, within 1.5 deg of phw): silhouette",
+  "x": [
+   -40.7833,
+   -1.7426,
+   0.687,
+   1.4826,
+   7048.2335,
+   471.8308,
+   -27.7547
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "phyb": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_neonyellow-lightgrey_back-photo_leatt-us_8022010380_1920.png",
+  "note": "studio photograph from behind (round 5; the back views of the other colourways share no camera with it): silhouette",
+  "x": [
+   -145.0199,
+   0.6606,
+   -0.9367,
+   1.3952,
+   6410.3369,
+   398.8681,
+   -26.8617
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "frg": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55-iriz_forge_front-photo_leatt-us_8024070250_1920.png",
+  "note": "studio photograph (round 5): validation only (camera fitted to the finished shape), silhouette",
+  "x": [
+   -39.3587,
+   -3.2749,
+   -1.2142,
+   1.4861,
+   6815.767,
+   473.7684,
+   -20.4964
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ },
+ "chee": {
+  "photo": "reference/leatt-gear/goggles/goggle-velocity55_cheetah-clear_front-photo_leatt-us_8025200580_1920.png",
+  "note": "studio photograph (round 5): validation only (camera fitted to the finished shape), silhouette",
+  "x": [
+   -40.6194,
+   -1.9638,
+   0.4412,
+   1.4607,
+   6506.0632,
+   470.4628,
+   -27.1407
+  ],
+  "W": 1920,
+  "H": 1920,
+  "landmarks": {}
+ }
+}

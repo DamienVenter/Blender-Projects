@@ -80,6 +80,31 @@ Product pages: https://us.leatt.com/products/goggle-velocity-5-5-iriz-my27, http
 | `velocity55-on-helmet85-kit-my27_bluered_2-left-side_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_2_1027000180.jpg |
 | `velocity55-on-helmet85-kit-my27_bluered_3-right-side_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_3_1027000180.jpg |
 | `velocity55-on-helmet85-kit-my27_bluered_4-back_leatt-us_1027000180_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/31505_Leatt_Helmet_Kit_Moto_8.5_Blue_Red_4_1027000180.jpg |
+| `goggle-velocity55_white-lightgrey_iso_leatt-us_8024070390_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/39278_Leatt_Moto_Goggle_Velocity_5.5_ISO_White_Light_Grey_8024070390.jpg (the Pinata ISO's camera; white frame: its facets show best) |
+| `goggle-velocity45_purple-clear_iso-frontal_leatt-us_8026000200_1920.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/39260_Leatt_Moto_Goggle_Velocity_4.5_ISO_Purple_Clear_8026000200.jpg (Velocity 4.5: the same front frame without outriggers; a more frontal camera) |
+| `goggle-velocity55_neonyellow-lightgrey_front-photo_leatt-us_8022010380_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Goggle_MOTO_5.5_Velocity_Neon_YellowLightGrey_Front_8022010380_19865759-a23f-495f-bdf1-db05afc65325.png (studio photograph of the real goggle) |
+| `goggle-velocity55-iriz_white-bronze_front-photo_leatt-us_8025200510_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Moto_Goggle-Velocity-5.5-Iriz---White-Bronze-68-VLT---Front-8025200510_a242e888-adbc-410c-a5de-dbf0d07a3187.png (studio photograph) |
+| `goggle-velocity55_royal-clear_front-photo_leatt-us_8025200590_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Moto_Goggle--Velocity-5.5---Royal-Clear-83-VLT-_Front_8025200590_8a736ef3-524d-44c5-894f-9bce718b9391.png (studio photograph) |
+| `goggle-velocity55_neonyellow-lightgrey_back-photo_leatt-us_8022010380_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Goggle_MOTO_5.5_Velocity_Neon_YellowLightGrey_Back_8022010380_4adad9c4-275f-4828-be90-35436eec2342.png (round 5: studio photograph from behind; the best of the back views, see below) |
+| `goggle-velocity55_ink_front-photo_leatt-us_8024070350_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Goggle_5.5_Ink_Front_8024070350.png (round 5: studio photograph; its fitted camera is within 1.5 deg of the white 5.5's, phw) |
+| `goggle-velocity55_indigo-lightgrey_front-photo_leatt-us_8023020310_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Goggles_5.5_Indigo_Light_Grey_Front_8023020310.png (round 5: studio photograph; its fitted camera is within 1.5 deg of the white 5.5's, phw) |
+| `goggle-velocity55-iriz_forge_front-photo_leatt-us_8024070250_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Goggle_5.5Iriz_Forge_Front_8024070250.png (round 5: validation view, camera fitted to the finished shape) |
+| `goggle-velocity55_cheetah-clear_front-photo_leatt-us_8025200580_1920.png` | 1920x1920, transparent | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Moto_Goggle--Velocity-5.5---Cheetah-Clear-83-VLT---Front-8025200580_8e2c040e-7c18-49f5-b8ac-6492cab7d0c4.png (round 5: validation view) |
+
+Round 5: the exploded view above (the bare frame from his left front three-quarter, the only view of his left side)
+got its own camera and is fitted on its outline, lens window and creases. The 29 "Back" photographs (every
+colourway) were sorted by camera, comparing their silhouettes scaled to the same area: the MY24 ones (80240702x0
+to 80240703x0) pair up at IoU 0.96 to 0.98 (shared rigs, the same view twice), the 2022, 2023 and 2025 ones only
+0.92 to 0.95 (each its own angle, like the "Front" ones). One back view is used: the Neon Yellow (above), the same
+goggle as the phy front photograph, its yellow frame cleanly separable from the strap and foam (silhouette).
+
+Round 4 (goggle-alone views): Leatt's renders use one camera per model line (every 5.5 MY26 ISO, 39274 to 39282,
+the same camera; the 4.5 ISOs 39260 to 39263 and 39268 another, more frontal), and the 2022 to 2025 "Front" PNGs
+are studio photographs of the real goggle, each at its own angle (all from his right, slightly above or below).
+The 4.5 shares the 5.5's front frame (same fins, stepped top, beak) but has no outriggers. The 6.5 has another
+nose part. Every goggle-alone view on Leatt US is from his right side; none from his left, above or below, and no
+straight front view. YouTube review frames could not be fetched from the build server (media requests refused
+without a browser token), and retailers reuse Leatt's images.
 
 The Velocity 5.5 frame is the same in every colourway (Leatt US handles goggle-velocity-5-5-*: 70 images, all the
 same five angles: ISO, Front (the ISO angle), Back, Exploded, lens). Leatt publishes no front, top or side view of

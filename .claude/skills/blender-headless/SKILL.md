@@ -44,6 +44,10 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
 - **Compositor**: `scene.node_tree` and the Composite node are gone; node options are inputs set by UI label. Set the compositor device to CPU on this server.
 - **Video output**: set `image_settings.media_type` before `file_format`, or `'FFMPEG'` is rejected.
 - **Sky**: `sky_type='NISHITA'` is rejected; use `MULTIPLE_SCATTERING`. EEVEE id is `BLENDER_EEVEE`. `bgl` is gone.
+  Sun direction d (unit, towards the sun): `sun_elevation = asin(d.z)`, `sun_rotation = atan2(d.x, d.y)` (checked
+  against a sun lamp on a matte sphere; the brightest equirect pixel misleads). At strength 1 the multiple-scattering
+  sky puts about 14.9 (luminance units) on a horizontal plane at sun elevations 60 to 75 deg: scale its strength from
+  that, not by eye (rider-modelling, round 6 daylight).
 - **Colour**: keep the working space Linear Rec.709; AgX is the default view; looks are named like `'AgX - Punchy'`.
 - Render passes are spelled out (`Depth`, not `Z`).
 
