@@ -71,12 +71,69 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - **Graphics by projection**: fit a pinhole camera to each product photo against the model's outline (Powell then
   Nelder-Mead, about 2 min a view), rasterise an atlas (islands by face normal), sample each texel from the views
   that see it (cos^4, depth buffer from the texels themselves), mirror point as fallback. Mask anything in front
-  of the helmet (the goggle in iso-right). Studio reflections come along: a cleanup pass is still to do.
+  of the helmet (the goggle in iso-right). Studio reflections come along: replaced by the traced, redrawn print
+  (helmet_art.py, section below).
 - **The big side LEATT in Leatt's iso-right and his photos is the goggle strap's print**, not the helmet's.
 - Text on a strap reads correctly on both sides from outside if it runs in one direction from the left outrigger
   round the back. An outrigger face seen from the other side mirrors its UVs: give each side its own image half.
 - A head pitch put on the head bone alone drives the chin bar into the throat; share it over neck01-03 and head.
 - Test closure and orientation of the solid (every directed edge once each way) before trusting winding numbers.
+
+## Helmet art: clean flat print (2026-11-13, `helmet_art.py`, ledger research/rider-ledger/helmet.md section 3)
+- **Measure the print in the photos, never copy their pixels.** Trace: de-light each view (second-order SH of
+  the normal fitted to the white base, robust, then a local white correction), give each texel ONE owning view
+  (cos^2 times preferences; blending two misregistered views doubles edges), class the de-lit colours into the
+  inks, smooth and vectorise the class maps; design gradients become fitted colour fields inside their region.
+  Draw: polygons, fields, then logos from Leatt's own files and procedural parts. The old projection had a
+  luminance spread of 40 levels inside the white base; the drawn print has 0.
+- Moulded black plastic (grip panel triangles, chin vent mesh, port trim) catches the studio light as grey and white
+  streaks that class as white print: hand-mark those regions once on one photo (FORCE), applied to each texel's
+  design point (the mirror for the other side). A hand-mark sets the region, never the colour: fit the colour
+  fields only from texels whose own colour is that ink.
+- A view shows other things where the camera puts the shell: the visor seen from behind in the back view, the back
+  band and spoiler seen edge-on at the top view's far edge. Mask them per view (NOT_SHELL) or they land on the
+  crown as streaks. Small classed islands under 3 mm^2 away from an island edge are glints: refill them.
+- **Check every camera against the print's centre line, not only the outline.** The back camera fitted to the
+  outline alone sat 6.9 deg yawed and 4.9 deg rolled (the centre line 25 to 125 px off, the back LEATT drawn 16 mm
+  off centre) and nobody saw it, because renders through the same camera look right. One more term (rms offset of
+  the shell's x = 0 line from the stripe's stem) gave an upright, straight-behind camera with a BETTER outline
+  (chamfer 9.0 against 11.2 px). The front-iso cameras could not be fixed that way: matching the brow badge cost
+  4.7 px of outline, so their 14 to 17 mm offset at the brow comes from the shell's estimated front shape.
+- An official file laid on a surface whose shape differs from the real one fits badly (visor LEATT IoU 0.49 even with
+  a free aspect) and eats the print round it: trace such a mark instead and say so.
+- No seams: colour the elements per texel from the texel's own 3D point (they run across island edges), take the
+  polygons' own colour where they only partly cover a texel (nearest colour where none does), and bleed every
+  off-island texel from the nearest island texel (distance transform indices).
+- **Clear coat in Blender 5.2's Principled BSDF does not switch off the base's own specular.** A base at rough 0.22
+  under coat 1 added a soft satin glow round the sharp coat highlight (test spheres). For print under a clear coat
+  set Specular IOR Level 0 (the print/coat interface reflects next to nothing), coat IOR 1.5, coat rough about 0.03.
+- Prove a quality test on the bad case: the flat-print test (luminance spread under 4, local deviation over 2 on
+  under 5 % of the white and black interiors) passes the drawn art and fails the old projected texture.
+- **Review at 1:1, not only at sheet size.** Renders through the fitted cameras at the photos' own 1920 px, cropped
+  beside the photo, showed what 500 px sheets hid: ragged visor chevrons, white dashes across the stripe, iso-traced
+  copies of the chevrons 10 to 25 mm off. (`py/crops.py` in the helmet3 scratch: 480 px crops, photo | old | new.)
+- A small repeated mark seen square-on in one photo (the visor's chevrons, top view, 4 px per mm): vectorise it
+  from that photo (sub-pixel contour at half contrast, Douglas-Peucker 0.6 px) and project it through that camera,
+  and let that view own the surface (VISOR_PREF); traced through a mixture of views on a surface whose slope
+  differs, it came out ragged and doubled.
+- Moulded detail shows in a photo as shading (a crease, the shadow under a raised edge, a vent recess lit pale
+  blue): mark the region white where the model has no such shape (FORCE_VISOR), or it is baked in as paint.
+- **Atlas-space smoothing mixes unrelated surfaces at island edges.** On a rippled slope faces alternate between two
+  islands (crown's back: T and B), leaving thin fragments; their region and field colours came from whatever lay
+  next to them in the atlas (light teal lines), and the faces nobody saw stayed white base (dashes across the
+  stripe). Fix: an unseen texel within 3 mm of a seen one takes its colour (on the shell, KD-tree), and island edges
+  and fragments under 160 mm^2 take the nearest island interior's colour on the shell.
+- A gloss coat on a mesh with small ripples shows them as banded reflections (the crown's back seen from the top):
+  that is geometry, not print; check it in the old render before blaming the texture.
+- **No ink is lighter than the white base.** A de-lit colour above it (any channel over 255 with white at
+  226/229/235) is a reflection or the shading fit extrapolated to a face turned away from the light: that view must
+  not own the texel. Without this rule the iso-left view of his rear lower side (facing down, dark magenta in the
+  photo) drew a saturated pink glow that no highlight test caught.
+- **A hand-mark sets a region, never a colour, and a texel no view owns has no colour.** Fit colour fields only
+  from texels a view owns. The stripe's end on the back is hand-marked teal, masked in the back view and seen by the
+  top view only edge-on: its unmeasured colours entered the teal field as a pure white glow.
+- Splat the texture into a view at its own resolution (one point per texel). A half-resolution splat samples bleed
+  texels at island edges and shows white dashes that are in neither the texture nor the renders.
 
 ## Goggle round 2, eyes, brow badge (2026-11-13, `goggle.py`, ledger research/rider-ledger/goggle.md)
 - **Leatt shows the Velocity 5.5 alone only from five angles** (ISO, Front = the same angle, Back, Exploded,

@@ -190,3 +190,153 @@ def test_goggle_in_the_port_on_his_eyes(body, built):
 def test_textures_present():
     for f in ("helmet_pinata.png", "goggle_strap.png", "goggle_outrigger.png"):
         assert os.path.getsize(os.path.join(H.TEXDIR, f)) > 1000
+
+
+# ---------------------------------------------------------------- the Pinata art (helmet_art.py)
+SMALL = 1024                                            # the tests draw and read the art at 1024 texels (0.93 mm)
+
+
+def shrink(img, n=SMALL):
+    s = img.shape[0] // n
+    return img.reshape(n, s, n, s, 3).mean((1, 3))
+
+
+@pytest.fixture(scope="module")
+def art(tmp_path_factory):
+    """The art drawn twice at 1024 texels by the script, and the delivered 4096 texture shrunk to 1024."""
+    from PIL import Image
+    import helmet_art as A
+    Image.MAX_IMAGE_PIXELS = None
+    d = tmp_path_factory.mktemp("art")
+    drawn = []
+    for k in range(2):
+        p = str(d / f"art{k}.png")
+        A.draw(p, tex=SMALL, log=lambda *a: None)
+        drawn.append(np.asarray(Image.open(p).convert("RGB")).astype(np.float32))
+    tex = np.asarray(Image.open(os.path.join(H.TEXDIR, "helmet_pinata.png")).convert("RGB")).astype(np.float32)
+    r, c, P, N, S = A.texels(SMALL)
+    cov = np.zeros((SMALL, SMALL), bool)
+    cov[r, c] = True
+    return dict(A=A, drawn=drawn, tex=tex, small=shrink(tex), cov=cov)
+
+
+def test_art_drawn_deterministically(art):
+    """The print is drawn by script from helmet_art.json and helmet_art_field.png (no photo pixels, no randomness):
+    two draws are identical, and the delivered texture is that drawing at 4096 texels."""
+    a, b = art["drawn"]
+    assert np.array_equal(a, b)
+    assert art["tex"].shape == (H.TEX, H.TEX, 3)
+    cov = art["cov"]
+    d = np.abs(art["small"] - a)[cov].mean(1)
+    assert np.mean(d) < 3.0 and np.percentile(d, 90) < 6.0        # only the finer edges of the 4096 drawing differ
+
+
+def test_no_studio_light_in_the_flat_print(art):
+    """Lighting comes only from Blender: inside the white base and the black areas (3 texels from any edge) the
+    print is flat. The luminance spread there is under 4 levels (the old projection of the studio photos: 40) and
+    under 5 % of those texels have a local (7 x 7 texel, 6.5 mm) luminance deviation over 2 (the old: 29 %)."""
+    from scipy import ndimage
+    a = art["small"]
+    L = a @ [0.2126, 0.7152, 0.0722]
+    m1, m2 = ndimage.uniform_filter(L, 7), ndimage.uniform_filter(L * L, 7)
+    sd = np.sqrt(np.maximum(m2 - m1 * m1, 0.0))
+    core = ndimage.binary_erosion(art["cov"], iterations=3)
+    spread = a.max(-1) - a.min(-1)
+    for name, ink in (("white", (a.min(-1) > 190) & (spread < 25)), ("black", (a.max(-1) < 60))):
+        inner = ndimage.binary_erosion(ink & core, np.ones((3, 3)), iterations=3)
+        assert inner.sum() > 5000, name
+        lo, hi = np.percentile(L[inner], [0.5, 99.5])
+        assert hi - lo < 4.0, (name, lo, hi)
+        assert (sd[inner] > 2.0).mean() < 0.05, name
+
+
+def test_brow_badge_carries_one_leatt(art):
+    """The brow badge is part of the art (helmet.py no longer paints goggle.paint_brow_badge over it): purple, with
+    one white LEATT from Leatt's own file, 34.6 mm wide and centred, its white area that of one wordmark."""
+    import inspect
+    A = art["A"]
+    assert "paint_brow_badge(" not in inspect.getsource(H)
+    tex = art["tex"]
+    r, c, P, N, S = A.texels(H.TEX)
+    px = tex[r, c]
+    brow = A.brow_zone(P, N) & (S == 0)
+    from matplotlib.path import Path
+    inside = brow & Path(A.badge_outline()).contains_points(P[:, [0, 2]])
+    white = inside & (px.min(1) > 200)
+    purple = inside & (np.abs(px - A.BADGE_RGB).sum(1) < 30)
+    assert purple.sum() > 3 * white.sum()
+    x = P[white, 0]
+    assert abs(0.5 * (x.min() + x.max())) < 0.0015
+    assert abs(np.ptp(x) - A.BADGE_LOGO["width"]) < 0.002
+    m = A.wordmark_mask()
+    w = A.BADGE_LOGO["width"]
+    area = m.mean() * w * w * m.shape[0] / m.shape[1]           # one wordmark (m^2, in x and z)
+    measured = white.sum() / H.ATLAS_K ** 2                      # front island: one texel is 1 / ATLAS_K in x and z
+    assert 0.8 < measured / area < 1.25
+
+
+def test_paint_is_a_gloss_clear_over_flat_print():
+    """helmet_paint: the print under a full clear coat (IOR 1.5, glossy). The print/coat interface reflects next to
+    nothing, so the base has no specular of its own (Blender 5.2 does not remove it under a coat by itself)."""
+    m = H.MATERIALS["helmet_paint"]
+    assert m["coat"] == 1.0 and m["spec"] == 0.0 and m["coat_rough"] <= 0.05
+
+
+def test_art_data_complete():
+    """helmet_art.json: the five inks, polygons for each, the element frames (Leatt's files, the labels) and the
+    traced colour of the elements that take one."""
+    import helmet_art as A
+    d = json.load(open(A.DATA))
+    assert set(d["inks"]) == set(A.INKS) and all(len(d["polygons"][k]) > 0 for k in A.INKS)
+    names = {f["name"] for f in d["frames"]}
+    for n in ("back_leatt", "back_icon", "side_icon", "side_icon_R", "visor_side_leatt", "visor_side_leatt_R",
+              "turbine", "dot_label", "size_label", "emergency", "emergency_R", "chin_text", "chin_text_R",
+              "visor_chevrons", "visor_chevrons_R"):
+        assert n in names, n
+    assert any(n.startswith("eight") for n in names)
+    assert "visor_leatt" not in names                     # the visor's LEATT band is traced (its file did not fit)
+    assert len(d["element_rgb"]["back_icon"]) == 3
+
+
+def test_visor_chevrons_from_the_top_photo(art):
+    """The visor's chevrons: seven per side, vectorised from Leatt's top photo (the stored outlines are the photo's,
+    redone the same), on the visor's top at mirror places (within 3 mm), and drawn crisp: black ink, the band
+    between them plain white (no traced copy beside the drawn one)."""
+    A = art["A"]
+    d = json.load(open(A.DATA))
+    fr = {f["name"]: f for f in d["frames"] if f["name"].startswith("visor_chevrons")}
+    again = A.chevron_polys()
+    for name, f in fr.items():
+        assert len(f["polys"]) == 7 and f["surface"] == 1
+        for p, q in zip(f["polys"], again[name]):
+            assert np.allclose(np.asarray(p), q, atol=0.01)
+    oL, oR = (np.asarray(fr[k]["o"]) for k in ("visor_chevrons", "visor_chevrons_R"))
+    assert np.linalg.norm(oL * [-1, 1, 1] - oR) < 0.003
+    chevron_band_check(A, art["tex"], [f for n, f in sorted(fr.items())], d["frames"])
+
+
+def chevron_band_check(A, tex, chev, frames):
+    """Inside the drawn chevrons black; in the band round them (0.5 to 3 mm from one, not under the visor's black
+    LEATT) the white print only: the share of dark texels there."""
+    from scipy import ndimage
+    r, c, P, N, S = A.texels(tex.shape[0])
+    sel = np.nonzero(S == 1)[0]
+    others = [f for f in frames if f["name"].startswith("visor_side_leatt")]
+    under, _ = A.erase_mask(others, P[sel], N[sel], S[sel])
+    out = []
+    for f in chev:
+        px = A.frame_px(f, P[sel], N[sel])
+        ok = ~np.isnan(px[:, 0])
+        art_a = A.poly_art(f)[..., 3]
+        dist = ndimage.distance_transform_edt(art_a < 0.5) * A.px_size(f)
+        a, dd = np.zeros(len(sel)), np.full(len(sel), 1.0)
+        a[ok] = ndimage.map_coordinates(art_a, [px[ok, 1], px[ok, 0]], order=1, cval=0.0)
+        dd[ok] = ndimage.map_coordinates(dist, [px[ok, 1], px[ok, 0]], order=0, cval=1.0)
+        rgb = tex[r[sel], c[sel]]
+        ink = a > 0.95
+        band = ok & (a < 0.02) & (dd > 0.0005) & (dd < 0.003) & ~under
+        assert ink.sum() > 200 and np.median(rgb[ink].max(1)) < 40, f["name"]
+        assert band.sum() > 200, f["name"]
+        out.append(float((rgb[band].max(1) < 120).mean()))
+    assert max(out) < 0.01, out
+    return out

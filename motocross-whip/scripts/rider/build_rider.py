@@ -9,8 +9,9 @@ on a white studio floor, 1200 x 1600) or none. POSE.json: {"bones": {name: [w, x
 
 Gear: RIDER_GEAR="a.npz,b.npz" adds gear modules' parts (helmet.py, boots.py, ...). A gear npz holds
   names            part names
-  mats             material names; materials: JSON {name: {rgb: [r, g, b] sRGB 0..255, rough, metal, coat, sheen,
-                   alpha, transmission, thin_film: {thickness_nm, ior}, image: file under textures/rider/ or
+  mats             material names; materials: JSON {name: {rgb: [r, g, b] sRGB 0..255, rough, metal, coat, coat_rough,
+                   spec (Specular IOR Level), sheen, alpha, transmission, thin_film: {thickness_nm, ior},
+                   image: file under textures/rider/ or
                    absolute, normal: file, bump}}
   <p>__V, <p>__F, <p>__FS   vertices (MB rest frame of body.py, metres), faces as a flat list with sizes
   <p>__M           material index of each face (into mats)
@@ -124,6 +125,10 @@ def gear_material(name, spec):
     p.inputs["Roughness"].default_value = spec.get("rough", 0.5)
     p.inputs["Metallic"].default_value = spec.get("metal", 0.0)
     p.inputs["Coat Weight"].default_value = spec.get("coat", 0.0)
+    if "coat_rough" in spec:
+        p.inputs["Coat Roughness"].default_value = spec["coat_rough"]
+    if "spec" in spec:                       # Specular IOR Level of the base (0: print under a clear coat, no own gloss)
+        p.inputs["Specular IOR Level"].default_value = spec["spec"]
     p.inputs["Sheen Weight"].default_value = spec.get("sheen", 0.0)
     if "alpha" in spec:
         p.inputs["Alpha"].default_value = spec["alpha"]

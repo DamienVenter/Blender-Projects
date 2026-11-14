@@ -121,7 +121,11 @@ it (research/rider-ledger/goggle.md).
 | `leatt-wordmark-slanted_official_leatt-us_1200x300.png` | 1200x300, transparent | https://us.leatt.com/cdn/shop/files/Logo_2_NoBG.png?v=1782225910 (the header logo of https://us.leatt.com/, served there as Logo_2_NoBG_380x.png) |
 
 The slanted LEATT as printed on the goggle strap, the outriggers and the frame's lower band (Leatt ISO, his 07).
-`goggle.py` stamps it from this file at its own aspect (about 4.0 long per height); nothing is redrawn.
+`goggle.py` stamps it from this file at its own aspect (about 4.0 long per height); nothing is redrawn. Leatt's
+other logo file on the same site, Leatt_Logo_Red_HR_1200x1200.png, carries the icon as well; only the bike's side
+panels use it (below).
+`helmet_art.py` stamps it too: the helmet's back LEATT (fitted with a free aspect, see the helmet ledger), the
+visor sides' LEATT, the brow badge's and the one knocked out of the DOT print.
 
 | File | Size | Source image URL |
 |---|---|---|
@@ -129,6 +133,17 @@ The slanted LEATT as printed on the goggle strap, the outriggers and the frame's
 
 The full Leatt logo: the slanted wordmark with the triangle icon, as on Damien's side panels and front plate.
 `scripts/bike/kit_sidepanel.py` traces it from its alpha and fills it in this red on the side panels (decision 37).
+
+## Leatt icon (official)
+
+| File | Size | Source image URL |
+|---|---|---|
+| `leatt-icon-triangle_official-favicon_leatt-us_100x100.png` | 100x100, transparent | https://us.leatt.com/cdn/shop/files/favicon.png?v=1752491517 (the favicon of https://us.leatt.com/) |
+
+The three-piece triangle printed on the helmet's sides and back (Leatt's Pinata photos). The site's larger
+Leatt_Logo_Red_HR_1200x1200.png shows the older one-piece open triangle, which is not the printed icon, so this
+small file is the source: `helmet_art.icon_mask` upsamples it 8 times and re-thresholds it (straight edges, round
+corners), and the fits to the photos set its size on the shell.
 
 ## Gloves: Leatt Moto 2.5 X-Flow (Black, and Purple for photo 05)
 

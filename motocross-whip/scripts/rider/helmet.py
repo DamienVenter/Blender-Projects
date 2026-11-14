@@ -14,6 +14,9 @@ Sources (research/rider-ledger/helmet.md has every number with its source):
             same shell with the goggle on (31509_Helmet_Kit_Moto_8.5_White_2/_3_1027000260.jpg), the left view
             registered onto that side view by a similarity fit (residual 18 px), camera taken 1.5 m away.
   WIDTHS    back-view half widths (Royal_Back, scaled the same way) and the plan (Pinata Teal top view).
+  ART       the Pinata Teal print, the brow badge included, redrawn flat by helmet_art.py (traced in Leatt's four
+            Pinata photos through the cameras CAMS, logos from Leatt's own files): no studio light in the texture.
+            The paint is that print under a gloss clear coat (MATERIALS["helmet_paint"]).
 """
 import json
 import math
@@ -587,12 +590,13 @@ def build(body):
     visor = Part("helmet_visor")
     thicken_grid(visor_surface(prof), VISOR_T, "helmet_paint", "visor_under", "visor_under", visor)
     parts = [shell, visor]
-    if PAINT or not os.path.exists(os.path.join(TEXDIR, "helmet_pinata.png")):
+    if PAINT:                                         # the old projection of Leatt's photos (lighting baked in)
         Vt, Ft, Nt, UVt = visor.top
         info["paint"] = paint_atlas([(Vo, Fo, normals(Vo, Fo), uv_o), (Vt, Ft, Nt, UVt)],
                                     os.path.join(TEXDIR, "helmet_pinata.png"))
-        import goggle as G                            # the projection doubles the brow badge: repaint it
-        G.paint_brow_badge(os.path.join(TEXDIR, "helmet_pinata.png"))
+    elif ART or not os.path.exists(os.path.join(TEXDIR, "helmet_pinata.png")):
+        import helmet_art                             # flat print redrawn by script (brow badge included)
+        helmet_art.draw(os.path.join(TEXDIR, "helmet_pinata.png"), log=lambda *a: None)
     for P in parts:                                   # faces without art: any UV (their materials have no image)
         P.UV = [u if u is not None else [(0.0, 0.0)] * len(f) for u, f in zip(P.UV, P.F)]
     for P in parts:
@@ -604,7 +608,8 @@ def build(body):
     return parts + gparts, info, (R, tr)
 
 
-# ---------------------------------------------------------------- graphics: Leatt's Pinata Teal art, projected
+# ---------------------------------------------------------------- graphics: Leatt's Pinata Teal photos and cameras
+# (helmet_art.py traces the print through them; paint_atlas below is the old projection, kept for comparison)
 REF = os.path.normpath(os.path.join(HERE, "..", "..", "reference", "leatt-gear", "helmet"))
 PHOTOS = dict(isoleft="helmet85-kit_pinatateal_iso-left_leatt-us_1026000250_1920.png",
               isoright="helmet85-kit_pinatateal_iso-right-with-goggle_leatt-us_1026000250_1920.png",
@@ -614,16 +619,24 @@ PHOTOS = dict(isoleft="helmet85-kit_pinatateal_iso-left_leatt-us_1026000250_1920
 # (chamfer distance both ways, half resolution, Powell then Nelder-Mead): azimuth from the front towards his left
 # and elevation of the camera (deg), roll (deg), distance (m), focal length (px), aim offset (m) from CAM_CTR.
 CAM_CTR = np.array([0.0, -0.03, 0.0])
+# The back camera was refitted on 2026-11-13 with the print's centre line as a second term (outline chamfer + 0.25 x
+# rms offset of the shell's x = 0 line from photo x 965.5, where the stripe's stem and the DOT print stand): the
+# outline-only fit had settled 6.9 deg yawed and 4.9 deg rolled (centre line 25 to 125 px off, the back LEATT 16 mm
+# off centre); the refit is straight behind and upright, outline chamfer 9.0 px against 11.2 (half res).
+# The iso cameras put the shell's centre line 66 px (iso-left) and 79 px (iso-right) beside the brow badge's centre,
+# about 14 and 17 mm: fitting iso-left to the badge costs 4.7 px of outline (az 62 -> 52 deg) and leaves the badge
+# 27 px low, so the error is the shell's estimated front (brow, chin), not the camera; they are kept.
 CAMS = dict(isoleft=[62.0789, 3.9144, -7.4058, 1.4021, 5653.2658, -0.0307, -0.0032, -0.0334],
-            back=[186.6286, 10.703, -4.8924, 1.2116, 5632.7324, -0.0011, 0.0102, 0.002],
+            back=[179.7402, 11.1849, 0.0388, 1.1854, 5620.7099, 0.0004, 0.0194, 0.0024],
             top=[3.0441, 87.254, 0.2669, 1.4571, 5624.0378, 0.0002, -0.0141, -0.0449],
             isoright=[-59.1663, 8.6293, 8.1332, 1.8892, 7721.6883, 0.0325, 0.0004, -0.0393])
 # the goggle and its strap cover the right side in Leatt's iso-right view: not the helmet's art (hand-drawn, px)
 ISORIGHT_GOGGLE = [(215, 630), (560, 610), (800, 700), (1430, 700), (1470, 1000), (1440, 1260), (800, 1240),
                    (770, 1040), (560, 960), (215, 930)]
-TEX = 2048
-PAINT = False
-ATLAS_K = 2150.0                   # texels per metre (2.15 px/mm)
+TEX = 4096                         # 4.3 texels per mm: small print (EMERGENCY USE ONLY, MX-26) stays legible
+PAINT = False                      # True: the old projected atlas (paint_atlas), kept only for comparison
+ART = False                        # True: redraw the flat print (helmet_art.draw) even if the texture exists
+ATLAS_K = 4300.0                   # texels per metre (UVs = texels / TEX: the same layout as the 2048 atlas)
 BASE_WHITE = (226, 229, 235)
 
 
@@ -648,7 +661,8 @@ def cam_project(x, Q):
 
 
 # atlas islands: (name, origin u, v in texels, axes): side views by (y, z), top by (x, y), back/front by (x, z)
-ISLANDS = dict(L=(0, 0), R=(820, 0), T=(0, 700), B=(600, 700), F=(1200, 700), V=(0, 1500))
+ISLANDS = {k: (2 * u, 2 * v) for k, (u, v) in
+           dict(L=(0, 0), R=(820, 0), T=(0, 700), B=(600, 700), F=(1200, 700), V=(0, 1500)).items()}
 
 
 def island_uv(name, P):
@@ -913,7 +927,11 @@ def extras(body, parts, Rt):
 
 
 MATERIALS = {
-    "helmet_paint": dict(image="helmet_pinata.png", rough=0.22, coat=1.0),       # Pinata Teal art, gloss clear
+    # Pinata Teal art under a gloss clear coat. The print/coat interface (n about 1.5 both sides) reflects almost
+    # nothing, so the base has no specular of its own (spec 0; Blender 5.2 does not cancel it under a coat: a base at
+    # rough 0.22 added a soft satin glow round the highlight, coat test of 2026-11-13). The one reflection is the coat:
+    # IOR 1.5 (4 % at normal incidence), rough 0.03 (Leatt's studio photos show the softboxes with crisp edges).
+    "helmet_paint": dict(image="helmet_pinata.png", rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     "helmet_trim": dict(rgb=[18, 18, 20], rough=0.65),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
@@ -945,12 +963,12 @@ def write_npz(path, parts, extra=None):
 if __name__ == "__main__":
     body = np.load(sys.argv[1])
     PAINT = "--paint" in sys.argv
+    ART = True                                        # the CLI always redraws the art (deterministic)
     os.makedirs(TEXDIR, exist_ok=True)
     import goggle as G
     strap_texture(os.path.join(TEXDIR, "goggle_strap.png"))
     G.outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
     G.eye_texture(os.path.join(TEXDIR, "goggle_eyes_brown.png"))
-    parts, info, Rt = build(body)
-    info["badge"] = G.paint_brow_badge(os.path.join(TEXDIR, "helmet_pinata.png"))      # one LEATT on the brow
+    parts, info, Rt = build(body)                     # the brow badge is part of the art (helmet_art)
     write_npz(sys.argv[2], parts, extras(body, parts, Rt))
     print(json.dumps(info), sum(len(P.V) for P in parts), "vertices")

@@ -61,14 +61,83 @@ no skin inside the shell at rest and with the head pitched down 20 deg).
 | Vents, mesh, grip panels, brow badge | painted from Leatt's photos (component 3), not modelled as openings | **not done as geometry** |
 | Visor screws | not modelled | **not done** |
 
-## 3. Graphics (Pinata Teal art)
+## 3. Graphics (Pinata Teal art): a clean flat print (2026-11-13, `scripts/rider/helmet_art.py`)
+The first pass projected Leatt's photos into the atlas (`helmet.paint_atlas`, kept for comparison): studio
+reflections, soft shading and doubled edges came along (luminance spread 40 levels inside the white base). Now the
+photos only MEASURE the print; the texture is drawn by script (`helmet_art.py trace` once, `draw` from
+`helmet_art.json` and `helmet_art_field.png`; helmet.py's CLI redraws it). Photos: the four Pinata Teal views
+(`reference/leatt-gear/helmet/helmet85-kit_pinatateal_{iso-left,iso-right-with-goggle,back,top}_...png`, 1920 px).
+
 | Number | Value | Source |
 |---|---|---|
-| Method | Leatt's four Pinata views projected onto the shell and visor top through pinhole cameras fitted to the model's outline (chamfer both ways, half resolution; residual rms 10 to 20 px at half res), each texel from the views that see it (cos^4 weights, depth test), mirrored point for the 9 % no view sees, base white elsewhere | `paint_atlas`, CAMS |
-| Atlas | `textures/rider/helmet_pinata.png`, 2048 px, 2.15 px/mm, islands by face normal (left, right, top, back, front, visor) | |
-| Goggle in iso-right | hand-drawn polygon ISORIGHT_GOGGLE masks the goggle and strap out of that photo | |
-| Finding | the big white LEATT on the iridescent band behind the eyeport (Leatt iso-right, his 07 and 09) is the **goggle strap's** print; the helmet's side there carries the iridescent field and white chevrons (Leatt iso-left, no goggle) | photos |
-| Limits | studio reflections are baked into the art; the chin front reads too dark (the model's chin is blunter than the real one, so the black vent grille spreads); small print is 5 texels high | review sheets |
+| Atlas | `textures/rider/helmet_pinata.png`, 4096 px, 4.3 texels/mm (ATLAS_K 4300 per m), same island layout as before (left, right, top, back, front, visor) | helmet.TEX, ISLANDS |
+| Cameras | the fitted pinhole cameras helmet.CAMS. **Back camera refitted** with the print's centre line (stripe stem 964 to 967 px, DOT print 964 to 968: x 965.5) as a second term: az 186.6 -> 179.7 deg, roll -4.9 -> 0.04 deg, centre line rms 94.9 -> 0.6 px, outline chamfer 11.2 -> 9.0 px (half res). Before, the back LEATT was drawn 16 mm off centre | scratch refit_back.py; helmet.py comment |
+| Iso cameras | centre line 66 px (iso-left) and 79 px (iso-right) beside the brow badge's centre (about 14 and 17 mm). Fitting iso-left to the badge costs 4.7 px of outline and leaves it 27 px low: the shell's estimated front, kept | photos: badge centre iso-left 638,532 px, iso-right 1275,540 px |
+| Design point | each texel is traced at its mirror point on his left (x >= 0): the Pinata art is mirror-symmetric (iso-left against iso-right); words and logos are drawn afterwards, reading right on both sides | photos |
+| Owner | ONE view per texel: cos^2 x VIEW_PREF (iso-right 0.6: its goggle) x MIRROR_PREF (a mirror point 0.45 except on the sides) x VISOR_PREF (on the visor's top the top view 1.0, the others 0.1: it sees the visor square-on, and through the model's visor the iso views put its chevrons 10 to 25 mm off), smoothed 6 texels. A view whose de-lit colour is lighter than the white base (any channel over 255) does not own the texel: no ink is lighter than white, so it is a reflection or the shading fit extrapolated (the iso-left view of his rear lower side, facing down, gave a saturated pink glow). A texel no view owns within 3 mm of an owned one on the same surface takes its owner and colour (the crown's rippled back slope: faces turned to the back are seen by no view). Owned: iso-left 505k, top 265k, back 223k, iso-right 89k of 2048-atlas texels; 73k unowned (under the visor, the chin's underside), 193k hand-marked | trace log (2026-11-14) |
+| De-lighting | per view: second-order spherical harmonics of the normal fitted (robust) to the white base's texels, then a local white correction (blur 12 and 40 texels); reflections = brighter than the view's white + 18, or a washed pink | trace |
+| White | 226, 229, 235 (helmet.BASE_WHITE): every view's white scaled to it | photos (de-lit white base) |
+| Inks | black 24.5/22.4/25.0, purple 56.3/0.1/93.9, magenta 165.0/0.0/101.6 (medians of each ink's de-lit core); the iridescent band (median 158.6/121.5/75.9), purple and magenta are fitted colour fields (normalised Gaussian 3 texels inside their own region, 15 and 60 where sparse), fitted only from texels a view owns whose own colour is that ink, so the design's gradients stay gradients. (A hand-marked texel no view owns has no colour: the stripe's end on the back, masked in the back view and seen edge-on from the top, fed its garbage into the teal field as a pure white glow until this rule) | trace log, helmet_art.json |
+| Pale teal | the back band's hexagon round the icon: de-lit red at least 14 below the mean of green and blue (white base: 5.7 median, 95 % under 12.5) and green minus blue above -7 (the visor's sky-blue studio reflections: -12.7 median; the hexagon: -1.7) | measured in the back view |
+| Regions | class maps smoothed 2.2 texels, islands under 3 mm^2 away from an island edge refilled (glints), contours vectorised and simplified (0.8 texel): 116 black, 101 white, 41 purple, 31 magenta, 99 iridescent polygons. Drawn at 4096: an island's edge (2 texels) and fragments under 160 mm^2 take the colour of the nearest island interior on the shell (KD-tree in 3D), since atlas-space smoothing mixes in whatever lies next to them in the atlas (light teal lines on the crown's rippled back, where faces alternate between the top and back islands) | trace log |
+| Hand-marked (FORCE) | iso-left px, black: chin vent (14 points round 365-629 x 1289-1629), eye port trim and grip panel (22 points round 470-1350 x 577-1150), chin cap (385-650 x 1098-1192). Their moulded texture caught the studio light as grey streaks. Back px: the stripe's end, teal 850-1060 x 440-722 with the purple stem 941-988. Visor (FORCE_VISOR), top px 1230-1480 x 960-1560, white: the visor's crease, the shadow under its raised side and the side vent's recess lit pale blue are moulded shape, not print (the chevrons in it are drawn from the photo, below) | photos |
+| Not shell (NOT_SHELL) | back px: everything above the rear lip (the visor seen from behind; 14 points), the turbine disc (870-1030 x 585-690: drawn from the top view); top px: everything beyond the rear spoiler's edge (y under 378 to 540: the back band and stripe end seen edge-on, which the top camera laid across the crown as a streak) | photos |
+| Stripe's end | the top view puts the turbine about 40 mm higher up the back than the back view (the shell has no rear spoiler step): the turbine follows the top view (its camera fits there), the shell below it carries the stripe's teal and purple stem down to the spoiler's foot | top and back photos |
+
+| Element | Drawn from | Place, size, colour | Source photo |
+|---|---|---|---|
+| Back LEATT | Leatt's wordmark file (`reference/leatt-gear/leatt-wordmark-slanted_official_leatt-us_1200x300.png`), white | fitted in the photo (IoU 0.61) then on the shell through the back camera (IoU 0.69): 174 x 38 mm, turned -18 deg, aspect 0.86 (free, bounded 0.74 to 1.35) | back |
+| Visor side LEATT x2 | same file, black, on the visor's top surface | 31 x 8 mm, turned -18 deg (IoU 0.60), mirrored to read right | iso-left |
+| Visor top LEATT band | **traced**, not the file: laid on the visor the file fits badly (IoU 0.49, 0.50 with a free aspect: the visor's slope differs from the real one's) and ate the band's strips | top |
+| Side icon x2 | Leatt's three-piece triangle (`leatt-icon-triangle_official-favicon_leatt-us_100x100.png`, upsampled 8x), white | 50.3 mm, IoU 0.70 | iso-left |
+| Back icon | same file, its traced pale teal | 27.4 mm, IoU 0.77 | back |
+| Brow badge | goggle.py's numbers (BADGE_*): purple 79/39/180 trapezoid z 76.5 to 93.0 mm, half widths 28.0 / 18.5 mm, corners 3 mm, one white LEATT from the wordmark file 34.6 mm wide at z 84.8 mm; brow vents (VENT_QUAD, mirrored) dark mesh in a moulded rim; plain white round them | iso-right (goggle.md) |
+| Crown vents x2 | drawn (moulded parts): insert rim 202/206/214, opening 14/14/16 with a triangle lattice of bars 209/213/219 (cells 20.3 px along the opening's top edge, 25 px down its side, bars 0.15 of a cell) | top px 670-772 x 583-746 |
+| 360 Turbine | drawn: blue disc 3/116/200, black ring of six arcs, "360°" and "TURBINE" | 19.4 mm, top-back centre line | top 922-1006 x 384-463 px |
+| Emergency label x2 | drawn: black 13/7/11, red pull tab 197/0/0 with a white arrow, EMERGENCY USE ONLY / PULL RED TAB & REMOVE CHEEK PAD | 46.5 x 8.7 mm under each cheek | iso-left 1164-1347 x 1340-1440 px |
+| Chin lettering x2 | drawn: navy 46/28/117 spaced italic capitals MX.26 / MOTO RACE SPEC / LEATT DEVELOPED | 46.1 x 14.1 mm, cap 3.4 mm | iso-left 695-865 x 1325-1415 px |
+| DOT print | drawn white on the black lower back: bar with the wordmark knocked out, MOTO 8.5, DOT, FMVSS No. 218, CERTIFIED | 19.3 x 21.8 mm, projected through the back camera | back 915-1017 x 1540-1620 px |
+| Size sticker | drawn: white 245/244/241, **L 59-60cm** (his size), 1305g±50g, ECE 22.06 | 18.4 x 16.0 mm | back 1020-1116 x 1562-1621 px (reads M 57-58cm) |
+| EIGHT POINT FIVE x2 | drawn: black capitals one per cell along the top of each side band, from the front up on his left, from the back down on his right | cap 2.45 mm, pitch 8.29 mm (24 of 26 letter centres, residual 8.1 mm) | iso-left, iso-right |
+| Visor chevrons x7 a side | **vectorised from the top photo**, where they are seen square-on (4 px per mm): dark components (below 90 on white) of 1200 to 2000 px in the columns x 1220-1480 (his left) and 440-700 (his right), y 950-1540; each outline at half contrast between its own black core and the white ring round it (sub-pixel contour, Douglas-Peucker 0.6 px), black ink, projected onto the visor through the top camera; the traced black under them erased 3 mm round | 7 a side, centres x +-78.7 mm, columns 102.7 and 101.2 mm long, each about 10 x 21 mm | top |
+| Side chevrons, bands, stripe | traced (regions and fields) | | all four |
+
+| Material | Value | Source |
+|---|---|---|
+| helmet_paint | the print under a full clear coat: coat 1.0, coat IOR 1.5 (4 % at normal incidence), coat rough 0.03; the base has no specular of its own (Specular IOR Level 0) and rough 0.5 (no effect then) | physics: the print/coat interface (n about 1.5 both sides) reflects next to nothing. Test spheres in Blender 5.2: base specular 0.5 under coat 1 added a soft satin glow round the sharp coat highlight, so Blender does not suppress it. Leatt's studio photos show the softboxes with crisp edges (high gloss) |
+
+Checks: renders through the four fitted cameras at the photos' own 1920 px beside Leatt's photos, full and in 1:1
+crops (`renders/checkpoints/2026-11-13_helmet-clean/`), his photo views 07/08/09 (`head_closeups.py`), the texture
+splatted into each view one point per texel (no pure white and no saturated texel at the stripe's end or his rear
+lower side), tests in `test_helmet.py`: deterministic drawing, no studio light in the flat white and black
+(luminance spread under 4 levels; the old projection 40), one LEATT on the brow badge, the visor chevrons as
+vectorised from the top photo with no traced copy beside them (dark share of the 0.5 to 3 mm band round them under
+1 %), the paint material, the art data.
+
+Limits and open points:
+- The front-iso camera offset (above) widens what is traced at the front centre from those views: the chin vent's
+  black reads wider than in Leatt's photos. Fixing it needs the shell's brow and chin shape (outside this pass).
+- The visor's LEATT band is traced on the model's visor, whose slope differs from the real one: it stretches in the
+  iso views. Its chevrons are drawn from the top photo (above), so they match it there and stand slightly
+  differently in the iso views (the visor's slope again).
+- The stripe's end: the top and back photos put the 360 Turbine about 40 mm apart along the back (above). Below
+  the drawn turbine, where the back photo shows its disc, no view measures the teal: it is the teal field of the
+  print round it (smooth, paler than the photo's left side there).
+- His rear lower side, just above the black lower shell: the back camera sees it more squarely and puts it on the
+  black, the iso-left photo shows the magenta reaching down to the white edge. The back view wins (a black patch round
+  x 80, y 66, z -110 mm); the shell's lower rear shape differs from the real one there.
+- The crown's back seen from the top shows pale banded reflections: the gloss coat on the mesh's small ripples
+  (they are in the old render too), geometry, not print. Likewise the light and dark spikes across the back band's
+  centre in the renders (back px 860 to 1060): the shell's long thin triangles there shade in facets; the texture
+  is smooth there.
+- Moulded detail is drawn flat or not at all: the grip panel's triangles and the chin vent's mesh are plain black;
+  the moulded LEATT on the chin cap and the small Leatt tag on the brow trim (black on black) are not drawn.
+- **Questions for Damien**: his helmet size (L assumed: the sticker reads L 59-60cm with the photographed shell's
+  1305g±50g); the crown under the visor is seen in no photo (plain white assumed); the back LEATT fits best 14 %
+  shorter than Leatt's file (aspect 0.86), as if printed stretched round the back: right, or the model's curvature?
+
+Finding (unchanged): the big white LEATT on the iridescent band behind the eyeport (Leatt iso-right, his 07 and 09)
+is the **goggle strap's** print; the helmet's side there carries the iridescent field and white chevrons.
 
 ## 4. Goggle
 Rebuilt on 2026-11-13 (round 2): `scripts/rider/goggle.py`, ledger `goggle.md` (frame, purple mirror lens, his eyes,
