@@ -1199,7 +1199,7 @@ OR_HINGE = True
 # 944, more hides no more; the far plates stand as far beyond the frame as before (iso55 6 to 10 px, phr 36 to 40)
 # at 64 and 76.5 deg. 3 mm back: from the widest point the plate's 5 mm crossed the lens's edge (x 97.1 mm at y 28.8,
 # back to y 30.7) by 0.6 mm. Worn, the plate turns out 0 to 18.75 deg to rest on the shell (round 11: 10.75; 4 mm
-# inboard needs 20.75).
+# inboard needs 20.75). Round 13: rigid, 20.25 deg on phase 2's shell (outrigger_grids).
 OR_HINGE_IN = 0.003
 OR_HINGE_BACK = 0.003
 OR_HINGE_LEN = OR_LEN - OR_HINGE_BACK   # m, hinge to the back end. 46 mm (to round 8's back end) showed the plate 197 px
@@ -1398,10 +1398,16 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
     rows = {}
     if hinged:
         # round 9: each row of the plate a straight line from the hinge, turned out by its own angle: free, all
-        # OR_FREE_TURN (a flat plate); worn, the strap pulls the plate in until it rests on the shell (OR_GAP off it),
-        # and the shell's side widens upwards (the plate's top back corner meets it first, 9 mm before its bottom),
-        # so the plate twists: the turn grows linearly from its bottom row to its top, each row's the smallest that
-        # clears (its back edge leans out, its front edge stays on the hinge)
+        # OR_FREE_TURN (a flat plate); worn, the strap pulls the plate in until it rests on the shell (OR_GAP off it).
+        # Round 13 (decision 57, item 2): the plate turns as one, by the largest turn any row needs (the shell's side
+        # widens upwards: its top back corner meets it first). Rounds 9 to 12 twisted it (the turn growing from the
+        # bottom row's need, 0, to the top's, 20.25 on phase 2's shell), and its back edge then leaned right going
+        # down through Leatt's Pinata iso-right camera (+3.3 px a 100 rows over rows 860 to 980, the render's strap
+        # edge 767 to 788) where Leatt's leans left (-10.8: 764 to 751, scratch edge13.py on the photo). Rigid, it
+        # leans -6.5 at any turn. Placed as on his empty helmet (12.6 mm lower, 3.5 mm back) the plate meets no shell
+        # (turn 0) and its back edge stands at 760 / 752 px (Leatt 764 / 751; at 20.25 deg 740 / 733). His 07 and 09
+        # see the plate at 0.4 to 0.5 px a mm: twist and rigid differ there by 1 to 2 px, under the cameras' landmark
+        # rms (2.2 and 8 px; scratch lean13c.py)
         def row(sg, a, j):
             box = outrigger_frames(gp, turn={1: a, -1: a})[sg][0]
             return bil(box[:4])[:, j], bil(box[4:])[:, j]
@@ -1418,9 +1424,7 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
                         if not np.any((need > 0) & (np.abs(Gi_[:, 0]) < need + OR_GAP)):
                             break
                     req[j] = a
-                vv = np.linspace(0.0, 1.0, nv)
-                k = max(0.0, float(np.max((req[1:] - req[0]) / vv[1:])))
-                turns[sg] = req[0] + k * vv
+                turns[sg] = np.full(nv, float(req.max()))
             WORN_TURN.clear()
             WORN_TURN.update({sg: (round(float(t[0]), 2), round(float(t[-1]), 2)) for sg, t in turns.items()})
         for sg in (1, -1):
@@ -3136,7 +3140,8 @@ def strap_ends(mount):
     for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items():
         nv = Go.shape[1]
         mid = 0.5 * (Go + Gi)
-        # round 12: up the plate where the anchor is (the twisted plate's cross-section there), not up its back edge:
+        # round 12: up the plate where the anchor is (the twisted plate's cross-section there; round 13's rigid plate
+        # is the same up its length), not up its back edge:
         # with the hinge inside the frame the worn twist reaches 18.75 deg at the top row, and the back edge then leans
         # 3.7 deg more than the plate at the anchor, which put the strap's top corner through the plate's outer face
         i = int(np.argmin(np.linalg.norm(mid[:, nv // 2] - a, axis=1)))

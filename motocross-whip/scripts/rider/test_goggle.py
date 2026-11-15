@@ -470,9 +470,10 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
     with the strap starting 30 to 40 mm further out). Behind the eyeport's edge the inner face clears the shell by
     OR_GAP; the plate turns on its hinge (round 9: the frame's widest point) until it rests there; the strap's end
     lies inside the outrigger, between its faces, and its first ring starts there. Joint front fit (decision 47):
-    with the eyeport's cut edge where Leatt's iso photos show it the plate's back end stands ahead of the side edge,
-    as in Leatt's Pinata iso-right (through the solved camera, the right plate's back end at mid height 772 px there),
-    and only its top back corner reaches the shell (the brow edge)."""
+    with the eyeport's cut edge where Leatt's iso photos show it the plate's back end stands ahead of the side edge
+    and only its top back corner reaches the shell (the brow edge). Round 13: the plate turns as one; its back end
+    against Leatt's Pinata iso-right is compared where that empty helmet holds the goggle
+    (test_round13_worn_plate_turns_as_one_and_leans_as_leatts; here, at his placement, it read 772 +- 15 px)."""
     Vo, Fo, prof = H.shell_outer()
     mount = G.shell_mount(prof)
     free = G.outrigger_grids()
@@ -481,18 +482,16 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
     for sg, (Go, Gi, anchor) in G.outrigger_grids(mount=mount).items():
         need = mount(Gi.reshape(-1, 3)).reshape(Gi.shape[:2])
         assert need[-1, -1] > 0 and need[-1].sum() < need[-1].size          # its top back corner on the shell
-        if sg == -1:
-            px = H.cam_project(H.PRINT_CAMS["isoright"], G.g2h(Go[-1, Go.shape[1] // 2][None]))[0][0]
-            assert abs(px[0] - 772.0) < 15.0, f"back end {px[0] - 772.0:+.0f} px off Leatt's iso-right"
         gap = (np.abs(Gi[..., 0]) - need)[need > 0]
         assert G.OR_GAP - 1e-4 < gap.min() < G.OR_GAP + 0.0005              # ... resting on it, not inside
         assert np.allclose(Go[0], free[sg][0][0])           # front edge on the hinge, whatever each row's turn
         assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), G.OR_T)
-        assert 0.0 <= G.WORN_TURN[sg][0] <= G.WORN_TURN[sg][1] < 22.0       # turned out, its top more (the shell
-                                                                            # widens upwards; phase 2's shell (decision
-                                                                            # 51) turns round 12's plate 20.25 deg at
-                                                                            # its top, main's 18.25: item 1's shell 1.5,
-                                                                            # item 3's chin rings 0.5)
+        assert G.WORN_TURN[sg][0] == G.WORN_TURN[sg][1]                   # round 13: one turn, the plate rigid
+        assert abs(G.WORN_TURN[sg][1] - 20.25) <= 0.5                          # measured: the turn at which the top
+                                                                            # back corner clears phase 2's shell
+                                                                            # (decision 51) by OR_GAP from round 12's
+                                                                            # hinge (scratch lean13b.py; the search
+                                                                            # steps 0.25 deg)
         # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
         # row; the 5 mm plate bends out along its length more than its thickness)
         j = Gi.shape[1] // 2
@@ -505,6 +504,37 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         side = S[sg * S[:, 0] > 0.05]
         end = side[np.argmin(side[:, 1])]
         assert np.linalg.norm(end[[0, 1]] - anchor[[0, 1]]) < 0.012
+
+
+def test_round13_worn_plate_turns_as_one_and_leans_as_leatts():
+    """Round 13 item 2 (decision 57): the worn plate's back edge (its outer face, the right plate) through Leatt's
+    Pinata iso-right camera leans left going down as Leatt's does. Leatt's: where the strap's print meets the plate,
+    764 px at row 860 and 751 at 980, -10.8 px a 100 rows (scratch edge13.py on the photo). Rounds 9 to 12 twisted the
+    plate (the turn growing from the bottom row's need to the top's) and it leaned +3.3; rigid it leans -6.5 at any
+    turn. That photo is an empty helmet: there the goggle sits 12.6 mm lower and 3.5 mm further back (round 12, the
+    pink frames' best overlay), the plate meets no shell (turn 0) and its back edge stands at 760 / 752 px."""
+    Vo, Fo, prof = H.shell_outer()
+    cam = H.PRINT_CAMS["isoright"]
+
+    def back_edge(grids):
+        q = H.cam_project(cam, G.g2h(grids[-1][0][-1]))[0]
+        o = np.argsort(q[:, 1])
+        return np.interp([860.0, 980.0], q[o, 1], q[o, 0])
+
+    u = back_edge(G.outrigger_grids(mount=G.shell_mount(prof)))
+    lean = (u[1] - u[0]) / 1.2
+    assert -16.0 < lean < -5.0, lean                                   # Leatt -10.8; twisted +3.3
+    ty, tz, pitch, k = G._place(None)
+    keep = G.PLACE
+    try:
+        G.PLACE = (ty + 0.0035, tz - 0.0126, pitch, k)
+        u = back_edge(G.outrigger_grids(mount=G.shell_mount(prof)))
+        assert G.WORN_TURN[-1] == (0.0, 0.0)
+        assert abs(u[0] - 764.0) < 6.0 and abs(u[1] - 751.0) < 6.0, u
+        assert -16.0 < (u[1] - u[0]) / 1.2 < -5.0
+    finally:
+        G.PLACE = keep
+        G.outrigger_grids(mount=G.shell_mount(prof))
 
 
 def test_strap_crosses_the_trim_to_the_shell():
