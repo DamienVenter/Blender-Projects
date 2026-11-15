@@ -708,6 +708,15 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   cameras. Solved together (helmet_ba.py, 12 cameras), the front landmarks agree with the model within 1 to 5 mm, and
   TF 172's 350 mm length is a bounding box at another height, not the same 20 mm. Pairwise triangulation through
   separately fitted cameras can invent a shape error as easily as hide one; trust the joint solve.
+- An empty helmet is not a worn one. Leatt's studio iso-right has the strap rising over the chevron panel and the
+  goggle about 12 mm lower and 11 mm further back; on his head (his 07, 09) the strap runs under the panel. Where the
+  two disagree his own photos lead; say in the checkpoint README which studio sheets differ for that reason, and
+  separate shape from place (render the part where the studio photo has it) before calling a part too wide.
+- Parts of one colour merge at viewing distance: the grip panels, the port trim and the empty helmet interior are
+  all black, so the front reads as one big black blob at 0.4x even after the cut edge moved 16 to 23 mm. Fixing an
+  edge does not fix the read; each part needs its own tone, relief and the things behind it (liner, cheek pads).
+- Check every merged decision row has its four cells (#, date, decision, source): joint phase 1's row came without
+  the Source cell; brief agents with the column list.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
