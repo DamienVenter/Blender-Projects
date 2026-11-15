@@ -148,7 +148,9 @@ def test_round5_offsets_teeth_and_nose_ribs():
     tips = [z for z, _ in G.RIB_TOPS]                                       # the fingers' tops
     assert all(-0.019 < z < -0.016 for z in tips)
     assert r.V[:, 2].max() < edge_z(Co, 0.0, False) + 0.020                # under the frame's top band, at the nose
-    assert {"goggle_frame", "goggle_foam"} <= set(r.M)                     # round 10: no closed slots (noseguard)
+    # round 11: one moulding in the frame's colour, satin (Leatt's leaning tongues mirror no light)
+    assert set(r.M) == {"goggle_comb"} and G.MATERIALS["goggle_comb"]["rgb"] == G.MATERIALS["goggle_frame"]["rgb"]
+    assert G.MATERIALS["goggle_comb"]["rough"] >= 0.3
 
 
 def crossings(P):
@@ -647,7 +649,8 @@ def test_round10_strap_weave_band_limited():
     assert body[..., 2].std() > 0.01                                   # the coarse relief
     assert SA.ALB_CAP <= 0.9
     assert SA.FADE_FINE[0] < SA.FADE_FINE[1] <= 0.5 and SA.FADE_COARSE[1] <= 1.0
-    assert SA.WAVE_MM / SA.FADE_FINE[0] >= 2.5                         # the crosshatch full only at 2.5 px a period
+    # the crosshatch full only at 2.5 px a period of its finer family (round 11's twill: 0.677 mm, 3.1 px)
+    assert min(p for p, _ in SA.TWILL) / SA.FADE_FINE[0] >= 2.5
 
 
 def test_round10_plate_tapers_with_chamfered_back_corners():
@@ -713,8 +716,8 @@ def test_round10_chassis_band_has_two_clip_slots_a_side():
 def comb_runs(part, z, step=0.00005):
     """The x runs (m) the comb's sheets cover along the row z (front view: x his left, z up)."""
     V = np.asarray(part.V)
-    T = np.array([[f[0], f[i], f[i + 1]] for f, m in zip(part.F, part.M) if m == "goggle_frame"
-                  for i in range(1, len(f) - 1)])
+    T = np.array([[f[0], f[i], f[i + 1]] for f, m in zip(part.F, part.M) if m in ("goggle_frame", "goggle_comb")
+                  for i in range(1, len(f) - 1)])        # round 11: the comb in its own satin material
     A, B, C = (V[T[:, k]][:, [0, 2]] for k in range(3))
     keep = (np.minimum(np.minimum(A[:, 1], B[:, 1]), C[:, 1]) <= z) & (np.maximum(np.maximum(A[:, 1], B[:, 1]),
                                                                                  C[:, 1]) >= z)
@@ -750,6 +753,289 @@ def test_round10_comb_has_seven_leaning_tongues():
     finger, lobe = top(0.017, 0.026), top(0.029, 0.042)
     assert 0.004 < finger - lobe < 0.007, (finger, lobe)
     assert abs(V[:, 0].min() + V[:, 0].max()) < 1e-6 and hi                               # symmetric
+
+
+# ---------------------------------------------------------------- round 11: parts inside parts
+def solids(P):
+    """A part's connected pieces, welded by position: (V, T, edges not used by exactly two triangles) each."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    V0 = np.asarray(P.V, float)
+    _, idx, inv = np.unique(np.round(V0 / 1e-7).astype(np.int64), axis=0, return_index=True, return_inverse=True)
+    V, T = V0[idx], inv.ravel()[tris(P).astype(np.int64)]
+    e0, e1 = np.r_[T[:, 0], T[:, 1], T[:, 2]], np.r_[T[:, 1], T[:, 2], T[:, 0]]
+    lab = connected_components(coo_matrix((np.ones(len(e0)), (e0, e1)), shape=(len(V), len(V))), directed=False)[1]
+    out = []
+    for c in np.unique(lab[T[:, 0]]):
+        Tc = T[lab[T[:, 0]] == c]
+        cnt = np.unique(np.sort(np.r_[Tc[:, [0, 1]], Tc[:, [1, 2]], Tc[:, [2, 0]]], axis=1), axis=0,
+                        return_counts=True)[1]
+        out.append((V, Tc, int((cnt != 2).sum())))
+    return out
+
+
+def inside_solid(P, V, T, cell=0.001):
+    """Points of P inside the closed mesh (V, T): rays both ways along one fixed random direction cross it an odd
+    number of times (both must agree). The triangles are binned on a grid across the rays (winding numbers are too
+    slow against the frame's 37,000 triangles)."""
+    R = np.linalg.qr(np.random.default_rng(7).normal(size=(3, 3)))[0]
+    P, V = P @ R, V @ R
+    A, B, C = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    t2 = np.stack([A[:, [0, 2]], B[:, [0, 2]], C[:, [0, 2]]], 1)
+    lo, hi = np.floor(t2.min(1) / cell).astype(np.int64), np.floor(t2.max(1) / cell).astype(np.int64)
+    nx, nz = hi[:, 0] - lo[:, 0] + 1, hi[:, 1] - lo[:, 1] + 1
+    cnt = nx * nz
+    tid = np.repeat(np.arange(len(T)), cnt)
+    off = np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt)
+    kt = (lo[tid, 0] + off % nx[tid]) * (1 << 31) + (lo[tid, 1] + off // nx[tid])
+    o = np.argsort(kt, kind="stable")
+    kt, tid = kt[o], tid[o]
+    pc = np.floor(P[:, [0, 2]] / cell).astype(np.int64)
+    kp = pc[:, 0] * (1 << 31) + pc[:, 1]
+    left, n = np.searchsorted(kt, kp, "left"), np.searchsorted(kt, kp, "right") - np.searchsorted(kt, kp, "left")
+    pid = np.repeat(np.arange(len(P)), n)
+    tt = tid[np.repeat(left, n) + (np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n))]
+    a = A[tt][:, [0, 2]]
+    v0, v1, v2 = B[tt][:, [0, 2]] - a, C[tt][:, [0, 2]] - a, P[pid][:, [0, 2]] - a
+    den = v0[:, 0] * v1[:, 1] - v0[:, 1] * v1[:, 0]
+    ok = np.abs(den) > 1e-20
+    den = np.where(ok, den, 1.0)
+    u = (v2[:, 0] * v1[:, 1] - v2[:, 1] * v1[:, 0]) / den
+    v = (v0[:, 0] * v2[:, 1] - v0[:, 1] * v2[:, 0]) / den
+    hit = ok & (u >= 0) & (v >= 0) & (u + v <= 1)
+    y = A[tt][:, 1] + u * (B[tt][:, 1] - A[tt][:, 1]) + v * (C[tt][:, 1] - A[tt][:, 1])
+    up = np.bincount(pid[hit & (y > P[pid][:, 1])], minlength=len(P))
+    dn = np.bincount(pid[hit & (y < P[pid][:, 1])], minlength=len(P))
+    return (up % 2 == 1) & (dn % 2 == 1)
+
+
+def surface_samples(V, T, h, seed=0):
+    """Random points on the mesh's triangles, about one per h x h, and its vertices."""
+    A, B, C = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+    n = np.maximum(1, np.ceil(0.5 * np.linalg.norm(np.cross(B - A, C - A), axis=1) / (h * h))).astype(int)
+    tid = np.repeat(np.arange(len(T)), n)
+    r1, r2 = np.random.default_rng(seed).random((2, len(tid)))
+    f = r1 + r2 > 1
+    r1[f], r2[f] = 1 - r1[f], 1 - r2[f]
+    return np.vstack([A[tid] + (B[tid] - A[tid]) * r1[:, None] + (C[tid] - A[tid]) * r2[:, None], V[np.unique(T)]])
+
+
+def depth_below(Q, V, T, h=0.0001):
+    """Each point's distance to the mesh's surface (dense samples of the triangles near the points)."""
+    if not len(Q):
+        return np.zeros(0)
+    c = V[T].mean(1)
+    sel = np.all((c > Q.min(0) - 0.016) & (c < Q.max(0) + 0.016), axis=1)
+    return cKDTree(surface_samples(V, T[sel], h)).query(Q)[0]
+
+
+def lens_coords(L, P):
+    """(s, z, off) on the lens of points P (L.point's inverse): the lens is its plan curve swept along the tilted
+    direction Rl and its normal is square to Rl, so across Rl the plan curve's nearest point gives s."""
+    tt = math.tan(L.tilt)
+    Rl = np.array([0.0, tt, 1.0]) / math.hypot(tt, 1.0)
+    s = np.linspace(-L.S[-1], L.S[-1], int(L.S[-1] / 2e-5) * 2 + 1)
+    C, N = L.point(s, np.zeros_like(s), 0.0)
+    i = cKDTree(C - np.outer(C @ Rl, Rl)).query(P - np.outer(P @ Rl, Rl))[1]
+    Q = P - C[i]
+    off = (Q * N[i]).sum(1)
+    return s[i], (Q - off[:, None] * N[i]) @ Rl / math.hypot(tt, 1.0), off
+
+
+def outside_window(Co, s, z):
+    """Signed distance (m) of (s, z) from the lens window's edge Co: > 0 outside the window (under the frame)."""
+    from matplotlib.path import Path
+    P = np.c_[s, z]
+    if not len(P):
+        return np.zeros(0)
+    A, E = Co, np.roll(Co, -1, 0) - Co
+    d = np.full(len(P), np.inf)
+    for k in range(0, len(A), 64):
+        a, e = A[k:k + 64], E[k:k + 64]
+        u = np.clip(((P[:, None] - a[None]) * e[None]).sum(-1) / np.maximum((e * e).sum(-1), 1e-18)[None], 0, 1)
+        d = np.minimum(d, np.linalg.norm(P[:, None] - a[None] - u[..., None] * e[None], axis=-1).min(1))
+    return np.where(Path(Co).contains_points(P), -d, d)
+
+
+# pairs of goggle parts (A, B): A's surface inside B. "none": they must not meet (0.02 mm, touching); "window": A may
+# be inside B only under the frame (outside the lens window: the lens in its groove), "bridge": outside the window
+# or within 0.5 mm of its edge (the comb's root in the band) or no deeper than RIB_SINK (the comb's back moulded into
+# the bridge; 0.1 mm more for the two parts' tessellations), "seat": the foam
+# glued on the frame's back face (shared face, tessellated apart by up to 0.5 mm where the back face twists)
+GOGGLE_PAIRS = [(a, b, "none") for a, b in (
+    ("noseribs", "lens_outer"), ("noseribs", "lens_inner"), ("lens_outer", "noseribs"), ("lens_inner", "noseribs"),
+    ("noseribs", "foam"), ("foam", "noseribs"), ("foam", "lens_outer"), ("foam", "lens_inner"),
+    ("lens_outer", "foam"), ("lens_inner", "foam"), ("lens_outer", "lens_inner"), ("lens_inner", "lens_outer"),
+    ("noseguard", "lens_outer"), ("noseguard", "lens_inner"), ("lens_outer", "noseguard"),
+    ("lens_inner", "noseguard"), ("noseguard", "foam"), ("foam", "noseguard"), ("noseguard", "noseribs"),
+    ("noseribs", "noseguard"), ("outriggers", "lens_outer"), ("outriggers", "lens_inner"),
+    ("lens_outer", "outriggers"), ("lens_inner", "outriggers"))] + [
+    ("lens_outer", "frame", "window"), ("lens_inner", "frame", "window"), ("frame", "lens_outer", "window"),
+    ("frame", "lens_inner", "window"), ("noseribs", "frame", "bridge"), ("frame", "noseribs", "bridge"),
+    ("foam", "frame", "seat"), ("frame", "foam", "seat")]
+
+
+def goggle_overlaps(parts, gp=None, h=0.0004):
+    """Round 11: the goggle's parts (GOGGLE frame, by name) that run into each other against GOGGLE_PAIRS, and the
+    parts looked inside that are not closed solids. Returns a list of faults (empty: none)."""
+    gp = gp or G.GP
+    L = G.LensSurface(gp)
+    Co = G.outlines(gp)[0]                                            # the window's edge, the top band's teeth in
+    comps, faults = {}, []
+    for P in parts:
+        key = P.name.replace("goggle_", "")
+        for V, T, bad in solids(P):
+            if key == "lens":
+                k = "lens_outer" if lens_coords(L, V[np.unique(T)])[2].mean() > -0.0015 else "lens_inner"
+            else:
+                k = key
+            comps.setdefault(k, []).append((V, T, bad))
+    for k in ("frame", "lens_outer", "lens_inner", "noseribs", "foam", "noseguard", "outriggers"):
+        if k not in comps:
+            faults.append(f"{k}: missing")
+        elif sum(b for _, _, b in comps[k]):
+            faults.append(f"{k}: not closed ({sum(b for _, _, b in comps[k])} open or shared edges)")
+    for a, b, rule in GOGGLE_PAIRS:
+        if a not in comps or b not in comps:
+            continue
+        Pa = np.vstack([surface_samples(V, T, h) for V, T, _ in comps[a]])
+        for V, T, _ in comps[b]:
+            U = V[np.unique(T)]
+            Q = Pa[np.all((Pa > U.min(0) - 1e-5) & (Pa < U.max(0) + 1e-5), axis=1)]
+            Q = Q[inside_solid(Q, V, T)] if len(Q) else Q
+            if not len(Q):
+                continue
+            if rule in ("window", "bridge"):
+                s, z, _ = lens_coords(L, Q)
+                # inside the window by more than 0.05 mm (the comb: 0.5 mm, its 1 mm triangles across the edge)
+                Q = Q[outside_window(Co, s, z) < (-0.0005 if rule == "bridge" else -0.00005)]
+            dep = depth_below(Q, V, T)
+            lim = dict(none=0.00002, window=0.00002, bridge=G.RIB_SINK + 0.0001, seat=0.0006)[rule]
+            if len(dep) and dep.max() > lim:
+                q = Q[np.argmax(dep)] * 1000
+                faults.append(f"{a} in {b} ({rule}): {int((dep > lim).sum())} points, {dep.max() * 1000:.2f} mm "
+                              f"deep at ({q[0]:.1f}, {q[1]:.1f}, {q[2]:.1f}) mm")
+    return faults
+
+
+def test_round11_goggle_parts_do_not_run_into_each_other(built):
+    """Round 11 item 1: no goggle part runs into another it should not meet, on the goggle alone and on him (parts
+    back in the GOGGLE frame): the comb, both lenses, the foam, the nose guard and the outriggers stay out of each
+    other; the lenses enter the frame (and the chassis, part of it) only under it, in their groove; the comb enters the
+    frame only at its root under the window or by RIB_SINK into the bridge behind it; the foam sits on the frame's back
+    face. Every part looked inside is a closed solid. Main at round 10 failed: the comb 0.31 mm inside the inner lens
+    (3,700 points, |x| 5 to 40 mm, z -49 to -17), the nose foam 0.9 mm inside the inner lens, the inner lens 1.5 mm
+    inside the frame within the window (the bridge folded round it), the bridge's plate 1.4 mm inside the foam, and
+    the outer lens and the comb open (6 and 92 edges)."""
+    R, t = built["Rt"]
+    worn = []
+    for name, P in built["parts"].items():
+        if name in ("goggle_frame", "goggle_lens", "goggle_noseribs", "goggle_foam", "goggle_noseguard",
+                    "goggle_outriggers"):
+            Q = H.Part(name)
+            Q.V, Q.F = G.h2g((np.asarray(P.V) - t) @ R), P.F
+            worn.append(Q)
+    for label, parts in (("alone", G.free_parts()), ("worn", worn)):
+        faults = goggle_overlaps(parts)
+        assert not faults, (label, faults)
+
+
+def test_round11_strap_weave_is_a_short_twill():
+    """Round 11 item 2: round 10's weave read at 4x as long regular parallel ripples (in the tile's spectrum two
+    families only 35 deg apart, both near the strap's across direction); Leatt's (Pinata iso-right and MY27 back at
+    4x, its two families solved through the view's Jacobian) is a soft, short twill: 0.97 and 0.68 mm periods at
+    -37.7 and 53.6 deg from across, each coherent over about two periods. In the tile's fine relief (its body) the
+    power at 0.5 to 1.7 mm periods has two direction peaks 80 to 100 deg apart, the weaker 0.3 of the stronger or
+    more; the families' coherence is three periods or less."""
+    import goggle_strap_art as SA
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(H.TEXDIR, "goggle_strap_weave.png")).convert("RGB"), float) / 255.0
+    ny, nx = a.shape[:2]
+    body = a[int(ny * 0.3):int(ny * 0.7), :, 0]
+    P = np.abs(np.fft.fft2(body - body.mean())) ** 2
+    fy = np.fft.fftfreq(body.shape[0], SA.W_MM / ny)[:, None] + np.zeros((1, body.shape[1]))
+    fx = np.fft.fftfreq(body.shape[1], SA.TILE_MM / nx)[None, :] + np.zeros((body.shape[0], 1))
+    band = (np.hypot(fx, fy) > 0.6) & (np.hypot(fx, fy) < 2.0)
+    h = np.histogram(np.degrees(np.arctan2(fy, fx))[band] % 180.0, bins=36, range=(0, 180), weights=P[band])[0]
+    h = (np.roll(h, 1) + h + np.roll(h, -1)) / 3
+    i1 = int(np.argmax(h))
+    apart = np.abs(((np.arange(36) - i1) * 5 + 90) % 180 - 90)
+    i2 = int(np.argmax(np.where(apart >= 30, h, -1.0)))
+    assert 80 <= apart[i2] <= 100, (i1 * 5, i2 * 5)
+    assert h[i2] >= 0.3 * h[i1], h[i2] / h[i1]
+    assert len(SA.TWILL) == 2 and max(SA.TWILL_COH) <= 3.0
+
+
+def test_round11_strap_leatt_is_a_raised_layer(built):
+    """Round 11 item 3: Leatt's strap LEATT at 4x and 8x (Pinata iso-right) is a layer standing on the fabric, crisp
+    edged, with a lit lip along its lower edges; rounds 9 and 10 painted it into the print (flat, soft-edged at 4x)
+    and stretched it 1.34 times along (162 mm long against 120). Now geometry on the band: two wordmarks of
+    goggle_strap_logo, each a top STRAP_LOGO_T above the fabric with walls sunk into it (on a flat strap every edge
+    used once lies on the sunk bottom loops: closed down to the fabric), at the wordmark's own aspect: 30.15 mm tall
+    and about 120 mm long."""
+    import goggle_strap_art as SA
+    s = np.arange(0, 0.646, 0.0025)
+    S_, B_ = np.meshgrid(s, G.STRAP_ACROSS, indexing="ij")
+    base = np.stack([S_, B_, 0 * S_], -1)
+    nrm = np.zeros_like(base)
+    nrm[..., 2] = 1.0
+    Lp = SA.STRAP_LEN_UV * 1000.0
+    boxes = [(x0 / Lp * s[-1], G.STRAP_ACROSS[0] + (1 - y0 / SA.W_MM) * G.STRAP_W, lh / 1000.0)
+             for x0, y0, lh in SA.leatt_boxes()]
+    p = H.Part("t")
+    loops = G.strap_logo(p, base, nrm, s, 0.0027, boxes)
+    assert len(loops) == 2
+    for L2 in loops:
+        P = np.vstack(L2)
+        assert abs(np.ptp(P[:, 0]) * 1000 - 120.0) < 4.0, np.ptp(P[:, 0]) * 1000
+        assert abs(np.ptp(P[:, 1]) * 1000 - 30.15) < 1.0, np.ptp(P[:, 1]) * 1000
+    V = np.asarray(p.V)
+    assert abs(V[:, 2].max() - (0.0027 + G.STRAP_LOGO_T)) < 1e-6 and G.STRAP_LOGO_T >= 0.0003
+    _, inv = np.unique(np.round(V / 1e-8).astype(np.int64), axis=0, return_inverse=True)
+    inv = inv.ravel()
+    cnt = {}
+    for f in p.F:
+        for a_, b_ in zip(f, f[1:] + f[:1]):
+            k = (min(inv[a_], inv[b_]), max(inv[a_], inv[b_]))
+            cnt[k] = cnt.get(k, 0) + 1
+    once = np.array([k for k, c in cnt.items() if c == 1])
+    assert max(cnt.values()) == 2 and len(once)
+    rep = np.zeros(inv.max() + 1, int)
+    rep[inv] = np.arange(len(inv))
+    assert np.allclose(V[rep[once.ravel()], 2], 0.0027 - G.STRAP_LOGO_SINK, atol=1e-7)
+    band = built["parts"]["goggle_strap_band"]
+    assert sum(m == "goggle_strap_logo" for m in band.M) > 10000
+
+
+def test_round11_chassis_tone_and_clip_tabs():
+    """Round 11 item 4: the chassis band read 37 in iso55 (L p50 of its face) against Leatt's white ISO 19, and its
+    slots were empty where Leatt's show the strap clip's grey tab (L 32 to 35) at each slot's end away from the post,
+    2.4 to 3 mm long, over the lens side 0.68 of the slot's width. Now a darker, less specular black (20.4 in iso55)
+    and per slot a closed tab of goggle_clip: CHASSIS_CLIP_LEN long from the slot's far end, inside the pocket (below
+    the mouth, above the floor)."""
+    ch = G.MATERIALS["goggle_chassis"]
+    assert max(ch["rgb"]) <= 10 and ch.get("spec", 0.5) <= 0.15
+    fr, info = G.build_frame()
+    V = np.asarray(fr.V)
+    rings, _ = G.frame_rings()
+    mouth = cKDTree(np.vstack([rings[0] + (rings[1] - rings[0]) * t for t in np.linspace(0, 1, 21)]))
+    clip = [f for f, m in zip(fr.F, fr.M) if m == "goggle_clip"]
+    P = V[sorted({i for f in clip for i in f})]
+    assert len(P)
+    for sg in (1, -1):
+        for (z0, z1), ln in zip(G.CHASSIS_SLOTS, G.CHASSIS_CLIP_LEN):
+            Q = P[(np.sign(P[:, 0]) == sg) & (P[:, 2] > z0 - 0.002) & (P[:, 2] < z1 + 0.002)]
+            assert len(Q) >= 8, (sg, z0)
+            far = Q[:, 2].max() if z0 > 0 else Q[:, 2].min()
+            assert (far > z1 - 0.0025) if z0 > 0 else (far < z0 + 0.0025), (sg, z0, far)   # at the far end
+            run = rings[0][(np.sign(rings[0][:, 0]) == sg) & (np.abs(rings[0][:, 0]) >= G.CHASSIS_S)
+                           & (rings[0][:, 2] >= z0) & (rings[0][:, 2] <= z1)]
+            t = run[np.argmax(run[:, 2])] - run[np.argmin(run[:, 2])]          # along the slot
+            t /= np.linalg.norm(t)
+            top = Q[:len(Q) // 4]                                              # its first rail (the top's edge)
+            assert ln - 0.0003 < np.ptp(top @ t) < ln + 0.0001, (sg, z0, np.ptp(top @ t))
+            d = mouth.query(Q)[0]
+            assert d.min() > 0.00015 and d.max() < G.CHASSIS_SLOT_D + 0.0005, (d.min(), d.max())
 
 
 def test_frame_width_and_wrap():
@@ -851,9 +1137,13 @@ def test_leatt_wordmark_is_the_official_slanted_one():
     im = np.array(Image.open(os.path.join(H.TEXDIR, G.MATERIALS["goggle_strap"]["image"])).convert("RGB")).astype(int)
     white = im.min(-1) > 235
     w = im.shape[1]
+    # round 11: in mm, not texels (0.157 mm along, 0.117 across: round 9's print stretched the mark 1.34 times along,
+    # and in texels that read as the right aspect)
+    import goggle_strap_art as SA
+    mm_x, mm_y = SA.STRAP_LEN_UV * 1000.0 / w, SA.W_MM / im.shape[0]
     for half in (white[:, :w // 2], white[:, w // 2:]):
         ys, xs = np.nonzero(half)
-        assert abs(np.ptp(xs) / np.ptp(ys) - a) < 0.3
+        assert abs(np.ptp(xs) * mm_x / (np.ptp(ys) * mm_y) - a) < 0.3, np.ptp(xs) * mm_x / (np.ptp(ys) * mm_y)
     lg = G.build_frame_logo()
     V = G.g2h(lg.V)
     assert (V[:, 0] > 0.03).all()                                           # his left cheek

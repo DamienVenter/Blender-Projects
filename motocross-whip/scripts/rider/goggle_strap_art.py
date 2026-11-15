@@ -57,20 +57,30 @@ MOTTLE_MY27 = 0.75                         # round 9's body albedo spread (sd / 
 # its loop lattice put rows 0.45 mm apart, 2 px in the Pinata view (Nyquist): moire lines. Both photos' power spectra
 # (scratch psd2d.py) show two families of diagonal waves instead: MY27 back 3.48 px (0.745 mm) at 68 and 109 deg to the
 # strap (20.5 deg either side of across), the Pinata 2.9 to 3.9 px at 44 and 136 deg (the view foreshortens the strap).
-# His tile is those two waves (a crosshatch whose crossings are the pores), nothing finer: band-limited by construction.
-WAVE_MM = 0.745            # the waves' period (MY27 back photo, 0.214 mm/px)
-WAVE_ALONG = 9             # whole periods of each wave along the 19 mm tile: sin(angle) = 9 * 0.745 / 19, 20.7 deg
-                           # from across (measured 20.5)
-WAVE_JITTER = (1.0, 0.8)   # rad, mm: the waves' phase wanders by 1 rad over about 0.8 mm (a woven elastic is not a
-                           # lattice); the amplitude by 25 % over the same
-MOTTLE = 0.35              # the albedo factor's sd over the crosshatch (calibrated: the ledger goggle.md section 12)
+# Round 10's tile was those two waves (0.745 mm at 20.7 deg either side of across, their phase wandering 1 rad over
+# 0.8 mm), nothing finer: band-limited by construction.
+# Round 11 (decision 49): at 4x round 10's waves read as long regular parallel ripples, Leatt's as a soft short twill.
+# In the Pinata iso-right (scratch twill.py, four boxes on the strap's body) the two families read 3.8 to 4.1 px at
+# 137 to 141 deg and 2.9 to 3.2 px at 44 to 50 deg (image x right, y down): about square to each other. Round 10's
+# render in the same view reads 3.06 px at 122 deg and 3.20 px at 81 deg for its tile's 0.745 mm at 20.7 deg either side
+# of across: 40 deg apart, so they summed to ripples along their bisector. Those two give the view's map from the tile
+# (mm) to the image (px) there; through it Leatt's two families are 0.965 mm at 37.7 deg and 0.677 mm at 53.6 deg the
+# other way from across (a 45 deg twill, its two yarn systems at different pitches; the map's other root, 0.59 and
+# 0.32 mm, is finer than the photo can show). Each family is band-limited noise around its wave vector, TWILL_COH
+# periods of coherence across its crests and along them: short wandering crests, nothing finer than 0.55 mm.
+TWILL = ((0.965, -37.7), (0.677, 53.6))   # (period mm, deg from across, + towards +u along the strap)
+TWILL_COH = (2.0, 1.5)                    # periods: across the crests (spacing regularity), along them (crest length)
+TWILL_W = 1.3                             # the finer family's weight: the view blurs it more (2.8 px a period against 4);
+                                          # in the photo its peak holds 0.6 to 1.0 of the coarser one's power
+MOTTLE = 0.40              # the albedo factor's sd over the twill (the Pinata grain: the ledger goggle.md section 13)
 ALB_CLIP = (0.35, 1.3)
 ALB_CAP = 0.9              # the strap's albedo (linear, per channel) after the weave: no fabric reflects more
 # the shader fades the tile by the pixel's footprint on the strap (mm, the view distance times the camera's pixel
 # angle over the square root of the view's cosine): the crosshatch (red, green) from full at FADE_FINE[0] to none at
-# FADE_FINE[1] (3 to 1.7 px a period), the coarse relief (blue: the loops' clusters, about 1 mm) over FADE_COARSE.
-# Cycles has no mip-maps: at whip distance (2.7 mm a pixel) the strap shows the print and its normal map only
-FADE_FINE = (0.25, 0.45)
+# FADE_FINE[1] (round 11: 3 to 1.7 px a period of the finer family), the coarse relief (blue: the loops' clusters,
+# about 1 mm) over FADE_COARSE. Cycles has no mip-maps: at whip distance (2.7 mm a pixel) the strap shows the print
+# and its normal map only
+FADE_FINE = (0.22, 0.40)
 FADE_COARSE = (0.5, 1.0)
 FLECK = (0.35, 2.2)                        # the selvedges: a dark ground (0.45) and light flecks on the knit's loop
                                            # tops (+1.5 per sd above the mean), normalised to a mean of 1
@@ -79,7 +89,7 @@ PEBBLE_MM, PEBBLE_W = 0.3, 0.8            # the knit's loops clump in about 1 mm
                                            # grain): the relief's
 EDGE_LOOP = (0.50, 0.38)                   # mm: the selvedges' finer knit (light flecks on navy in the photo)
 RIB_MM = TILE_MM / 18 / math.sqrt(2)      # the selvedges' faint diagonal rib: 0.746 mm pitch (18 to the tile)
-LOOP_H, RIB_H, LOGO_H = 0.18, 0.10, 0.8    # mm: relief heights for the normal map
+LOOP_H, RIB_H = 0.18, 0.10                 # mm: relief heights for the normal map
 EDGE_ROUND_MM = 0.35
 
 
@@ -221,24 +231,28 @@ def wordmark_box(nx, ny, x0, y0, w, h, mirror=False):
 
 
 def crosshatch(nx, ny, mm_x, mm_y, seed=5):
-    """His strap's weave (round 10): two families of waves WAVE_MM apart, WAVE_ALONG whole periods along the tile
-    (periodic), mirrored about the across direction, their phase and amplitude wandering over about a mm. Zero mean,
-    unit sd; rows top down. Returns the two waves' sum (the crosshatch, its troughs' crossings the pores) and the
-    first wave alone (the selvedges' diagonal rib)."""
+    """His strap's weave (round 11): the two families of TWILL, each band-limited noise (a Gaussian around the
+    family's wave vector in the tile's spectrum, TWILL_COH periods of coherence across and along its crests), so the
+    crests are short and wander. Periodic both ways (an FFT on the tile's own grid). Zero mean, unit sd; rows top
+    down. Returns the two families' sum (the twill, its crossings the pores) and the first family alone (the
+    selvedges' diagonal rib)."""
     rng = np.random.default_rng(seed)
-    X = (np.arange(nx) + 0.5)[None, :] * mm_x
-    Y = (np.arange(ny) + 0.5)[:, None] * mm_y
-    fa = WAVE_ALONG / TILE_MM                                           # cycles a mm along
-    fc = math.sqrt(1.0 / WAVE_MM ** 2 - fa ** 2)                         # ... and across
-    sig = (WAVE_JITTER[1] / mm_y, WAVE_JITTER[1] / mm_x)
-
-    def smooth():
-        n = _gauss_wrap(rng.normal(size=(ny, nx)), sig)
-        return n / n.std()
-    w1 = (1 + 0.25 * smooth()) * np.cos(2 * math.pi * (fa * X + fc * Y) + WAVE_JITTER[0] * smooth())
-    w2 = (1 + 0.25 * smooth()) * np.cos(2 * math.pi * (-fa * X + fc * Y) + WAVE_JITTER[0] * smooth())
-    h = w1 + w2
-    return (h - h.mean()) / h.std(), (w1 - w1.mean()) / w1.std()
+    fx = np.fft.fftfreq(nx, mm_x)[None, :]                              # cycles a mm along (x) ...
+    fy = np.fft.fftfreq(ny, mm_y)[:, None]                              # ... and across (y, rows top down)
+    fams = []
+    for period, ang in TWILL:
+        f0, a = 1.0 / period, math.radians(ang)
+        k = np.array([f0 * math.sin(a), f0 * math.cos(a)])             # towards +x (along) by ang from across
+        ur, ut = k / f0, np.array([-k[1], k[0]]) / f0
+        sr, st = (f0 / (math.pi * math.sqrt(2) * c) for c in TWILL_COH)
+        G = 0.0
+        for sg in (1.0, -1.0):
+            dx, dy = fx - sg * k[0], fy - sg * k[1]
+            G = G + np.exp(-0.5 * (((dx * ur[0] + dy * ur[1]) / sr) ** 2 + ((dx * ut[0] + dy * ut[1]) / st) ** 2))
+        w = np.real(np.fft.ifft2(np.fft.fft2(rng.normal(size=(ny, nx))) * G))
+        fams.append((w - w.mean()) / w.std())
+    h = fams[0] + TWILL_W * fams[1]
+    return (h - h.mean()) / h.std(), fams[0]
 
 
 def weave_fields(style="pinata"):
@@ -304,6 +318,30 @@ ALB_MAX = 2.2              # the tile's green: the albedo factor / ALB_MAX
 WEAVE_RANGE_MM = 1.4       # the tile's red: 0.5 + relief / WEAVE_RANGE_MM (the bump distance)
 
 
+def _wordmark_aspect():
+    import goggle as G
+    return G.wordmark_aspect()
+
+
+_LEATT_BOXES = []
+
+
+def leatt_boxes():
+    """The two white LEATTs on the strap, each (x0, y0, letter height) in mm on the print (x along from the left end
+    u 0, over STRAP_LEN_UV; y down from the top edge): letters LEATT_H of the strap, centred across, reading from
+    outside on each side (the L away from the goggle on the right side, towards it on the left); the first letter's
+    start ANCHOR_MM plus the ISO's d_leatt[0] from the strap's end (iso_print)."""
+    if not _LEATT_BOXES:
+        d_leatt = iso_print()[2]
+        L = STRAP_LEN_UV * 1000.0
+        lh = LEATT_H * W_MM
+        lw = lh * _wordmark_aspect()
+        y0 = (W_MM - lh) / 2
+        _LEATT_BOXES.extend([(L - (d_leatt[0] + ANCHOR_MM) - lw, y0, lh),       # right side: the TT nearest the goggle
+                             (d_leatt[0] + ANCHOR_MM, y0, lh)])                 # left side: the L nearest the goggle
+    return list(_LEATT_BOXES)
+
+
 def strap_textures(outdir, colour="goggle_strap_print.jpg", normal="goggle_strap_print_n.png",
                    mask="goggle_strap_mask.png", body=None, edge=None, logo=True):
     """The strap's print (colour; the weave's own light and dark are in the tile, weave_tile) and its large relief
@@ -343,17 +381,14 @@ def strap_textures(outdir, colour="goggle_strap_print.jpg", normal="goggle_strap
         img = img * (1 - sel[..., None]) + np.asarray(edge, float) * sel[..., None]
     fabric = np.ones((ny, nx))
     if logo and d_leatt is not None:
-        # the white LEATT, raised: on each side reading from outside (L away from the goggle on the right side,
-        # towards it on the left), letters LEATT_H of the strap, its d range from the ISO
-        import goggle as G
-        lh = LEATT_H * ny
-        lw = lh * G.wordmark_aspect()
-        x_right = nx * (1 - (d_leatt[0] + ANCHOR_MM) / L) - lw            # right side: the TT nearest the goggle
-        x_left = nx * (d_leatt[0] + ANCHOR_MM) / L                       # left side: the L nearest the goggle
-        y0 = (ny - lh) / 2
-        mask_ = np.maximum(wordmark_box(nx, ny, x_right, y0, lw, lh), wordmark_box(nx, ny, x_left, y0, lw, lh))
-        soft = _gauss(mask_, 0.25 / mm_y)
-        Hmm = Hmm * (1 - soft) + LOGO_H * soft
+        # the white LEATT: under the raised letters (round 11: geometry, goggle.strap_logo) the print is white and the
+        # weave off; no relief here (rounds 9 and 10: 0.8 mm, blurred over 0.25 mm). Round 11: at the wordmark's true
+        # aspect (the texels are 0.157 mm along and 0.117 across: rounds 9 and 10 drew it 162 mm long, Leatt's is 120)
+        mask_ = np.zeros((ny, nx))
+        for x0_mm, y0_mm, lh_mm in leatt_boxes():
+            lh = lh_mm / mm_y
+            mask_ = np.maximum(mask_, wordmark_box(nx, ny, x0_mm / mm_x, y0_mm / mm_y, lh_mm * _wordmark_aspect() / mm_x,
+                                                   lh))
         white = np.array([238.0, 238.0, 240.0])
         img = img * (1 - mask_[..., None]) + white * mask_[..., None]
         fabric = 1 - mask_

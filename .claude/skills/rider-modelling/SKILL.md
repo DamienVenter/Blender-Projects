@@ -481,6 +481,36 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   is not empty. str.replace('', x) puts x between every character (round 10 turned the ledger into 77 MB
   that way; undone with replace(x, '')). Check git diff --stat after every doc patch.
 
+## Goggle round 11: parts inside parts, twill, raised LEATT, chassis clips (2026-11-15, goggle.py, goggle_strap_art.py, ledger goggle.md section 13, decision 49)
+- **Test that parts do not run into each other** (test_goggle.goggle_overlaps): weld each part by position, split it
+  into connected pieces, require every piece closed (an open or shared edge is a fault), then sample points on part A
+  and test them inside part B by ray parity (both directions along one random ray, both odd). A block added inside a
+  pocket must be a closed tube inset 0.05 mm from the pocket's walls, or the test reports open edges. Round 10 had 14
+  faults (the comb 0.3 mm into the inner lens, the bridge folded round the lens) that no render showed.
+- **Inside tests on a traced outline**: a triangle's edge midpoint lying on the outline reads in or out at random;
+  nudge midpoints towards the centroid before the test. A ray that grazes a wall counts twice: skip faces along it.
+- **Texels are not square**: the strap tile is 0.157 mm along and 0.117 across a texel, so a box sized in texels
+  stretched the LEATT 1.34 times (162 mm against 120). Place and measure prints in mm.
+- **A weave seen in a photo through a known render**: measure the photo's two families (period, angle) in px, render
+  our own known tile in the same view, and use that render to map tile mm to image px (the view's Jacobian there);
+  solve the tile's waves from it. Check the sign along the strap's +u: the first solve came out mirrored.
+- **Long regular ripples come from coherent waves**: band-limited noise round each wave vector (a Gaussian at +-k in
+  the FFT) coherent over 1.5 to 2 periods reads as a soft twill at 4x; a peak holding over 0.6 of the band's power
+  reads as ripples (the photo about 0.35).
+- **Raised prints are geometry**: Leatt's strap lettering is a layer with crisp walls; a blurred relief in the print
+  reads flat and soft at 4x. Contour the mark's alpha, triangulate its top, give it square walls sunk into the fabric.
+- **Solve an albedo from a test render**: render at a trial value, read the linear factor (render / albedo), divide
+  the photo's tone by it. The print's 236 clipped at 254; 160 rendered 178 (1.27x), so 203 renders 225 as Leatt's.
+- **Gloss black reads as its specular**: rgb 14 rendered 37 against Leatt's 19; lowering spec (0.1) and albedo (8)
+  got 20 with crisp edges kept. Faces that lean towards the top light (the comb, 22 deg) mirror it at rough 0.05: give
+  them their own satin (rough 0.7, spec 0.2).
+- **Short features on a coarse run**: whole segments 1.1 to 1.8 mm apart quantised a 3 mm tab to 1.2 mm; interpolate
+  along the run to the exact length.
+- **Mask renders with the lens out of the way**: goggle_views needs goggle_lens to exist, so move its vertices 50 m
+  away in the npz to see what is behind it; never delete it.
+- **A fix the worn fit blocks is reported, not forced**: the comb's lean moved the bridge 7 mm back, and on him his
+  nose ridge has 3.2 mm where the stack needs 5.8; the worn build notches over his nose and the rest is decision 47's.
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

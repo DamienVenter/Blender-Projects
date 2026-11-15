@@ -1023,6 +1023,98 @@ identical (mean difference 0.00).
 Item 4's second half, the vent sawtooth's 1 to 2 mm steps, not done this round (the comb took the time).
 Item 5 (the Forge back-strap sheet) not done: no camera is fitted to that photo.
 
+## 13. Round 11: parts inside parts, twill, raised LEATT, chassis tone and clips, comb finish (decision 49)
+
+### Parts inside parts (item 1; test_goggle.goggle_overlaps, nose_back, rib_depth, inner_grow)
+A pairwise test (test_round11_goggle_parts_do_not_run_into_each_other): every goggle part is welded by position and
+split into closed pieces (an open or shared edge is a fault); points sampled on part A are tested inside part B by
+ray parity (rays both ways along one random direction, both odd), and their depth below B's surface measured. Pairs
+that must not meet: comb, both lenses, foam, nose guard, outriggers (0.02 mm). The lenses may be inside the frame only
+outside the window (their groove), the comb only at its root or RIB_SINK into the bridge, the foam on the frame's back
+face (0.6 mm). Main (round 10) fails it with 14 faults: the comb 0.31 mm inside the inner lens (3,700 points, |x| 5
+to 40 mm), the nose foam 0.9 mm inside the inner lens, the inner lens 1.5 mm inside the frame within the window (the
+bridge folded round it), the bridge's plate 1.4 mm inside the foam, the outer lens and the comb open (6 and 92
+edges). Now none, alone and worn.
+Fixed: Leatt's exploded view shows the slotted surface at the nose starting at the lens's seat and sweeping back,
+so the comb stands RIB_LENS_CLEAR (0.15 mm) behind the inner lens's back (3.4 mm behind the lens front) and leans back
+as Leatt's tongues do (RIB_LEAN, round 10's 0.40 mm a mm above z -29 mm, a softplus knee). The frame's bridge
+(nose_back: rings l, m, n) stands behind it, the comb's back sunk RIB_SINK into the plate, the back face BRIDGE_T
+behind: item 5's lean moved the bridge back by up to 7 mm at the face opening's top. On him there is no room for that
+bridge over his nose ridge at decision 47's PLACE (his skin 3.2 mm behind the lens front at s 0, z -34 mm, where the
+stack, comb and plate need 5.8 mm): the worn build opens the face opening down to the window over his nose ridge
+(NOSE_NOTCH, |s| under 8 mm, eased over 14 mm), the tongues there give way to his nose (rib_clear). That is a fit
+question for decision 47. Where the band is no deeper than the inner lens's back, the inner lens stops INNER_NOSE
+inside the window (inner_grow). Lessons: an edge midpoint on the outline makes an inside test ambiguous (nudge it
+towards the triangle's centroid); a ray that grazes a wall counts twice (skip faces along the ray).
+
+### The weave at 4x (item 2; goggle_strap_art.TWILL, crosshatch)
+Round 10's two 0.745 mm waves at 20.7 deg either side of across read at 4x as long regular parallel ripples (they
+summed along their bisector). In the Pinata iso-right (scratch twill.py, four boxes on the strap's body) Leatt's two
+families read 3.8 to 4.1 px at 137 to 141 deg and 2.9 to 3.2 px at 44 to 50 deg: about square. Round 10's render in
+the same view (its tile known) gives the view's map from tile mm to image px there; through it Leatt's families are
+0.965 mm at -37.7 deg and 0.677 mm at 53.6 deg from across (a 45 deg twill, its two yarn systems at different
+pitches). Each family is band-limited noise round its wave vector (FFT, a Gaussian at +-k), coherent over 2.0 periods
+across its crests and 1.5 along them (TWILL_COH; at 4 and 2.5 the render's peak held 0.62 to 0.74 of the band's power,
+the photo's about 0.35); the finer family weighted 1.3 (the view blurs it more). The first try was mirrored (68 and
+156 deg against the photo's 138 and 46): the signs follow the strap's +u. Whip distance, two frames: weave / no weave
+1.00 (registered mean 1.43 against 1.44). Pinata grain (grain.py, 1:1) 0.112 to 0.120 against the photo's 0.125 to
+0.147: a little smooth. MY27 back at 4x: Leatt's MY27 strap is a different fabric (a jacquard, 3.44 px at 70 and 110
+deg); its view reads the same with round 10's and round 11's tiles (high pass sd 21.45 and 21.48), so it does not
+choose between them. Test: test_round11_strap_weave_is_a_short_twill (fails on main: its two families 35 deg apart).
+
+### The strap's white LEATT (item 3; goggle.strap_logo, goggle_strap_art.leatt_boxes)
+In the Pinata iso-right at 8x the letters are a layer standing on the fabric: crisp edges, off-white top (226/222/219,
+T bar px 625..655, 835..848), a lit lip 1 to 2 px along the lower edges where the wall shows. Rounds 9 and 10 painted
+it into the print with a blurred relief: flat and soft at 4x, white clipped (254). Their print also stretched it 1.34
+times along: the texels are 0.157 mm along and 0.117 across, and the box was sized in texels (162 mm long against the
+ISO's 120). Now: leatt_boxes places both wordmarks in mm (30.15 mm tall, the official mark's aspect 3.99), the print
+keeps them in place, and strap_logo builds each as geometry on the band: the official wordmark's alpha contoured at
+0.5 (3 loops), its top a Delaunay triangulation of the outline points and a 0.6 mm inner grid (triangles kept whose
+centroid and nudged edge midpoints lie inside), STRAP_LOGO_T 0.5 mm above the fabric, square walls sunk 0.1 mm into
+it, each wall with its own vertices. Closed down to the fabric: every edge used once lies on the sunk bottom loops.
+Albedo 203/199/197: at the print's 236 the top clipped, at 160 it rendered 178 (1.27 times in linear), so this gives
+224.6/220.5/218.1 against Leatt's 225.6/221.6/218.6. The edge band reads 2 to 3 px (Leatt 1.5 to 2.5) but dark (33 to
+66) where Leatt's is lit (240 to 245): our studio has no light from below. Test:
+test_round11_strap_leatt_is_a_raised_layer (fails on main: no leatt_boxes). test_leatt_wordmark_is_the_official_slanted_one now
+measures the print's aspect in mm (in texels round 9's stretch had read right).
+
+### The chassis band (item 4; MATERIALS goggle_chassis, CHASSIS_CLIP_*, chassis_slots)
+Tone: the face read 37 in iso55 (x 1676..1692, y 960..1000, L p50) against Leatt's white ISO 19 (23 above the slots,
+10 below). Gloss black at rgb 14 is mostly its specular: spec 0.15 renders 29, 0.05 26; rgb 8/8/9, spec 0.1, rough
+0.05 renders 20.4 and keeps its crisp edges.
+Clips: Leatt's white ISO at 6x (column x 1680) shows in each slot a grey tab (L 32 to 35 against the slot's 0 to 2)
+at its end away from the post: 16 px long in the top slot (y 836 to 851), 13 in the bottom one (1080 to 1093), at
+0.19 mm a px, over the lens side 0.68 of the slot's width; the Pinata ISO the same (24 to 36), with the strap's teal
+dots between. Built: per slot a closed block of goggle_clip, 3.0 and 2.4 mm from the slot's far end (interpolated
+along the run: the segments lie 1.1 to 1.8 mm apart, whole ones made it 1.2 mm), 0.2 mm below the mouth (0.5 mm hid
+all but 6 px of it), 0.05 mm clear of the pocket. It renders 15 and 12 px long, L 37 (top slot) and 58 (bottom: it
+faces the studio's top light). Test: test_round11_chassis_tone_and_clip_tabs (fails on main: rgb 14, no tabs).
+Not matched: the width. Leatt's black band in iso55 runs from the lens's far edge at x 1655 to the silhouette (1697);
+ours from 1673. Our lens covers the band's first 17 px (a mask render: its far edge at 1672 to 1675) and reads
+blue-grey there over the chassis behind it, where Leatt's shows the frame's colour then black. On the near side
+Leatt's frame is the frame's colour right to the lens (920 to 985 px), ours has a black bevel strip (983 to 994). So
+the opening or the cross-section at the sides differs, not the material: a refit of the side section. phr layout: Leatt's
+shows the red rim (1600 to 1615 px), a gap with the foam behind, then a black piece 1625 to 1680 with the same two
+slots and a clip on its edge, standing out beyond our frame's silhouette (1633), where our far outrigger shows its
+printed outer face. That piece may be the outrigger's inner face or a chassis wing; the outriggers' poses are
+decision 47's, so it is left. The strap's teal dots inside Leatt's slots are not modelled (no strap on the free goggle).
+
+### The comb's finish (item 5; goggle_comb, goggle_bridge, RIB_LEAN)
+Leaning back 22 deg the comb's faces look up at the studio's top light, and at the frame's rough 0.05 they mirrored
+it (3,222 white px in phr's tongue zone). Its own material, the frame's colour in a moulded satin: rough 0.45 left a
+pink sheen (tongues L p50 171), rough 0.7 with spec 0.2 renders 126, Leatt's 99. The grey round the tongues in phr is
+the bridge behind them: goggle_bridge (40/40/44, rough 0.6, no foam sheen). Its rim above the near tongues reads
+about 5 to 10 px at 1:1 against Leatt's 3 to 7, lighter on its upper roll (150 to 180 against 75 to 95). The lean: built
+(above), the bridge moved back by it. Not done: the vent sawtooth's 1 to 2 mm steps between the teeth at s 43.6, 59
+and 79.5 mm; they reshape the window's edge, which the lens, the comb and the fitted views hang on.
+
+### Checkpoint and checks
+renders/checkpoints/2026-11-15_goggle-r11/: 01 the nose slices (round 10, round 11), 02a and 02b the weave at 4x
+(Pinata iso-right, MY27 back), 02c the two whip frames, 03a and 03b the strap LEATT at 1:1 and 4x, 04a the chassis
+band in iso55 at 3x, 04b the slots at 6x, 05a and 05b the comb in phr and iso55. Item 6 (the Forge back-strap sheet)
+not done.
+Tests: all 96 rider tests pass (92 on main plus test_round11_goggle_parts_do_not_run_into_each_other, test_round11_strap_weave_is_a_short_twill, test_round11_strap_leatt_is_a_raised_layer, test_round11_chassis_tone_and_clip_tabs, each shown to fail on main). Blender 5.2.0 (Damien's) against 5.2.3: the final free goggle in iso55 (chassis band, clip tabs, comb, bridge), 16 samples, pixel identical (mean difference 0.00).
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|
