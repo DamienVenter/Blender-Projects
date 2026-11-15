@@ -22,9 +22,10 @@ nose comb behind it shows as in Leatt's photos. Each of the double lens's four f
 pass the VLT at normal incidence (a Principled transmission tints and refracts at every face and stops the lights'
 rays: a 150 grey tint left 0.3^4 of the light, and the comb did not show at all).
 
-Round 8: light "daylight" (head_closeups.py's sun and sky, the sun aimed by the camera's "sun": [phi, theta]) for
-his outdoor photos; a camera may carry "offset" (m, the point it looks round, default the origin) and "box" (photo
-px: only that part is rendered, at GOGGLE_VIEWS_SCALE); the helmet's clear coat (coat_rough, spec) as build_rider.
+Round 8: light "daylight" (head_closeups.py's sun and sky, the sun aimed by the camera's "sun": [phi, theta], and
+since decision 55 the sky turned so that it stands day_rig.SUN_ELEV high, as in his 07) for his outdoor photos; a
+camera may carry "offset" (m, the point it looks round, default the origin) and "box" (photo px: only that part is
+rendered, at GOGGLE_VIEWS_SCALE); the helmet's clear coat (coat_rough, spec) as build_rider.
 
 Round 9: a camera may carry "lights": [[x, y, z, W], ...] for the three area lights (m, about the origin, aimed at
 it; the MY27 back view: a key from his right and behind, a fill from his left, a dim top light, so the tail's rolls
@@ -329,10 +330,12 @@ def daylight(sc):
 DAY_EXPOSURE = 2.0                                 # the plain AgX's exposure under rounds 4 to 9's 4 W/m2 sun
 
 
-def day_sun(day, cam, phi_theta):
+def day_sun(day, cam, phi_theta, elevation=None):
     """The sun at (phi, theta) in the camera's frame (phi across the image, 90 = image up; theta off the line back
-    to the camera): day_rig.aim, as head_closeups.day_sun (the sky's sun follows, the ground is lit by both)."""
-    day_rig.aim(day, cam, *phi_theta)
+    to the camera): day_rig.aim, as head_closeups.day_sun (the sky's sun follows, the ground is lit by both).
+    elevation (deg): his photos' views (the cameras that carry their "sun") turn the sky and the ground so that the
+    sun stands day_rig.SUN_ELEV high, his 07's (decision 55, round 2b): the GOGGLE frame's up is not the world's."""
+    day_rig.aim(day, cam, *phi_theta, elevation)
 
 
 def main():
@@ -366,7 +369,7 @@ def main():
             place_lights(s)
         if day:
             bpy.context.view_layer.update()
-            day_sun(day, sc.camera, s.get("sun", (90.0, 110.0)))
+            day_sun(day, sc.camera, s.get("sun", (90.0, 110.0)), day_rig.SUN_ELEV if "sun" in s else None)
         sc.render.use_border = sc.render.use_crop_to_border = "box" in s       # round 8: only the photo's box
         if "box" in s:
             x0, y0, x1, y1 = s["box"]

@@ -33,15 +33,42 @@ def test_the_daylight_scripts_take_their_rig_from_the_module(script):
     assert "SUN" not in day, "%s.daylight still makes its own sun lamp" % script
 
 
+def _assigned(tree):
+    return {t.id: n.value for n in tree.body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+
+
 def test_his_photo_views_turn_the_sky_to_his_suns_height():
-    """head_closeups gives his three photos' views DAY_ELEV (78 deg, photo 07's shadow) and the other views None."""
+    """head_closeups gives his three photos' views and cam07 (the bike's camera on photo 07) DAY_ELEV (78 deg, photo
+    07's shadow) and the other views None."""
     tree = ast.parse(open(os.path.join(HERE, "head_closeups.py")).read())
-    consts = {t.id: n.value.value for n in tree.body if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant)
-              for t in n.targets if isinstance(t, ast.Name)}
-    assert consts.get("DAY_ELEV") == 78.0
+    val = _assigned(tree)
+    assert ast.literal_eval(val["DAY_ELEV"]) == 78.0
+    assert ast.unparse(val["SUN_HEIGHT_VIEWS"]) == "(*HIS_VIEWS, 'cam07')", ast.unparse(val["SUN_HEIGHT_VIEWS"])
     aim = _calls(next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "day_sun"), "aim")[0]
     el = aim.args[4] if len(aim.args) > 4 else None
-    assert isinstance(el, ast.IfExp) and ast.unparse(el) == "DAY_ELEV if name in HIS_VIEWS else None", ast.unparse(aim)
+    assert isinstance(el, ast.IfExp) and ast.unparse(el) == "DAY_ELEV if name in SUN_HEIGHT_VIEWS else None", \
+        ast.unparse(aim)
+
+
+def test_cam07_takes_p07s_sun():
+    """cam07 is photo 07 seen by the camera fitted to the bike: p07's sun (decision 55, round 2b), not the views
+    without a photo's DAY_SUN_OTHER."""
+    sun = ast.literal_eval(_assigned(ast.parse(open(os.path.join(HERE, "head_closeups.py")).read()))["DAY_SUN"])
+    assert sun.get("cam07") == sun["p07"] == (90.0, 106.7), sun
+
+
+def test_goggle_views_photo_views_get_the_suns_height():
+    """goggle_views' cameras of his photos (those carrying a "sun") turn the sky to day_rig.SUN_ELEV through
+    day_sun, the others keep the GOGGLE frame's up (decision 55, round 2b)."""
+    tree = ast.parse(open(os.path.join(HERE, "goggle_views.py")).read())
+    fn = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    aim = _calls(fn["day_sun"], "aim")[0]
+    assert [ast.unparse(a) for a in aim.args] == ["day", "cam", "*phi_theta", "elevation"], ast.unparse(aim)
+    calls = [n for n in ast.walk(fn["main"]) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "day_sun"]
+    assert len(calls) == 1 and len(calls[0].args) == 4, [ast.unparse(c) for c in calls]
+    assert ast.unparse(calls[0].args[3]) == "day_rig.SUN_ELEV if 'sun' in s else None", ast.unparse(calls[0])
+    assert day_rig.SUN_ELEV == 78.0
 
 
 @pytest.mark.parametrize("view,phi,theta,pitch", [("p07", 90.0, 106.7, 4.7), ("p08", 85.0, 130.0, 28.7),

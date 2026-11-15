@@ -57,8 +57,11 @@ os.makedirs(OUT, exist_ok=True)
 # deg high); 08, 09: the light on his white shell comes from image up (luminance gradient at 85 and 81 deg), the
 # cameras look up at him from the ground, and theta was chosen among 115 to 145 deg by matching the rendered shell's
 # lit / shaded ratio to the photo's (sun elevations 73 and 70 deg).
-DAY_SUN = {"p07": (90.0, 106.7), "p08": (85.0, 130.0), "p09": (81.0, 130.0)}
+# cam07 (the bike's camera fitted to the same photo 07, research/rider-cameras.json) takes p07's sun and height
+# (decision 55, round 2b: DAY_SUN_OTHER on the blend's up put that sun about 75 deg high, p07's on the blend's up 78.5)
+DAY_SUN = {"p07": (90.0, 106.7), "cam07": (90.0, 106.7), "p08": (85.0, 130.0), "p09": (81.0, 130.0)}
 DAY_SUN_OTHER = (90.0, 110.0)      # the views with no photo
+SUN_HEIGHT_VIEWS = (*HIS_VIEWS, "cam07")   # the views of his photos: the sun DAY_ELEV high (below)
 # The light: the daylight rig shared with goggle_views.py and the bike (common/day_rig.py, decision 55: its sun, sky
 # and ground, each value and its source; DAY_GAIN, DAY_SUN_W and DAY_SKY still override it there). His photos' views
 # turn the sky and the ground so that the sun stands DAY_ELEV high, as in 07 (one session): their cameras ride the
@@ -119,11 +122,11 @@ def day_sun(day, name, cam):
     phi, theta = DAY_SUN.get(name, DAY_SUN_OTHER)
     if DAY_THETA:
         theta = float(DAY_THETA)
-    d = day_rig.aim(day, cam, phi, theta, DAY_ELEV if name in HIS_VIEWS else None)
+    d = day_rig.aim(day, cam, phi, theta, DAY_ELEV if name in SUN_HEIGHT_VIEWS else None)
     # a view of one of his photos at that photo's own exposure (decision 55), the others at the one look
     scene_look.apply(bpy.context.scene, "daylight", ev=DAY_EV + scene_look.photo_ev(name))
     print("DAYLIGHT", name, "sun", [round(v, 3) for v in d], "elevation %.1f deg" % day["elevation"],
-          "camera pitch %.1f deg" % day["pitch"] if name in HIS_VIEWS else "(the blend's up)")
+          "camera pitch %.1f deg" % day["pitch"] if name in SUN_HEIGHT_VIEWS else "(the blend's up)")
 
 
 def photo_view(sc, name, D, scale=2, day=None):
