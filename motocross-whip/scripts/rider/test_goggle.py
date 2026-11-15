@@ -488,8 +488,11 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         assert G.OR_GAP - 1e-4 < gap.min() < G.OR_GAP + 0.0005              # ... resting on it, not inside
         assert np.allclose(Go[0], free[sg][0][0])           # front edge on the hinge, whatever each row's turn
         assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), G.OR_T)
-        assert 0.0 <= G.WORN_TURN[sg][0] <= G.WORN_TURN[sg][1] < 20.0       # turned out, its top more (the shell
-                                                                            # widens upwards)
+        assert 0.0 <= G.WORN_TURN[sg][0] <= G.WORN_TURN[sg][1] < 22.0       # turned out, its top more (the shell
+                                                                            # widens upwards; phase 2's shell (decision
+                                                                            # 51) turns round 12's plate 20.25 deg at
+                                                                            # its top, main's 18.25: item 1's shell 1.5,
+                                                                            # item 3's chin rings 0.5)
         # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
         # row; the 5 mm plate bends out along its length more than its thickness)
         j = Gi.shape[1] // 2

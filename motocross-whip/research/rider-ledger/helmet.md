@@ -705,6 +705,10 @@ beside the render (scratch pair.py: photo | main | phase 2).
 - `test_vents_are_moulded_away_from_the_front` measures height to the closest point on the shell (`surface_height`:
   the nearest vertex read 1.5 mm under the chin's pieces) and takes the new materials; his cameras' 09 colour floor
   0.38 (0.40 since the retrace).
+- goggle's worn fit (`test_outriggers_rest_on_the_shell_and_hold_the_strap`): the worn plate's turn bound 20 to 22
+  deg. On the trial merge with goggle round 12 (decision 53) the plate turns 20.25 deg at its top to rest on phase 2's
+  shell, on main's shell 18.25 (item 1's shell 1.5 deg, item 3's chin rings 0.5); its gap (1.56 mm), its top back
+  corner on the shell and its back end in iso-right (-7.9 px, main -6.9) hold. Nothing else of the goggle changed.
 
 ### Still not right
 - The mouthpiece's frame is a flat band; Leatt's is a deep recessed tunnel. Its rails read about 5 mm wide in the
