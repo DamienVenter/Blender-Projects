@@ -33,6 +33,9 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
+import scene_look  # noqa: E402  (the scene look shared with the bike, decision 54)
+
 argv = sys.argv[sys.argv.index("--") + 1:]
 BODY, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1])
 VIEWS = [v for v in (argv[2].split(",") if len(argv) > 2 else ["front", "side"]) if v and v != "none"]
@@ -360,9 +363,9 @@ def studio():
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
     sc.render.resolution_x, sc.render.resolution_y = 1200, 1600
-    # the scene look shared with the bike (decision 46): AgX - Punchy at -0.6; plain AgX at 0 turned the helmet's
-    # bright saturated inks pale and salmon. Comparisons with Leatt's studio photos use the Standard view instead
-    sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = "AgX", "AgX - Punchy", -0.6
+    # the scene look shared with the bike (decision 54, scene_look.py; was AgX - Punchy -0.6, decision 46).
+    # Comparisons with Leatt's studio photos use the Standard view instead (scene_look "studio")
+    scene_look.apply(sc, "scene")
     w = bpy.data.worlds.new("w")
     sc.world = w
     w.use_nodes = True

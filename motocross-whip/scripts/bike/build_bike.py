@@ -21,7 +21,9 @@ from bpy_extras import anim_utils  # noqa: F401  (kept for later animation of th
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
 import kit_faces  # noqa: E402  (pure numpy: which kit faces are inner or back faces)
+import scene_look  # noqa: E402  (the scene look shared with the rider, decision 54)
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 PARTS, TEX, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1]), os.path.abspath(argv[2])
@@ -503,9 +505,7 @@ def studio():
     sc.cycles.device = "CPU"
     sc.cycles.samples = int(os.environ.get("BIKE_SAMPLES", "64"))
     sc.cycles.use_denoising = True
-    sc.view_settings.view_transform = "AgX"
-    sc.view_settings.look = "AgX - Punchy"              # closest to his bike's deep red (look test 2026-11-10)
-    sc.view_settings.exposure = -0.6
+    scene_look.apply(sc, "scene")                         # decision 54 (was AgX - Punchy -0.6, decision 46)
     if os.environ.get("BIKE_VIEW"):                        # look tests: e.g. BIKE_VIEW="Standard,None,-0.3"
         vt, look, ex = os.environ["BIKE_VIEW"].split(",")
         sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = vt, look, float(ex)
@@ -606,8 +606,7 @@ def render(cams):
         bpy.data.objects["floor"].hide_render = not honda
         sc.render.film_transparent = honda
         # AgX turns the brightly lit red plastics salmon in the studio set-up: Standard keeps Honda's red there
-        vs = sc.view_settings
-        vs.view_transform, vs.look, vs.exposure = ("Standard", "None", STUDIO[2]) if honda else ("AgX", "AgX - Punchy", -0.6)
+        scene_look.apply(sc, "studio", ev=STUDIO[2]) if honda else scene_look.apply(sc, "scene")
         # studio views: an even dome of light and weaker lamps (the lamps alone left a grey haze on the shadow
         # catcher and washed the red to salmon); values tuned against the red of Honda's photo (STUDIO)
         sc.world.node_tree.nodes["Background"].inputs["Strength"].default_value = STUDIO[0] if honda else 0.30

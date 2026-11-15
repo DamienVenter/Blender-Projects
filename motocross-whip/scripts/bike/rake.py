@@ -10,10 +10,14 @@ blender -b BLEND --python-exit-code 1 --python rake.py -- OUTPREFIX "spec;spec;.
   Writes OUTPREFIX_<camera>[_<tags>].png.
 """
 import math
+import os
 import sys
 
 import bpy
 from mathutils import Vector
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
+import scene_look  # noqa: E402  (the scene look shared with the rider, decision 54)
 
 a = sys.argv[sys.argv.index("--") + 1:]
 pre = a[0]
@@ -54,8 +58,7 @@ for spec in a[1].split(";"):
         sc.collection.objects.link(sun)
     sc.render.resolution_x, sc.render.resolution_y = co["res"]
     sc.render.resolution_percentage = 100
-    vs = sc.view_settings
-    vs.view_transform, vs.look, vs.exposure = "AgX", "AgX - Punchy", -0.6
+    scene_look.apply(sc, "scene")
     bpy.data.objects["cyc"].hide_render = False
     bpy.data.objects["floor"].hide_render = True
     sc.render.film_transparent = False

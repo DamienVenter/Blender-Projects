@@ -193,8 +193,9 @@ MODELS = {  # name: (free parameters, base). Every model: saturation, then gains
     "standard_wb": (("ev", "wr", "wb"), "plain"),               # and white balance
     "pbrn_sat": (("ev", "wr", "wb", "sat"), "pbrn"),            # Khronos PBR Neutral with gains and saturation
     "agx_sat": (("ev", "wr", "wb", "sat"), "agx"),              # AgX - Punchy with compositor gains and saturation
-    "curve": (("ev", "wr", "wb", "p"), "standard"),             # Standard with the curve mapping's tone curve
-    "curve_sat": (("ev", "wr", "wb", "p", "sat"), "standard"),  # and saturation: the look (scene_look.py)
+    "curve": (("ev", "wr", "wb", "p"), "standard"),             # the tone curve per channel (the curve mapping's)
+    "curve_sat": (("ev", "wr", "wb", "p", "sat"), "standard"),  # and saturation
+    "max": (("ev", "wr", "wb", "p"), "max"),                    # the tone curve on max(R,G,B), hue kept: the look
 }
 START = dict(ev=0.0, wr=0.0, wb=0.0, p=1.5, sat=1.0)
 BOUNDS = dict(p=(0.5, 6.0), sat=(0.5, 2.5))
@@ -223,9 +224,9 @@ def params(model_name, x):
 
 
 def display(lin, gains, p, sat, base, agx_cache=None):
-    """The candidate looks in numpy: scene_look.model for "standard" and "pbrn", the plain Standard view, or AgX -
+    """The candidate looks in numpy: scene_look.model for "standard", "pbrn" and "max", the plain Standard view, or AgX -
     Punchy through its Blender-sampled table."""
-    if base in ("standard", "pbrn"):
+    if base in ("standard", "pbrn", "max"):
         return scene_look.model(lin, gains=gains, p=p, sat=sat, base=base)
     x = scene_look.saturate(lin, sat) * gains
     if base == "plain":
@@ -382,14 +383,24 @@ def white_balance(P, views):
     return dict(wr=round(float(np.median([a for a, _ in r])), 4), wb=round(float(np.median([b for _, b in r])), 4))
 
 
-FINAL = ("curve", ("white", "black"))      # the shipped procedure: white balance from the shell, then ev and p
+FINAL = ("max", ("white", "black"))        # the shipped procedure: white balance from the shell, then ev and p
+
+
+def own_exposure(P, view, x, wb):
+    """A photo's own exposure (his phone's auto exposure for that shot): ev fitted on its white and black with the
+    curve (p) and the white balance held."""
+    e, _ = fit(P, [view], FINAL[1], FINAL[0], fixed=dict(wb, p=x["p"]))
+    return e["ev"]
 
 
 def fit_all(P, work, out):
     """Every candidate look, fitted on all three of his photos and on each pair of them (the third held out);
     mean dE of the class medians on the fitted and the held-out photos, before (decision 46) and after. "final":
-    the shipped procedure (white balance from the white shell, exposure and the curve on the shell and the black
-    print; magenta a check on the materials)."""
+    the shipped procedure: white balance from the white shell; the curve (p) fitted on the shell and the black
+    print with one exposure per photo (his phone exposes each shot itself: a shared one bent p to make up the
+    difference, 4.0 against 2.2 to 2.9 from each photo alone), the look's EV their mean; magenta a check on the
+    materials. Its held-out photo is scored at that EV ("held_after") and at its own exposure ("held_own"), its
+    fitted photos at the EV and at theirs ("fit_own")."""
     b = before(P, work)
     views = sorted(set(P["view"]))
     res = {}
@@ -397,20 +408,32 @@ def fit_all(P, work, out):
         res[name] = {}
         for hold in [None] + views:
             fv = [v for v in views if v != hold]
+            own = None
             if name == "final":
                 wb = white_balance(P, fv)
-                x, q = fit(P, fv, FINAL[1], FINAL[0], fixed=wb)
+                x, q = fit(P, fv, FINAL[1], FINAL[0], fixed=wb, per_view_ev=True)
+                if hold:
+                    x["ev_" + hold] = round(float(own_exposure(P, hold, x, wb)), 4)
+                own = np.ones(len(P["lin"]))
+                for v in views:
+                    own[P["view"] == v] = 2.0 ** (x["ev_" + v] - x["ev"])
             else:
                 x, q = fit(P, fv, FIT_CLASSES, name, agx_cache=os.path.join(work, "agx_lut.npy"))
             d = display(P["lin"], agx_cache=os.path.join(work, "agx_lut.npy"), **q)
-            rows = table(P, {"before": b, "after": d}, classes=FIT_CLASSES)
+            looks = {"before": b, "after": d}
+            if own is not None:
+                looks["own"] = display(P["lin"] * own[:, None], **q)
+            rows = table(P, looks, classes=FIT_CLASSES)
             key = "all" if hold is None else "hold " + hold
             res[name][key] = dict(params=x, fit_before=mean_dE(rows, "before", fv), fit_after=mean_dE(rows, "after", fv),
                                   held_before=mean_dE(rows, "before", [hold]), held_after=mean_dE(rows, "after", [hold]),
                                   rows=rows)
-            print("%-12s %-9s %s  fitted dE %s -> %s  held %s -> %s" % (
+            if own is not None:
+                res[name][key].update(fit_own=mean_dE(rows, "own", fv), held_own=mean_dE(rows, "own", [hold]))
+            print("%-12s %-9s %s  fitted dE %s -> %s  held %s -> %s%s" % (
                 name, key, x, res[name][key]["fit_before"], res[name][key]["fit_after"], res[name][key]["held_before"],
-                res[name][key]["held_after"]), flush=True)
+                res[name][key]["held_after"], "" if own is None else "  own exposure: fitted %s held %s" % (
+                    res[name][key]["fit_own"], res[name][key]["held_own"])), flush=True)
     json.dump(res, open(out, "w"), indent=1)
 
 
@@ -426,11 +449,101 @@ def report(P, work, out):
     json.dump(rows, open(out, "w"), indent=1)
 
 
+def red_test(rgb):
+    """The bike's red plastic as an image shows it (sRGB-encoded 0..1): hue within 15 deg of red, saturation over
+    0.5, value over 0.3. Applied alike to his photo and to our render's display."""
+    h, s, v = hsv(rgb)
+    return ((h >= 345) | (h <= 15)) & (s > 0.5) & (v > 0.3)
+
+
+def red_stats(rgb):
+    """Median and lit median (the top quartile by luma Y', Rec.709 weights on the encoded values: the red channel
+    clips under the scene look, so the top quartile by value is ill-defined) of the red pixels, 8-bit, and their
+    count."""
+    y = rgb @ np.asarray(scene_look.LUMA)
+    lit = rgb[y >= np.percentile(y, 75)]
+    return dict(n=len(rgb), median=(np.median(rgb, 0) * 255).round(1).tolist(),
+                lit=(np.median(lit, 0) * 255).round(1).tolist())
+
+
+def bike_red(exr_path, index, red_srgb, work, ev7=0.0):
+    """The bike's red in his photo 07 (cam07) against our render's plain red surfaces (albedo RED: plastic_red,
+    fork_guard and the kit textures' plain red), through decision 46's look and the scene look (at the look's EV and
+    at photo 07's own exposure, ev7 stops off it: fit.json "final"); and the albedo that brings the scene look's red
+    (median and lit median) onto the photo's at photo 07's exposure."""
+    names = json.load(open(index))
+    d = load_view("cam07", exr_path, names)
+    red_lin = srgb_to_lin(np.asarray(red_srgb, float) / 255.0)
+    # the Diffuse Color pass carries the base colour under the clear coat's Fresnel loss (0.602 for RED's 0.631)
+    a = d["alb"]
+    plain = (a[..., 0] > 0.85 * red_lin[0]) & (a[..., 0] < 1.02 * red_lin[0]) & \
+            (a[..., 1] < 2 * red_lin[1] + 0.004) & (a[..., 2] < 2 * red_lin[2] + 0.004)
+    bike = np.isin(d["cls"], ["red", "bike_black"]) | plain
+    region = ~erode(~bike, 15)                     # the bike's red parts and 15 px round them (cam07's rms)
+    ph = d["photo"][region]
+    photo = red_stats(ph[red_test(ph)])
+    lin = d["lin"][erode(plain, 1)]
+    out = dict(photo=photo, n_render=int(len(lin)))
+    for key, kind, ev in (("d46", "d46", 0.0), ("daylight", "daylight", 0.0), ("daylight_ev7", "daylight", ev7)):
+        disp = blender_look(lin, kind, ev)
+        out[key] = red_stats(disp[red_test(disp)])
+    # the albedo. Each plain red pixel: lin = alb E e + S, E the diffuse light on it (red channel), e the light's
+    # colour (the white shell's lin / albedo in this render, against red), S a grey reflection (the clear coat and
+    # the specular: the green channel is nearly all of it). A new albedo a: lin' = a E e + S; a fitted so that the
+    # scene look's red (median and lit median, CIELAB) meets the photo's
+    from scipy.optimize import least_squares
+    alb = d["alb"][erode(plain, 1)]
+    wm = d["cls"] == "white"
+    e = np.median(d["lin"][wm] / np.maximum(d["alb"][wm], 1e-3), 0)
+    e = e / e[0]
+    E = np.maximum((lin[:, 0] - lin[:, 1]) / (alb[:, 0] - alb[:, 1] * e[1]), 0.0)
+    S = np.maximum(lin[:, 1] - alb[:, 1] * e[1] * E, 0.0)
+
+    def relit(a):
+        return np.asarray(a)[None, :] * E[:, None] * e[None, :] + S[:, None]
+
+    def look(a, blender=False):
+        disp = blender_look(relit(a), "daylight", ev7) if blender else scene_look.display(relit(a), "daylight", ev7)
+        return red_stats(disp[red_test(disp)])
+
+    goal = np.concatenate([lab(photo["median"]), lab(photo["lit"])])
+
+    def resid(la):
+        disp = scene_look.display(relit(np.exp(la)), "daylight", ev7)
+        if red_test(disp).sum() < 1000:                 # no longer a red: far off
+            return np.full(6, 100.0)
+        st = look(np.exp(la))
+        return np.concatenate([lab(st["median"]), lab(st["lit"])]) - goal
+    a0 = np.median(alb, 0)
+    r = least_squares(resid, np.log(a0), diff_step=1e-2, bounds=(np.log(1e-4), 0.0))
+    a_fit = np.exp(r.x)
+    coat = float(np.median(alb[:, 0])) / red_lin[0]           # the Diffuse Color pass over the base colour
+    base = np.clip(a_fit / coat, 0, 1)
+    new8 = (scene_look.oetf(base) * 255).round().astype(int)
+    # both checked through Blender: the old albedo relit (the model's own check against the render above) and the
+    # new one rounded to 8 bits as build_bike.py takes it
+    st_old = look(a0, True)
+    st_new = look(srgb_to_lin(new8 / 255.0) * coat, True)
+
+    def dE(st):
+        return [round(float(np.linalg.norm(lab(st[k]) - lab(photo[k]))), 1) for k in ("median", "lit")]
+    out.update(light_colour=e.round(3).tolist(), coat=round(coat, 3), reflection_median=round(float(np.median(S)), 4),
+               relit_old=st_old, relit_new=st_new, red_new=new8.tolist(), dE_old=dE(st_old), dE_new=dE(st_new),
+               dE_d46=dE(out["d46"]), dE_daylight=dE(out["daylight"]), dE_daylight_ev7=dE(out["daylight_ev7"]),
+               ev7=ev7)
+    print(json.dumps(out, indent=1))
+    return out
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "pairs":
         i = a.index("--index")
         pairs(a[1], a[2:i], a[i + 1])
+    elif a[0] == "bike":                         # bike EXR INDEX R,G,B --work DIR --out OUT.json [--ev7 EV]
+        res = bike_red(a[1], a[2], [int(v) for v in a[3].split(",")], a[a.index("--work") + 1],
+                       float(a[a.index("--ev7") + 1]) if "--ev7" in a else 0.0)
+        json.dump(res, open(a[a.index("--out") + 1], "w"), indent=1)
     elif a[0] in ("fit", "report"):
         P = load_pairs([a[1]])
         work, out = a[a.index("--work") + 1], a[a.index("--out") + 1]

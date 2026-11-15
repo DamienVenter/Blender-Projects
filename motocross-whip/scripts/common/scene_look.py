@@ -7,13 +7,17 @@
     scene_look.apply(scene, "d46")           # decision 46's AgX - Punchy at -0.6 (the look before this one)
     scene_look.apply(scene, "linear")        # scene-referred EXR (multilayer, float, uncompressed) for fitting
 
-The look (research/scene-look.md; fitted by look_fit.py on pixel-aligned pairs of his photos 07 and 09, tested on
-08 and on the bike in his 07), all in the view settings, so the viewport shows it as the renders do:
-  1. per-channel gains (his phone's white balance and the exposure): the curve mapping's white level, 1 / gain;
-  2. a tone curve per channel with a toe and a shoulder: the curve mapping's C curve, the log-logistic
-     T(u) = m u^P / (1 + u^P), m so that T(XMAX) = 1 (Blender applies it to scene-linear values, before the view);
-  3. the Standard view (the sRGB curve, clipped).
-display() is the same look in numpy, the reference test_scene_look.py holds Blender's output to (within a level).
+The look (research/scene-look.md; fitted by look_fit.py on pixel-aligned pairs of his photos 07, 08 and 09, each
+held out in turn, and checked on the bike's red in his 07), in a compositor node group and the Standard view:
+  1. per-channel gains (his phone's white balance and the exposure);
+  2. a tone curve with a toe and a shoulder on the largest channel, the others scaled with it (the hue and the
+     channel ratios kept: a tone curve per channel crushed the weak channels of saturated colours, the bike's red
+     to G 7 where his photos show 47): T(u) = m u^P / (1 + u^P), m so that T(XMAX) = 1;
+  3. the Standard view (the sRGB curve).
+The view's curve mapping cannot do step 2 (per channel; its film-like mode still puts the smallest channel through
+the curve), so the look lives in the compositor: renders show it; the viewport shows it with Viewport Shading's
+Compositor set to Camera or Always. display() is the same look in numpy, the reference test_scene_look.py holds
+Blender's output to (within a level).
 
 SCENE_LOOK=<kind> in the environment overrides the kind every caller asks for (SCENE_LOOK=linear renders the pairs
 of the look fit through the unchanged scripts; SCENE_LOOK=d46 renders the old look for before / after sheets).
@@ -27,16 +31,16 @@ LUMA = (0.2126, 0.7152, 0.0722)      # Rec.709 luminance (Blender's scene linear
 # ---- the fitted look (look_fit.py fit, "final", all three photos; research/scene-look.md "The fit"), on
 # head_closeups' daylight rig (sun 4 x 2^3.4 W/m2). log2 of the gains: WB his phone's white balance read off the
 # white shell (red and blue against green), EV the exposure; ev in apply() adds to EV for another rig
-EV = 0.075
+EV = 0.102
 WB = (0.234, 0.0, -0.302)
 GAINS = tuple(2.0 ** (EV + w) for w in WB)
-P = 2.52                              # the toe: T(u) ~ u^P in the darks; the shoulder rolls off above u ~ 1
+P = 2.59                              # the toe: T(u) ~ u^P in the darks; the shoulder rolls off above u ~ 1
 XMAX = 8.0                            # the curve's white: T(XMAX) = 1 (gained scene-linear)
-CURVE_POINTS = 48                     # control points of the view's C curve (its table: 257 entries over 0..XMAX)
 # "scene": the studio-lit views (build_bike, build_rider, rake, head_closeups' studio) under white lamps: the tone
 # curve without the daylight white balance (the phone's correction for the blue sky light), EV_SCENE stops over EV
 # keeping linear mid grey (0.18) where decision 46's AgX - Punchy at -0.6 put it, for which those rigs were lit
-EV_SCENE = 0.815                      # 0.18 -> 69 as under AgX - Punchy -0.6 (look_apply.py, Blender 5.2.3)
+EV_SCENE = 0.832                      # 0.18 -> 69 as under AgX - Punchy -0.6 (look_apply.py, Blender 5.2.3)
+GROUP = "scene_look"                  # the compositor node group apply() builds
 
 
 def oetf(x):
@@ -91,12 +95,19 @@ def pbr_neutral(c):
     return c2
 
 
-def model(lin, gains=GAINS, p=P, sat=1.0, base="standard", xmax=XMAX):
+def model(lin, gains=GAINS, p=P, sat=1.0, base="max", xmax=XMAX):
     """Scene-linear (..., 3) to sRGB-encoded display values in 0..1: (saturation), per-channel gains, the tone
-    curve, the sRGB curve (base "standard": this module's look; "pbrn": Khronos PBR Neutral in place of the curve)."""
+    curve, the sRGB curve. base "max": this module's look, the curve on the largest channel and the others scaled
+    with it; "standard": the curve on each channel; "pbrn": Khronos PBR Neutral in place of the curve."""
     import numpy as np
     x = saturate(lin, sat) * np.asarray(gains, float)
-    x = pbr_neutral(x) if base == "pbrn" else tone(x, p, xmax)
+    if base == "max":
+        m = x.max(-1, keepdims=True)
+        x = x * tone(m, p, xmax) / np.maximum(m, 1e-9)
+    elif base == "pbrn":
+        x = pbr_neutral(x)
+    else:
+        x = tone(x, p, xmax)
     return oetf(np.clip(x, 0.0, 1.0))
 
 
@@ -122,41 +133,62 @@ def kind_of(kind):
     return k
 
 
-def _plain(vs, view, look, ev):
+def _plain(scene, view, look, ev):
+    """A view transform and look alone: no curve mapping, no white balance, and this module's compositor group
+    taken off (a group of the script's own stays)."""
+    vs = scene.view_settings
     vs.view_transform, vs.look, vs.exposure = view, look, ev
     vs.gamma = 1.0
     vs.use_curve_mapping = False
     vs.use_white_balance = False
+    g = scene.compositing_node_group
+    if g is not None and g.name.startswith(GROUP):
+        scene.compositing_node_group = None
 
 
-def _curve(vs, gains):
-    """Gains and the tone curve in the view's curve mapping (Blender applies it to scene-linear values, before the
-    view's exposure): white level 1 / gain per channel, the C curve sampled on T (denser in the toe), R, G and B
-    straight over the same range."""
-    _plain(vs, "Standard", "None", 0.0)
-    vs.use_curve_mapping = True
-    cm = vs.curve_mapping
-    cm.tone = "STANDARD"
-    cm.extend = "HORIZONTAL"
-    cm.use_clip = True
-    cm.clip_min_x, cm.clip_min_y, cm.clip_max_x, cm.clip_max_y = 0.0, 0.0, XMAX, 1.0
-    cm.black_level = (0.0, 0.0, 0.0)
-    cm.white_level = tuple(1.0 / g for g in gains)
-    for i, c in enumerate(cm.curves):
-        if i == 3:
-            us = [XMAX * (j / (CURVE_POINTS - 1)) ** 2 for j in range(CURVE_POINTS)]
-            pts = [(u, float(tone(u))) for u in us]
-        else:
-            pts = [(0.0, 0.0), (XMAX, XMAX)]
-        while len(c.points) > 2:
-            c.points.remove(c.points[-1])
-        c.points[0].location = pts[0]
-        c.points[1].location = pts[-1]
-        for q in pts[1:-1]:
-            c.points.new(*q)
-        for q in c.points:
-            q.handle_type = "AUTO"
-    cm.update()
+def _compositor(scene, gains, p=P, xmax=XMAX):
+    """Gains and the max-RGB tone curve as a compositor node group (math nodes, float): x = max(gain * channel, 0);
+    M = max(x); out = x * T(min(M, xmax)) / max(M, 1e-9), alpha passed through; then the Standard view."""
+    import bpy
+    if scene.compositing_node_group is not None and not scene.compositing_node_group.name.startswith(GROUP):
+        raise RuntimeError("the scene already has a compositor group (%s): the look would replace it"
+                           % scene.compositing_node_group.name)
+    _plain(scene, "Standard", "None", 0.0)
+    old = bpy.data.node_groups.get(GROUP)
+    if old is not None:
+        bpy.data.node_groups.remove(old)
+    g = bpy.data.node_groups.new(GROUP, "CompositorNodeTree")
+    g.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+    N, L = g.nodes, g.links
+
+    def math(op, a, b, x=0.0):
+        n = N.new("ShaderNodeMath")
+        n.operation, n.use_clamp, n.location = op, False, (x, 0.0)
+        for i, v in enumerate((a, b)):
+            if isinstance(v, (int, float)):
+                n.inputs[i].default_value = float(v)
+            else:
+                L.new(v, n.inputs[i])
+        return n.outputs[0]
+
+    rl = N.new("CompositorNodeRLayers")
+    rl.scene = scene
+    sep = N.new("CompositorNodeSeparateColor")
+    L.new(rl.outputs["Image"], sep.inputs["Image"])
+    x = [math("MAXIMUM", math("MULTIPLY", sep.outputs[c], float(k)), 0.0) for c, k in zip(("Red", "Green", "Blue"), gains)]
+    M = math("MAXIMUM", math("MAXIMUM", x[0], x[1]), x[2])
+    up = math("POWER", math("MINIMUM", M, xmax), p)
+    T = math("MULTIPLY", math("DIVIDE", up, math("ADD", up, 1.0)), (1.0 + xmax ** p) / xmax ** p)
+    k = math("DIVIDE", T, math("MAXIMUM", M, 1e-9))
+    comb = N.new("CompositorNodeCombineColor")
+    for c, xc in zip(("Red", "Green", "Blue"), x):
+        L.new(math("MULTIPLY", xc, k), comb.inputs[c])
+    L.new(sep.outputs["Alpha"], comb.inputs["Alpha"])
+    out = N.new("NodeGroupOutput")
+    L.new(comb.outputs["Image"], out.inputs[0])
+    g["scene_look"] = dict(gains=[float(v) for v in gains], p=float(p), xmax=float(xmax))
+    scene.compositing_node_group = g
+    scene.render.use_compositing = True
 
 
 def _linear(scene):
@@ -164,7 +196,7 @@ def _linear(scene):
     compression (common/exr.py reads it) with the albedo (Diffuse Color), Depth and Material Index passes. Every
     material gets a pass index (1 + its place in the sorted names); SCENE_LOOK_INDEX=<path> writes that table."""
     import bpy
-    _plain(scene.view_settings, "Standard", "None", 0.0)
+    _plain(scene, "Standard", "None", 0.0)
     im = scene.render.image_settings
     im.media_type = "MULTI_LAYER_IMAGE"
     im.file_format = "OPEN_EXR_MULTILAYER"
@@ -182,23 +214,26 @@ def _linear(scene):
 
 
 def apply(scene, kind="daylight", ev=0.0):
-    """Set the scene's look in its view settings. ev: an exposure offset in stops (a rig brighter or darker than
-    the one the look was fitted on). Returns the kind applied (SCENE_LOOK overrides)."""
+    """Set the scene's look: the view settings and, for "daylight" and "scene", the compositor group. ev: an
+    exposure offset in stops (a rig brighter or darker than the one the look was fitted on). Returns the kind
+    applied (SCENE_LOOK overrides)."""
     k = kind_of(kind)
-    vs = scene.view_settings
     if k in ("daylight", "scene"):
-        _curve(vs, gains_of(k, ev))
+        _compositor(scene, gains_of(k, ev))
     elif k == "linear":
         _linear(scene)
     elif k == "studio":
-        _plain(vs, "Standard", "None", ev)
+        _plain(scene, "Standard", "None", ev)
     else:                                            # d46
-        _plain(vs, "AgX", "AgX - Punchy", -0.6 + ev)
+        _plain(scene, "AgX", "AgX - Punchy", -0.6 + ev)
     return k
 
 
 def describe(scene):
     """One line on the scene's look, for the scripts' logs."""
     vs = scene.view_settings
-    g = tuple(round(1.0 / w, 3) for w in vs.curve_mapping.white_level) if vs.use_curve_mapping else None
-    return "look %s %s %.2f curve gains %s" % (vs.view_transform, vs.look, vs.exposure, g)
+    g = scene.compositing_node_group
+    q = dict(g["scene_look"]) if g is not None and "scene_look" in g else None
+    if q:
+        q = "gains %s p %.3g" % (tuple(round(v, 3) for v in q["gains"]), q["p"])
+    return "look %s %s %.2f compositor %s" % (vs.view_transform, vs.look, vs.exposure, q)

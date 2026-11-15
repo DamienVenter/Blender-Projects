@@ -19,7 +19,8 @@ Sources of the views:
   cam07           the camera fitted to his photo 07 (research/rider-cameras.json, fitted to the bike), the render
                   cropped round his head: the true angle of that photo when the blend has the bike in it
 The studio matches build_rider.studio(): Cycles, the same world and two area lights, and the scene look shared with
-the bike (decision 46: AgX - Punchy at exposure -0.6); the daylight uses the same look (SCENE_LOOK).
+the bike (scene_look.py "scene", decision 54); the daylight uses its "daylight" kind, fitted to these views' pairs
+with his photos 07, 08 and 09 (research/scene-look.md).
 """
 import math
 import os
@@ -58,13 +59,13 @@ os.makedirs(OUT, exist_ok=True)
 DAY_SUN = {"p07": (90.0, 106.7), "p08": (85.0, 130.0), "p09": (81.0, 130.0)}
 DAY_SUN_OTHER = (90.0, 110.0)      # the views with no photo
 DAY_SUN_DISC = 0.53                # deg, the sun's angular diameter
-# The look (decision 46): the scene's AgX - Punchy at -0.6, shared with the bike, for the studio and the daylight
-# alike. His photos' exposure goes into the light instead: his phone exposes for him, so his white shell's lit half
-# is near white (median linear luminance 0.84 in 08, 0.86 in 09). Round 2 matched that with plain AgX at +2.0 (lit
-# shell 0.55 / 0.59; at +2.6 the frame and the sky washed out) and a 4.0 sun. With the look at -0.6 the sun and the
-# sky are DAY_GAIN times that. Measured on p07 / p08 / p09 (16 samples; median display value of the white shell, round
-# 2 = 219 / 202 / 204): 2.6 EV gives 205 / 183 / 185 (Punchy's curve darkens the mid-tones), 3.0 EV 213 / 194 / 196,
-# 3.4 EV 221 / 203 / 205, so 3.4 EV keeps the lit shell where round 2 had it, the inks a little more saturated
+# The light: his photos' exposure went into the light under decision 46's look (AgX - Punchy at -0.6): his phone
+# exposes for him, so his white shell's lit half is near white (median linear luminance 0.84 in 08, 0.86 in 09).
+# Round 2 matched that with plain AgX at +2.0 (lit shell 0.55 / 0.59; at +2.6 the frame and the sky washed out) and
+# a 4.0 sun. With the look at -0.6 the sun and the sky are DAY_GAIN times that. Measured on p07 / p08 / p09 (16
+# samples; median display value of the white shell, round 2 = 219 / 202 / 204): 2.6 EV gives 205 / 183 / 185, 3.0 EV
+# 213 / 194 / 196, 3.4 EV 221 / 203 / 205, so 3.4 EV. Decision 54's look (scene_look "daylight") was fitted on this
+# rig, so DAY_GAIN stays: its exposure is referred to this sun
 DAY_GAIN = float(os.environ.get("DAY_GAIN", 2.0 ** 3.4))
 DAY_SUN_W = float(os.environ.get("DAY_SUN_W", 4.0 * DAY_GAIN))     # sun lamp irradiance (W/m2, Blender units)
 # the sky's strength: a clear sky at a high sun gives about 12 % of the global light on the ground as diffuse light

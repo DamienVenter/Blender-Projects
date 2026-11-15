@@ -49,6 +49,8 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "common"))
+import scene_look  # noqa: E402  (decision 54: the daylight look shared with head_closeups and the bike)
 TEXDIR = os.path.normpath(os.path.join(HERE, "..", "..", "textures", "rider"))
 CAMS = os.environ.get("GOGGLE_VIEWS_CAMS") or os.path.normpath(os.path.join(HERE, "..", "..", "research",
                                                                   "goggle-cameras.json"))
@@ -70,8 +72,9 @@ STRAP_TEX = os.environ.get("GOGGLE_VIEWS_STRAP_TEX", "")
 SLIDE_RGB = [int(v) for v in os.environ.get("GOGGLE_VIEWS_SLIDE_RGB", "").split(",") if v]
 DENOISE = os.environ.get("GOGGLE_VIEWS_DENOISE", "1") != "0"     # round 9: 0 for 1:1 crops of the strap's weave
 # round 10, decision 46 (the render look, as the bike's): Standard for the studio comparisons with Leatt's photos (plain
-# AgX read pale in every sheet: the strap a third less saturated than both photos), AgX - Punchy 0.6 EV under the
-# photos' exposure in daylight. GOGGLE_VIEWS_LOOK=agx: rounds 4 to 9's plain AgX
+# AgX read pale in every sheet: the strap a third less saturated than both photos); in daylight the scene look's
+# daylight kind (decision 54, was AgX - Punchy 0.6 EV under the photos' exposure). GOGGLE_VIEWS_LOOK=agx: rounds 4 to
+# 9's plain AgX
 LOOK = os.environ.get("GOGGLE_VIEWS_LOOK", "d46")
 STUDIO_EV = float(os.environ.get("GOGGLE_VIEWS_STUDIO_EV", "0.0"))
 # round 10, the weave's shimmer test (two frames of a whip-distance view): GOGGLE_VIEWS_SEED the sampling seed (the
@@ -311,12 +314,14 @@ def camera(sc, name, x, W, H, offset=(0.0, 0.0, 0.0)):
 def daylight(sc):
     """Round 8, for his outdoor photos 07, 08 and 09: head_closeups.daylight's sun and sky (same values, its ledger
     entry "Daylight for his photos"): a 0.53 deg sun lamp, Blender's multiple-scattering sky (its own disc off) over
-    a flat ground colour, AgX at +2.0 EV. The sun is aimed per camera by its "sun": [phi, theta] (day_sun)."""
-    sc.view_settings.view_transform = "AgX"
-    sc.view_settings.exposure = DAY_EXPOSURE
-    if LOOK == "d46":                              # decision 46: AgX - Punchy, 0.6 EV down
-        sc.view_settings.look = "AgX - Punchy"
-        sc.view_settings.exposure = DAY_EXPOSURE - 0.6
+    a flat ground colour; the scene look's daylight kind (decision 54), its exposure raised by this rig's sun against
+    head_closeups' (4 x 2^3.4 W/m2 there, DAY_SUN_W here: 3.4 EV). The sun is aimed per camera by its "sun": [phi,
+    theta] (day_sun)."""
+    if LOOK == "agx":                              # rounds 4 to 9's plain AgX
+        sc.view_settings.view_transform = "AgX"
+        sc.view_settings.exposure = DAY_EXPOSURE
+    else:
+        scene_look.apply(sc, "daylight", ev=math.log2(4.0 * 2.0 ** 3.4 / DAY_SUN_W))
     for o in [o for o in sc.objects if o.type == "LIGHT"]:
         bpy.data.objects.remove(o)
     w = bpy.data.worlds.new("daylight")
