@@ -753,6 +753,17 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   edge does not fix the read; each part needs its own tone, relief and the things behind it (liner, cheek pads).
 - Check every merged decision row has its four cells (#, date, decision, source): joint phase 1's row came without
   the Source cell; brief agents with the column list.
+- Give offsets in a brief from the solve, not by eye: "the goggle about 12 mm lower and 11 mm further back" on
+  Leatt's empty helmet was 12.6 mm and 3.5 mm through the solved camera (goggle round 12). Separating shape from
+  place then showed the plate too wide at either place: shape.
+- A part's tone at 1:1 can be its neighbour's material: the comb's "light rim" (150 to 180 against 75 to 95) was
+  mostly the face foam's sheen behind it; with the foam matte the rim reads 97 against Leatt's 87.
+- A colour gap against his daylight photos has several causes; measure each before fixing any. The coordinator's
+  test (scratchpad look/, decision 54): AgX in any look puts the jersey magenta's green at 128 where his photos
+  have 22 to 44 (Khronos PBR Neutral and Standard keep it at about 15); the jersey's specular (rough 0.58: the sun's
+  lobe spread wide) adds 37 to the magenta's green, 60 to 75 to the lime's blue and lifts its black from 30 to 90;
+  and his phone's tone curve crushes darks to 12 to 25 where ours read 47 to 88. The look, the materials and the
+  phone's curve each need their own fix.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
