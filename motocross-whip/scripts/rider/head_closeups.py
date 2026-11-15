@@ -30,6 +30,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
+import day_rig  # noqa: E402  (decision 55: the daylight rig shared with goggle_views.py and the bike)
 import scene_look  # noqa: E402  (decision 54: the look shared with the bike)
 
 argv = sys.argv[sys.argv.index("--") + 1:]
@@ -58,22 +59,13 @@ os.makedirs(OUT, exist_ok=True)
 # lit / shaded ratio to the photo's (sun elevations 73 and 70 deg).
 DAY_SUN = {"p07": (90.0, 106.7), "p08": (85.0, 130.0), "p09": (81.0, 130.0)}
 DAY_SUN_OTHER = (90.0, 110.0)      # the views with no photo
-DAY_SUN_DISC = 0.53                # deg, the sun's angular diameter
-# The light: his photos' exposure went into the light under decision 46's look (AgX - Punchy at -0.6): his phone
-# exposes for him, so his white shell's lit half is near white (median linear luminance 0.84 in 08, 0.86 in 09).
-# Round 2 matched that with plain AgX at +2.0 (lit shell 0.55 / 0.59; at +2.6 the frame and the sky washed out) and
-# a 4.0 sun. With the look at -0.6 the sun and the sky are DAY_GAIN times that. Measured on p07 / p08 / p09 (16
-# samples; median display value of the white shell, round 2 = 219 / 202 / 204): 2.6 EV gives 205 / 183 / 185, 3.0 EV
-# 213 / 194 / 196, 3.4 EV 221 / 203 / 205, so 3.4 EV. Decision 54's look (scene_look "daylight") was fitted on this
-# rig, so DAY_GAIN stays: its exposure is referred to this sun
-DAY_GAIN = float(os.environ.get("DAY_GAIN", 2.0 ** 3.4))
-DAY_SUN_W = float(os.environ.get("DAY_SUN_W", 4.0 * DAY_GAIN))     # sun lamp irradiance (W/m2, Blender units)
-# the sky's strength: a clear sky at a high sun gives about 12 % of the global light on the ground as diffuse light
-# (clear-sky models), so its light on a horizontal plane is 0.136 of the sun's there; Blender 5.2's
-# multiple-scattering sky at strength 1 puts 14.9 (luminance) on it at sun elevations 60 to 75 deg (measured)
-DAY_SKY_E1 = 14.9
-DAY_SKY = float(os.environ.get("DAY_SKY", 0.136 * DAY_SUN_W * math.cos(math.radians(15)) / DAY_SKY_E1))
-DAY_GROUND = (0.41, 0.40, 0.36)    # ground albedo (his 07: the lit pavement / his white shell top x 0.8)
+# The light: the daylight rig shared with goggle_views.py and the bike (common/day_rig.py, decision 55: its sun, sky
+# and ground, each value and its source; DAY_GAIN, DAY_SUN_W and DAY_SKY still override it there). His photos' views
+# turn the sky and the ground so that the sun stands DAY_ELEV high, as in 07 (one session): their cameras ride the
+# helmet, so the blend's pose alone set the sun's height (the seated rider gave 67, 13 and 36 deg); the camera
+# without roll and the lower of the two pitches (day_rig.photo_up: 07 4.7 deg, as cam07 fitted to the bike; 08 and
+# 09 about 29 and 30 deg, his head about 6 m above a camera 12 m away, research/scene-look.md "The daylight rig")
+DAY_ELEV = 78.0
 DAY_THETA = os.environ.get("DAY_THETA")                   # override theta (deg) for the calibration sweep
 DAY_EV = float(os.environ.get("DAY_EV", 0.0))             # exposure offset (stops) on the look, for sweeps
 
@@ -111,64 +103,27 @@ def studio(sc):
 
 
 def daylight(sc):
-    """A sun lamp and Blender's multiple-scattering sky (its own sun disc off: the lamp is the sun) above a flat
-    ground colour (the arena's light from below); the scene look as the studio, the photos' exposure in the light
-    (DAY_GAIN). The
-    sun is aimed per view (day_sun)."""
+    """The daylight rig shared with goggle_views.py and the bike (day_rig.build: a sun lamp and Blender's
+    multiple-scattering sky above a flat ground) and the scene look's daylight kind. The sun is aimed per view
+    (day_sun)."""
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
     scene_look.apply(sc, "daylight", ev=DAY_EV)
-    for o in [o for o in sc.objects if o.type == "LIGHT"]:
-        bpy.data.objects.remove(o)
-    w = bpy.data.worlds.new("daylight")
-    sc.world = w
-    w.use_nodes = True
-    nt = w.node_tree
-    sky = nt.nodes.new("ShaderNodeTexSky")
-    sky.sky_type = "MULTIPLE_SCATTERING"
-    sky.sun_disc = False
-    tc = nt.nodes.new("ShaderNodeTexCoord")
-    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
-    nt.links.new(tc.outputs["Generated"], sep.inputs[0])
-    up = nt.nodes.new("ShaderNodeMath")
-    up.operation = "GREATER_THAN"
-    up.inputs[1].default_value = 0.0
-    nt.links.new(sep.outputs["Z"], up.inputs[0])
-    gnd = nt.nodes.new("ShaderNodeRGB")
-    mix = nt.nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    nt.links.new(up.outputs[0], mix.inputs["Factor"])
-    nt.links.new(gnd.outputs[0], mix.inputs["A"])
-    nt.links.new(sky.outputs["Color"], mix.inputs["B"])
-    bg = nt.nodes["Background"]
-    nt.links.new(mix.outputs["Result"], bg.inputs["Color"])
-    bg.inputs["Strength"].default_value = DAY_SKY
-    L = bpy.data.lights.new("sun", "SUN")
-    L.energy = DAY_SUN_W
-    L.angle = math.radians(DAY_SUN_DISC)
-    sun = bpy.data.objects.new("sun", L)
-    sc.collection.objects.link(sun)
-    return dict(sky=sky, ground=gnd, sun=sun)
+    return day_rig.build(sc)
 
 
 def day_sun(day, name, cam):
-    """Aim the sun for a view: (phi, theta) of DAY_SUN in the camera's frame; the sky's sun follows (Blender's sky:
-    elevation asin(z), rotation atan2(x, y), checked against a sun lamp on a matte sphere), and the ground's
-    radiance is the albedo times the sun's and the sky's light on it over pi (Lambert)."""
+    """Aim the sun for a view: (phi, theta) of DAY_SUN in the camera's frame (day_rig.aim: the sky's sun and the
+    ground's light follow)."""
     phi, theta = DAY_SUN.get(name, DAY_SUN_OTHER)
     if DAY_THETA:
         theta = float(DAY_THETA)
-    M = cam.matrix_world.to_3x3()
-    right, up, back = M.col[0].normalized(), M.col[1].normalized(), M.col[2].normalized()   # back: to the camera
-    p, t = math.radians(phi), math.radians(theta)
-    d = (back * math.cos(t) + (right * math.cos(p) + up * math.sin(p)) * math.sin(t)).normalized()
-    day["sun"].rotation_euler = d.to_track_quat("Z", "Y").to_euler()
-    day["sky"].sun_elevation = math.asin(max(min(d.z, 1.0), -1.0))
-    day["sky"].sun_rotation = math.atan2(d.x, d.y)
-    e = (DAY_SUN_W * max(d.z, 0.0) + DAY_SKY_E1 * DAY_SKY) / math.pi       # the ground's radiance per albedo
-    day["ground"].outputs[0].default_value = (*[a * e / max(DAY_SKY, 1e-6) for a in DAY_GROUND], 1.0)
-    print("DAYLIGHT", name, "sun", [round(v, 3) for v in d], "elevation %.1f deg" % math.degrees(math.asin(d.z)))
+    d = day_rig.aim(day, cam, phi, theta, DAY_ELEV if name in HIS_VIEWS else None)
+    # a view of one of his photos at that photo's own exposure (decision 55), the others at the one look
+    scene_look.apply(bpy.context.scene, "daylight", ev=DAY_EV + scene_look.photo_ev(name))
+    print("DAYLIGHT", name, "sun", [round(v, 3) for v in d], "elevation %.1f deg" % day["elevation"],
+          "camera pitch %.1f deg" % day["pitch"] if name in HIS_VIEWS else "(the blend's up)")
 
 
 def photo_view(sc, name, D, scale=2, day=None):

@@ -25,3 +25,21 @@ def test_the_look_keeps_its_numbers():
 ])
 def test_the_rider_scripts_take_their_look_from_the_module(script, functions):
     C.check_script(os.path.join(HERE, script), functions)
+
+
+def test_each_photo_has_its_own_exposure():
+    """Decision 55: a view of one of his photos takes that photo's exposure (read off his white shell's lit side,
+    research/scene-look.md), every other view the one look."""
+    import scene_look as S
+    assert set(S.PHOTO_EV) == {"07", "08", "09"}
+    assert all(-2.0 < v < 2.0 for v in S.PHOTO_EV.values())
+    assert S.photo_ev("p07") == S.photo_ev("cam07") == S.PHOTO_EV["07"]
+    assert S.photo_ev("p09") == S.PHOTO_EV["09"] and S.photo_ev("front") == S.photo_ev("isol") == 0.0
+
+
+def test_head_closeups_puts_each_photo_view_at_its_exposure():
+    import ast
+    tree = ast.parse(open(os.path.join(HERE, "head_closeups.py")).read())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "day_sun")
+    calls = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_look.apply"]
+    assert any("scene_look.photo_ev(name)" in c and "'daylight'" in c for c in calls), calls

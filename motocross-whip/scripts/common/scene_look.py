@@ -6,6 +6,8 @@
     scene_look.apply(scene, "studio")        # Standard, for comparisons with Leatt's and Honda's studio photos
     scene_look.apply(scene, "d46")           # decision 46's AgX - Punchy at -0.6 (the look before this one)
     scene_look.apply(scene, "linear")        # scene-referred EXR (multilayer, float, uncompressed) for fitting
+    scene_look.apply(scene, "daylight", ev=scene_look.photo_ev("p08"))   # a comparison with his photo 08, at
+                                             # that photo's own exposure (decision 55; other views: 0)
 
 The look (research/scene-look.md; fitted by look_fit.py on pixel-aligned pairs of his photos 07, 08 and 09, each
 held out in turn, and checked on the bike's red in his 07), in a compositor node group and the Standard view:
@@ -28,19 +30,27 @@ import os
 KINDS = ("daylight", "scene", "studio", "d46", "linear")
 LUMA = (0.2126, 0.7152, 0.0722)      # Rec.709 luminance (Blender's scene linear is Rec.709)
 
-# ---- the fitted look (look_fit.py fit, "final", all three photos; research/scene-look.md "The fit"), on
-# head_closeups' daylight rig (sun 4 x 2^3.4 W/m2). log2 of the gains: WB his phone's white balance read off the
-# white shell (red and blue against green), EV the exposure (the mean of the photos' own: 07 -0.21, 08 +0.64, 09
-# -0.43 stops off it, his phone exposing each shot); ev in apply() adds to EV for another rig
-EV = 0.102
-WB = (0.234, 0.0, -0.302)
+# ---- the fitted look (look_fit.py fit, "final", all three photos; research/scene-look.md "Round 2: the look
+# refitted"), on the daylight rig of decision 55 (common/day_rig.py: sun 4 x 2^3.4 W/m2, the sky turned to his
+# sun's height and as bright as Blender's own sun makes it). log2 of the gains: WB his phone's white balance read
+# off the white shell (red and blue against green), EV the exposure (the mean of the photos' own on white and black:
+# 07 +0.60, 08 -0.23, 09 -0.37 stops off it, his phone exposing each shot); ev in apply() adds to EV for another rig.
+# Round 1 (decision 54, the sky at the seated pose's sun height): EV 0.102, WB (0.234, 0, -0.302), P 2.59
+EV = -0.847
+WB = (0.107, 0.0, -0.165)
 GAINS = tuple(2.0 ** (EV + w) for w in WB)
-P = 2.59                              # the toe: T(u) ~ u^P in the darks; the shoulder rolls off above u ~ 1
+P = 2.21                              # the toe: T(u) ~ u^P in the darks; the shoulder rolls off above u ~ 1
 XMAX = 8.0                            # the curve's white: T(XMAX) = 1 (gained scene-linear)
 # "scene": the studio-lit views (build_bike, build_rider, rake, head_closeups' studio) under white lamps: the tone
 # curve without the daylight white balance (the phone's correction for the blue sky light), EV_SCENE stops over EV
 # keeping linear mid grey (0.18) where decision 46's AgX - Punchy at -0.6 put it, for which those rigs were lit
-EV_SCENE = 0.832                      # 0.18 -> 69 as under AgX - Punchy -0.6 (look_apply.py, Blender 5.2.3)
+EV_SCENE = 1.514                      # 0.18 -> 69 as under AgX - Punchy -0.6 (look_apply.py, Blender 5.2.3)
+# each of his photos' own exposure (decision 55), stops on EV, for comparisons with that photo only (head_closeups'
+# p07, p08, p09 and the bike's cam07: photo_ev); the scene and the animation keep EV. Read off his white shell's lit
+# side: the shell's pixels in the pairs (1426 / 1312 / 919) whose sun light (Combined_sun) is in the top quartile
+# (357 / 328 / 230), the photo's median G there (246 / 234 / 221) met by our median G through the look
+# (research/scene-look.md "Each photo's exposure")
+PHOTO_EV = {"07": -0.045, "08": -0.147, "09": -0.649}
 GROUP = "scene_look"                  # the compositor node group apply() builds
 
 
@@ -117,6 +127,14 @@ def gains_of(kind, ev=0.0):
     if kind == "scene":
         return (2.0 ** (EV + EV_SCENE + ev),) * 3
     return tuple(g * 2.0 ** ev for g in GAINS)
+
+
+def photo_ev(view):
+    """The exposure offset (stops on EV) for a view matched to one of his photos: "p07", "cam07" -> PHOTO_EV["07"];
+    any other view 0 (the one look)."""
+    import re
+    m = re.fullmatch(r"(?:p|cam)(\d\d)", view or "")
+    return PHOTO_EV.get(m.group(1), 0.0) if m else 0.0
 
 
 def display(lin, kind="daylight", ev=0.0):
@@ -198,8 +216,10 @@ def _compositor(scene, gains, p=P, xmax=XMAX):
 
 def _linear(scene):
     """Scene-referred output for the look fit: Standard, no look, exposure 0; a multilayer float EXR without
-    compression (common/exr.py reads it) with the albedo (Diffuse Color), Depth and Material Index passes. Every
-    material gets a pass index (1 + its place in the sorted names); SCENE_LOOK_INDEX=<path> writes that table."""
+    compression (common/exr.py reads it) with the albedo (Diffuse Color), the diffuse light (Diffuse Direct and
+    Indirect: a pixel's colour with another albedo is Combined + light x (new - old albedo), decision 55), Depth and
+    Material Index passes, and the light groups' passes (day_rig: Combined_sun, Combined_sky). Every material gets a
+    pass index (1 + its place in the sorted names); SCENE_LOOK_INDEX=<path> writes that table."""
     import bpy
     _plain(scene, "Standard", "None", 0.0)
     im = scene.render.image_settings
@@ -209,6 +229,8 @@ def _linear(scene):
     im.exr_codec = "NONE"
     for vl in scene.view_layers:
         vl.use_pass_diffuse_color = True
+        vl.use_pass_diffuse_direct = True
+        vl.use_pass_diffuse_indirect = True
         vl.use_pass_z = True
         vl.use_pass_material_index = True
     names = sorted(m.name for m in bpy.data.materials)

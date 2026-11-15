@@ -50,6 +50,7 @@ from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "common"))
+import day_rig  # noqa: E402  (decision 55: the daylight rig shared with head_closeups and the bike)
 import scene_look  # noqa: E402  (decision 54: the daylight look shared with head_closeups and the bike)
 TEXDIR = os.path.normpath(os.path.join(HERE, "..", "..", "textures", "rider"))
 CAMS = os.environ.get("GOGGLE_VIEWS_CAMS") or os.path.normpath(os.path.join(HERE, "..", "..", "research",
@@ -312,64 +313,26 @@ def camera(sc, name, x, W, H, offset=(0.0, 0.0, 0.0)):
 
 
 def daylight(sc):
-    """Round 8, for his outdoor photos 07, 08 and 09: head_closeups.daylight's sun and sky (same values, its ledger
-    entry "Daylight for his photos"): a 0.53 deg sun lamp, Blender's multiple-scattering sky (its own disc off) over
-    a flat ground colour; the scene look's daylight kind (decision 54), its exposure raised by this rig's sun against
-    head_closeups' (4 x 2^3.4 W/m2 there, DAY_SUN_W here: 3.4 EV). The sun is aimed per camera by its "sun": [phi,
-    theta] (day_sun)."""
-    if LOOK == "agx":                              # rounds 4 to 9's plain AgX
+    """Round 8, for his outdoor photos 07, 08 and 09: the daylight rig shared with head_closeups.py and the bike
+    (common/day_rig.py, decision 55: a 0.53 deg sun lamp, Blender's multiple-scattering sky over a flat ground, each
+    value and its source there) and the scene look's daylight kind (decision 54), fitted on that rig. The sun is aimed
+    per camera by its "sun": [phi, theta] (day_sun)."""
+    rig = day_rig.rig()
+    if LOOK == "agx":                              # rounds 4 to 9's plain AgX, under their 4 W/m2 sun
         sc.view_settings.view_transform = "AgX"
-        sc.view_settings.exposure = DAY_EXPOSURE
+        sc.view_settings.exposure = DAY_EXPOSURE - math.log2(rig["sun_w"] / 4.0)
     else:
-        scene_look.apply(sc, "daylight", ev=math.log2(4.0 * 2.0 ** 3.4 / DAY_SUN_W))
-    for o in [o for o in sc.objects if o.type == "LIGHT"]:
-        bpy.data.objects.remove(o)
-    w = bpy.data.worlds.new("daylight")
-    sc.world = w
-    w.use_nodes = True
-    nt = w.node_tree
-    sky = nt.nodes.new("ShaderNodeTexSky")
-    sky.sky_type = "MULTIPLE_SCATTERING"
-    sky.sun_disc = False
-    tc, sep, up = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeSeparateXYZ"), nt.nodes.new("ShaderNodeMath")
-    up.operation = "GREATER_THAN"
-    up.inputs[1].default_value = 0.0
-    nt.links.new(tc.outputs["Generated"], sep.inputs[0])
-    nt.links.new(sep.outputs["Z"], up.inputs[0])
-    gnd, mix = nt.nodes.new("ShaderNodeRGB"), nt.nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    nt.links.new(up.outputs[0], mix.inputs["Factor"])
-    nt.links.new(gnd.outputs[0], mix.inputs["A"])
-    nt.links.new(sky.outputs["Color"], mix.inputs["B"])
-    bg = nt.nodes["Background"]
-    nt.links.new(mix.outputs["Result"], bg.inputs["Color"])
-    bg.inputs["Strength"].default_value = DAY_SKY
-    L = bpy.data.lights.new("sun", "SUN")
-    L.energy = DAY_SUN_W
-    L.angle = math.radians(0.53)
-    sun = bpy.data.objects.new("sun", L)
-    sc.collection.objects.link(sun)
-    return dict(sky=sky, ground=gnd, sun=sun)
+        scene_look.apply(sc, "daylight")
+    return day_rig.build(sc, rig)
 
 
-DAY_SUN_W, DAY_SKY_E1, DAY_EXPOSURE = 4.0, 14.9, 2.0     # head_closeups.py
-DAY_SKY = 0.136 * DAY_SUN_W * math.cos(math.radians(15)) / DAY_SKY_E1
-DAY_GROUND = (0.41, 0.40, 0.36)
+DAY_EXPOSURE = 2.0                                 # the plain AgX's exposure under rounds 4 to 9's 4 W/m2 sun
 
 
 def day_sun(day, cam, phi_theta):
-    """head_closeups.day_sun: the sun at (phi, theta) in the camera's frame (phi across the image, 90 = image up;
-    theta off the line back to the camera); the sky's sun follows and the ground is lit by both (Lambert)."""
-    phi, theta = phi_theta
-    M = cam.matrix_world.to_3x3()
-    right, up, back = M.col[0].normalized(), M.col[1].normalized(), M.col[2].normalized()
-    p, t = math.radians(phi), math.radians(theta)
-    d = (back * math.cos(t) + (right * math.cos(p) + up * math.sin(p)) * math.sin(t)).normalized()
-    day["sun"].rotation_euler = d.to_track_quat("Z", "Y").to_euler()
-    day["sky"].sun_elevation = math.asin(max(min(d.z, 1.0), -1.0))
-    day["sky"].sun_rotation = math.atan2(d.x, d.y)
-    e = (DAY_SUN_W * max(d.z, 0.0) + DAY_SKY_E1 * DAY_SKY) / math.pi
-    day["ground"].outputs[0].default_value = (*[a * e / max(DAY_SKY, 1e-6) for a in DAY_GROUND], 1.0)
+    """The sun at (phi, theta) in the camera's frame (phi across the image, 90 = image up; theta off the line back
+    to the camera): day_rig.aim, as head_closeups.day_sun (the sky's sun follows, the ground is lit by both)."""
+    day_rig.aim(day, cam, *phi_theta)
 
 
 def main():

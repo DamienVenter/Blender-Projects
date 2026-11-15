@@ -11,8 +11,12 @@ python3 look_fit.py fit PAIRS.npz --work DIR --out FIT.json
     them, the third held out; DIR caches decision 46's look on the pairs and the AgX table (both made by Blender)
 python3 look_fit.py report PAIRS.npz --work DIR --out REPORT.json
     scene_look.apply(scene, "daylight") against decision 46's look, both through Blender, per view and class
-python3 look_fit.py bike EXR INDEX.json R,G,B --work DIR --out OUT.json [--ev7 EV]
-    the bike's red in his 07 (cam07's EXR) under both looks, and the albedo that matches it (bike_red)
+python3 look_fit.py bike EXR INDEX.json R,G,B --out OUT.json [--ev7 EV]
+    the bike's red in his 07 (cam07's EXR) under the scene look at photo 07's exposure (scene_look.PHOTO_EV), and
+    the albedo that matches it, every plain red pixel relit with the diffuse light passes (bike_red)
+python3 look_fit.py honda VIEW EXR INDEX.json R,G,B --out OUT.json [--ev EV]
+    the same against Honda's studio photo of VIEW (build_bike.py's honda_<VIEW>, stock, SCENE_LOOK=linear, at
+    BIKE_STUDIO_RES 2000,1125) under the studio look at EV (build_bike.STUDIO's, -0.9) (honda_red)
 python3 look_fit.py sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
     photo | decision 46's look | the scene look, for the checkpoints (sheet)
 
@@ -133,13 +137,20 @@ def classify(mat, alb, sky, names):
 
 
 def load_view(view, path, names):
-    """Render blocks (linear mean, albedo, class) and the photo crop on the same pixels."""
+    """Render blocks (linear mean, albedo, class) and the photo crop on the same pixels; with the diffuse light
+    passes (decision 55's renders), "light" too: Diffuse Direct + Indirect, so that a block's colour with another
+    albedo is lin + light x (new - old) (relight)."""
     photo, crop, s = VIEWS[view]
     ch = exr.read(path)
     lin = exr.layer(ch, "Combined")[..., :3]
     alb = exr.layer(ch, "Diffuse Color")[..., :3]
     mat = exr.layer(ch, "Material Index")[..., 0]
     dep = exr.layer(ch, "Depth")[..., 0]
+    try:
+        light = exr.layer(ch, "Diffuse Direct")[..., :3] + exr.layer(ch, "Diffuse Indirect")[..., :3]
+        light_b = box(light, s).mean((1, 3))
+    except KeyError:
+        light_b = None
     B = box(lin, s)
     lin_b = B.mean((1, 3))
     alb_B = box(alb, s)
@@ -158,7 +169,14 @@ def load_view(view, path, names):
     h, w = lin_b.shape[:2]
     if ph.shape[:2] != (h, w):
         raise ValueError("%s: photo %s against render blocks %s" % (view, ph.shape[:2], (h, w)))
-    return dict(lin=lin_b, alb=alb_b, cls=cls, photo=ph)
+    return dict(lin=lin_b, alb=alb_b, cls=cls, photo=ph, light=light_b)
+
+
+def relight(lin, light, alb, new):
+    """A pixel's scene-linear colour with another diffuse albedo: Combined = the diffuse light x the albedo (the
+    Diffuse Color pass) + the rest (specular, clear coat, sheen), so lin + light x (new - alb). Exact but for the
+    light the surface throws back on others (interreflection)."""
+    return lin + light * (np.asarray(new, float) - alb)
 
 
 def pairs(out, specs, index):
@@ -470,71 +488,102 @@ def red_stats(rgb):
                 lit=(np.median(lit, 0) * 255).round(1).tolist())
 
 
-def bike_red(exr_path, index, red_srgb, work, ev7=0.0):
-    """The bike's red in his photo 07 (cam07) against our render's plain red surfaces (albedo RED: plastic_red,
-    fork_guard and the kit textures' plain red), through decision 46's look and the scene look (at the look's EV and
-    at photo 07's own exposure, ev7 stops off it: fit.json "final"); and the albedo that brings the scene look's red
-    (median and lit median) onto the photo's at photo 07's exposure."""
-    names = json.load(open(index))
-    d = load_view("cam07", exr_path, names)
-    red_lin = srgb_to_lin(np.asarray(red_srgb, float) / 255.0)
-    # the Diffuse Color pass carries the base colour under the clear coat's Fresnel loss (0.602 for RED's 0.631)
-    a = d["alb"]
-    plain = (a[..., 0] > 0.85 * red_lin[0]) & (a[..., 0] < 1.02 * red_lin[0]) & \
-            (a[..., 1] < 2 * red_lin[1] + 0.004) & (a[..., 2] < 2 * red_lin[2] + 0.004)
+def plain_red(alb, red_srgb):
+    """The render's plain red surfaces: the Diffuse Color pass at the plastic's RED (it carries the base colour under
+    the clear coat's Fresnel loss: 0.602 for RED's 0.631)."""
+    r = srgb_to_lin(np.asarray(red_srgb, float) / 255.0)
+    return (alb[..., 0] > 0.85 * r[0]) & (alb[..., 0] < 1.02 * r[0]) & \
+        (alb[..., 1] < 2 * r[1] + 0.004) & (alb[..., 2] < 2 * r[2] + 0.004)
+
+
+def fit_red(lin, light, alb, photo, look):
+    """The albedo (Diffuse Color pass units) whose red, every plain red pixel relit with it (relight) and put
+    through look (scene-linear to display), meets the photo's (red_stats: median and lit median, CIELAB)."""
+    from scipy.optimize import least_squares
+    goal = np.concatenate([lab(photo["median"]), lab(photo["lit"])])
+
+    def resid(la):
+        disp = look(relight(lin, light, alb, np.exp(la)))
+        ok = red_test(disp)
+        if ok.sum() < 0.2 * len(disp):                 # no longer a red: far off
+            return np.full(6, 100.0)
+        st = red_stats(disp[ok])
+        return np.concatenate([lab(st["median"]), lab(st["lit"])]) - goal
+    r = least_squares(resid, np.log(np.median(alb, 0)), diff_step=1e-2, bounds=(np.log(1e-4), 0.0))
+    return np.exp(r.x)
+
+
+def red_result(lin, light, alb, photo, a_fit, red_srgb, kind, ev):
+    """The fitted albedo as build_bike.RED takes it (8-bit sRGB base colour: the pass over the coat's loss) and the
+    reds of the old and the new albedo, relit and through Blender's own look, against the photo's (dE76)."""
+    coat = float(np.median(alb[:, 0])) / srgb_to_lin(np.asarray(red_srgb, float) / 255.0)[0]
+    new8 = (scene_look.oetf(np.clip(a_fit / coat, 0, 1)) * 255).round().astype(int)
+
+    def st(a):
+        disp = blender_look(relight(lin, light, alb, a), kind, ev)
+        return red_stats(disp[red_test(disp)])
+
+    def dE(s):
+        return [round(float(np.linalg.norm(lab(s[k]) - lab(photo[k]))), 1) for k in ("median", "lit")]
+    old, new = st(alb), st(srgb_to_lin(new8 / 255.0) * coat)
+    return dict(coat=round(coat, 3), fit_pass=a_fit.round(4).tolist(), red_new=new8.tolist(), relit_old=old,
+                relit_new=new, dE_old=dE(old), dE_new=dE(new), kind=kind, ev=ev)
+
+
+def bike_red(exr_path, index, red_srgb, ev7=0.0):
+    """The bike's red in his photo 07 (cam07's EXR, with the diffuse light passes) against our render's plain red
+    surfaces (albedo RED: plastic_red, fork_guard and the kit textures' plain red) under the scene look at photo
+    07's own exposure (ev7: scene_look.PHOTO_EV), and the albedo that brings the red (median and lit median) onto
+    the photo's."""
+    d = load_view("cam07", exr_path, json.load(open(index)))
+    if d["light"] is None:
+        raise SystemExit("%s has no diffuse light passes: render it with scene_look's linear kind" % exr_path)
+    plain = plain_red(d["alb"], red_srgb)
     bike = np.isin(d["cls"], ["red", "bike_black"]) | plain
     region = ~erode(~bike, 15)                     # the bike's red parts and 15 px round them (cam07's rms)
     ph = d["photo"][region]
     photo = red_stats(ph[red_test(ph)])
-    lin = d["lin"][erode(plain, 1)]
-    out = dict(photo=photo, n_render=int(len(lin)))
-    for key, kind, ev in (("d46", "d46", 0.0), ("daylight", "daylight", 0.0), ("daylight_ev7", "daylight", ev7)):
-        disp = blender_look(lin, kind, ev)
-        out[key] = red_stats(disp[red_test(disp)])
-    # the albedo. Each plain red pixel: lin = alb E e + S, E the diffuse light on it (red channel), e the light's
-    # colour (the white shell's lin / albedo in this render, against red), S a grey reflection (the clear coat and
-    # the specular: the green channel is nearly all of it). A new albedo a: lin' = a E e + S; a fitted so that the
-    # scene look's red (median and lit median, CIELAB) meets the photo's
-    from scipy.optimize import least_squares
-    alb = d["alb"][erode(plain, 1)]
-    wm = d["cls"] == "white"
-    e = np.median(d["lin"][wm] / np.maximum(d["alb"][wm], 1e-3), 0)
-    e = e / e[0]
-    E = np.maximum((lin[:, 0] - lin[:, 1]) / (alb[:, 0] - alb[:, 1] * e[1]), 0.0)
-    S = np.maximum(lin[:, 1] - alb[:, 1] * e[1] * E, 0.0)
+    m = erode(plain, 1)
+    lin, light, alb = d["lin"][m], d["light"][m], d["alb"][m]
+    a = fit_red(lin, light, alb, photo, lambda x: scene_look.display(x, "daylight", ev7))
+    out = dict(view="cam07", photo=photo, n_render=int(m.sum()))
+    out.update(red_result(lin, light, alb, photo, a, red_srgb, "daylight", ev7))
+    print(json.dumps(out, indent=1))
+    return out
 
-    def relit(a):
-        return np.asarray(a)[None, :] * E[:, None] * e[None, :] + S[:, None]
 
-    def look(a, blender=False):
-        disp = blender_look(relit(a), "daylight", ev7) if blender else scene_look.display(relit(a), "daylight", ev7)
-        return red_stats(disp[red_test(disp)])
+HONDA_DIR = os.path.join(ROOT, "reference", "crf250r-2026")
+HONDA = {"left": "studio_left-profile_honda-eu-25ym-475600_4000x2250.jpg",       # bike/pair.py FILES
+         "right": "studio_right-profile_honda-eu-25ym-475596_4000x2250.jpg",
+         "lf34": "studio_left-front-34_honda-eu-25ym-475601_4000x2250.jpg",
+         "rf34": "studio_right-front-34_honda-eu-25ym-475595_4000x2250.jpg"}
 
-    goal = np.concatenate([lab(photo["median"]), lab(photo["lit"])])
 
-    def resid(la):
-        disp = scene_look.display(relit(np.exp(la)), "daylight", ev7)
-        if red_test(disp).sum() < 1000:                 # no longer a red: far off
-            return np.full(6, 100.0)
-        st = look(np.exp(la))
-        return np.concatenate([lab(st["median"]), lab(st["lit"])]) - goal
-    a0 = np.median(alb, 0)
-    r = least_squares(resid, np.log(a0), diff_step=1e-2, bounds=(np.log(1e-4), 0.0))
-    a_fit = np.exp(r.x)
-    coat = float(np.median(alb[:, 0])) / red_lin[0]           # the Diffuse Color pass over the base colour
-    base = np.clip(a_fit / coat, 0, 1)
-    new8 = (scene_look.oetf(base) * 255).round().astype(int)
-    # both checked through Blender: the old albedo relit (the model's own check against the render above) and the
-    # new one rounded to 8 bits as build_bike.py takes it
-    st_old = look(a0, True)
-    st_new = look(srgb_to_lin(new8 / 255.0) * coat, True)
-
-    def dE(st):
-        return [round(float(np.linalg.norm(lab(st[k]) - lab(photo[k]))), 1) for k in ("median", "lit")]
-    out.update(light_colour=e.round(3).tolist(), coat=round(coat, 3), reflection_median=round(float(np.median(S)), 4),
-               relit_old=st_old, relit_new=st_new, red_new=new8.tolist(), dE_old=dE(st_old), dE_new=dE(st_new),
-               dE_d46=dE(out["d46"]), dE_daylight=dE(out["daylight"]), dE_daylight_ev7=dE(out["daylight_ev7"]),
-               ev7=ev7)
+def honda_red(exr_path, index, view, red_srgb, ev):
+    """The same for Honda's studio photo of a view (build_bike.py's honda_<view> camera, rendered stock at half the
+    photo's 4000 x 2250, the photo box-averaged to it in linear light) under the studio look (Standard at ev,
+    build_bike.STUDIO): the plain red, eroded 2 px (the studio cameras' fit), against the photo's red pixels on it
+    (Honda's white and black graphics fail red_test)."""
+    ch = exr.read(exr_path)
+    lin = exr.layer(ch, "Combined")[..., :3]
+    alb = exr.layer(ch, "Diffuse Color")[..., :3]
+    light = exr.layer(ch, "Diffuse Direct")[..., :3] + exr.layer(ch, "Diffuse Indirect")[..., :3]
+    mat = exr.layer(ch, "Material Index")[..., 0]
+    names = json.load(open(index))
+    reds = [names[n] for n in names if n.startswith("livery") or n in ("plastic_red", "fork_guard", "fender_front")]
+    im = Image.open(os.path.join(HONDA_DIR, HONDA[view])).convert("RGB")
+    s = im.width // lin.shape[1]
+    ph = scene_look.oetf(box(srgb_to_lin(np.asarray(im).astype(np.float32) / 255.0), s).mean((1, 3)))
+    plain = erode(plain_red(alb, red_srgb) & np.isin(mat, reds), 2)
+    photo_px = ph[plain]
+    keep = red_test(photo_px)
+    photo = red_stats(photo_px[keep])
+    m = np.zeros_like(plain)
+    m[plain] = keep                                 # the render's pixels where the photo is plain red too
+    lin, light, alb = lin[m], light[m], alb[m]
+    a = fit_red(lin, light, alb, photo, lambda x: scene_look.display(x, "studio", ev))
+    out = dict(view="honda_" + view, photo=photo, n_render=int(m.sum()), n_plain=int(plain.sum()))
+    out.update(red_result(lin, light, alb, photo, a, red_srgb, "studio", ev))
     print(json.dumps(out, indent=1))
     return out
 
@@ -590,9 +639,13 @@ if __name__ == "__main__":
     if a[0] == "pairs":
         i = a.index("--index")
         pairs(a[1], a[2:i], a[i + 1])
-    elif a[0] == "bike":                         # bike EXR INDEX R,G,B --work DIR --out OUT.json [--ev7 EV]
-        res = bike_red(a[1], a[2], [int(v) for v in a[3].split(",")], a[a.index("--work") + 1],
-                       float(a[a.index("--ev7") + 1]) if "--ev7" in a else 0.0)
+    elif a[0] == "bike":                         # bike EXR INDEX R,G,B --out OUT.json [--ev7 EV]
+        res = bike_red(a[1], a[2], [int(v) for v in a[3].split(",")],
+                       float(a[a.index("--ev7") + 1]) if "--ev7" in a else scene_look.PHOTO_EV["07"])
+        json.dump(res, open(a[a.index("--out") + 1], "w"), indent=1)
+    elif a[0] == "honda":                        # honda VIEW EXR INDEX R,G,B --out OUT.json [--ev EV]
+        res = honda_red(a[2], a[3], a[1], [int(v) for v in a[4].split(",")],
+                        float(a[a.index("--ev") + 1]) if "--ev" in a else -0.9)
         json.dump(res, open(a[a.index("--out") + 1], "w"), indent=1)
     elif a[0] == "sheet":                        # sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
         opt = {k: a[a.index(k) + 1] for k in ("--scale", "--ev", "--region") if k in a}
