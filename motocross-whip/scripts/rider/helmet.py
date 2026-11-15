@@ -52,21 +52,32 @@ CROWN_BACK = [
     (1699, 1030), (1696, 1054), (1689, 1076), (1681, 1098), (1674, 1121), (1670, 1144), (1668, 1168),
     (1665, 1192), (1658, 1214), (1649, 1235), (1637, 1256), (1625, 1276), (1613, 1297), (1602, 1319),
     (1589, 1336), (1573, 1354), (1557, 1372), (1540, 1389), (1522, 1404), (1497, 1414)]
+# Joint front fit phase 2 (decision 51): the chin bar refitted through the solved side cameras (research/
+# helmet-ba.json: Royal_Left, MY27 left and right; scratch chinfit.py, chinapply.py). Each traced point of the chin
+# front (the centre plane's rim) and of the lower edge (the near side's free edge) moved along its normal by the three
+# photos' mean offset between their silhouette and the model's: the chin front 2.3 to 5.6 mm back and down (it stood
+# 4 to 6 mm forward of all three photos, its top edge high; 1.8 to 2.5 mm at the mouthpiece's step, where the
+# cameras spread most), tapered to nothing at its corner with the lower edge; the chin bar's top (FACE_PORT's first
+# seven points) follows the junction's 4 mm, tapered to nothing at its seventh; the lower edge 1 to 2.5 mm up from u
+# 510 to 865, tapered to nothing at u 1022. Behind that the side photos put the lower edge 2 to 3 mm higher still,
+# but the back views' outline at z = -130 mm holds it (the outline test): left for the next solve.
 LOWER_EDGE = [
     (1497, 1414), (1458, 1422), (1419, 1432), (1380, 1437), (1340, 1440), (1300, 1443), (1260, 1446),
-    (1220, 1449), (1181, 1452), (1141, 1455), (1101, 1459), (1061, 1463), (1022, 1471), (983, 1478),
-    (943, 1486), (904, 1493), (865, 1500), (825, 1507), (786, 1514), (747, 1522), (707, 1529), (668, 1537),
-    (629, 1544), (590, 1550), (550, 1555), (510, 1561), (471, 1569), (432, 1578), (393, 1585), (353, 1591),
-    (314, 1596), (294, 1598)]
+    (1220, 1449), (1181, 1452), (1141, 1455), (1101, 1459), (1061, 1463), (1022, 1471), (982.5, 1475.4),
+    (942.0, 1480.9), (902.7, 1485.6), (863.4, 1490.7), (823.5, 1498.7), (784.6, 1506.6), (745.7, 1515.1), (705.8, 1522.6),
+    (666.9, 1531.1), (628.2, 1538.9), (589.5, 1546.4), (549.8, 1553.3), (509.9, 1560.6), (471, 1569), (432, 1578),
+    (393, 1585), (353, 1591), (314, 1596), (294, 1598)]
 CHIN_FRONT = [
-    (294, 1598), (272, 1593), (257, 1578), (252, 1550), (249, 1516), (247, 1484), (244, 1453), (241, 1421),
-    (239, 1389), (240, 1357), (243, 1330), (236, 1300), (224, 1272), (213, 1245), (210, 1228), (221, 1210),
-    (238, 1192), (259, 1168), (281, 1145), (305, 1124), (334, 1110), (364, 1100), (378, 1098)]
+    (294, 1598), (275.1, 1587.3), (268.8, 1572.5), (270.5, 1547.6), (271.1, 1514.3), (269.4, 1482.2), (264.8, 1451.0),
+    (260.4, 1419.5), (258.6, 1388.7), (259.4, 1358.3), (258.2, 1328.9), (245.7, 1296.8), (232.7, 1268.4), (224.4, 1241.4),
+    (225.8, 1231.6), (236.0, 1221.7), (252.2, 1204.9), (273.2, 1181.0), (294.0, 1158.6), (314.6, 1138.5), (340.4, 1125.6),
+    (368.3, 1115.9), (382.2, 1113.4)]
 FACE_PORT = [                    # chin bar top, the port's side edge (inner edge of the trim), brow edge
-    (378, 1098), (386, 1111), (396, 1124), (410, 1131), (441, 1139), (473, 1142), (505, 1144), (536, 1146),
-    (566, 1135), (592, 1116), (621, 1104), (652, 1096), (683, 1090), (708, 1071), (726, 1045), (735, 1015),
-    (740, 983), (742, 951), (744, 919), (746, 887), (750, 860), (746, 842), (731, 835), (704, 819), (676, 806),
-    (649, 788), (625, 768), (597, 752), (569, 738), (548, 724), (539, 703)]
+    (382.2, 1113.4), (389.5, 1123.9), (398.8, 1134.3), (412.1, 1138.7), (442.4, 1144.1), (473.7, 1144.6), (505, 1144),
+    (536, 1146), (566, 1135), (592, 1116), (621, 1104), (652, 1096), (683, 1090), (708, 1071),
+    (726, 1045), (735, 1015), (740, 983), (742, 951), (744, 919), (746, 887), (750, 860),
+    (746, 842), (731, 835), (704, 819), (676, 806), (649, 788), (625, 768), (597, 752),
+    (569, 738), (548, 724), (539, 703)]
 # Round 2: in the side photo the port's notch is bounded by the cheek pads, which fill the opening ahead of the
 # shell's edge; the shell's own edge (the rubber trim's inner edge) shows in Leatt's Pinata iso-left photo (no
 # goggle). Its rear part, picked on that photo (px): chin bar top (816, 1131) to (1163, 1120), side edge (1186, 1090)
@@ -684,15 +695,26 @@ def shell_solid(Vo, Fo, skin_H):
         tang /= np.linalg.norm(tang, axis=1)[:, None]
         out = np.cross(tang, N[loop])                      # in the surface, away from it (winding order)
         out /= np.linalg.norm(out, axis=1)[:, None]
+        # the wall's bow on the port's sides (out along y); the chin bar's top and the brow keep the lip only: there
+        # the goggle's lens sits close above the chin bar (a 10 mm bow all round put its lower corners in the trim)
+        side = (np.abs(out[:, 1]) / np.maximum(np.linalg.norm(out[:, 1:], axis=1), 1e-9)) ** 2
         rings = []
-        for k, sv in enumerate(np.linspace(0, 1, 6)):
-            bulge = RIM_R * np.sin(np.pi * sv) + RIM_R * 0.6 * np.sin(np.pi * min(sv * 3, 1)) * (sv < 0.34)
-            rings.append(O + (I - O) * sv + out * bulge[..., None] if np.ndim(bulge) else O + (I - O) * sv + out * bulge)
+        for k, sv in enumerate(np.linspace(0, 1, RIM_RINGS)):
+            bulge = RIM_A * side * np.sin(np.pi * sv) + RIM_B * np.sin(np.pi * min(sv * 3, 1)) * (sv < 0.34)
+            rings.append(O + (I - O) * sv + out * bulge[:, None])
         strips.append((loop, rings))
     return Vi, t, strips
 
 
-RIM_R = 0.004                      # m, the rubber trim's roll beyond the cut edge
+RIM_R = 0.004                      # m, the rubber trim's lip beyond the cut edge (goggle.STRAP_EDGE's margin)
+# Joint front fit, phase 2 (decision 51): the port's trim rolls inward from the crest. Leatt's iso photos show the
+# rolled band 9 to 14 mm wide (iso-left 1160 to 1197 px and more, iso-right 710 to 760 px); ours, a 4 mm bow on a
+# 2.4 mm lip, read 4.4 to 7.7 mm through the solved iso-left camera (median 6.2). The wall now bows 10 mm into the
+# opening at mid depth on a 3 mm lip, on the port's sides: 4.9 to 13.0 mm (median 11.0; the low end at the brow's
+# corner), his skin still 2.1 mm off it (scratch trimw.py)
+RIM_A = 0.010                      # m, the trim's wall bowed into the opening at mid depth
+RIM_B = 0.003                      # m, its lip at the crest
+RIM_RINGS = 9                      # rings across the trim, crest to liner
 
 
 # ---------------------------------------------------------------- visor
@@ -700,9 +722,16 @@ RIM_R = 0.004                      # m, the rubber trim's roll beyond the cut ed
 # rear end on the crown at u 1135 (its rear edge runs down to the side corner at u 1075, v 662). Round 4: behind that
 # corner the low line runs on at its height (main rose to the crown, v 540 and 380, for a rear edge straight across):
 # the grid then lies over the shell to the tongue's end and VISOR_REAR cuts the rear edge from it.
-VISOR_TOP = [(220, 334), (257, 323), (297, 322), (337, 322), (407, 321), (487, 322), (567, 323), (647, 326),
-             (726, 329), (806, 334), (886, 340), (966, 347), (1045, 352), (1100, 356), (1135, 360)]      # rear end raised 3 mm: sits on the crown
-VISOR_LOW = [(220, 334), (277, 377), (346, 416), (416, 454), (487, 491), (558, 528), (610, 600), (660, 660),
+# Joint front fit, phase 2 (decision 51): through the solved Royal camera (research/helmet-ba.json) the top line
+# stood 10 to 15 px (2.5 to 3.7 mm) above Leatt's and the side silhouette 22 px (the arch's near shoulder, lifted by
+# the perspective). Fitted to the top silhouette in Royal and MY27 left together (scratch fitvisor.py): the top line
+# 15 px lower at the tip, fading to 0 at u 1000, and VISOR_ARCH 0.7 (was 1.3): Royal mean -2.9 px, rms 3.8 (was
+# -21.6, 22.3), the tip +0.2 (was -19.0); MY27 left +0.7, rms 2.2 (was -17.3, 18.0). Round 4's table: v 334, 323,
+# 322 ... from the tip.
+VISOR_TOP = [(220, 349.0), (257, 337.3), (297, 335.5), (337, 334.8), (407, 332.4), (487, 331.9), (567, 331.3),
+             (647, 332.8), (726, 334.3), (806, 337.7), (886, 342.2), (966, 347.7), (1045, 352), (1100, 356),
+             (1135, 360)]
+VISOR_LOW = [(220, 349.0), (277, 377), (346, 416), (416, 454), (487, 491), (558, 528), (610, 600), (660, 660),
              (720, 712), (760, 722), (900, 692), (1000, 675), (1075, 662), (1135, 662)]
 # plan half width of the visor (Pinata Teal top view, 0.247 mm/px), by Royal_Left u
 # Round 4 (decision 50): the half widths ahead of u 912 measured against Leatt's top photo through the solved top
@@ -714,6 +743,7 @@ VISOR_PLAN = [(220, 0.0), (236, 0.018), (251, 0.030), (279, 0.055), (311, 0.0695
               (460, 0.0819), (516, 0.0864), (573, 0.0913), (629, 0.0967), (685, 0.0978), (742, 0.0995),
               (798, 0.1079), (854, 0.1136), (912, 0.1199), (1000, 0.090), (1075, 0.050), (1135, 0.050)]
 VISOR_T = 0.0035                   # m, visor thickness (moulded ABS)
+VISOR_ARCH = 0.7                   # the arch's fall from the centre line to the side edge: (1 - cos) ** VISOR_ARCH
 VISOR_GAP = 0.0075                 # m, top surface off the shell where it lies over it (underside 4 mm clear)
 # the wings' edges come down to the shell (round 4): Leatt's top photo has its outline 5 to 10 mm inside main's wings,
 # which stood the full gap off the shell to their edges; over the outer fifth of the arch the gap falls to the
@@ -795,7 +825,7 @@ def visor_surface(prof, nu=56, nphi=41):
     G = np.zeros((len(us), nf, 3))
     for i, (y, z0, z1, ai) in enumerate(zip(ys, zt, zl, a)):
         c = 1 - np.cos(phi * np.pi / 2)
-        z = z0 - (z0 - z1) * c ** 1.3
+        z = z0 - (z0 - z1) * c ** VISOR_ARCH
         x = ai * np.sin(phi * np.pi / 2)
         G[i] = np.c_[x, np.full(nf, y), z]
     # lie over the shell where the shell is under it: never closer than VISOR_GAP

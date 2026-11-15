@@ -317,6 +317,94 @@ def test_face_port_edge_on_leatt_iso_left():
     assert np.all(np.abs(err) < 12.0), f"port edge off Leatt's iso-left by {np.round(err, 1)} px"
 
 
+def test_visor_top_line_on_the_royal_side_photo():
+    """Joint front fit phase 2 (decision 51): the visor's top silhouette in Leatt's Royal side photo through the
+    solved Royal camera (research/helmet-ba.json), every 8 px column along the visor where the crown does not stand
+    above it: within 6 px (1.5 mm) on average, rms under 8 px. Main (round 4's tables): 21.6 px high on average (rms
+    22.3): the tip 15 px high and the arch's fall to the side edges too slow, so the near wing, lifted by
+    perspective, stood above the photo's line. Fitted (VISOR_TOP, VISOR_ARCH) on Royal and MY27 left together."""
+    import helmet_ba as BA
+    cam = BA.solved_cameras()["royal_left"]
+    m = BA.photo_mask("royal_left")
+    Vo, Fo, prof = H.shell_outer()
+    G = H.visor_surface(prof)
+    nr, nc, _ = G.shape
+    T, Cc = np.meshgrid(np.linspace(0, nr - 1, nr * 3), np.linspace(0, nc - 1, nc * 4), indexing="ij")
+    uv = BA.project(cam, H.grid_at(G, Cc.ravel(), T.ravel()))
+    us = BA.project(cam, Vo[Fo].mean(1))
+    res = []
+    for x in range(int(uv[:, 0].min()) + 6, int(uv[:, 0].max()) - 6, 8):
+        sel = np.abs(uv[:, 0] - x) < 4
+        ss = np.abs(us[:, 0] - x) < 4
+        if not sel.any() or (ss.any() and us[ss, 1].min() < uv[sel, 1].min() - 2):
+            continue                                    # the crown stands above the visor here
+        top = min(np.nonzero(m[:, xx])[0].min() for xx in range(x - 3, x + 4) if m[:, xx].any())
+        res.append(uv[sel, 1].min() - top)
+    r = np.array(res)
+    assert len(r) >= 40
+    assert abs(r.mean()) < 6.0 and np.sqrt(np.mean(r ** 2)) < 8.0, \
+        f"visor top {r.mean():+.1f} px off Royal's on average (rms {np.sqrt(np.mean(r ** 2)):.1f})"
+
+
+def test_trim_rolls_into_the_port(body):
+    """Phase 2 (decision 51): the port's rubber trim rolls into the opening. In Leatt's iso photos the trim's band at
+    the port's side, from its crest to where it meets the liner, reads 9 to 14 mm wide (the coordinator's 1:1 review;
+    Pinata iso-left at 2x: the roll turns at the crest and runs about 15 mm in). Through the solved iso-left camera
+    the strip's projected width at the port's side (|z| < 40 mm, x > 50 mm) has its median within 9 to 14 mm and
+    none under 4.5 mm (the brow's corner), and the roll keeps 1.5 mm off his skin. Main: 4.4 to 7.7 mm (a 4 mm round
+    strip), median 6.2."""
+    from scipy.spatial import cKDTree
+    Vo, Fo, prof = H.shell_outer()
+    R, tr, _ = H.fit_on_head(body, Vo, Fo, prof)
+    skin = (body["V"][H.head_skin(body)] - tr) @ R
+    _, _, strips = H.shell_solid(Vo, Fo, skin)
+    cam = H.PRINT_CAMS["isoleft"]
+    w, near = [], np.inf
+    for loop, rings in strips:
+        if rings[0][:, 1].max() > 0.0:
+            continue                                    # the rear slots' strips
+        O = rings[0]
+        for k in np.nonzero((O[:, 0] > 0.05) & (O[:, 1] > -0.08) & (np.abs(O[:, 2]) < 0.04))[0]:
+            q, d = H.cam_project(cam, np.array([r[k] for r in rings]))
+            w.append((q[:, 0].max() - q[:, 0].min()) / (cam["f"] / d.mean() / 1000))
+        near = min(near, cKDTree(skin).query(np.vstack(rings))[0].min())
+    w = np.array(w)
+    assert len(w) >= 5
+    assert 9.0 <= np.median(w) <= 14.0 and w.min() > 4.5, \
+        f"trim band {w.min():.1f} to {w.max():.1f} mm (median {np.median(w):.1f})"
+    assert near > 0.0015, f"the trim's roll {1000 * near:.1f} mm off his skin"
+
+
+def test_chin_bar_outline_on_the_royal_side_photo():
+    """Phase 2 (decision 51): the chin bar's outline in Leatt's Royal side photo through the solved Royal camera
+    (signed distance to the photo's silhouette, mm at the point's depth): the chin front (the centre plane's rim,
+    CHIN_FRONT's points 3 to 21: the chin's face, its nose and the bar's top front edge) and the chin bar's lower
+    edge from u 510 to 900 px (the near side's free edge) lie within 2 mm of the photo's outline (the fit takes the
+    three side photos' mean; at the mouthpiece's step they spread by 4 mm). Main: the chin
+    front 2.8 to 6.1 mm outside it (the bar stood forward and its top edge high), the chin bar's lower edge 1 to 2.5
+    mm below it. MY27's left and right photos read the same within 2 mm (decision 51). Behind the ear the side
+    photos put the lower edge 2 to 3 mm higher still, but the back views' width at z = -130 mm holds it there (the
+    outline test above): left for the next solve."""
+    import helmet_ba as BA
+    cam = BA.solved_cameras()["royal_left"]
+    F = BA.sdf("royal_left")
+
+    def off(X):
+        return BA.sample(F, BA.project(cam, X)) * ((X - cam["C"]) @ cam["R"][2]) / cam["f"] * 1000
+
+    YZ = H.px2h(H.CHIN_FRONT)[3:22]
+    chin = off(np.c_[np.zeros(len(YZ)), YZ])
+    Vo, Fo, _ = H.shell_outer()
+    E = np.sort(np.vstack([Fo[:, [0, 1]], Fo[:, [1, 2]], Fo[:, [2, 0]]]), 1)
+    u, c = np.unique(E, axis=0, return_counts=True)
+    b = Vo[np.unique(u[c == 1])]
+    y0, y1 = H.px2h([(510, 1500), (900, 1500)])[:, 0]
+    low = off(b[(b[:, 0] > 0.02) & (b[:, 2] < -0.09) & (b[:, 1] > y0) & (b[:, 1] < y1)])
+    assert len(low) >= 10
+    assert np.abs(chin).max() < 2.0, f"chin front up to {chin[np.argmax(np.abs(chin))]:+.1f} mm off Royal's outline"
+    assert np.abs(low).max() < 2.0, f"lower edge up to {low[np.argmax(np.abs(low))]:+.1f} mm off Royal's outline"
+
+
 def test_fit_on_his_head(built):
     """The helmet on his head from the liner build-up (decision 47): Leatt TF 172's EPS length (M/L 287 mm) less his
     head's, shared front and back, plus the wall, is the shell's stand-off at his forehead, back and crown (main: 39.0,
