@@ -719,3 +719,36 @@ def test_fivefive_has_its_own_sharp_print(built):
             a2 = c2(U[1] - U[0], U[2] - U[0]) + c2(U[2] - U[0], U[-1] - U[0])
             tex.append(np.sqrt(a3 / max(a2, 1e-12)) / K.ATLAS_RES)
     assert len(tex) >= 4 and np.median(tex) < 0.17e-3, (len(tex), np.median(tex) if tex else None)
+
+
+# ================================================================ round 4 (decision 58: the pant's sides and shins)
+def _pant_photo_texels(g, texels, view):
+    """The pant's texels facing one of Leatt US's photos, where its mapping puts them in it: the texture there, the
+    photo (5 px median) and the photo px (u, v)."""
+    a, pos, nrm, chm, tx = texels["pants"]
+    V, faces = part(g, "pants")
+    crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
+    sil = K.pant_silhouette(V, crotch, np.array([f for f in faces if len(f) == 4]))
+    ph = K.Photo(K.PF_REF if view == "front" else K.PB_REF)
+    m = (chm >= 0) & (nrm[..., 1] * (-1 if view == "front" else 1) > 0.3)
+    u, v = K.pant_photo_uv(None, pos[m], view, ph.alpha, sil)
+    return a[m], ph, u, v
+
+
+def test_shin_strokes_run_up_into_their_fades(built, texels):
+    """Item 1: the shins' magenta strokes run up into airbrushed fades, purple to the black, sweeping out to the knee
+    panel's seam (Leatt US's on-model photos). Cut at 0.5 the trace kept their magenta only: blunt tops, the purple a
+    blur over the ground. Of the texels the mapping puts on the photo's strokes in the fade rows (chroma over 0.10),
+    over 0.9 read as stroke (chroma over 0.08), and over 0.97 of those on its black (under 0.05) as ground (main:
+    front 0.82 and 0.99, back 0.70 and 1.00; round 4: 0.99 and 0.98, 0.94 and 0.99)."""
+    body, g = built
+    for view, (r0, r1) in (("front", (1330, 1540)), ("back", (1270, 1400))):
+        tex, ph, u, v = _pant_photo_texels(g, texels, view)
+        H, W = ph.alpha.shape
+        ui, vi = np.clip(np.round(u).astype(int), 0, W - 1), np.clip(np.round(v).astype(int), 0, H - 1)
+        cp = (ph.a.max(-1) - ph.a.min(-1))[vi, ui]
+        inr = (v > r0) & (v < r1) & ph.alpha[vi, ui]
+        ct = tex.max(1) - tex.min(1)
+        st, gr = inr & (cp > 0.10), inr & (cp < 0.05)
+        stroke, ground = (ct[st] > 0.08).mean(), (ct[gr] <= 0.08).mean()
+        assert st.sum() > 3000 and stroke > 0.9 and ground > 0.97, (view, round(stroke, 3), round(ground, 3))

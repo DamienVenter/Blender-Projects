@@ -1125,16 +1125,23 @@ def polygons_mask(shape, polys, grow=4):
     return ndimage.binary_dilation(m.reshape(H, W), iterations=grow)
 
 
-def pant_photo_art(ph, rows, gain, white, hidden=()):
+def pant_photo_art(ph, rows, gain, white, hidden=(), fade_rows=None):
     """A pant photo traced in its own pixels (pixel size from its rows: waist top to boot top): samplers (u, v) ->
     the zebra's linear colour on the flat's inks (FP_PANT_PHOTO, without the white elements) and the white
     elements' coverage (traced at FP_PANT's 0.8 mm: the stamps' letters and their 1.2 mm lines; at the zebra's
     2 mm the letters came out blobby and the lines were lost, their light smeared into the black ground). hidden:
-    outlines of what covers the pant in the photo (PF_HIDDEN): plain ground there."""
+    outlines of what covers the pant in the photo (PF_HIDDEN): plain ground there. fade_rows: the shins' airbrushed
+    fades (PANT_FADE_ROWS), traced as FP_FADE."""
     from scipy import ndimage
     sel = ~ph.bad
     ys, xs = np.nonzero(sel)
     sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+    fade = None
+    if fade_rows is not None:
+        f0, f1, soft = fade_rows
+        yy = np.arange(ys.min(), ys.max() + 1, dtype=float)
+        fy = smoothstep(f0 - soft, f0, yy) * (1 - smoothstep(f1, f1 + soft, yy))
+        fade = np.repeat(fy[:, None], xs.max() + 1 - xs.min(), 1)
     texel = (rows[0][1] - rows[2][1]) / (rows[2][0] - rows[0][0])
     col = np.clip(to_lin(ph.a[sl]) * gain, 0, 1)
     q = sel[sl].astype(float)
@@ -1149,7 +1156,7 @@ def pant_photo_art(ph, rows, gain, white, hidden=()):
     _, _, aw = flat_layers(col, q, sel[sl], texel, white, sel[sl], cover=plain, **FP_PANT)
     near = ndimage.binary_dilation(aw > 0.02, iterations=max(1, int(round(0.0015 / texel))))
     o, _, _ = flat_layers(col, q * ~near, sel[sl], texel, white, sel[sl], whites=False, plain=plain, cover=plain,
-                          **dict(FP_PANT_PHOTO, qfloor=0.0))
+                          fade=fade, fade_span=PANT_FADE_SPAN, **dict(FP_PANT_PHOTO, qfloor=0.0))
     return (art_sampler(o, sel[sl], ys.min(), xs.min()),
             art_sampler(np.repeat(aw[..., None], 3, -1), sel[sl], ys.min(), xs.min()))
 
@@ -1440,6 +1447,16 @@ FP_HEM = {"feature": 0.008, "z": (WAIST_FRONT + 0.08, WAIST_FRONT + 0.12), "x": 
 FP_PANT = {"speck": 1.5e-4, "feature": 0.0008, "ground": 0.003, "near_white": 0.5, "light": "chroma",
            "qfloor": 0.1, "s_in": 0.6}
 FP_PANT_PHOTO = dict(FP_PANT, feature=0.002)
+# Round 4: the shins' magenta strokes run up into airbrushed fades (magenta through purple to the black) that sweep
+# out to the knee panel's seam (PHOTO Leatt US on-model: back rows 1275 to 1400, front 1300 to 1560; Leatt's flats
+# the same). Cut at 0.5 the trace kept only their magenta: blunt tops at the fade's start, the purple a blur above
+# (main, sheet 01). In these rows (photo px: from, to, soft) the cut is FP_FADE's 0.2 and the stroke's colour is the
+# photo's own fade over 5 mm, as the jersey's chevron tops: a clean gradient over the traced shape
+PANT_FADE_ROWS = {"front": (1290, 1570, 25), "back": (1250, 1420, 25)}
+# and there the stroke's chroma falls to 0.10 at its top (back photo row 1290) over the black's 0.03 to 0.05: the
+# 3 cm window's span (0.07 to 0.15 near the top) is under the 0.25 that counts as pattern elsewhere, so the cut there
+# was the absolute one, and the purple's top 4 cm was ground. In the fades, a span from 0.05 to 0.10 is pattern
+PANT_FADE_SPAN = (0.05, 0.10)
 
 
 def to_lin(c):
@@ -1667,15 +1684,16 @@ def aa_cut(f, t):
 
 def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=None, feature=None, ground=None,
                 near_white=0.3, light="green", qfloor=0.0, s_in=0.85, fade=None, rng=FP_RANGE, span=(0.25, 0.4),
-                fs_min=0.0, whites=True, plain=None, smooth=None, cover=None):
+                fs_min=0.0, whites=True, plain=None, smooth=None, cover=None, fade_span=None):
     """The flat print of one chart (arrays cropped to it): col the photos' colour (linear, on the reference's inks),
     q the view weight (0 unseen .. 1 square on), sel the chart's texels, texel its size in m, white the white ink,
     shapes where the photo's shapes count (elsewhere plain ground: what a photo does not see is not traced).
     plain: where the print is ground only (no stripes; the white elements stay, and the photo's stripes there do not
     colour the ground). smooth: (weight, feature in m): the stripes' field smoothed over that feature where the
     weight is 1 (the cloth's folds in the photo, FP_HEM). cover: where something covers the garment in the photo
-    (PF_HIDDEN; plain there): its colour does not blur into the stripes round it. Returns the colour (linear; with the
-    white elements laid over it unless whites is False) and the stripe and white coverages."""
+    (PF_HIDDEN; plain there): its colour does not blur into the stripes round it. fade_span: in the fades, the span
+    that counts as pattern (PANT_FADE_SPAN). Returns the colour (linear; with the white elements laid over it unless
+    whites is False) and the stripe and white coverages."""
     from scipy import ndimage
     w0 = sel.astype(float)
     d = to_srgb(col)
@@ -1719,7 +1737,11 @@ def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=No
     span = hi - lo
     # no pattern round a texel (span under 0.25: a dark gradient's grey against the black; the back's flanks beside
     # the magenta panel, PHOTO back on-model): an absolute cut, so plain grounds stay plain and solid cuffs solid
-    k = smoothstep(span_k[0], span_k[1], span)
+    if fade is not None and fade_span is not None:
+        k = smoothstep(span_k[0] + (fade_span[0] - span_k[0]) * fade, span_k[1] + (fade_span[1] - span_k[1]) * fade,
+                       span)
+    else:
+        k = smoothstep(span_k[0], span_k[1], span)
     s = k * (fs - lo) / np.maximum(span, 1e-3) + (1 - k) * (fs - 0.12) / 0.3
     s = np.where(near_w, -1.0, s)
     s = np.where(fs < fs_min, np.minimum(s, 0.0), s)                 # too dark to be a stripe (a fade's black end)
@@ -3028,7 +3050,7 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     # the clean flat print (decision 52), traced on each photo itself (round 3b, FP_PANT_PHOTO)
     for cs, view, ph, rows, hid in (((0, 2), "front", pf, PF_ROWS, PF_HIDDEN), ((1, 3), "back", pb, PB_ROWS, ())):
         m = np.isin(chm, cs)
-        zebra, wa = pant_photo_art(ph, rows, gain, white, hid)
+        zebra, wa = pant_photo_art(ph, rows, gain, white, hid, PANT_FADE_ROWS[view])
         u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
         un, _ = pant_photo_uv(pants, pos[m], view, ph.alpha, sil, mirror=False)   # white elements: never mirrored
         a = np.clip(wa(un, v)[:, :1], 0, 1)
