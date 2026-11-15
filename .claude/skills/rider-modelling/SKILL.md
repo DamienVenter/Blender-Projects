@@ -614,3 +614,20 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   09, where his photos show magenta. Leatt's iso-left at sheet size looked acceptable.
 - Held-out on-helmet views (Leatt's MY27 kit photos) found worn-fit defects that goggle-alone views cannot: the
   strap through the shell, its height, the outriggers' thickness.
+- Run the rider tests as `python3 -m pytest -q .` in scripts/rider: the bare `pytest` on PATH runs the system
+  Python without numpy, and all six files fail to collect (exit 2).
+- A fitted camera can hide a wrong shape. The front-iso cameras' 14 to 17 mm error at the brow was the brow itself,
+  20.6 mm too far forward (the brow badge triangulated from iso-left and iso-right agrees within 0.4 mm). When one
+  family of cameras disagrees, triangulate a landmark from two views before refitting a camera.
+- An opening traced in a side photo can be the soft parts behind it: the eyeport's side edge was traced along the
+  cheek pads' notch, 35 to 40 mm ahead of the shell's cut edge (Leatt's iso-left shows the cut edge). The black trim
+  paint then covered shell that is really opening. Leatt's side studio photo is also not square (8 to 11 deg behind).
+- Coupled parts need one owner: the eyeport edge, the brow, the helmet's place on his head and the goggle's worn fit
+  move together (the corrected edge failed three goggle tests). Brief agents to stop and report when a fix needs
+  another agent's file (the helmet agent did); then plan a joint round with one agent owning both scripts.
+- The render look: rider sheets rendered plain AgX (exposure 0, world 0.8) and read pale in every comparison (helmet
+  teal, magenta; the strap a third less saturated than both photos). The bike learned the same: Standard view for
+  studio comparisons, AgX - Punchy at -0.6 for the scene (decision 46 makes the rider follow it).
+- Fine relief textures read as glitter: the woven strap's grain (taken from the MY27 jacquard) speckled the Pinata
+  strap in his 07 at 4x. Take each product's grain from its own photo, and check at whip distance across two frames
+  for shimmer (Cycles has no mip-maps).
