@@ -826,3 +826,28 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - **Bounding-box lengths mix heights.** Our 369.7 mm length joined the chin's front (z -80) and the back's bulge (z
   -35); per height it is at most 359.6. Compare a published length per level and against the EPS (287 against our
   brow-to-back 288.8) before moving anything.
+
+## Joint front fit, phase 1 (decision 47): lessons
+- His photos are cameras in the helmet frame (`his_cameras.py`, `research/his-photo-cameras.json`): fit to the
+  helmet's measured landmarks first, then the print's colour (Lab a*, b*). Views set by eye can face the wrong way
+  (main's p08 saw his face from below; the photo sees the crown from above). The colour term needs its own weight
+  (score = -2 NCC - 0.5 cover + 0.02 chi): averaging it with the landmarks halved it.
+- A pick cast through a single-photo camera can sit 16 to 18 mm off once the cameras are solved together: re-cast
+  every photo pick through helmet.PRINT_CAMS when the cameras change (round 2's port edge did).
+- In Leatt's iso photos the port's edge is the crest where the outer surface turns in (grip panel's triangles on one
+  side, the trim's ribbed roll on the other); the side photo's notch is the cheek pads, 16 to 23 mm further forward.
+- Place the helmet from the liner: the EPS length (TF 172) less his head's, shared front and back, plus the wall.
+  The goggle rides his face: when the helmet moves on his head, move goggle.PLACE back by the same so the lens keeps
+  its place on his face (lens centre 56 mm ahead of his eyes; at 61 the foam stood 8 mm off his face).
+- A strap laid across a surface's free edge folds: land it where its whole width lies on the shell (the edge test
+  needs a depth bound, or the far side's edge counts).
+- Re-measure every worn fit through the cameras fitted to the helmet's own points (his_cameras, PRINT_CAMS), not
+  through a camera fitted to the part being placed: round 8's strap plane, fitted through a camera fitted to the
+  goggle, stood 37 mm above his 07's strap (rms 39 mm), running over the chevron panel his photo shows above it. A
+  camera-free check: read where the part lies against the print (his 07: the strap just under the chevron panel's
+  lower stripe). The plane scan is about 1 s a plane (scratch planescan.py).
+- A test of a strap's landing against an edge compares each point across the strap with the edge at its own height:
+  a leaning cross-section fails a band-wide max even when every point is 4.6 mm clear.
+- Steep faces in a top-projected atlas island stretch 1 / |n_z| times: give them their own side island.
+- Grey white: before touching materials, render the spot flat (emission, Standard, 0 EV). If it reads the photo's
+  value, the light is the cause (the studio's off-axis lights leave up-facing faces at about half the light).

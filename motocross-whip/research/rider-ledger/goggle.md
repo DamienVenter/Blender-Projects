@@ -1127,6 +1127,58 @@ the plate's deficit less 0.3 mm a mm (RIB_EASE, a cone dilation on a 0.25 mm gri
 unchanged (0 vertices moved); the worn one on this round's base moved 33 of 10,180 vertices by up to 0.10 mm.
 Worn overlaps: 0 with either skin. Tests: all 96 pass on the worktree, all 99 pass on the trial merge.
 
+## 14. Joint front fit, phase 1: the goggle worn on the new front (decision 47)
+The helmet now sits on his head from the liner (helmet.md section 8) with its port's cut edge where Leatt's iso
+photos show it (16 to 23 mm behind main's side notch). The goggle's worn fit, measured in Leatt's Pinata iso-right
+through the solved camera (helmet.PRINT_CAMS) and in his photos through their fitted cameras
+(research/his-photo-cameras.json):
+
+### Its place (PLACE)
+- The new fit put his eyes 4.6 mm further back and 2.7 mm higher against the goggle (lens centre 60.8 mm ahead of
+  his eye centres against main's 56.2, and the foam at least 8.0 mm off his face: it did not touch). The goggle rides
+  his face, so PLACE moves back 4.6 mm (y -146.8 to -142.2 mm): lens centre 56.4 mm ahead of and 14.0 mm below his
+  eyes (main 56.2, -12.4), the foam 2.0 to 30 mm (main 1.5 to 30). Not raised: Leatt's MY27 side views put its
+  beak bottom at -64.6 to -66 mm and the Pinata iso-right lower still.
+- His nose ridge behind the lens front (ray casts along the lens normal, s 0): 8.6 mm at z -31, 9.2 at z -34 (main
+  6.4 at z -34). The lens stack, the comb and the bridge's plate need 5.8 mm, so the worn frame keeps Leatt's bridge:
+  WORN_NOTCH False (round 11's notch opened it over his nose ridge).
+
+### The outriggers (shell_mount)
+- Leatt's iso-right: the right plate's back end at 772 px, 65 px ahead of the trim's crest (the ribbed roll 710 to
+  760 px); the plate stands over the trim, not on the shell. Ours: back end at mid height 760 px (main 776 to 784),
+  front edge 877 px (Leatt's about 835). Only the plate's top back corner reaches the shell (the brow edge): the plate
+  turns out 0 deg at its bottom row to 10.25 at its top and rests there 1.6 mm off it.
+
+### The strap (strap_layout, STRAP_EDGE, STRAP_PLANE)
+- Crossing the new edge it folded: it landed at the edge, and the walk across its width stopped on the edge (22.5 mm
+  wide and 2.5 mm tall over four stations: a wedge in the iso-right render). It now lands where its whole width lies
+  on the shell, STRAP_EDGE (the trim's 4 mm roll and 1 mm) behind the mesh's edge: 45 mm wide at every station, each
+  point across it 4.6 to 10.5 mm behind the cut edge at its own height (main: 31.9 mm ahead).
+- The strap fit (round 10: Pinata 1.9 mm rms through a kit camera fitted to the goggle). Through the cameras fitted to
+  the helmet (scratch planescan.py, round 8's edge picks, mm at the edge's depth), main's plane (centre z -13.5 mm at
+  y -58, rising 3 deg) stood 37 mm above his 07's strap on average: rms his 07 39.1 mm, his 09 25.9, Pinata iso-right
+  8.9 (all edges above). His 07 shows the strap under the chevron panel's lower stripe; ours ran over the chevrons.
+  Refitted on a grid (z0 -13.5 to -45 mm, rise +3 to -18 deg; his 07 weighted first, its camera the best at 2.6 px):
+  STRAP_PLANE centre z -25 mm at y -58, falling 12 deg towards the back. Rms his 07 5.6 mm (mean -0.1), his 09 12.1
+  (its camera 8.3 px rms, about 16 mm), Pinata 3.8 (main 39.1, 25.9, 8.9). His 09 alone wants it 5 to 10 mm lower
+  still; Leatt's MY27 views (an empty helmet) wanted it steeper, the other way: his own photo leads.
+- Its length 643.6 mm (main 641.8; 630.4 before the refit), 13 free stations a side; the print laid along it
+  (goggle_strap_art.STRAP_LEN_UV 0.644, the weave's repeat with it, the textures rewritten).
+- The print along it, colour changes in px from the plate's back edge along the strap's middle in iso-right
+  (strapprof.py): Leatt yellow to orange 45, orange to red 65, red to magenta 95; main below 0 (orange at the plate),
+  25, 85; now 15, 55, 105 (10 px steps): the red and magenta within 12 px of Leatt's. The yellow run is the
+  print's own (13 mm in the photo, 1 to 2 here), sampled from the free goggle's ISO: not changed.
+
+### Still not right
+- The plate's face reads 1.4 to 1.8 times Leatt's width in iso-right: its back end matches, its front edge stands 40
+  px ahead. Leatt's empty helmet has the whole goggle about 12 mm lower and 11 mm further back than ours on his face;
+  the plate's length (hinge to back end) is the goggle-alone photos'. Not resolved.
+- The strap print's yellow run by the outrigger (above).
+- His 09 reads the strap 10 to 12 mm lower than ours; its camera is the weakest of the three.
+- Leatt's Pinata iso-right (an empty helmet) has the strap rising to the back over the chevron panel; on his head
+  (his 07, 09) it runs under the panel. Ours follows his photos, so the iso-right sheet differs behind the
+  outrigger (the picks by the plate fit within 3.8 mm).
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|

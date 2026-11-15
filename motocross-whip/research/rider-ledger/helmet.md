@@ -516,3 +516,108 @@ were the old cameras.
   side); ours is even, as asked.
 - The rear exhaust slots' edge is the print's: no moulded roll (the shell is closed).
 - In the iso views the front (black eye port too high and too big, the visor low over it): the joint round.
+
+## 8. Joint front fit, phase 1 (2026-11-15, decision 47): his views, the fit on his head, the eye port, the goggle
+
+### His photos as cameras on the helmet (item 1; `his_cameras.py`, `research/his-photo-cameras.json`)
+p07, p08 and p09 were set by eye. Each photo is now a camera in the helmet frame, fitted to the helmet's measured
+points (helmet_ba's solved landmarks, the print's centres, the visor's chevrons) read on his photo, then to the
+print's colour (Lab a*, b* correlation in a helmet mask; Powell on 7 parameters). `head_closeups.py` renders them
+through the shell's `gear_frame` (helmet.extras writes `helmet_shell__frame`, build_rider keeps it), as the photo's
+crop round his head at 4x its pixels.
+
+| photo | camera seen from the helmet (az, el) | landmarks rms | colour NCC | px per mm | worst reading |
+|---|---|---|---|---|---|
+| 07 | 94.0, 1.0 deg (his left, side-on) | 2.6 px | 0.39 | 0.39 | chevron L0 4.6 px |
+| 08 | -1.0, 42.0 deg (ahead and above) | 4.5 px | 0.74 | 0.46 | visor tip 7.8 px |
+| 09 | 41.0, 29.0 deg (front left, above) | 8.3 px | 0.43 | 0.51 | visor tip 14.7 px |
+
+- 08 sees the crown from ahead and 42 deg above: his head pitched far down in the whip, the sky behind. Main's p08
+  saw his face from below.
+- Head pitch against the torso (scratch torso.py: the rest torso, spine05 to neck01, carried by the placement and
+  turned about the neck's side axis, matched to the photo's pelvis-to-neck line): 07 +2 +-5 deg chin down from
+  standing (the torso 233 px long against the photo's 264). 08: not determined (the torso is end-on: 6 px of its
+  180 projected). 09: -39 deg if pitch alone (-47 to -31), -65 to -10 with a turn; not determined.
+
+### The helmet on his head from the liner (item 2; helmet.fit_on_head, build_up)
+- Source: Leatt Technical File 172 r01, M/L: EPS 256 x 287 x 270 mm (W x L x H). The table's outer rows read
+  reversed against the weights (XS/S 268 x 361 x 309 is the largest, XS/S 1250 g to XL/XXL 1430 g); M/L, the middle
+  row, is the same either way. His head: size L, 592 mm round.
+- Build-up = (EPS length - his head's length) / 2 + the shell wall: (287 - 211.8) / 2 + 0.9 = 38.5 mm (his head 211.8 mm long, forehead to back, head_landmarks) at crown,
+  forehead and back (the wall: our brow-to-back 288.8 mm against the EPS's 287). The crown takes the same (EST: the
+  file gives no crown figure).
+- Pitch, fore-aft and height fitted to it (grid, then least squares on the three stand-offs): pitch 13.1 deg (main
+  16.5), the brow 65.5 mm ahead of and 37.7 above his eyes; stand-offs top 37.6, forehead 39.9, back 39.8, sides
+  46.3 mm (the cheek pads and the EPS's flare fill the sides). Main: top 48.2, back and sides 47.9, forehead 39.0,
+  set by two rules (port top 40 mm above his eyes, forehead at least 32 mm behind the brow).
+- Check: upward clearance from his eyes to the port's top edge 29.9 deg (ECE 22.06 6.15.3.2 asks 7).
+- Cheek pads: TF 172 lists 25, 30, 35, 40 mm without a size map. A larger head takes the thinner pad, so L 30 mm and
+  M 35 (EST). Not built (phase 2).
+- Against his 07 and 09 (coarse, 0.39 and 0.51 px a mm): the goggle's top matches in 07 (y 117 px); its bottom reads
+  7 to 10 px lower in the photo, and the chin bar about 10 px lower.
+
+### The eye port's cut edge (item 3; helmet.PORT_REAR, PORT "iso")
+- Round 2 cast its iso-left picks through that photo's own camera (CAMS); through the solved camera (PRINT_CAMS) the
+  same picks land 16 to 18 mm further forward and 6 to 14 mm further in: the side edge at y -65 to -72 mm, 16 to 23 mm
+  behind main's side notch (-88, the cheek pads in Royal_Left).
+- The picks are the crest where the outer surface turns into the port: right of it Leatt's grip panel (triangle
+  relief), left of it the trim's ribbed inward roll (iso-left 1160 to 1197 px, iso-right 710 to 760 px). Mirrored,
+  the edge lands on the iso-right photo's crest within about 5 px.
+- The built port is now "iso": the edge test reads -11.4, -3.1, +1.9, +5.3 px at rows 830 to 1040 (main -114 to
+  -174).
+
+### The print re-traced on the new front (item 5; helmet.ISLANDS, atlas_uvs, helmet_art.force_labels)
+- The streaks in the visor's side LEATT: all of the visor was one top-projected island (V); on the steep wing a
+  texel stretched about 1 / |n_z| times (texel area against surface area: 31 at the 99.5th percentile, 56 at most),
+  so the print stepped in horizontal bands.
+  Each visor face now goes to the island of its normal's largest component: VL and VR by (y, z) for the wings, VF and
+  VB by (x, z) for faces turned forward or back, V for the rest (a quad's normal from its diagonals: the tip's first
+  three corners nearly meet). Stretch now under 2 at the 99.5th percentile (three twisted triangles at the rear
+  corner up to 4.5). The new islands sit in the atlas's free band (u 1214 to 3464, v 2918 to 3833 texels).
+- The two blue slivers and the thin grey marks on the wing: the photos' visor rear edge line (grey) and the shell's
+  blue beyond it fell on our wing, whose rear corner stands 7 mm off Leatt's. The wings are white print in every
+  Pinata photo (the LEATT is drawn from the file over them): force_labels now marks them white.
+- Re-traced through the solved cameras on the iso port and the new islands (brow badge, port trim, grip panels,
+  chin, side icon, emergency labels, EIGHT POINT FIVE and the visor's LEATT are fitted again by the same trace):
+  visor side LEATT IoU on the shell 0.56 (from 0.39 at its start), EIGHT POINT FIVE residual 2.9 mm.
+
+### Measuring the white (item 6; report only, nothing changed)
+- Leatt's top photo, the flat visor spot: 225 to 233. Ours in the studio top view 178 to 184 (visor top 163 to 181).
+- Rendered flat (emission, Standard, 0 EV) the same spot reads 226 / 229 / 235: BASE_WHITE, the photo's white. The
+  clear coat is not it (without it within +-3).
+- Crown sides at (560, 900) and (1360, 900): ours 147 to 163 against the photo's 157 to 170 (92 %); the visor's top
+  gets 55 % of the photo's linear light. The studio's lights stand off-axis round the camera, so faces turned up in
+  the top view are under-lit. The light, not the material. No look settings changed.
+
+### Tests (each fails on main)
+- `test_his_photo_cameras_fitted_to_the_helmet`: rms under 4, 6, 10 px; colour NCC over 0.35, 0.7, 0.4; 07 from his
+  left, 08 from ahead and above, 09 from the front left and above; head_closeups uses the file (main: no module).
+- `test_gear_frame_places_the_helmet_frame`: the npz carries the helmet frame's placement (main: not in the archive).
+- `test_fit_on_his_head`: build-up 36 to 41 mm, crown, forehead and back within 2.5 mm of it, the sides more and
+  even, up clearance 7 deg at least (main: no build-up).
+- `test_face_port_edge_on_leatt_iso_left`: through the solved camera, within 12 px of the photo's crest (main -114
+  to -174 px).
+- `test_visor_wings_have_side_islands`: visor texels stretch under 2 (99.5 %) and 5 (all), the islands apart (main
+  30.6 and 56.2).
+- goggle: `test_strap_crosses_the_trim_to_the_shell` (every station 45 mm wide, each point across the landing 2 mm
+  or more behind the cut edge at its height; main 31.9 mm ahead); `test_strap_lies_where_his_07_shows_it` (the
+  strap's edges under 10 mm rms off his 07 through its fitted camera; main 39.1);
+  `test_outriggers_rest_on_the_shell_and_hold_the_strap` now asks the plate's back end within 15 px of Leatt's
+  iso-right and only its top back corner on the shell.
+
+### Still not right
+- The visor: tip 4.4 mm high in Royal, wings 2 to 9 mm wide over the temples, rear corner 7 mm off (not moved this
+  phase: item 3's visor and the trim's roll and chin bar remain).
+- The trim's roll: ours RIM_R 4 mm; Leatt's ribbed inward roll reads 9 to 14 mm in the iso photos.
+- His 09 camera: 8.3 px rms (visor tip 14.7 px off); 08 and 09's head pitch against the torso not determined.
+- The cheek pads are not built (the side photo's notch).
+
+### Phase 2 plan (decision 51, not started)
+1. Front moulded details: grip panels with the triangle relief (iso-left 1:1: cells about 30 px, 7 to 8 mm, across; their depth to read), the
+   chin vent mesh and mouthpiece, the chin LEATT, the brow vents and the brow tag.
+2. Visor details: screws, the top windows (Leatt's back view), moulded vents, a crisp rear lip with its shadow line;
+   reshape its tip, wings and rear corner to the solved Royal and top cameras first.
+3. The crown side vents as geometry.
+4. Later: the crown vent pod and a thinner rim, the rear slot's chamfered end, the rear lower slot's taper, the rear
+   spoiler shelf, the lower centre panel.
+
