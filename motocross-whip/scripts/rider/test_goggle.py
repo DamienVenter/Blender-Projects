@@ -1307,6 +1307,14 @@ def test_round12_face_foam_is_matte():
     assert foam.get("sheen", 0.0) <= 0.05 and foam.get("rough", 0.5) >= 0.9 and max(foam["rgb"]) < 50, foam
 
 
+def test_round13_face_foam_has_no_grazing_gloss():
+    """Round 13 item 5: the comb's rim in phr (the face foam's top seen past the comb at a grazing view) still read
+    brighter than Leatt's with no sheen: its Fresnel specular (Specular IOR Level 0.5 by default). At 0.1 the rim's
+    L p50 reads 86 (Leatt 87, round 12 97) and its peak 94 (Leatt 93, round 12 99), the run's top pixel (the edge's
+    blend with the backdrop) left out on both sides."""
+    assert G.MATERIALS["goggle_foam"].get("spec", 0.5) <= 0.1
+
+
 # ---------------------------------------------------------------- round 13: the strap carrier (decision 57)
 def carrier_pieces():
     """Round 13: the far (x > 0) strap carrier, its clear post and the strap's end behind it, from the free goggle

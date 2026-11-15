@@ -3263,8 +3263,11 @@ MATERIALS = {
                                                                             # (the plates' black and gloss)
     # round 12 (item 4): the rim above the near tongues in phr is mostly the face foam's top seen past the comb (part
     # buffer; the bridge only between the tongues): at sheen 0.6 its upper roll glowed at grazing view, the rim L p50
-    # 138 (Leatt 87), its roll 150 to 200; sheen 0.2 renders 120, sheen 0 96 (polyurethane foam is matte)
-    "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.0),
+    # 138 (Leatt 87), its roll 150 to 200; sheen 0.2 renders 120, sheen 0 96 (polyurethane foam is matte).
+    # Round 13 (item 5): its Fresnel specular at that grazing view, spec 0.1 (default 0.5): rim L p50 97 to 86 (Leatt
+    # 87), its peak 99 to 94 (Leatt 93) with the run's top pixel left out on both sides (scratch rim13.py): round 12's
+    # peak 160 was mostly that pixel, the rim's edge blended with our white backdrop (Leatt's is teal, left out)
+    "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.0, spec=0.1),
     # round 11: the bridge round the comb (grey in phr and the exploded view's slotted surface): a moulding, satin, no
     # foam sheen
     "goggle_bridge": dict(rgb=[40, 40, 44], rough=0.6),
