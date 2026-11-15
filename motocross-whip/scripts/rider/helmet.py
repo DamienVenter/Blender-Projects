@@ -837,6 +837,7 @@ VISOR_PLAN = [(220, 0.0), (236, 0.018), (251, 0.030), (279, 0.055), (311, 0.0695
               (460, 0.0819), (516, 0.0864), (573, 0.0913), (629, 0.0967), (685, 0.0978), (742, 0.0995),
               (798, 0.1079), (854, 0.1136), (912, 0.1199), (1000, 0.090), (1075, 0.050), (1135, 0.050)]
 VISOR_T = 0.0035                   # m, visor thickness (moulded ABS)
+VISOR_LIP = 0.0006                 # m, the chamfer round the visor's top edge (its highlight line; see thicken_grid)
 VISOR_ARCH = 0.7                   # the arch's fall from the centre line to the side edge: (1 - cos) ** VISOR_ARCH
 VISOR_GAP = 0.0075                 # m, top surface off the shell where it lies over it (underside 4 mm clear)
 # the wings' edges come down to the shell (round 4): Leatt's top photo has its outline 5 to 10 mm inside main's wings,
@@ -957,22 +958,44 @@ def thicken_grid(G, t, mat_top, mat_under, mat_edge, part):
     if flip:
         N = -N
     Vu = V - N * t
-    Ftop = np.array(grid_faces(nr, nc, 0, flip))
-    uv_top = atlas_uvs(V, Ftop, visor=True)[0] if mat_top == "helmet_paint" else None
-    o1 = part.add(V, Ftop, mat_top, None if uv_top is None else list(uv_top))
-    part.top = (V, Ftop, N, uv_top)
-    o2 = part.add(Vu, grid_faces(nr, nc, 0, not flip), mat_under)
     ring = ([(0, j) for j in range(nc)] + [(i, nc - 1) for i in range(1, nr)] +
             [(nr - 1, j) for j in range(nc - 2, -1, -1)] + [(i, 0) for i in range(nr - 2, 0, -1)])
     idx = [i * nc + j for i, j in ring]
-    F = []
-    for k in range(len(idx)):
-        a, b = idx[k], idx[(k + 1) % len(idx)]
-        q = [o1 + a, o1 + b, o2 + b, o2 + a]
+    n = len(idx)
+    # the edge as Leatt's crisp lip (phase 2, decision 51; round 4's review item A): the top's outline drawn in by
+    # VISOR_LIP and a chamfer from it down to the edge face, each strip with its own vertices. Shared with the top
+    # and the underside, smooth shading had rounded the rear edge into a soft bump; the chamfer, turned half way
+    # between the top and the edge, catches the light as the thin line on top of Leatt's edge (Pinata iso-left at
+    # 2x), the edge face below it is the thickness's band
+    inner = [min(max(i, 1), nr - 2) * nc + min(max(j, 1), nc - 2) for i, j in ring]
+    P, Nb = V[idx], N[idx]
+    out = np.cross(np.roll(P, -1, 0) - np.roll(P, 1, 0), Nb)
+    ln = np.linalg.norm(out, axis=1)
+    pole = ((np.linalg.norm(P - np.roll(P, 1, 0), axis=1) < 1e-9) |      # the grid's side closed to one point:
+            (np.linalg.norm(P - np.roll(P, -1, 0), axis=1) < 1e-9) | (ln < 1e-12))   # no chamfer there
+    out = np.where(pole[:, None], 0.0, out / np.maximum(ln, 1e-12)[:, None])
+    out *= np.sign(np.sum(out * (P - V[inner]), 1))[:, None]
+    Vt = V.copy()
+    Vt[idx] = P - out * VISOR_LIP
+    Ftop = np.array(grid_faces(nr, nc, 0, flip))
+    uv_top = atlas_uvs(V, Ftop, visor=True)[0] if mat_top == "helmet_paint" else None   # as before: the trace holds
+    o1 = part.add(Vt, Ftop, mat_top, None if uv_top is None else list(uv_top))
+    part.top = (Vt, Ftop, N, uv_top)
+    part.add(Vu, grid_faces(nr, nc, 0, not flip), mat_under)
+    uvv = {}
+    if uv_top is not None:
+        for fc, uc in zip(Ftop, uv_top):
+            for i, u in zip(fc, uc):
+                uvv[int(i)] = u
+    F, UV = [], []
+    for k in range(n):
+        q = [k, (k + 1) % n, n + (k + 1) % n, n + k]
         F.append(q if not flip else q[::-1])
-    part.add(np.zeros((0, 3)), [], mat_edge)
-    for f in F:
-        part.F.append(f); part.M.append(mat_edge); part.UV.append(None)
+        a, b = uvv.get(idx[k]), uvv.get(idx[(k + 1) % n])
+        UV.append(None if a is None or b is None else [a, b, b, a])
+    B = P - Nb * VISOR_LIP
+    part.add(np.vstack([Vt[idx], B]), F, mat_top, UV if uv_top is not None else None)
+    part.add(np.vstack([B, Vu[idx]]), F, mat_edge)
     return o1
 
 
@@ -1400,6 +1423,8 @@ MATERIALS = {
     # the chin's mouthpiece frame (phase 2, decision 51): glossy black plastic (Pinata iso-left: its lower band mid 11
     # 11 12 with glints to 66, its lit side to 184 185 195, the softbox's reflection)
     "helmet_frame_black": dict(rgb=[16, 16, 18], rough=0.3),
+    # the brow tag's rim (Pinata iso-left: light grey, lit to 184 188 194 beside its dark centre): bright metal-look
+    "helmet_tag_rim": dict(rgb=[168, 171, 176], rough=0.3, metal=0.7),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     # the eye port (phase 2, decision 51; helmet_detail's tables): the grip panels' moulded rubber, dark grey with its
     # triangle relief (Pinata iso-left: the flat cells' mid grey 76 73 77 beside the white paint's 185 186 190, de-lit

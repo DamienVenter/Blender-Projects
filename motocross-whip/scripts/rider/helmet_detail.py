@@ -2,7 +2,7 @@
 (a raised white insert round a triangle lattice over the dark opening), the two rear exhaust slots' wire mesh and
 the rear lower white pieces round the lower rear vents; and (joint front fit phase 2, decision 51) the eye port's
 grip panels with their triangle relief, the textures of the port's trim roll and pads (helmet.strip_rings), and
-the chin's mouthpiece (its black frame, dark floor and triangle lattice) and the chin bar's side vents.
+the chin's mouthpiece (its black frame, dark floor and triangle lattice), the brow's mesh vents and its tag.
 
 Each outline is traced in one of Leatt's Pinata photos (px) and cast onto the shell through that photo's camera in
 helmet.PRINT_CAMS (round 4: the cameras solved with all of Leatt's photos, research/helmet-ba.json), the cameras the
@@ -136,6 +136,59 @@ class Shell:
         return P, N
 
 
+class ExactShell(Shell):
+    """The shell, its snap exact: the closest point on its triangles and the normal interpolated there. The nearest
+    vertex's tangent plane is close enough on the crown's even mesh, but where the brow's lower edge folds into the
+    trim's roll it put the brow vents' wires 1.3 mm under their floor (phase 2)."""
+
+    def __init__(self, Vo, Fo):
+        super().__init__(Vo, Fo)
+        from scipy.spatial import cKDTree
+        self.ftree = cKDTree(Vo[Fo].mean(1))
+
+    def snap(self, Q, it=2, k=12):
+        """Mirror-exact: each point is snapped as its image on his left and carried back (the triangles' diagonals
+        are not mirrored, and the brow's centre vent must be)."""
+        Q = np.atleast_2d(Q)
+        sx = np.where(Q[:, 0] < 0, -1.0, 1.0)[:, None] * [1, 0, 0] + [0, 1, 1]
+        P, N = self._closest(Q * sx, k)
+        on = np.abs(Q[:, 0]) < 1e-9
+        P[on, 0], N[on, 0] = 0.0, 0.0
+        return P * sx, N * sx / np.linalg.norm(N, axis=1)[:, None]
+
+    def _closest(self, Q, k):
+        j = self.ftree.query(Q, k)[1]
+        f = self.F[j]
+        a, b, c = self.V[f[..., 0]], self.V[f[..., 1]], self.V[f[..., 2]]
+        p = Q[:, None, :]
+        ab, ac, ap = b - a, c - a, p - a
+        d00, d01, d11 = (ab * ab).sum(-1), (ab * ac).sum(-1), (ac * ac).sum(-1)
+        d20, d21 = (ap * ab).sum(-1), (ap * ac).sum(-1)
+        den = d00 * d11 - d01 * d01
+        v = (d11 * d20 - d01 * d21) / den
+        w = (d00 * d21 - d01 * d20) / den
+        inside = (v >= 0) & (w >= 0) & (v + w <= 1)
+        best, P, B, F3 = np.full(len(Q), np.inf), np.zeros_like(Q), np.zeros((len(Q), 3)), np.zeros((len(Q), 3), int)
+        r = np.arange(len(Q))
+        cands = [(a + v[..., None] * ab + w[..., None] * ac, inside, np.stack([1 - v - w, v, w], -1))]
+        for e0, e1, i0, i1 in ((a, b, 0, 1), (b, c, 1, 2), (c, a, 2, 0)):
+            e = e1 - e0
+            t = np.clip(((p - e0) * e).sum(-1) / (e * e).sum(-1), 0, 1)
+            bc = np.zeros(t.shape + (3,))
+            bc[..., i0], bc[..., i1] = 1 - t, t
+            cands.append((e0 + t[..., None] * e, np.ones_like(t, bool), bc))
+        for q, ok, bc in cands:
+            d = np.where(ok, np.linalg.norm(p - q, axis=-1), np.inf)
+            i = np.argmin(d, 1)
+            better = d[r, i] < best
+            best[better] = d[r, i][better]
+            P[better] = q[r, i][better]
+            B[better] = bc[r, i][better]
+            F3[better] = f[r, i][better]
+        N = (B[..., None] * self.N[F3]).sum(1)
+        return P, N / np.linalg.norm(N, axis=1)[:, None]
+
+
 def resample_loop(P, step):
     """A closed polyline resampled at about step (px or m) along its length."""
     Q = np.vstack([P, P[:1]])
@@ -143,6 +196,30 @@ def resample_loop(P, step):
     n = max(8, int(round(s[-1] / step)))
     t = np.linspace(0, s[-1], n, endpoint=False)
     return np.c_[[np.interp(t, s, Q[:, k]) for k in range(Q.shape[1])]].T
+
+
+def round_corners(P, r, n=6):
+    """A closed polygon (px) with each corner replaced by an arc of radius r tangent to its two edges (n points); each
+    corner first moved out along its bisector by what the arc cuts off, so the arcs still reach the read corners."""
+    P = np.asarray(P, float)
+    Q = P.copy()
+    for i, v in enumerate(P):
+        u, w = P[i - 1] - v, P[(i + 1) % len(P)] - v
+        u, w = u / np.linalg.norm(u), w / np.linalg.norm(w)
+        th = 0.5 * np.arccos(np.clip(u @ w, -1, 1))
+        Q[i] = v - (u + w) / np.linalg.norm(u + w) * (r / np.sin(th) - r)
+    P = Q
+    out = []
+    for i, v in enumerate(P):
+        u, w = P[i - 1] - v, P[(i + 1) % len(P)] - v
+        u, w = u / np.linalg.norm(u), w / np.linalg.norm(w)
+        th = 0.5 * np.arccos(np.clip(u @ w, -1, 1))
+        c = v + (u + w) / np.linalg.norm(u + w) * r / np.sin(th)
+        a0, a1 = v + u * r / np.tan(th) - c, v + w * r / np.tan(th) - c
+        t0, t1 = np.arctan2(a0[1], a0[0]), np.arctan2(a1[1], a1[0])
+        dt = (t1 - t0 + np.pi) % (2 * np.pi) - np.pi
+        out += [c + r * np.array([np.cos(t0 + dt * k / (n - 1)), np.sin(t0 + dt * k / (n - 1))]) for k in range(n)]
+    return np.array(out)
 
 
 def outward(P, N):
@@ -713,7 +790,7 @@ def sym_loop(shell, px):
     P = P[P[:, 0] > 0.002]
     ends = [P[0] * [0, 1, 1], P[-1] * [0, 1, 1]]
     L = np.vstack([ends[0], P, ends[1], (P * [-1, 1, 1])[::-1]])
-    return shell.snap(L)
+    return shell.snap(resample_loop(L, 0.0015))        # points along the straight edges carried to the centre too
 
 
 def front_cast(shell, xz):
@@ -837,12 +914,58 @@ def side_vents(shell):
     return mirror(pieces, 1.0) + mirror(pieces, -1.0)
 
 
+# ---------------------------------------------------------------- the brow's vents and tag (phase 2, decision 51)
+# Traced on Leatt's Pinata iso-left photo at 2x and 3x with grids (scratch gridcrop.py; 0.21 to 0.23 mm/px there):
+# under the visor the brow's black moulding carries two mesh vents a side. The centre one runs across the centre line
+# (its left half traced from the brow's centre, px 663 there through the solved camera, to the diagonal divider at
+# 760 to 780), the side one past the divider is a band slanting down to the brow's corner (845 to 992). Dark openings
+# under a fine wire mesh (the rear slots' mesh_wires), framed by the moulding's own rim: 1.5 mm, standing 1 mm (its
+# lit edge 4 to 5 px at 3x). The brow tag at the brow's corner: the Leatt triangle in a light grey rim (the photo's
+# silver outline, lit to 184 188 194; its dark grey centre 46 44 45), 1 mm proud (first read 20 to 25 px high:
+# the rim's top corner is at 690 px, under the brow's lower edge; read again at 3x beside the render). At 3x the
+# photo's silver rim is about 10 px wide of the outline's 57 across (its dark centre 0.55 of the outline) and its
+# corners are rounded about 4 px (the first build: sharp corners, a rim half as wide).
+BROW_VENTS_PX = [
+    [(663, 625), (720, 630), (765, 638), (782, 655), (762, 668), (700, 665), (663, 664)],      # centre: its left half
+    [(843, 652), (880, 657), (920, 664), (960, 676), (988, 690), (992, 704), (960, 697), (920, 686), (880, 676),
+     (850, 670)]]
+BROW_RIM_W, BROW_RIM_H = 0.0015, 0.0010
+BROW_TAG_PX = [(1083, 690), (1112, 729), (1060, 734)]        # its rim's corners (3x)
+BROW_TAG_ROUND, BROW_TAG_IN = 4.0, 0.55     # corner radius px (about 1 mm); the dark centre's size against the outline
+BROW_TAG_H = 0.0010
+MAT_TAG = "helmet_tag_rim"
+
+
+def brow_vents(shell):
+    """The brow's mesh vents: the centre one (traced across the centre line) and the side one each side, and the
+    brow tag each side. Pieces (V, F, mats)."""
+    shell = ExactShell(shell.V, shell.F)
+    out = []
+    P, N = sym_loop(shell, BROW_VENTS_PX[0])
+    out += mirror(vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H), 1.0)
+    side = []
+    for px in BROW_VENTS_PX[1:]:
+        uv = resample_loop(np.asarray(px, float), 2.0)
+        P, N = shell.cast("isoleft", uv, side=1.0)
+        side += vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H)
+    uv = resample_loop(round_corners(BROW_TAG_PX, BROW_TAG_ROUND), 1.5)
+    P, N = shell.cast("isoleft", uv, side=1.0)
+    c = P.mean(0)
+    Pi, Ni = shell.snap(c + (P - c) * BROW_TAG_IN)
+    V, F = plate(Pi, Ni, P, N, BROW_TAG_H)
+    side.append((V, F, [MAT_TAG] * len(F)))
+    Vc, Fc = cap(Pi, Ni, BROW_TAG_H, shell)
+    side.append((Vc, Fc, [MAT_DARK] * len(Fc)))
+    return out + mirror(side, 1.0) + mirror(side, -1.0)
+
+
 def build(Vo, Fo, part=None):
     """The detail as one Part (helmet frame): the crown vents in MAT_INSERT, the rear lower pieces in MAT, their
     slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH, the grip panels in MAT_GRIP (top, UVs for its
     grain), MAT_GRIP_RIDGE (the relief) and MAT_GRIP_EDGE (walls), the chin's mouthpiece in MAT_FRAME (its outer wall in
     MAT) with its floor in MAT_DARK and its lattice in MAT_MESH, the chin bar's side vents (wall MAT, floor MAT_DARK,
-    mesh MAT_MESH)."""
+    mesh MAT_MESH), the brow's vents (rim MAT_FRAME, floor MAT_DARK, mesh MAT_MESH) and tag
+    (MAT_TAG round a MAT_DARK centre)."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
@@ -855,7 +978,7 @@ def build(Vo, Fo, part=None):
     for side in (1.0, -1.0):                            # the grip panels, with their relief's UVs
         for V, F, mats, uv in grip_panel(shell, side):
             part.add(V, F, mats, uv)
-    for V, F, mats in mouthpiece(shell) + side_vents(shell):
+    for V, F, mats in mouthpiece(shell) + side_vents(shell) + brow_vents(shell):
         part.add(V, [list(f) for f in F], mats)
     return part
 

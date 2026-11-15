@@ -187,7 +187,7 @@ def test_vents_are_moulded_away_from_the_front(built):
     V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
     assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
     assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE,
-                        D.MAT_FRAME}
+                        D.MAT_FRAME, D.MAT_TAG}
     Vo, Fo, _ = H.shell_outer()
     h = surface_height(V, Vo, Fo)                       # height above the shell
     assert h.min() > -D.SINK - 0.0004 and h.max() < D.LOW_PIECE_H + 0.0002
@@ -602,6 +602,53 @@ def test_mouthpiece_and_side_vents(built):
     c = floor[0].mean(0)
     assert np.linalg.norm(c - X) < 0.005, f"side vent {1000 * np.linalg.norm(c - X):.1f} mm off the landmark"
     assert len(wires) >= 30 and all(p[2][0] == D.MAT for p in side[:1])
+
+
+def test_brow_vents_and_tag(built):
+    """Phase 2 (decision 51): under the visor the brow's black moulding carries two mesh vents a side (Leatt's Pinata
+    iso-left photo at 2x and 3x: the centre one across the centre line, past its divider the side one slanting to the
+    brow's corner; their px cast through the print's iso-left camera) and the brow tag at the corner (the Leatt
+    triangle in a light grey rim). On the built part: the tag rim in MAT_TAG each side; the centre vent's lower edge
+    runs straight across the centre line (within 1.5 mm of its height 12 mm to each side: read as a closed loop, the
+    trace's own centre segment cut a notch 16 mm wide and 7 mm deep into it); 20 or more wire pieces, none of them
+    more than 1 mm under the shell (snapped to the nearest vertex's tangent plane, the wires sank 1.7 mm where the
+    brow's edge folds into the trim's roll, under their own floor). Main: none of it (the print's black)."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    tag = [k for k, m in enumerate(P.M) if m == D.MAT_TAG]
+    assert tag, "no brow tag (main: print only)"
+    Vt = V[np.unique(np.concatenate([P.F[k] for k in tag]))]
+    assert (Vt[:, 0] > 0.09).any() and (Vt[:, 0] < -0.09).any()
+    Vo, Fo, _ = H.shell_outer()
+    shell = D.Shell(Vo, Fo)
+    L, _ = D.sym_loop(shell, D.BROW_VENTS_PX[0])
+    low = L[L[:, 2] < np.median(L[:, 2])]
+    mid = low[np.abs(low[:, 0]) < 0.004, 2]
+    side = low[np.abs(np.abs(low[:, 0]) - 0.012) < 0.002, 2]
+    assert len(mid) and len(side) and abs(mid.mean() - side.mean()) < 0.0015, "notch in the brow vent's lower edge"
+    wires = [p for p in D.brow_vents(shell) if p[2][0] == D.MAT_MESH]
+    assert len(wires) >= 20
+    h = surface_height(np.vstack([p[0] for p in wires]), Vo, Fo)
+    assert h.min() > -D.SINK - 0.0004, f"brow wires {1000 * h.min():.2f} mm under the shell"
+
+
+def test_visor_rear_lip_is_crisp(built):
+    """Phase 2 (decision 51; round 4's review item A): Leatt's visor ends in a crisp lip (its thickness a dark band
+    under the lit top, a thin highlight along its top edge: Pinata iso-left at 2x), main's in a soft bump: its edge
+    strip shared the top's vertices, and smooth shading rounded the edge over. The edge strip has its own vertices
+    (none of the top's is used by another face) and a chamfer VISOR_LIP wide runs between the top and the edge face:
+    the top's outline lies VISOR_LIP inside the edge face's top."""
+    P = built["parts"]["helmet_visor"]
+    top = {i for f, m in zip(P.F, P.M) if m == "helmet_paint" for i in f}
+    rest = {i for f, m in zip(P.F, P.M) if m != "helmet_paint" for i in f}
+    assert top and rest and not (top & rest), f"{len(top & rest)} of the top's vertices shared with the edge strip"
+    Vt, Ft, _, _ = P.top
+    edge = np.array(sorted({i for f, m in zip(P.F, P.M) if m == "visor_under" for i in f}))
+    from scipy.spatial import cKDTree
+    rim = np.unique(H.boundary_loops([list(f) for f in Ft])[0])
+    d = cKDTree(((P.V - built["t"]) @ built["R"])[edge]).query(Vt[rim])[0]
+    assert 0.5 * H.VISOR_LIP < np.median(d) < 2.0 * H.VISOR_LIP, f"chamfer {1000 * np.median(d):.2f} mm"
 
 
 def test_fit_on_his_head(built):
@@ -1095,8 +1142,8 @@ def test_mouthpiece_print_white_round_its_rim(art):
     above the chin's lower edge) and round the side vents, 98 % of the texels are white (every channel over 190);
     inside the opening shrunk 20 %, 98 % black. The chin cap's edge (helmet_art.CHIN_CAP, across the chin's front
     within 40 mm of the centre line) is as clean: from 2 to 8 mm under it 98 % white, from 2 to 5 mm over it 98 %
-    black (main: 24 % under it not white; the atlas's slivers there had hung its black 7 mm under it). The 3D inks are set in the trace and again
-    on the drawn texels (helmet_art.mouth_ink)."""
+    black (main: 24 % under it not white; the atlas's slivers there had hung its black 7 mm under it). The 3D inks
+    are set in the trace and again on the drawn texels (helmet_art.mouth_ink)."""
     from matplotlib.path import Path
     from scipy.spatial import cKDTree
     import helmet_detail as D
