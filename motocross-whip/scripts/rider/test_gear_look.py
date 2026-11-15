@@ -101,3 +101,18 @@ def test_the_gear_fit_finds_a_known_albedo_at_its_grey_layer():
         if k_true == 0.5:
             assert np.abs(r["k"]["2.0"]["resid"][:3]).max() < 1.5, r["k"]["2.0"]
             assert np.all(np.asarray(r["k"]["2.0"]["albedo"]) < 0.8 * np.asarray(a_true)), r["k"]["2.0"]
+
+
+def test_the_boots_white_is_his_scuffed_white():
+    """His 08 sees the boot and the helmet's white shell both in sun: the boot at 0.93 of the shell (linear, the lit
+    quartiles; research/scene-look.md "The boots' white"). boots.WHITE (the shell's paint) and boot_white are that
+    on the helmet's white, and the shell's textures carry it (main's 236, 239, 242 was 1.10 of the shell)."""
+    import boots
+    import helmet_art
+    from PIL import Image
+    lum = lambda c: float(S.eotf(np.asarray(c, float) / 255.0) @ np.asarray(S.LUMA))          # noqa: E731
+    assert 0.90 < lum(boots.WHITE) / lum(helmet_art.WHITE) < 0.96
+    assert list(boots.MATERIALS["boot_white"]["rgb"]) == [int(v) for v in boots.WHITE]
+    for f in ("boot_out_R.jpg", "boot_out_R_worn.jpg", "boot_back_L.jpg"):
+        a = np.asarray(Image.open(os.path.join(boots.TEXDIR, f)).convert("RGB")).reshape(-1, 3).astype(float)
+        assert np.all(np.abs(np.median(a[a.mean(1) > 150], 0) - boots.WHITE) <= 3), f

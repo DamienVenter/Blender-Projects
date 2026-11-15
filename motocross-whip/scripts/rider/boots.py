@@ -924,7 +924,11 @@ LOGO_BOXES = {"02": [(676, 322, 830, 410),       # LEATT SLIDELOCK badge (dark-p
                      (1170, 1370, 1240, 1440)]}  # brain icon on the heel
 VERTICAL_LOGOS = {("05", 0)}
 TEX_SCALE = 0.6
-WHITE = np.array([236, 239, 242], float)
+# his boots' white, scuffed (decision 59, research/scene-look.md "The boots' white"): his 08 sees the boot and the
+# helmet's white shell both in sun, the boot at 0.932, 0.935, 0.900 of the shell (linear, per channel, the lit
+# quartiles); on helmet_art.WHITE (226, 229, 235) that is 219, 222, 224. His 05, 06 and 09 see less of the boot's
+# lit side (0.72, 0.55, 0.43; 06 and 09 cream with dust). Leatt's studio (01 to 05): a clean neutral white
+WHITE = np.array([219, 222, 224], float)
 LEAN_03 = 0.08          # photo 03's shaft leans further forward than 02's: 0.08 m per m above v 170 mm (rows)
 
 
@@ -1187,7 +1191,7 @@ def build_spine(build):
 
 # ---------------------------------------------------------------- materials (sRGB starting values from the photos)
 MATERIALS = {
-    "boot_white": {"rgb": [236, 239, 242], "rough": 0.38, "coat": 0.15},     # TPU shell, cool white (01, 02)
+    "boot_white": {"rgb": [219, 222, 224], "rough": 0.38, "coat": 0.15},     # TPU shell, his scuffed white (WHITE)
     "boot_gaiter": {"rgb": [24, 24, 26], "rough": 0.9, "sheen": 0.5},        # black PA stretch gaiter (12)
     "boot_lining": {"rgb": [168, 22, 32], "rough": 0.85, "sheen": 0.5},      # its red lining (12)
     "boot_sole": {"rgb": [33, 32, 31], "rough": 0.8},                        # outsole rubber, dusty (02; his 07)
