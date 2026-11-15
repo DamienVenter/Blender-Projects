@@ -42,23 +42,33 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   `"studio"` (Standard at STUDIO's exposure) for the honda_* views (`build_bike.render`, `rake.py`). A tone curve per
   channel crushes the red's G and B (G 7 against 47 in his 07); the shipped curve on max(R,G,B) keeps them (50).
   Under it, at photo 07's own exposure, RED (208, 10, 22) reads 218, 42, 38 against his 189, 47, 49 (dE 16.9 / 14.7
-  median / lit) under round 1's look; round 2 (decision 55, below) applied (205, 41, 62) under its light and look
-  (`look_fit.py bike`, research/scene-look.md).
+  median / lit) under round 1's look; round 2 applied (205, 41, 62) and round 2b (230, 46, 49) (decision 55, below;
+  `look_fit.py bike` and `honda`, research/scene-look.md).
 - Check a fitted paint colour's hue on its diffuse body, not its lit mean (coordinator, look round 2's review): a
   "lit" quartile by luma takes in the clear coat's sky highlights, which run pink on red plastic under a blue sky.
   Round 2's RED (205, 41, 62) fitted that way had B above G and read crimson at 1:1, and Honda's studio views turned
   pink (27 to 40 dE). Gate: max channel red, saturation over 0.5, G and B each under 0.45 R. His 07 then reads
   183, 51, 45 (lit 221, 87, 57): an orange-red, G at or above B. One red must read right in his photos AND Honda's.
-- **The plastic red is one value in three places** (decision 55): `build_bike.RED`, `kit_canvas.RED`,
-  `kit_sidepanel.PLASTIC_RED` = (205, 41, 62), fitted to his photo 07 under round 2's look at the photo's own
-  exposure (dE 5.0 / 6.6 median / lit, from 10.4 / 10.4); test_kit fails if they part or a texture keeps the old
-  red. Change all three, then rebuild the textures from their scripts (kit_template.py PARTS TPL, kit_sidepanel.py
-  KIT, kit_canvas.py KIT TPL) and check every changed texel was the old red or a blend of it.
-- **His photos and Honda's studio photos cannot share one red here**: in our honda_* views 91 to 94 % of the plain
-  red's G is the coat and specular mirroring the studio dome and lamps (G 54 to 57 after the look against Honda's
-  24), and Honda's red is purer (decoded G/R 1 %, B/R 2 % against his 5.6 %, 6 %). His photos lead for the scene;
-  the honda_* views now read crimson-pink (dE 27 to 40). Fixing that is a studio set-up with less reflection or a
-  STOCK-only red, not the scene's RED.
+  Round 2b: that reading covered the whole photo panel, and 8522 of its 21378 gated pixels are the orange sign
+  behind the bike; the bike alone (cam07's region) reads 183, 41, 41, lit 238, 74, 80: G = B, a plain red. Gate
+  the part's own pixels before reading a hue off a photo.
+- **The plastic red is one value in three places** (decision 55, round 2b): `build_bike.RED`, `kit_canvas.RED`,
+  `kit_sidepanel.PLASTIC_RED` = (230, 46, 49), fitted on the plastic's diffuse body (gloss under a fifth of the
+  pixel) with his hue (G = B) and Honda's three studio views within main's error; test_kit fails if they part or
+  a texture keeps an old red. Change all three, then rebuild the textures from their scripts (kit_template.py
+  PARTS TPL, kit_sidepanel.py KIT, kit_canvas.py KIT TPL) and check every changed texel was the old red or a blend
+  of it. Before picking a red, count it in the side panel art: 230, 45, 50 is held by lone anti-aliased art texels
+  (11 a side), which test_kit's slit check then reads as plastic showing through; hence 230, 46, 49.
+- **Honda's studio reflects dark** (decision 55, round 2b, research/scene-look.md "Honda's studio"): read their
+  photo by where each plain red pixel's reflection points (Normal and Position passes, the camera centre by a DLT):
+  G 8 to 13 per mille below 60 deg of elevation, 45 overhead. So in the honda_* views the world is hidden from
+  reflected rays and a glossy-only dome of its grey at STUDIO[3] 0.2 stands in, only the top lamp is seen in
+  reflections, and the lamps turn with the camera (Honda's left and right light the red alike). One red then fits
+  both his 07 and Honda's views (13.7 / 4.8, 13.1 / 7.7, 12.8 / 3.6 against main's 15.1 / 7.2, 13.8 / 4.0, 30.1 /
+  11.9); his 07's body stays at 12.6 / 16.4 (Honda's red is purer, his 07 has more sun on the tank). lf34's lit
+  quarter is a light Honda set for that shot alone: their right photo reflects the same direction dark, so no
+  studio that turns with the camera copies it. Hiding the floor from reflections too darkens the frame and
+  swingarm (they mirror it). Check a studio in a real render: the light-group composite halves the coat's light.
 - **Measuring a printed colour in his 07** (research/scene-look.md, "The kit's printed colours"): cam07 is 15 to 22
   px off on the bike and the pose hides parts, so compare photo boxes picked on a 6x crop with our whole class; a
   white on the same panel is no reference when the photo has sun and shade on it (his number in shade, the red zone
