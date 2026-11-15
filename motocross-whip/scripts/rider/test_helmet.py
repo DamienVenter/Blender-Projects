@@ -296,7 +296,7 @@ def port_edge_px(view, rows, port=None):
     # the port's loop: free edges above the lower edge (z > -0.09 m at their mid points) and ahead of y = 0
     m = V[B].mean(1)
     B = B[(m[:, 2] > -0.09) & (m[:, 1] < 0.0) & (m[:, 0] > 0)]
-    q = H.cam_project(H.CAMS[view], V)[0]
+    q = H.cam_project(H.PRINT_CAMS[view], V)[0]
     out = []
     for r in rows:
         a, b = q[B[:, 0]], q[B[:, 1]]
@@ -307,22 +307,29 @@ def port_edge_px(view, rows, port=None):
 
 
 def test_face_port_edge_on_leatt_iso_left():
-    """Round 2 (decision 44): the shell's port edge (the rubber trim's inner edge) where Leatt's Pinata iso-left
-    photo shows it, picked on a 1:1 crop at rows 830 to 1040: x 1195, 1193, 1189, 1183 px. Main's edge followed
-    the side photo's notch (the cheek pads), about 40 mm ahead: 185 to 221 px left of the photo, and the print's
-    black trim and grip panel spread over the shell there. Round 2's "iso" port: -5 to +4 px. The build keeps
-    the "side" port (helmet.PORT) until the goggle moves back to meet this edge (decision 44)."""
+    """The shell's port edge (the rubber trim's inner edge) where Leatt's Pinata iso-left photo shows it, picked on a
+    1:1 crop at rows 830 to 1040: x 1195, 1193, 1189, 1183 px, seen through the solved iso-left camera (decision 47;
+    round 2 checked it through its own single-photo camera, which put the edge 16 to 18 mm too far back). The built
+    port (helmet.PORT): main's followed the side photo's notch (the cheek pads), 16 to 23 mm ahead, and the print's
+    black trim and grip panel spread over the shell there."""
     rows = [830, 900, 970, 1040]
-    err = port_edge_px("isoleft", rows, port="iso") - np.array([1195.0, 1193.0, 1189.0, 1183.0])
+    err = port_edge_px("isoleft", rows) - np.array([1195.0, 1193.0, 1189.0, 1183.0])
     assert np.all(np.abs(err) < 12.0), f"port edge off Leatt's iso-left by {np.round(err, 1)} px"
 
 
 def test_fit_on_his_head(built):
-    """Even stand-off all round the skull (EPS and pads), brow ahead of the forehead, eyes in the face port."""
-    g = built["info"]["gaps_mm"]
-    ring = [g["top"], g["back"], g["left"], g["right"]]
-    assert 40 < min(ring) and max(ring) - min(ring) < 4
-    assert g["fore"] >= 31.5
+    """The helmet on his head from the liner build-up (decision 47): Leatt TF 172's EPS length (M/L 287 mm) less his
+    head's, shared front and back, plus the wall, is the shell's stand-off at his forehead, back and crown (main: 39.0,
+    47.9 and 48.2 mm from two rules, the brow 40 mm above his eyes and 32 mm ahead of his forehead); the sides at
+    least that (the cheek pads and the EPS's flare); the port's top edge at least 7 deg above his eyes (ECE 22.06
+    6.15.3.2, passed in the file's test report)."""
+    info = built["info"]
+    g, T = info["gaps_mm"], info["build_up_mm"]
+    assert 36.0 < T < 41.0
+    for k in ("top", "fore", "back"):
+        assert abs(g[k] - T) < 2.5, (k, g[k], T)
+    assert min(g["left"], g["right"]) > T and abs(g["left"] - g["right"]) < 0.5
+    assert info["up_clearance_deg"] >= 7.0
 
 
 CHAIN = ("neck01", "neck02", "neck03", "head")
@@ -390,6 +397,45 @@ def test_npz_loads_for_build_rider(built):
             assert len(g[name + "__UV"]) == FS.sum()
     for m in g["mats"]:
         assert str(m) in mats
+
+
+def test_visor_wings_have_side_islands():
+    """Decision 47: the visor's print came out in horizontal steps on its steep wings (the side LEATT smeared in the
+    Royal 1:1 crop): all of the visor was one top-projected island (V), whose texels stretch 1 / |n_z| times on a
+    steep face (up to 97 there, 17 at the 99th percentile). Each visor face now goes to the island of its normal's
+    largest component (VL and VR by (y, z) for the wings, VF and VB by (x, z) for faces turned forward or back): its
+    texels stretch under 2 times at the 99.5th percentile and under 5 at most (three twisted triangles at the rear
+    corner), the left wing's faces lie in VL whatever the grid's winding, and the islands overlap no other."""
+    Vo, Fo, prof = H.shell_outer()
+    G = H.visor_surface(prof)
+    nr, nc, _ = G.shape
+    V = G.reshape(-1, 3)
+    F = np.array(H.grid_faces(nr, nc))
+    UV, isl = H.atlas_uvs(V, F, visor=True)
+    T = np.vstack([F[:, [0, 1, 2]], F[:, [0, 2, 3]]])
+    UVt = np.vstack([UV[:, [0, 1, 2]], UV[:, [0, 2, 3]]]) * H.TEX / H.ATLAS_K      # m in the atlas
+    a3 = 0.5 * np.linalg.norm(np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]]), axis=1)
+    e1, e2 = UVt[:, 1] - UVt[:, 0], UVt[:, 2] - UVt[:, 0]
+    a2 = 0.5 * np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0])
+    ok = a3 > 1e-10
+    stretch = a3[ok] / np.maximum(a2[ok], 1e-14)
+    assert np.percentile(stretch, 99.5) < 2.0 and stretch.max() < 5.0, \
+        f"visor texels stretch {np.percentile(stretch, 99.5):.1f} (99.5 %), {stretch.max():.1f} times"
+    for flip in (False, True):
+        isl_f = H.atlas_uvs(V, np.array(H.grid_faces(nr, nc, 0, flip)), visor=True)[1]
+        assert (V[F[isl_f == "VL"]][..., 0] > 0).all() and (V[F[isl_f == "VR"]][..., 0] < 0).all()
+    boxes = {}
+    uv_o, isl_o = H.atlas_uvs(Vo, Fo)
+    for U, I in ((uv_o, isl_o), (UV, isl)):
+        for n in np.unique(I):
+            q = U[I == n].reshape(-1, 2) * H.TEX
+            boxes[n] = (q.min(0), q.max(0))
+    assert {"VL", "VR"} <= set(boxes)
+    for a in boxes:
+        for b in boxes:
+            if a < b:
+                lo, hi = np.maximum(boxes[a][0], boxes[b][0]), np.minimum(boxes[a][1], boxes[b][1])
+                assert (hi - lo < 0).any(), (a, b)
 
 
 def test_gear_frame_places_the_helmet_frame(built):

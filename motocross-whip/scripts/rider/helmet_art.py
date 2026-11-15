@@ -274,7 +274,7 @@ def back_zone(P, N, S):
 
 def force_labels(P, N, S):
     """The ink FORCE (shell) and FORCE_VISOR (visor's top) put on each texel (index into INKS), -1 where none: the
-    texel's design point is looked up in the marked view and must be seen there."""
+    texel's design point is looked up in the marked view and must be seen there. The visor's wings: white."""
     from PIL import Image, ImageDraw
     Pd, Nd = design_points(P, N)
     out = np.full(len(P), -1)
@@ -287,6 +287,12 @@ def force_labels(P, N, S):
                 ImageDraw.Draw(m).polygon([tuple(p) for p in poly], fill=255)
                 inside = (np.array(m) > 0)[ui[:, 1], ui[:, 0]] & vis & (cos > 0.0) & (S == surf)
                 out[inside] = INKS.index(ink)
+    # the visor's steep wings (its side islands, helmet.atlas_uvs) are white print in Leatt's Pinata photos, its
+    # LEATT drawn over them from the file. The iso views laid the visor's rear edge line there (the model's rear
+    # corner stands 7 mm off Leatt's: the photo's grey edge line and the shell's blue beyond it fell on the wing) as
+    # thin grey marks and two small blue slivers (joint front fit, decision 47)
+    a = np.abs(N)
+    out[(S == 1) & (a[:, 0] >= a[:, 2]) & (a[:, 0] >= a[:, 1])] = INKS.index("white")
     return out
 
 

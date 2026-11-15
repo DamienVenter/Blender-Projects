@@ -1536,6 +1536,10 @@ RIB_LEAN = (0.40, -0.029, 0.0015)              # depth per height above z -29 mm
 BRIDGE_T = 0.0012                              # the bridge's thickness behind the comb (plate to back face)
 BRIDGE_ZONE = (0.060, 0.008)                   # |s| where the plate eases back to the lens stack's, and over how much
 NOSE_NOTCH = (0.008, 0.014)                    # worn: no bridge inside the first |s| (lens edge), eased by the second
+# Joint front fit (decision 47): with the helmet on his head from the liner build-up and the goggle back on his face
+# (PLACE) his nose ridge lies 8.6 mm behind the lens front at s 0 (z -31 mm; 9.2 at z -34), more than the 5.8 mm the
+# lens stack, the comb and the plate need: the worn frame keeps Leatt's bridge (WORN_NOTCH False). True: round 11's.
+WORN_NOTCH = False
 INNER_NOSE = -0.0003                           # the inner lens's edge where the band is too thin: inside the window
 
 
@@ -1803,7 +1807,7 @@ def build_nose_ribs(gp=None, skin_G=None):
     there; behind the mirror lens nothing of it shows)."""
     gp = gp or GP
     L = LensSurface(gp)
-    notch = skin_G is not None                                       # round 11: on him, the worn frame's (its notch)
+    notch = WORN_NOTCH and skin_G is not None                        # round 11: on him, the worn frame's (its notch)
     fr_, bk_ = rib_front(gp, bridge_depth(gp, notch, plate=True))
 
     def front(P2):
@@ -1885,7 +1889,16 @@ def rib_dense(P, h=0.00025):
 # the lens out of the eyeport's edge, with the goggle 0.5 mm higher (x 1.03 touches his skin, x 1.04 puts the lens
 # into the shell at any fore-aft place). Not moved fore-aft: the kit views' 8 to 9 mm are an empty helmet (no face
 # pushing the goggle forward) and back from here his nose bridge meets the frame. Ledger goggle.md section 10.
-PLACE = (-0.1468, -0.0035, 5.0, 1.02)
+# Joint front fit (decision 47): the helmet now sits on his head from the liner build-up (helmet.fit_on_head), 4.6 mm
+# further forward of his eyes along the goggle's axis and 2.7 mm higher than round 11's (lens centre 60.8 mm ahead of
+# his eye centres against 56.2). The goggle rides his face, not the shell: moved back by those 4.6 mm, the lens
+# centre is 56.2 mm ahead of his eyes again and the foam meets his face (it stood at least 8 mm off it). Not raised:
+# Leatt's MY27 side views have its beak bottom at -64.6 to -66 mm (here -64) and Leatt's Pinata iso-right through
+# the solved camera has the goggle lower still. Back 4.6 mm also brings the frame's top front to Leatt's side views'
+# -149 mm (round 5: -152). His nose ridge then lies 8.6 to 9.2 mm behind the lens front at s 0, z -31 to -34 mm
+# (ray casts along the lens normal on his mesh; main: 6.4 at z -34), where the lens stack, the comb and a plate need
+# 5.8 mm.
+PLACE = (-0.1422, -0.0035, 5.0, 1.02)
 FOAM_MIN, FOAM_MAX, FOAM_DEFAULT = 0.0015, 0.030, 0.014  # triple-layer foam, compressed against the face
 FOAM_W = 0.013                     # foam band width on the frame's back face (round 2's seat, 13 mm at the top)
 
@@ -1973,9 +1986,21 @@ STRAP_CLEAR = 0.0007                        # the silicone's face off the shell:
 # gear first (scratch strapfit2: the strap's edges picked in his photo 07, near side-on, and in Leatt's Pinata Teal
 # iso-right of his helmet, goggle and strap): centre z -13.5 mm at y -58 behind the outrigger, rising 3 deg; rms
 # 4.5 and 0.3 mm there. Leatt's MY27 kit views (an empty helmet, a stylist's strap) want it 6 to 10 deg steeper and
-# its back about 22 mm higher (ledger section 10)
-STRAP_PLANE = (-0.058, -0.0135, 3.0)
+# its back about 22 mm higher (ledger section 10). Joint front fit (decision 47): refitted through his photos'
+# fitted cameras (research/his-photo-cameras.json, landmarks rms 2.6 px in 07) and Leatt's solved iso-right
+# (helmet.PRINT_CAMS), the same picks (scratch planescan.py): at (-13.5 mm, +3 deg) the strap stood 37 mm above his
+# 07's on average (rms 39.1, his 09 25.9, Pinata 8.9 mm), over the chevron panel where his photo shows it below the
+# panel's lower stripe. Now centre z -25 mm at y -58, falling 12 deg towards the back: rms his 07 5.6 mm (mean -0.1),
+# his 09 12.1 (its camera 8.3 px rms, 16 mm), Pinata 3.8
+STRAP_PLANE = (-0.058, -0.025, -12.0)
 STRAP_LAND = 0.020                          # m: the strap leaves the outrigger's slot and lands on the shell
+# Joint front fit (decision 47): with the eyeport's cut edge where Leatt's iso photos show it (helmet.PORT "iso", 16 to
+# 23 mm behind the side photo's notch) the outriggers' back ends stand ahead of the edge, as in Leatt's Pinata
+# iso-right (the plate's back end 65 px ahead of the trim's crest there), and the strap crosses the trim to land on
+# the shell. It lands where its whole width lies on the shell, STRAP_EDGE behind the edge (the rubber trim's roll,
+# helmet.RIM_R, and a millimetre): landing at the edge itself folded the cross-section's walk onto the edge (the band
+# 22 mm wide and 2.5 mm tall over four stations, a wedge in the iso-right render).
+STRAP_EDGE = H.RIM_R + 0.001
 STRAP_ACROSS = np.r_[-22.5, -20, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20,
                      22.5] / 1000.0         # m across the strap (bottom edge to top edge); +-2.5: the silicone band
 # the adjuster slides (round 9, decision 45): flat moulded frames, as Leatt's MY27 back view shows them at 1:1 (round
@@ -2108,6 +2133,9 @@ def strap_layout(surf, ends, plane=STRAP_PLANE, land=STRAP_LAND, step=0.0025):
     npl = np.array([0.0, -math.sin(a), math.cos(a)])              # its normal (up)
     A = np.array([0.0, 0.010, z0 + math.tan(a) * (0.010 - y0)])   # the plane's point inside the helmet at y 10 mm
     xh = np.array([1.0, 0.0, 0.0])
+    Fe = np.sort(np.vstack([surf.F[:, [0, 1]], surf.F[:, [1, 2]], surf.F[:, [2, 0]]]), axis=1)
+    eu, ec = np.unique(Fe, axis=0, return_counts=True)
+    edge = surf.V[np.unique(eu[ec == 1])]                         # the shell's free edges (eyeport, lower edge)
     sides = {}
     for sg in (1, -1):
         E, up, back = ends[sg]
@@ -2122,7 +2150,15 @@ def strap_layout(surf, ends, plane=STRAP_PLANE, land=STRAP_LAND, step=0.0025):
         S = surf.ray_out(A + zeta[:, None] * npl, Dr)
         s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(S, axis=0), axis=1))]
         d_anchor = np.linalg.norm(S - E, axis=1)
-        i_land = int(np.nonzero(d_anchor > land)[0].max())        # the last surface station far enough from the slot
+        T_ = np.gradient(S, axis=0)
+        T_ /= np.linalg.norm(T_, axis=1)[:, None]
+        rel = edge[None] - S[:, None]                             # the edge loop's points round each station
+        along = np.abs(np.einsum("nkj,nj->nk", rel, T_))
+        across = np.abs(rel @ npl)
+        depth = np.abs(np.einsum("nkj,nj->nk", rel, surf.closest(S)[1]))
+        clear = ~np.any((along < STRAP_EDGE) & (across < STRAP_W / 2 + STRAP_EDGE) & (depth < 0.02), axis=1)
+        ok = (d_anchor > land) & np.logical_and.accumulate(clear)  # far enough from the slot, its width on the shell
+        i_land = int(np.nonzero(ok)[0].max())                     # (all the way from the back)
         sides[sg] = (S[:i_land + 1], s[:i_land + 1], E, up, back)
     # centre line on the shell, left landing -> back -> right landing, resampled every `step`
     SL, SR = sides[1][0][::-1], sides[-1][0][1:]
@@ -2635,8 +2671,8 @@ def build_goggle(body, Rt, prof):
     """The goggle on his head (MB rest frame), riding the head bone: frame, double lens, bare tear-off posts,
     outriggers, nose guard, face foam and the strap; his eyes behind it."""
     R, t = Rt
-    fr, info = build_frame(notch=True)                 # round 11: no bridge over his nose ridge (nose_back)
-    rings, _ = frame_rings(notch=True)
+    fr, info = build_frame(notch=WORN_NOTCH)           # round 11: no bridge over his nose ridge (nose_back)
+    rings, _ = frame_rings(notch=WORN_NOTCH)
     skin = body["V"][H.head_skin(body, ("head",))]
     skin_G = h2g((skin - t) @ R)
     foam, foam_back = build_foam(rings, info, skin_G)
@@ -2804,7 +2840,7 @@ MATERIALS["goggle_strap_in"] = H.MATERIALS["goggle_strap_in"]
 MATERIALS["goggle_strap"] = dict(image="goggle_strap_print.jpg", normal="goggle_strap_print_n.png", rough=0.85,
                                  sheen=0.12, spec=0.25,
                                  detail=dict(image="goggle_strap_weave.png", mask="goggle_strap_mask.png",
-                                             repeat=(0.645 * 1000.0 / 19.0, 1.0),    # SA.STRAP_LEN_UV / SA.TILE_MM
+                                             repeat=(0.644 * 1000.0 / 19.0, 1.0),    # SA.STRAP_LEN_UV / SA.TILE_MM
                                              bump_strength=0.35))
 MATERIALS["goggle_strap_rim"] = dict(image="goggle_strap_print.jpg", rough=0.85, sheen=0.12, spec=0.25)
 # round 11: the raised LEATT on the strap (goggle.strap_logo), an off-white rubber. Leatt's Pinata kit iso-right reads

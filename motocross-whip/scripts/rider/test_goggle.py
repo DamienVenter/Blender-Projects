@@ -468,7 +468,10 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
     "The actual goggles is not properly connected to it's strap"; round 3 had them 22 to 41 mm inside the shell
     with the strap starting 30 to 40 mm further out). Behind the eyeport's edge the inner face clears the shell by
     OR_GAP; the plate turns on its hinge (round 9: the frame's widest point) until it rests there; the strap's end
-    lies inside the outrigger, between its faces, and its first ring starts there."""
+    lies inside the outrigger, between its faces, and its first ring starts there. Joint front fit (decision 47):
+    with the eyeport's cut edge where Leatt's iso photos show it the plate's back end stands ahead of the side edge,
+    as in Leatt's Pinata iso-right (through the solved camera, the right plate's back end at mid height 772 px there),
+    and only its top back corner reaches the shell (the brow edge)."""
     Vo, Fo, prof = H.shell_outer()
     mount = G.shell_mount(prof)
     free = G.outrigger_grids()
@@ -476,7 +479,10 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
     S = G.h2g((np.vstack([built["parts"][n].V for n in ("goggle_strap", "goggle_strap_band")]) - t) @ R)
     for sg, (Go, Gi, anchor) in G.outrigger_grids(mount=mount).items():
         need = mount(Gi.reshape(-1, 3)).reshape(Gi.shape[:2])
-        assert (need[-1] > 0).all()                                         # its back end lies over the shell
+        assert need[-1, -1] > 0 and need[-1].sum() < need[-1].size          # its top back corner on the shell
+        if sg == -1:
+            px = H.cam_project(H.PRINT_CAMS["isoright"], G.g2h(Go[-1, Go.shape[1] // 2][None]))[0][0]
+            assert abs(px[0] - 772.0) < 15.0, f"back end {px[0] - 772.0:+.0f} px off Leatt's iso-right"
         gap = (np.abs(Gi[..., 0]) - need)[need > 0]
         assert G.OR_GAP - 1e-4 < gap.min() < G.OR_GAP + 0.0005              # ... resting on it, not inside
         assert np.allclose(Go[0], free[sg][0][0])           # front edge on the hinge, whatever each row's turn
@@ -495,6 +501,68 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         side = S[sg * S[:, 0] > 0.05]
         end = side[np.argmin(side[:, 1])]
         assert np.linalg.norm(end[[0, 1]] - anchor[[0, 1]]) < 0.012
+
+
+def test_strap_crosses_the_trim_to_the_shell():
+    """Decision 47: the eyeport's cut edge where Leatt's iso photos show it (helmet.PORT "iso", 16 to 23 mm behind the
+    side photo's notch). The strap leaves each outrigger, crosses the trim and lands on the shell where its whole width
+    lies on it: every station 45 mm wide (landing at the edge itself folded the walk across it onto the edge: 22.5 mm
+    wide and 2.5 mm tall over four stations, a wedge in the iso-right render), the landing STRAP_EDGE or more behind
+    the mesh's fair edge, so behind the cut edge as the photos show it (helmet.port_outline("iso"), 1.8 mm ahead of
+    the mesh's) at every point across the strap, each against the edge at its own height (the strap falls towards
+    the back, so its cross-section leans forward at the bottom). Main's strap landed on main's side notch, about
+    15 mm ahead of it."""
+    Vo, Fo, prof = H.shell_outer()
+    surf = G.Surface(Vo, Fo)
+    base, nrm, s, (kL, kR) = G.strap_layout(surf, G.strap_ends(G.shell_mount(prof)))
+    width = np.linalg.norm(base[:, -1] - base[:, 0], axis=1)
+    assert width.min() > G.STRAP_W - 0.0015, f"strap {width.min() * 1000:.1f} mm wide at station {width.argmin()}"
+    a = np.array(H.port_outline("iso"))
+    b = np.roll(a, -1, axis=0)
+
+    def rear(z):
+        """the cut edge's rearmost y at height z: where the outline's segments cross z"""
+        dz = b[:, 1] - a[:, 1]
+        t = (z - a[:, 1]) / np.where(dz != 0, dz, np.inf)
+        ok = (t >= 0) & (t <= 1)
+        return (a[ok, 0] + t[ok] * (b[ok, 0] - a[ok, 0])).max()
+
+    for i in (kL, len(base) - 1 - kR):                        # the landing stations
+        gap = np.array([base[i, j, 1] - rear(base[i, j, 2]) for j in range(base.shape[1])])
+        assert gap.min() > 0.002, f"lands {gap.min() * 1000:+.1f} mm behind the cut edge at its height (2 mm or more)"
+
+
+def test_strap_lies_where_his_07_shows_it():
+    """Decision 47: his photo 07 (side-on, his left) is a camera in the helmet frame fitted to the helmet's points and
+    print (research/his-photo-cameras.json, landmarks rms 2.6 px). Goggle round 8's picks of the strap's upper and
+    lower edges there (photo px, between the chevron panel's lower stripe and the pink panels) against the built
+    strap's edges projected through it, mm at the edge's depth: rms under 10 mm, no side off by more than 6 mm on
+    average. Main's plane (-13.5 mm, rising 3 deg, fitted through a camera fitted to the goggle) put it 37 mm above
+    them on average (rms 39), over the chevron panel."""
+    import his_cameras
+    cam = his_cameras.load()["07"]
+    up = [(690, 110), (705, 104), (720, 99), (735, 91), (750, 84), (765, 78)]
+    lo = [(690, 132), (705, 125), (720, 119), (735, 112), (750, 104), (765, 99)]
+    Vo, Fo, prof = H.shell_outer()
+    base, nrm = G.strap_layout(G.Surface(Vo, Fo), G.strap_ends(G.shell_mount(prof)))[:2]
+    top = G.STRAP_CLEAR + G.SIL_H + G.STRAP_T
+    off = []
+    for picks, j in ((up, -1), (lo, 0)):
+        E = base[:, j] + nrm[:, j] * top
+        E = E[E[:, 0] > 0]                                     # his left side
+        q = (E - cam["C"]) @ np.asarray(cam["R"]).T
+        uv = np.c_[cam["cx"] + cam["f"] * q[:, 0] / q[:, 2], cam["cy"] - cam["f"] * q[:, 1] / q[:, 2]]
+        a, b = uv[:-1], uv[1:]
+        for pk in np.array(picks, float):
+            t = np.clip(((pk - a) * (b - a)).sum(1) / np.maximum(((b - a) ** 2).sum(1), 1e-12), 0, 1)
+            P = a + (b - a) * t[:, None]
+            d = np.linalg.norm(P - pk, axis=1)
+            i = int(np.argmin(d))
+            off.append(d[i] * np.sign(P[i, 1] - pk[1]) * q[i, 2] * 1000.0 / cam["f"])   # mm, + below the pick
+    off = np.array(off)
+    rms = np.sqrt((off ** 2).mean())
+    assert rms < 10.0 and abs(off[:6].mean()) < 6.0 and abs(off[6:].mean()) < 6.0, \
+        f"strap edges rms {rms:.1f} mm off his 07 (upper {off[:6].mean():+.1f}, lower {off[6:].mean():+.1f} mm)"
 
 
 STRAP_PARTS = ("goggle_strap_band", "goggle_strap", "goggle_slides")

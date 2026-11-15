@@ -31,9 +31,12 @@ ISO_BG = (236.0, 236.0, 236.0)             # Leatt's backdrop
 ISO_X_EDGE, ISO_X_FAR = 826, 224           # px: the strap leaves the outrigger's back edge; the last full column
 ISO_ROWS = (700, 1150)
 
-STRAP_LEN_UV = 0.645       # m: the built strap's centre line (round 8: 618.8 mm; round 9's hinged outriggers put
-                           # its ends 13 mm further forward: 645.0) on the shell; u = s / s_total. The printed
-                           # face's centre line, 3.3 mm out, is 648.4 mm (0.5 % longer: the weave tile reads 19.1)
+STRAP_LEN_UV = 0.644       # m: the built strap's centre line (round 8: 618.8 mm; round 9's hinged outriggers put
+                           # its ends 13 mm further forward: 645.0; decision 47: the goggle 4.6 mm further back on
+                           # the helmet, the strap straight over the trim to its landing behind the eyeport's edge
+                           # and its plane refitted to his 07 (goggle.STRAP_PLANE): 643.6) on the shell;
+                           # u = s / s_total. The printed face's centre line stands 3.3 mm
+                           # out (about 0.5 % longer)
 TEX_W, TEX_H = 4096, 384   # texels: 6.6 per mm along, 8.5 across
 W_MM = 45.0
 ANCHOR_MM = 10.0           # the strap's end lies this far inside the outrigger's back end (goggle.OR_ANCHOR)

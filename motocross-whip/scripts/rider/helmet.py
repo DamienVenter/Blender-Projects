@@ -69,20 +69,20 @@ FACE_PORT = [                    # chin bar top, the port's side edge (inner edg
     (649, 788), (625, 768), (597, 752), (569, 738), (548, 724), (539, 703)]
 # Round 2: in the side photo the port's notch is bounded by the cheek pads, which fill the opening ahead of the
 # shell's edge; the shell's own edge (the rubber trim's inner edge) shows in Leatt's Pinata iso-left photo (no
-# goggle). Its rear part, cast through that camera onto the width field (px -> helmet frame y, z in m): chin bar
-# top (980, 1150) to (1150, 1120), side edge (1175, 1090) to (1196, 800), brow edge (1160, 795) to (920, 772).
-# FACE_PORT keeps its centre parts (chin bar top up to (536, 1146), brow edge from (676, 806)).
-PORT_REAR = [(-0.1265, -0.0587), (-0.1160, -0.0624), (-0.1054, -0.0658), (-0.0946, -0.0678), (-0.0836, -0.0689),
-             (-0.0723, -0.0682), (-0.0628, -0.0654), (-0.0578, -0.0593), (-0.0555, -0.0483), (-0.0530, -0.0328),
-             (-0.0505, -0.0174), (-0.0483, -0.0019), (-0.0470, 0.0047), (-0.0546, 0.0069), (-0.0659, 0.0097),
-             (-0.0764, 0.0124), (-0.0866, 0.0152), (-0.0965, 0.0185)]
-PORT_KEEP = (8, 24)                # FACE_PORT points kept: [:8] (chin bar top) and [24:] (brow edge)
-# The port the build uses. "side": FACE_PORT as traced (main's shell, the one goggle.py places the goggle on).
-# "iso": round 2's edge above, which matches Leatt's iso-left photo (-5 to +4 px against 185 to 221 px) but leaves
-# the goggle's outriggers 21 to 23 mm ahead of the edge (Leatt's iso-right photo has them over the trim): the strap
-# then bridges the opening and three goggle tests fail. The goggle and the brow (20.6 mm too far forward, both iso
-# photos) must move back together first: decision 44, open for Damien and the goggle agent.
-PORT = "side"
+# goggle). Its rear part, picked on that photo (px): chin bar top (816, 1131) to (1163, 1120), side edge (1186, 1090)
+# to (1192, 800), brow edge (1158, 795) to (950, 770). Joint front fit (decision 47): cast onto the shell through the
+# solved iso-left camera (helmet.PRINT_CAMS, research/helmet-ba.json; round 2's single-photo camera, CAMS, put the
+# edge 16 to 18 mm too far back: through the solved camera it landed 75 to 80 px behind the photo's edge). Helmet
+# frame (y, z), m. FACE_PORT keeps its centre parts (the chin bar top's first seven points, the brow edge from
+# its 26th).
+PORT_REAR = [(-0.1421, -0.0620), (-0.1319, -0.0657), (-0.1214, -0.0692), (-0.1109, -0.0715), (-0.1000, -0.0727),
+             (-0.0886, -0.0722), (-0.0793, -0.0694), (-0.0744, -0.0631), (-0.0721, -0.0520), (-0.0700, -0.0362),
+             (-0.0677, -0.0203), (-0.0660, -0.0045), (-0.0651, 0.0022), (-0.0723, 0.0045), (-0.0828, 0.0073),
+             (-0.0895, 0.0129), (-0.1000, 0.0208), (-0.1086, 0.0259)]
+PORT_KEEP = (7, 25)                # FACE_PORT points kept: [:7] (chin bar top) and [25:] (brow edge)
+# The port the build uses. "iso" (decision 47): the cut edge above, 16 to 23 mm behind the side photo's notch, with
+# the cheek pads in the opening ahead of it. "side": FACE_PORT as traced at Royal_Left's notch (rounds 1 to 4).
+PORT = "iso"
 
 
 def port_outline(kind=None):
@@ -569,8 +569,20 @@ GAP = 0.002                        # m between his skin and the comfort liner's 
 T_MIN, T_MAX = 0.018, 0.040        # m, shell + EPS + pads at their thinnest (chin bar) and fullest (crown)
 T_MIN_PORT = {"side": 0.018, "iso": 0.014}  # 14 mm with the iso port: its lower rear corner reaches 10 to 15 mm
                                    # lower, over his cheeks (the cheek pads fill it); 18 mm put 4 cheek vertices inside
-EYE_TO_BROW = 0.040                # m, face port's top edge above his eye centres (goggle centred on them)
-FORE_MIN = 0.032                   # m, the brow (outer) at least this far ahead of his forehead
+# The helmet on his head from the liner build-up (joint front fit, decision 47; main placed it by two rules: the
+# port's top edge 40 mm above his eyes and his forehead at least 32 mm behind the brow, the rest even all round).
+# Leatt Technical File 172 r01 (section 8, in the Moto 8.5 kit document): shell M/L 260 x 350 x 300 mm, EPS 256 x
+# 287 x 270 (W x L x H). The table's outer rows read reversed (XS/S 268 x 361 x 309 is the largest, against the weights
+# XS/S 1250 to XL/XXL 1430 g, section 7.10); M/L, the middle row, is the same either way. The EPS's length less his
+# head's (fore to back, head_landmarks) is the EPS and comfort liner's build-up, shared front and back; the shell's
+# wall is our brow-to-back 288.8 mm less the EPS's 287 (0.9 mm a side). The crown takes the same build-up (EST: an
+# even EPS over the cap; the file gives no crown figure). Pitch, fore-aft and height are fitted so the shell stands
+# that far off his crown, forehead and back; the sides follow from the shell's width (more there: the cheek pads,
+# 25 to 40 mm by size in Leatt's spares, and the EPS's flare fill it). Checked: the port's top edge above his eyes
+# (ECE 22.06 6.15, upward visual clearance 7 deg at least: the file's test report passes it).
+EPS_LENGTH = 0.287                 # m, TF 172 M/L
+SHELL_WALL = 0.0009                # m, brow to back: our 288.8 mm against the EPS's 287
+UP_CLEARANCE_MIN = 7.0             # deg, ECE 22.06 6.15.3.2
 
 
 def head_skin(body, bones=("head", "jaw", "neck03", "neck02", "neck01")):
@@ -612,35 +624,45 @@ def head_landmarks(body):
                 right=sk[np.argmin(sk[:, 0])], fore=fore[np.argmin(fore[:, 1])])
 
 
+def build_up(L):
+    """m, the shell's stand-off from his head at the crown, forehead and back (EPS, comfort liner and the wall)."""
+    return (EPS_LENGTH - (L["back"][1] - L["fore"][1])) / 2 + SHELL_WALL
+
+
 def fit_on_head(body, Vo, Fo, prof):
-    """Place the helmet on his head: the face port's top edge EYE_TO_BROW above his eye centres on the centre
-    line (the goggle then sits centred on his eyes in the port); pitch and fore-aft shift chosen so the shell
-    stands off his skull evenly at the top, back and sides (equal EPS and padding all round) with the forehead
-    at least FORE_MIN behind the brow. Returns R, t (p_MB = R p_H + t) and the gaps."""
+    """Place the helmet on his head from the liner build-up (decision 47): pitch, fore-aft and height so the shell
+    stands build_up() off his crown, forehead and back (nearest distances to the outer surface), centred across.
+    Returns R, t (p_MB = R p_H + t) and the gaps, the brow's place and the upward clearance from his eyes."""
+    from scipy.optimize import least_squares
     L = head_landmarks(body)
     C = np.vstack([Vo, Vo[Fo].mean(1)])
     tree = cKDTree(C)
     b = brow_point(prof)
+    T = build_up(L)
 
-    def place(th, dy):
+    def place(th, dy, dz):
         R = rot_x(th)
-        return R, np.array([0.0, L["eye"][1] + dy, L["eye"][2] + EYE_TO_BROW]) - R @ b
+        return R, np.array([0.0, L["eye"][1] + dy, L["eye"][2] + dz]) - R @ b
 
-    def gaps(th, dy):
-        R, t = place(th, dy)
-        return {k: tree.query((L[k] - t) @ R)[0] for k in ("top", "back", "left", "right", "fore")}
+    def gaps(p, keys=("top", "fore", "back")):
+        R, t = place(*p)
+        return np.array([tree.query((L[k] - t) @ R)[0] for k in keys])
 
-    best = None
-    for th in np.radians(np.arange(0.0, 25.01, 0.5)):
-        for dy in np.arange(-0.070, -0.0199, 0.001):
-            g = gaps(th, dy)
-            ring = np.array([g["top"], g["back"], g["left"], g["right"]])
-            cost = ring.std() + 10 * max(0.0, FORE_MIN - g["fore"])
-            if best is None or cost < best[0]:
-                best = (cost, th, dy, g)
-    R, t = place(best[1], best[2])
-    return R, t, dict(pitch_deg=round(math.degrees(best[1]), 2), brow_ahead_of_eye_mm=round(-best[2] * 1000, 1),
-                      gaps_mm={k: round(float(v) * 1000, 1) for k, v in best[3].items()})
+    best = None                                   # coarse grid, then least squares on the three stand-offs
+    for th in np.radians(np.arange(0.0, 30.01, 1.0)):
+        for dy in np.arange(-0.090, -0.0399, 0.002):
+            for dz in np.arange(0.010, 0.0701, 0.002):
+                c = np.sum((gaps((th, dy, dz)) - T) ** 2)
+                if best is None or c < best[0]:
+                    best = (c, (th, dy, dz))
+    p = least_squares(lambda p: (gaps(p) - T) * 1000, best[1], diff_step=1e-3, x_scale=[0.02, 0.002, 0.002]).x
+    R, t = place(*p)
+    g = dict(zip(("top", "back", "left", "right", "fore"), gaps(p, ("top", "back", "left", "right", "fore"))))
+    brow = R @ b + t
+    up = math.degrees(math.atan2(brow[2] - L["eye"][2], L["eye"][1] - brow[1]))
+    return R, t, dict(pitch_deg=round(math.degrees(p[0]), 2), brow_ahead_of_eye_mm=round(-p[1] * 1000, 1),
+                      brow_above_eye_mm=round(p[2] * 1000, 1), build_up_mm=round(T * 1000, 1),
+                      up_clearance_deg=round(up, 1), gaps_mm={k: round(float(v) * 1000, 1) for k, v in g.items()})
 
 
 def shell_solid(Vo, Fo, skin_H):
@@ -937,9 +959,14 @@ def cam_project(x, Q):
     return np.c_[960 + f * q[:, 0] / q[:, 2], 960 - f * q[:, 1] / q[:, 2]], q[:, 2]
 
 
-# atlas islands: (name, origin u, v in texels, axes): side views by (y, z), top by (x, y), back/front by (x, z)
+# atlas islands: (name, origin u, v in texels, axes): side views by (y, z), top by (x, y), back/front by (x, z).
+# Joint front fit (decision 47): the visor's faces each in the island of its normal's largest component, as the
+# shell's: the top by (x, y) in V, the steep wings by (y, z) in VL and VR, the faces turned forward (its tip, the
+# wings' front edges) or back by (x, z) in VF and VB. In the one top projection their texels stretched up to 97 times
+# (1 / |n_z|): the side LEATT and the print on the wing came out in horizontal steps (Royal 1:1, sheet 10).
 ISLANDS = {k: (2 * u, 2 * v) for k, (u, v) in
-           dict(L=(0, 0), R=(820, 0), T=(0, 700), B=(600, 700), F=(1200, 700), V=(0, 1500)).items()}
+           dict(L=(0, 0), R=(820, 0), T=(0, 700), B=(600, 700), F=(1200, 700), V=(0, 1500), VL=(580, 1450),
+                VR=(1150, 1450), VF=(580, 1700), VB=(1200, 1700)).items()}
 
 
 def island_uv(name, P):
@@ -955,6 +982,10 @@ def island_uv(name, P):
         u, v = (x + 0.14) * k, (0.16 - y) * k
     elif name in ("B", "F"):
         u, v = ((0.14 - x) if name == "B" else (x + 0.14)) * k, (z + 0.18) * k
+    elif name in ("VL", "VR"):
+        u, v = ((y + 0.225) if name == "VL" else (0.012 - y)) * k, (z - 0.04) * k
+    elif name in ("VF", "VB"):
+        u, v = ((x + 0.13) if name == "VF" else (0.13 - x)) * k, (z - 0.04) * k
     else:
         u, v = (x + 0.13) * k, (0.02 - y) * k
     return np.c_[ou + u, ov + v]
@@ -969,9 +1000,18 @@ def face_island(N):
 
 
 def atlas_uvs(V, F, visor=False):
-    """Face-corner UVs (0..1) for an outer surface, each face in the island of its normal (visor: V)."""
+    """Face-corner UVs (0..1) for an outer surface, each face in the island of its normal (visor: V, VL, VR, VF, VB;
+    a quad's normal from its diagonals: the visor's tip has quads whose first three corners nearly meet)."""
     fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
-    isl = np.full(len(F), "V") if visor else face_island(fn)
+    if visor:
+        if F.shape[1] == 4:
+            fn = np.cross(V[F[:, 2]] - V[F[:, 0]], V[F[:, 3]] - V[F[:, 1]])
+        fn = fn * np.sign(fn[:, 2].sum())                     # outward (up) whatever the grid's winding
+        a = np.abs(fn)
+        isl = np.where((a[:, 0] >= a[:, 2]) & (a[:, 0] >= a[:, 1]), np.where(fn[:, 0] > 0, "VL", "VR"),
+                       np.where(a[:, 1] > a[:, 2], np.where(fn[:, 1] < 0, "VF", "VB"), "V"))
+    else:
+        isl = face_island(fn)
     UV = np.zeros((len(F), F.shape[1], 2))
     for name in np.unique(isl):
         m = isl == name
