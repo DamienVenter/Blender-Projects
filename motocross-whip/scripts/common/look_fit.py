@@ -535,6 +535,52 @@ def bike_red(exr_path, index, red_srgb, work, ev7=0.0):
     return out
 
 
+def sheet(view, exr_path, out, panel_scale=2, ev=0.0, region=None, vertical=False):
+    """A before / after sheet: his photo (Lanczos up to the panel scale) | decision 46's look | the scene look
+    ("daylight" at ev), both renders from the view's linear EXR (box-averaged to panel_scale x the photo's pixels,
+    then through Blender's look_apply). region "x0,y0,x1,y1" in the photo's (crop's) pixels; vertical stacks the
+    panels (wide views)."""
+    from PIL import ImageDraw, ImageFont
+    photo, crop, s = VIEWS[view]
+    lin = exr.layer(exr.read(exr_path), "Combined")[..., :3]
+    im = Image.open(os.path.join(PHOTO_DIR, photo)).convert("RGB")
+    if crop:
+        x, y, n = crop
+        im = im.crop((x, y, x + n, y + n))
+    x0, y0, x1, y1 = (0, 0, im.width, im.height) if region is None else region
+    im = im.crop((x0, y0, x1, y1))
+    k = s // panel_scale
+    lin = lin[y0 * s:y1 * s, x0 * s:x1 * s]
+    lin = box(lin, k).mean((1, 3)) if k > 1 else lin
+    panels = [np.asarray(im.resize((lin.shape[1], lin.shape[0]), Image.LANCZOS)).astype(float) / 255.0,
+              blender_look(lin.reshape(-1, 3), "d46").reshape(lin.shape),
+              blender_look(lin.reshape(-1, 3), "daylight", ev).reshape(lin.shape)]
+    labels = ["his photo %s" % photo.split("_")[0], "AgX - Punchy -0.6 (decision 46)",
+              "scene look, daylight (decision 54)%s" % ("" if ev == 0 else ", %+.2f EV" % ev)]
+    font = ImageFont.truetype("/usr/share/fonts/opentype/inter/Inter-Regular.otf", max(14, lin.shape[1] // 40)) \
+        if os.path.exists("/usr/share/fonts/opentype/inter/Inter-Regular.otf") else ImageFont.load_default()
+    tiles = []
+    for p, t in zip(panels, labels):
+        tile = Image.fromarray((np.clip(p, 0, 1) * 255).round().astype(np.uint8))
+        bar = Image.new("RGB", (tile.width, font.size + 12), (24, 24, 24))
+        ImageDraw.Draw(bar).text((8, 5), t, fill=(235, 235, 235), font=font)
+        both = Image.new("RGB", (tile.width, tile.height + bar.height))
+        both.paste(bar, (0, 0))
+        both.paste(tile, (0, bar.height))
+        tiles.append(both)
+    g = 6
+    if vertical:
+        sh = Image.new("RGB", (tiles[0].width, sum(t.height for t in tiles) + 2 * g), (255, 255, 255))
+        for i, t in enumerate(tiles):
+            sh.paste(t, (0, i * (t.height + g)))
+    else:
+        sh = Image.new("RGB", (sum(t.width for t in tiles) + 2 * g, tiles[0].height), (255, 255, 255))
+        for i, t in enumerate(tiles):
+            sh.paste(t, (i * (t.width + g), 0))
+    sh.save(out, quality=92)
+    print("SHEET", out, sh.size)
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "pairs":
@@ -544,6 +590,10 @@ if __name__ == "__main__":
         res = bike_red(a[1], a[2], [int(v) for v in a[3].split(",")], a[a.index("--work") + 1],
                        float(a[a.index("--ev7") + 1]) if "--ev7" in a else 0.0)
         json.dump(res, open(a[a.index("--out") + 1], "w"), indent=1)
+    elif a[0] == "sheet":                        # sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
+        opt = {k: a[a.index(k) + 1] for k in ("--scale", "--ev", "--region") if k in a}
+        sheet(a[1], a[2], a[3], int(opt.get("--scale", 2)), float(opt.get("--ev", 0.0)),
+              tuple(int(v) for v in opt["--region"].split(",")) if "--region" in opt else None, "--vertical" in a)
     elif a[0] in ("fit", "report"):
         P = load_pairs([a[1]])
         work, out = a[a.index("--work") + 1], a[a.index("--out") + 1]

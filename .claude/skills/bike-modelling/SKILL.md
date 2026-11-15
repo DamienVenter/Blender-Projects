@@ -37,8 +37,14 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
 ## Rendering gotchas
 - A single-sided floor whose faces point down renders BLACK in Cycles (no light from behind). Wind the faces so the
   normals face the bike.
-- Saturated red: AgX "Medium High Contrast" with strong studio light turned his red salmon-pink. AgX - Punchy,
-  exposure -0.6 and little clear coat match his bike.
+- Saturated red: AgX "Medium High Contrast" with strong studio light turned his red salmon-pink; AgX - Punchy -0.6
+  (decision 46) was the look until decision 54. Now `scene_look.apply(sc, "scene")` for the studio-lit views and
+  `"studio"` (Standard at STUDIO's exposure) for the honda_* views (`build_bike.render`, `rake.py`). A tone curve per
+  channel crushes the red's G and B (G 7 against 47 in his 07); the shipped curve on max(R,G,B) keeps them (50).
+  Under it, at photo 07's own exposure, RED (208, 10, 22) reads 218, 42, 38 against his 189, 47, 49 (dE 16.9 / 14.7
+  median / lit); RED (187, 28, 49) matches (4.1 / 6.9; `look_fit.py bike`, research/scene-look.md). Not applied:
+  `kit_canvas.RED` paints the same plastic in the kit textures (test_kit checks it): move both together, then
+  recheck the honda views against Honda's photos.
 - Relative texture paths load as magenta: pass absolute paths to bpy.data.images.load.
 - Solid discs and sprockets hide the spokes: real ones are rings full of holes (`plate2d`).
 - Bar pad lettering must read from the front AND from the seat: pick the UV direction by the face normal.

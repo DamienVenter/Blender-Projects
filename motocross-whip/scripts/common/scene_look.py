@@ -189,6 +189,10 @@ def _compositor(scene, gains, p=P, xmax=XMAX):
     g["scene_look"] = dict(gains=[float(v) for v in gains], p=float(p), xmax=float(xmax))
     scene.compositing_node_group = g
     scene.render.use_compositing = True
+    # 5.2's default compositor device is the GPU (no GPU on the build server: EGL errors, then a fall-back) and its
+    # precision AUTO may run half floats there: the CPU at full precision gives the same pixels everywhere
+    scene.render.compositor_device = "CPU"
+    scene.render.compositor_precision = "FULL"
 
 
 def _linear(scene):

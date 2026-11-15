@@ -42,6 +42,27 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
 - **Materials**: never set `Material.use_nodes` / `World.use_nodes` (deprecated, nodes exist already). Address Principled BSDF sockets by NAME: 5.2 inserted `Thin Wall` at index 5, shifting every index after `Alpha`.
 - **Geometry Nodes modifier inputs** (5.2): `mod.properties.inputs.Socket_2.value`, not `mod["Socket_2"]`.
 - **Compositor**: `scene.node_tree` and the Composite node are gone; node options are inputs set by UI label. Set the compositor device to CPU on this server.
+- **Compositor as a look** (5.2, decision 54, `scripts/common/scene_look.py`): build a `CompositorNodeTree` group, give
+  it an output with `g.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")` and a
+  `NodeGroupOutput`, set `scene.compositing_node_group = g`; `-b` renders run it. Usable inside: ShaderNodeMath,
+  ShaderNodeVectorMath, ShaderNodeMix (`clamp_factor`, `clamp_result` False), ShaderNodeClamp, ShaderNodeSeparateXYZ /
+  CombineXYZ, CompositorNodeSeparateColor / CombineColor (keep the alpha), CompositorNodeSetAlpha; not
+  ShaderNodeSeparateColor. 5.2.3's default `render.compositor_device` is GPU: here it prints EGL errors and falls
+  back; set `compositor_device = "CPU"` and `compositor_precision = "FULL"` (the same pixels on any machine). The
+  viewport shows it only with Viewport Shading's Compositor on Camera or Always.
+- **View curve mapping** (`view_settings.curve_mapping`): applied to scene-linear values before the view's exposure;
+  `white_level` divides per channel first (1 / white_level is a gain); its table is 257 entries over clip_min_x to
+  clip_max_x (`extend="HORIZONTAL"` holds the end values); the R, G, B curves are composed with C, so for C alone
+  they run straight (0, 0) to (XMAX, XMAX). Per channel only: `tone="FILMLIKE"` still puts the smallest channel
+  through the curve, so it cannot keep a saturated colour's hue (a toe crushed the bike's red to G 7, his photo 47).
+- **Exact pixels through a look** (`scripts/common/look_apply.py`): a float image ("Linear Rec.709", Closest) on an
+  emission plane filling an ortho camera, Cycles 1 sample, `filter_width` 0.01, `dither_intensity` 0, no world: each
+  pixel is its texel (within a level of the numpy reference). Renders under 4 px a side get black rows added (the
+  minimum size): pad the input.
+- **Diffuse Color pass** carries the clear coat's Fresnel loss: RED's 0.631 linear reads 0.602 at coat 0.08. A scene-
+  referred EXR for fitting: multilayer, 32-bit, `exr_codec = "NONE"` (`scripts/common/exr.py` reads it; the
+  compositor test wrote codec 3 by default), passes Diffuse Color, Depth (`> 1e9` is the sky), Material Index
+  (`material.pass_index` set per material); `SCENE_LOOK=linear` does all this through any of the scripts.
 - **Video output**: set `image_settings.media_type` before `file_format`, or `'FFMPEG'` is rejected.
 - **Sky**: `sky_type='NISHITA'` is rejected; use `MULTIPLE_SCATTERING`. EEVEE id is `BLENDER_EEVEE`. `bgl` is gone.
   Sun direction d (unit, towards the sun): `sun_elevation = asin(d.z)`, `sun_rotation = atan2(d.x, d.y)` (checked
@@ -49,6 +70,7 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
   sky puts about 14.9 (luminance units) on a horizontal plane at sun elevations 60 to 75 deg: scale its strength from
   that, not by eye (rider-modelling, round 6 daylight).
 - **Colour**: keep the working space Linear Rec.709; AgX is the default view; looks are named like `'AgX - Punchy'`.
+  Our renders take their look from `scene_look.apply(scene, kind)` (decision 54), never their own view settings.
 - Render passes are spelled out (`Depth`, not `Z`).
 
 ## Workbench for motion review
