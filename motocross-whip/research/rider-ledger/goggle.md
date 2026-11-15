@@ -731,6 +731,182 @@ shade behind a 58 % lens. With the clear lens (phr, red) and the light Iriz (iso
   does: half resolution against 5.2.3's full resolution downsampled, mean absolute difference 0.73 and 0.37 of 255
   (after a 3 px blur 0.46, p99 6: sampling noise at 48 samples).
 
+## 11. Round 9: slides, woven strap, hinged outriggers (decision 45)
+Fixed in the brief's order. Sources: Leatt's MY27 Blue/Red kit back view at 1:1 (0.214 mm/px along the strap, 0.207
+across: round 8's 0.204 mm/px with the strap turned 18 deg out of the image plane), the Forge back 8024070250 and the
+Neon Yellow back 8022010380 for the parts, Leatt's 5.5 back photos on their shop for the slide colours (29 images,
+scratch dl/full), the Pinata Teal goggle ISO 8026000150 (iso55) and kit iso-right, his photo 07.
+
+### Slides (goggle.slide_parts; constants SLIDE_*, TAB_*)
+Each slide is a flat moulded frame (2.2 mm, SLIDE_T) with rounded outer corners (1.8 mm, 8 px) and soft edges (0.6 mm
+round: the highlight along every bar), bent to the strap's curve; 22 x 52 mm outside as round 8. Rails 3.8 mm above
+and below the strap (15 to 17 px show past its edges), their inner corners square where the bars meet them.
+- How the strap threads: the strap comes from the left outrigger under the left slide's end bars (hidden, not
+  built), the tail comes up out of the slot beside the left slide's centre bar (a quarter round over 1.6 mm,
+  TAIL_FOLD), passes under that bar and runs doubled over the strap to the right slide, folds round its left end bar
+  and centre bar and goes into the slot beside its outer bar.
+- The left slide: one centre bar (x 772 to 797 px: 5.3 mm) with an embossed LEATT (14 mm long, 3 mm letters, a normal
+  map) that stands 4.0 mm off the strap (SLIDE_CBAR_T) over the tail: its wall catches the light and the tail beside
+  it lies in its shadow (x 797 px), as in the photo.
+- The right slide: end bars 3.6 mm (17 px), a centre bar, and the grip tab on its outer bar (x 1240 to 1280, y 885
+  to 1010 px: TAB_POLY), sloped at the top, with Leatt's triangle (x 1238 to 1278, y 890 to 935 px) above a groove
+  and a staggered field of dimples (10 px pitch).
+- The doubled tail (goggle.build_tail): from the left slide to the right slide's outer bar; two folds round the
+  right slide's bars standing 3.0 mm over the tail (ROLL_H), each a parabola across (the photo's folds brighten
+  steadily, 93 to 154 of 255 lit from his right; an ellipse's flat top rendered flat), rounded over 2 mm at the
+  strap's edges.
+- Colour: no photo shows the Pinata Teal's slides. In Leatt's back photos they are moulded in a colour of the strap's
+  design: the strap's base on Forge (white), Fuel (teal) and Neon Yellow (cyan), its edge colour on MY27 Blue/Red and
+  Royal (navy), black or an accent on the others. By the brief's rule (Forge: the strap's base; MY27: its edges) and
+  with no edge colour on the Pinata strap: the print's base colour where the slides sit, the median of
+  goggle_strap_print.jpg's middle band over the u the slides cover (scratch slidecol.py): 112/159/138 (top band
+  123/165/145, bottom 91/151/125). The MY27 comparison renders use navy 30/42/70 (sRGB; AgX desaturates bright blues).
+- Test: test_round9_slides_are_moulded_frames (top faces cover 38 % of the left slide's outline and 66 % of the
+  right one's; the left centre bar over the tail stands higher off the shell than any bar of the right slide).
+
+### The line across the strap (item 3)
+Leatt's is a soft fold, not a step: a crease where the doubled run starts under the right slide (x 1115 px) and the
+gap between the two folds, dark lines 2 to 4 px wide (0.4 to 0.8 mm). Modelled as the fabric pressed down to a quarter
+of its thickness over 0.4 mm (CREASE_W, CREASE_DEPTH), sampled at 25 points within 1.2 mm of each crease.
+
+### Woven elastic (goggle_strap_art.py; textures goggle_strap_print.jpg, _print_n.png, _weave.png, _mask.png)
+Measured in the MY27 back view at 1:1 (scratch fabstat.py, acfcmp.py): knit loops about 0.65 x 0.45 mm (the grain 3 x
+2 px), a jacquard repeat of 1.9 mm along (autocorrelation peak at 9 px), the albedo spread 15 to 24 % of the mean in
+the blue body; woven selvedges 5.2 mm (25 of the strap's 217 px at each edge; the brief's "about 4 mm"), finer knit
+with light flecks on navy and a faint diagonal rib.
+- Built as a detail tile 19 mm along by the strap's width at 24 texels a mm (29 loops, 10 jacquard repeats), repeated
+  along the strap (repeat 645 / 19): its red channel the relief (1.4 mm range, a bump node at strength 0.3), its green
+  the albedo factor (body mottle 0.75, the selvedges' dark ground and flecks normalised to a mean of 1), multiplied
+  into the print where the mask is white (not on the LEATT). At the print's 6.6 texels a mm the renders' grain was
+  1.5 px wide at 1:1 against the photo's 0.9; with the tile it matches in the body.
+- The print's normal map keeps only the seam, the edges' 0.35 mm round-over and the raised LEATT (0.8 mm, a silicone
+  print: its walls show in the Pinata kit iso-right).
+- The strap's centre line on the shell is now 645.0 mm (round 8: 618.8; the hinged outriggers put its ends 13 mm
+  further forward): STRAP_LEN_UV and the repeat follow it. Its printed face, 3.3 mm out, is 648.4 mm along the centre
+  line, so a tile reads 19.1 mm there (test_round9_woven_strap_scale: the centre line's length over its u span); the
+  strap wraps a cone-like shell, so its edges run 662.9 and 630.5 mm (19.4 and 18.6 mm a tile), as an elastic
+  stretched round it would. A median of every edge's ratio read 19.36 (the stations are densest where it bends).
+- The doubled tail's u followed the strap beneath it, so up out of the slot and over the rolls its face ran up to 4.2
+  times as far as its u (p90 3.1, scratch tilecheck.py): the weave stretched on the folds' flanks. Its u now follows
+  its own centre line (goggle.build_tail); every centre edge of the main run and the tail is within 5 % of 19 mm a
+  tile (main 0.976 to 1.032 of it), the test's new bound.
+- The band's side faces (goggle_strap) keep round 8's four rows of vertices (outer bottom, outer top, inner top,
+  inner bottom edge, one per station): test_helmet's width check reads the strap's width from them (45 mm). Its
+  ends are caps on goggle_strap_band.
+- MY27 back at 1:1 (box renders without the denoiser, which smooths the weave away at low samples): luminance sd /
+  mean at the high pass body 0.164 against the photo's 0.256, selvedges 0.328 against 0.564. Still flatter than
+  Leatt's.
+- The Pinata strap in the kit iso-right (scratch grain.py: its coloured pixels, the luminance's sd over a 3 px blur
+  over the mean, and the HSV saturation): the photo's grain 0.137 and saturation 0.92, ours 0.188 and 0.65 (the print
+  texture itself 0.79); Leatt's goggle ISO 0.106 and 0.84. A trial at MOTTLE 0.5 read 0.159 and 0.65: the mottle is
+  part of the grain, none of the dullness. The same measure on the MY27 back (box 716,864 to 1016,1004): photo
+  0.216 and 0.93, ours 0.155 and 0.61. So the two photos pull apart on grain: the MY27 jacquard (two yarn colours)
+  wants more, the Pinata sublimation print less. MOTTLE stays 0.75 (the brief's MY27 measure). Both agree on the
+  colour: our strap renders a third less saturated than either photo (0.61 to 0.65 against 0.92 to 0.93), round 8's
+  strap too: the print is sampled from photos and shown under AgX, which desaturates bright colours. A later round
+  should calibrate the print through the renderer (render, measure, correct). In his photo 07 at its own
+  resolution the strap reads as round 8's, a little darker; at 4x the weave shows as a fine speckle the blurred
+  photo cannot show.
+- The back view's light (camera "lights" in goggle_views.py): a key from his right and behind (-1.8, 0.9, 1.0 m,
+  260 W), a fill from his left (1.8, 0, 1.0, 160 W), a dim top (50 W). The front studio rig lit the tail's folds flat
+  and a rig symmetric about the strap shaded both folds alike; a plain grey material showed the geometry was right.
+- The Pinata print against Leatt's two photos of it: sampled from the goggle ISO (the docstring of
+  goggle_strap_art.py); in the kit iso-right the same hues run in the same order back from the outrigger (orange and
+  yellow, pink, purple, pink round the LEATT, yellow, teal) but that view cannot place them along the strap: its
+  camera's 17 mm front bias maps the outrigger and frame onto the strap's first 40 mm (scratch printmap.py,
+  printunwrap.py).
+
+### Outriggers hinged on the frame's widest point (item 4)
+Each plate now hinges on the frame's widest point at the outriggers' centre height (x 103.8, y 28.4 mm, GOGGLE
+frame), its outer face's front edge on that line, 30 mm long (OR_LEN, Leatt ISO), turned about the hinge.
+- Hinge side: with the inner face's front edge on the hinge, the plate stood 5 mm beyond the frame's side in the
+  front photos at any turn (outline p90 1.3 to 1.4 mm became 3.6 to 3.9); with the outer face's, it hides behind it.
+- Length: 46 mm (to round 8's back end) showed the plate 197 px wide between strap and frame in the Pinata iso-right;
+  30 mm shows 122 to 129 (round 8 156, Leatt 69).
+- Free, the plates swing: each Leatt photo lays the strap its own way, so the error table fits each photo's turn per
+  side (scratch errtab9.py: the best silhouette IoU at half resolution over -10 to 75 deg). Far plates: iso55 55 deg,
+  phy 55, phr 65; the front and back photos -10 (hidden behind the frame). OR_FREE_TURN 55 (his SKU's ISO). The IoU
+  cannot see a near plate (the strap's cut hides its back end), so its turn is set by where the strap leaves it
+  (scratch nearplate.py, the plate's back edge through the fitted camera): iso55 0 deg (822 px against the strap's
+  exit at 826, goggle_strap_art.ISO_X_EDGE; at 55 deg it read 777 and the plate 175 px wide against Leatt's 85), phr
+  0 deg (930 against 930). Far
+  silhouette edge against Leatt's (scratch farvis3.py, median per row): iso55 round 8 -9 px, round 9 -3; phr round 8
+  -43 px, round 9 at 65 deg -6. Section 10's farvis2.py compared Leatt's dark pixels beyond the pink with our
+  outrigger beyond our frame; part of Leatt's black block there is the frame's own black side, so the silhouette
+  edge is the measure.
+- Not matched (1:1 crops): in iso55 Leatt's far side is a dark band 48 px wide (x 1657 to 1705) with two clip slots
+  above and below the lens post, seen from inside; ours shows the pink frame's side there and the plate as a 12 px
+  edge (1690 to 1702). Leatt's near plate tapers, its top edge rising towards the frame and its back corners
+  chamfered; ours is a rectangle.
+- Worn, the strap pulls each plate in until its inner face rests on the shell (OR_GAP 1.5 mm): the shell widens
+  upwards, so the plate twists, its turn growing linearly from 0 deg at the bottom row to 13.0 at the top, each row
+  the smallest that clears. Anchor (the strap's end) x 103.6, y 48.5, z -4.8 mm (round 8: 104.4, 64.3, -4.8).
+- Strap fit at the same plane (scratch strapfit2.py, rms mm, round 8 in brackets): his 07 4.2 (4.5), his 09 8.0
+  (8.9), Pinata iso-right 1.9 (0.3), MY27 left 6.2 (7.2), right 5.6 (5.7), back 15.0 (15.8).
+- Clearance off the shell (every vertex and face centre): band 0.60 mm, edges 1.29, slides 3.14, outriggers 1.46.
+
+### Error table (free goggle, full resolution; outline and crease mm, model to photo / photo to model, median/p90)
+| View | Turn +1/-1 | Outline round 8 | Outline round 9 | IoU 8 | IoU 9 |
+|---|---|---|---|---|---|
+| iso55 | 55/0 | 0.89/4.21 1.03/3.43 | 0.89/4.26 0.89/3.89 | 0.968 | 0.973 |
+| phy | 55/0 | 0.83/3.44 1.01/2.89 | 0.90/4.09 1.01/3.33 | 0.966 | 0.969 |
+| phr | 65/0 | 0.76/3.02 1.20/3.41 | 0.76/3.12 1.07/2.64 | 0.923 | 0.957 |
+| iso45 | (none) | 0.46/2.03 0.49/2.59 | 0.46/2.03 0.49/2.59 | 0.970 | 0.970 |
+| phw | -10/-10 | 0.60/1.35 0.64/1.43 | 0.64/1.43 0.64/1.49 | 0.978 | 0.976 |
+| expl | 0/65 | 1.20/4.61 1.20/4.10 | 1.07/4.73 1.07/4.09 | 0.871 | 0.892 |
+| phyb | -10/-10 | 0.49/1.87 0.49/1.96 | 0.49/1.97 0.49/1.97 | 0.971 | 0.973 |
+| ink | -10/-10 | 0.42/1.34 0.42/1.27 | 0.42/1.29 0.42/1.46 | 0.981 | 0.980 |
+| ind | -10/-10 | 0.43/1.45 0.43/1.70 | 0.48/1.65 0.48/1.73 | 0.978 | 0.976 |
+| frg | -10/-10 | 0.31/1.31 0.31/1.27 | 0.44/1.38 0.44/1.38 | 0.982 | 0.980 |
+| chee | -10/-10 | 0.45/1.43 0.45/1.37 | 0.45/1.44 0.45/1.58 | 0.980 | 0.979 |
+Creases: iso55 1.19/3.31 0.53/1.60 (round 8 1.24/3.74 0.56/1.60), phy 1.01/3.72 0.81/3.84 (1.01/3.84 0.57/1.99),
+phr 0.96/2.94 0.96/2.21 (0.96/2.90 0.96/2.17), expl 0.99/3.27 1.29/3.88 (0.99/3.23 1.20/3.36). The views that see
+the far plate gain (phr IoU 0.923 to 0.957, expl 0.871 to 0.892); the front views lose up to 0.002 of IoU and
+0.13 mm of median (frg): at -10 deg the plates' front edges still stand on the silhouette.
+
+### The plate face in the Pinata iso-right (item 5)
+Measured as the run of outrigger pixels between the strap and the frame (scratch platew.py, the worn build
+z-buffered through the fitted camera): round 8 156 px, round 9 122 to 129, Leatt 69. Round 8's plate bent out over
+the eyeport's edge (OR_BEND) and faced the camera; round 9's is flat and twisted on its hinge, 30 mm long, and still
+1.8 times as wide as Leatt's. Not resolved: the plate seen at about 4 px a mm along it is 30 mm in full; Leatt's
+reads 17 to 18 mm between strap and frame, and the same plate in Leatt's goggle ISO reads 85 px (about 20 mm, near
+side). Either Leatt's strap end covers the plate's back 10 mm (ours enters it at mid thickness) or the camera's 17 mm
+front bias stretches ours: a question for a later round. A lead from iso55 at 1:1 with the near plate straight back:
+its back edge sits where Leatt's does (822 against 826 px) but Leatt's pink side face starts at 920 px and covers the
+plate's front, ours at 963: the plate shows 141 px against 90. So the excess is at the front, where Leatt's frame
+side overlaps the plate (its hinge inboard of the side face), not at the strap end.
+
+### The comb (item 6)
+Not done this round (items 1 to 5 first, as the brief asks).
+
+### What depends on the helmet's eyeport edge
+The coordinator, during this round: the helmet agent (decision 44) found the shell's eyeport side edge 35 to 40 mm
+too far forward and the brow about 20 mm; a later joint round moves the helmet front and the goggle's worn fit
+together. Nothing in round 9 is tuned to the current port edge (round 8's bend over it, OR_BEND, runs only with
+OR_HINGE False; the hinged plate is flat, its rows only turned). Built from Leatt's goggle photos alone, so they hold: the hinge on the frame's widest point (x 103.8, y 28.4
+mm), the plate's 30 mm (OR_LEN, Leatt ISO), the free turns, the free error table and its far edge measures, the
+iso55 lead for item 5 (frame side against plate front), the slides, the crease, the weave and the tail's folds.
+Worn on the current shell, so they move with it: the plates' twist (0 to 13 deg, each row turned in until it clears
+the shell by OR_GAP), the anchor (x 103.6, y 48.5, z -4.8 mm), the strap's length (645.0 mm) and so STRAP_LEN_UV,
+the weave's repeat and the print's mm along the strap (test_round9_woven_strap_scale fails if the strap grows by
+more than about 7 mm or shrinks by 13, which forces the update), the slides' stations along the strap, the strap fit rms (his 07 4.2,
+Pinata 1.9, MY27 views), the clearances, and the plate face's run in the Pinata iso-right (122 to 129 px against
+Leatt's 69). The worn-fit tests pass on the current shell; they are not a target for the port edge.
+
+### Checkpoint and checks
+renders/checkpoints/2026-11-15_goggle-r9/: Leatt (or his photo) | round 8 | round 9, the same photo pixels, at 1:1
+unless noted: 01 MY27 back (slides, fabric, crease; the back light rig, the MY27 print and navy slides), 02a iso55 and
+02b phr (free goggle, near plates 0 deg, far 55 and 65), 03 the Pinata iso-right (its camera's 17 mm front bias
+shifts ours right), 04 his photo 07 in daylight at 4x (rendered at 4x; the photo is a motion-blurred pan, so the
+renders show detail it cannot). No Forge back-strap sheet: no camera is fitted to that photo and the free goggle carries no
+strap. The comb sheet is not made (item 6 not done).
+Blender 5.2.0 (Damien's) against 5.2.3: his 07 in daylight at 2x, 32 samples, pixel identical (mean difference 0.00).
+build_rider.gear_material in 5.2.0 builds the strap's material with the weave tile (print, normal map, tile, mask),
+the slides' with their normal map and kit.py's bump material as before. 03 and 04 were rendered before the tail's u
+and the selvedges' vertex order changed; 03 rendered again from the final build differs by 0.06 of 255 on average.
+goggle_views.py no longer places the studio's lights in daylight (daylight removes them: round 9's per-camera light
+rig crashed the daylight views).
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|

@@ -106,12 +106,19 @@ def test_velocity55_shape_from_leatts_photos():
     ng = G.build_nose_guard()
     assert ng.V[:, 2].min() > Cu[:, 1].min() - 0.002                         # the guard stays inside the legs
     assert abs(G.post_sz()[0] - 0.0867) < 0.0005
-    # outriggers behind the side faces
-    L = info["L"]
+    # outriggers hinged on the frame's widest point (round 9; before, behind the side faces), OR_LEN long, running
+    # back and out from there (free, Leatt's goggle ISO: 55 deg)
+    R_ = np.vstack(rings)
     for sg, (box, end, n) in G.outrigger_frames().items():
-        front = box[[0, 1]].mean(0)
-        P, N = L.point(sg * u["top_corner"][0], front[2], 0.0)
-        assert (P - front) @ N > 0.012                                      # more than 12 mm behind the lens front
+        hinge = box[[0, 1]].mean(0)                                         # the outer face's front edge
+        near = R_[np.abs(R_[:, 2] - hinge[2]) < 0.004]
+        assert abs(sg * hinge[0] - (sg * near[:, 0]).max()) < 1e-4          # on the frame's widest point
+        assert 0.030 < hinge[1] - R_[:, 1].min() < 0.045                    # 30 to 45 mm behind the frame's front
+        assert (sg * box[[4, 5], 0] < sg * hinge[0] - 0.002).all()          # its front end inside it (front photos)
+        back = box[[2, 3]].mean(0)
+        assert abs(np.linalg.norm(back - hinge) - G.OR_LEN) < 0.002
+        turn = math.degrees(math.atan2(sg * (back[0] - hinge[0]), back[1] - hinge[1]))
+        assert abs(turn - G.OR_FREE_TURN) < 0.5
 
 
 def test_round5_offsets_teeth_and_nose_ribs():
@@ -458,22 +465,22 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
     """On the helmet the outriggers lie on the shell and the strap comes out of their back ends (Damien 2026-11-13:
     "The actual goggles is not properly connected to it's strap"; round 3 had them 22 to 41 mm inside the shell
     with the strap starting 30 to 40 mm further out). Behind the eyeport's edge the inner face clears the shell by
-    OR_GAP; the plate stays fixed on the frame at its front edge; the strap's end lies inside the outrigger, between
-    its faces, and its first ring starts there."""
+    OR_GAP; the plate turns on its hinge (round 9: the frame's widest point) until it rests there; the strap's end
+    lies inside the outrigger, between its faces, and its first ring starts there."""
     Vo, Fo, prof = H.shell_outer()
     mount = G.shell_mount(prof)
     free = G.outrigger_grids()
     R, t = built["Rt"]
-    strap = built["parts"]["goggle_strap"].V
-    m = len(strap) // 4
-    first = G.h2g((np.vstack([strap[:1], strap[m:m + 1]]) - t) @ R)        # the strap's first ring, GOGGLE frame
+    S = G.h2g((np.vstack([built["parts"][n].V for n in ("goggle_strap", "goggle_strap_band")]) - t) @ R)
     for sg, (Go, Gi, anchor) in G.outrigger_grids(mount=mount).items():
         need = mount(Gi.reshape(-1, 3)).reshape(Gi.shape[:2])
-        back = need[-4:] > 0
-        assert back.all()                                                   # its back lies over the shell
-        gap = np.abs(Gi[..., 0]) - need
-        assert gap[-4:][back].min() > G.OR_GAP - 1e-4                       # ... resting on it, not inside
-        assert np.allclose(Gi[0], free[sg][1][0]) and np.allclose(Go[0], free[sg][0][0])   # front edge on the frame
+        assert (need[-1] > 0).all()                                         # its back end lies over the shell
+        gap = (np.abs(Gi[..., 0]) - need)[need > 0]
+        assert G.OR_GAP - 1e-4 < gap.min() < G.OR_GAP + 0.0005              # ... resting on it, not inside
+        assert np.allclose(Go[0], free[sg][0][0])           # front edge on the hinge, whatever each row's turn
+        assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), G.OR_T)
+        assert 0.0 <= G.WORN_TURN[sg][0] <= G.WORN_TURN[sg][1] < 20.0       # turned out, its top more (the shell
+                                                                            # widens upwards)
         # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
         # row; the 5 mm plate bends out along its length more than its thickness)
         j = Gi.shape[1] // 2
@@ -482,10 +489,10 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         assert i >= Gi.shape[0] - 6 and lo < abs(anchor[0]) < hi
         assert Gi[:, 0, 2].max() < anchor[2] < Gi[:, -1, 2].min()
         assert np.linalg.norm(Gi[-1, Gi.shape[1] // 2] - anchor) < G.OR_ANCHOR + 0.004
-        # the strap starts at this side's anchor (left side first in the strap's rows)
-        if sg > 0:
-            mid = first.mean(0)
-            assert np.linalg.norm(mid[[0, 1]] - anchor[[0, 1]]) < 0.012
+        # the strap starts at this side's anchor: its foremost point on this side (GOGGLE frame)
+        side = S[sg * S[:, 0] > 0.05]
+        end = side[np.argmin(side[:, 1])]
+        assert np.linalg.norm(end[[0, 1]] - anchor[[0, 1]]) < 0.012
 
 
 STRAP_PARTS = ("goggle_strap_band", "goggle_strap", "goggle_slides")
@@ -544,6 +551,72 @@ def test_round8_strap_width_slides_and_silicone(built):
     sil = np.array([f for f, m in zip(band.F, band.M) if m == "goggle_silicone"])
     Vs = (band.V[np.unique(sil)] - t) @ R
     assert surf.closest(Vs)[2].min() > 0.0005 and surf.closest(Vs)[2].min() < 0.001
+
+
+def test_round9_slides_are_moulded_frames(built):
+    """Round 9 (decision 45): each slide is a moulded frame round open slots (MY27 back, Forge 8024070250 and Neon
+    Yellow 8022010380 backs at 1:1), not a solid block: seen square to the strap its top faces cover 30 to 75 % of
+    its outline (22 x 52 mm, the right one 30 with its tab), the left one (centre bar only) less than the right one
+    (end bars, centre bar, grip tab);
+    the left slide's centre bar stands over the doubled tail (SLIDE_CBAR_T), higher off the shell than any bar of the
+    right slide, which lies on the single strap."""
+    Vo, Fo, prof = H.shell_outer()
+    surf = G.Surface(Vo, Fo)
+    R, t = built["Rt"]
+    P = built["parts"]["goggle_slides"]
+    V = (np.asarray(P.V) - t) @ R
+    cover, height = {}, {}
+    for sg in (1, -1):
+        faces = [f for f in P.F if sg * V[f][:, 0].mean() > 0]
+        C = V[np.unique(np.concatenate(faces))]
+        c = C.mean(0)
+        n_mean = c - surf.closest(c[None])[0][0]
+        n_mean /= np.linalg.norm(n_mean)
+        area = 0.0
+        for f in faces:
+            Q = V[f]
+            a = 0.5 * sum(np.cross(Q[k] - Q[0], Q[k + 1] - Q[0]) for k in range(1, len(Q) - 1))
+            area += max(0.0, a @ n_mean)                                     # top faces, seen along the normal
+        along = np.cross([0.0, 0.0, 1.0], n_mean)
+        along /= np.linalg.norm(along)
+        cover[sg] = area / (np.ptp(C @ along) * np.ptp(C[:, 2]))            # of its outline (the right one: tab too)
+        height[sg] = surf.closest(C)[2].max()
+    assert 0.30 < cover[1] < cover[-1] < 0.75, cover
+    assert height[1] - height[-1] > 0.001, height                          # the centre bar over the tail
+    assert G.SLIDE_CBAR_T > G.SLIDE_T
+
+
+def test_round9_woven_strap_scale(built):
+    """Round 9: the strap's weave tile repeats every TILE_MM (19 mm, the MY27 back view's jacquard measured at 1:1)
+    along the built strap: its centre line's length over its u span and the material's repeat."""
+    import goggle_strap_art as SA
+    R, t = built["Rt"]
+    P = built["parts"]["goggle_strap_band"]
+    V = (np.asarray(P.V) - t) @ R
+    rep = G.MATERIALS["goggle_strap"]["detail"]["repeat"][0]
+    assert abs(rep - SA.STRAP_LEN_UV * 1000.0 / SA.TILE_MM) < 1e-9
+    # the printed faces' centre line (v = 0.5: the main run and the doubled tail), each edge once: its length over
+    # its u span. Not a median of the edges' ratios: the strap wraps a cone-like shell, so one edge runs 2.2 % longer
+    # than the centre line and the other 2.8 % shorter (662.9, 648.4, 630.5 mm in round 9's build: the elastic
+    # stretches unevenly), and the stations are densest where it bends. No edge stretches the weave more than 5 %:
+    # the tail's u follows its own fabric up out of the slot and over the rolls (along the strap beneath, its flanks
+    # stretched it up to 4.2 times)
+    edges = {}
+    for f, uv, m in zip(P.F, P.UV, P.M):
+        if uv is None or m != "goggle_strap":
+            continue
+        n = len(f)
+        for i in range(n):
+            j = (i + 1) % n
+            d_u = abs(uv[j][0] - uv[i][0])
+            if d_u > 1e-6 and abs(uv[j][1] - 0.5) < 1e-6 and abs(uv[i][1] - 0.5) < 1e-6:
+                edges[(min(f[i], f[j]), max(f[i], f[j]))] = (d_u, np.linalg.norm(V[f[j]] - V[f[i]]))
+    du, ds = np.array(list(edges.values())).T
+    assert du.sum() > 1.1                                                  # the whole run and the tail
+    tile = ds.sum() / du.sum() / rep * 1000.0
+    assert abs(tile - SA.TILE_MM) < 0.3, tile
+    r = ds / du / SA.STRAP_LEN_UV
+    assert 0.95 < r.min() and r.max() < 1.05, (r.min(), r.max())
 
 
 def test_frame_width_and_wrap():
@@ -642,7 +715,7 @@ def test_leatt_wordmark_is_the_official_slanted_one():
     from PIL import Image
     a = G.wordmark_aspect()
     assert 3.8 < a < 4.2
-    im = np.array(Image.open(os.path.join(H.TEXDIR, "goggle_strap.png")).convert("RGB")).astype(int)
+    im = np.array(Image.open(os.path.join(H.TEXDIR, G.MATERIALS["goggle_strap"]["image"])).convert("RGB")).astype(int)
     white = im.min(-1) > 235
     w = im.shape[1]
     for half in (white[:, :w // 2], white[:, w // 2:]):
@@ -706,5 +779,15 @@ def test_npz_loads_with_eye_bones(built, body):
 
 
 def test_textures_present():
-    for f in ("goggle_strap.png", "goggle_outrigger.png", "goggle_eyes_brown.png", "helmet_pinata.png"):
+    for f in ("goggle_outrigger.png", "goggle_eyes_brown.png", "helmet_pinata.png"):
         assert os.path.getsize(os.path.join(H.TEXDIR, f)) > 1000
+    # round 9: every image the goggle's materials name (the strap's print, its normal map, the weave tile and its
+    # mask, the slides' normal map)
+    names = set()
+    for spec in G.MATERIALS.values():
+        names |= {spec[k] for k in ("image", "normal") if spec.get(k)}
+        names |= {spec["detail"][k] for k in ("image", "mask") if spec.get("detail", {}).get(k)}
+    assert {"goggle_strap_print.jpg", "goggle_strap_print_n.png", "goggle_strap_weave.png", "goggle_strap_mask.png",
+            "goggle_slide_n.png"} <= names
+    for f in names:
+        assert os.path.getsize(os.path.join(H.TEXDIR, f)) > 1000, f

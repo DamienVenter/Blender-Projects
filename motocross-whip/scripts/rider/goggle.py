@@ -884,9 +884,22 @@ OR_LEN, OR_T, OR_BACK_H = 0.030, 0.005, 0.059     # outrigger: length behind the
 
 OR_TURN = 0.4                      # the outrigger turns out from the side face's backward line by atan(0.4) = 22 deg
                                    # towards the strap (Leatt ISO)
+# round 9 (decision 45): each outrigger hinges on the frame's widest point (x 103.8, y 28.4 mm at mid height), as a
+# plate that pivots on the frame would: in iso55 and phr Leatt's far plate stands out beyond the far pillar, which a
+# plate starting where round 8's did (7.4 mm inside that point and 17 mm behind it) cannot do at any angle (ledger
+# section 10). Its outer face's front edge on the hinge: with the inner one there, the plate stood 5 mm beyond the
+# frame's side in Leatt's front photos at any turn (outline p90 1.3 to 1.4 mm became 3.6 to 3.9). OR_LEN long (Leatt
+# ISO), it swings freely: each Leatt photo lays the strap its own way, so each free view has its own turn (the error
+# table fits it per photo and side: ledger section 11); worn, the strap pulls it in until it rests on the shell.
+OR_HINGE = True
+OR_HINGE_LEN = OR_LEN              # m, hinge to the back end. 46 mm (to round 8's back end) showed the plate 197 px
+                                   # wide between strap and frame in the Pinata iso-right (Leatt 69, round 8 157); 30
+                                   # mm shows 115, and the strap fits his 07 at 4.2 mm rms (round 8 4.5)
+OR_FREE_TURN = 55.0                # deg out from straight back, free, or {side: deg}: the far plate of the Pinata
+                                   # goggle ISO (iso55, his SKU; IoU 0.972 against 0.968 at 0 to 40 deg); phr's is 65
 
 
-def outrigger_frames(gp=None):
+def outrigger_frames(gp=None, turn=None):
     """Each outrigger's corners (GOGGLE frame): it starts behind the frame's tall side face (its outer face in the
     side face's plane: the pink side face shows ahead of it, Leatt ISO) and runs back to the strap, turned out by
     OR_TURN. Returns {side: (8 x 3 corners, strap end point, outward normal)}."""
@@ -906,6 +919,9 @@ def outrigger_frames(gp=None):
     m = (Cu[:, 0] > 0) & np.isin(seg, (ci("side_top"), ci("side_end")))
     o = np.argsort(Cu[m, 1])
     d_end = float(xs_at(gp, "depth", np.interp(zc, Cu[m, 1][o], outline_t(gp)[m][o])))
+    if gp.get("or_hinge", 1.0 if OR_HINGE else 0.0):
+        return hinged_frames(gp, zt, zb, zc, zbk, o_back_h, gp.get("or_free_turn", OR_FREE_TURN) if turn is None
+                             else turn)
     for sg in (1, -1):
         P0, N0 = L.point(sg * (s_end + gp["taper"] - gp["step"]), zc, -d_end + gp.get("or_front", 0.002))
         Pa = L.point(sg * (s_end - 0.001), zc, 0.0)[0]
@@ -926,7 +942,40 @@ def outrigger_frames(gp=None):
     return out
 
 
+def hinge_points(gp=None, zc=None):
+    """Each side's hinge: the frame's widest point (GOGGLE frame) within 4 mm of the outriggers' centre height."""
+    R_ = np.vstack(frame_rings(gp)[0])
+    out = {}
+    for sg in (1, -1):
+        m = (sg * R_[:, 0] > 0) & ((np.abs(R_[:, 2] - zc) < 0.004) if zc is not None else True)
+        i = np.argmax(sg * R_[m, 0])
+        out[sg] = R_[m][i]
+    return out
+
+
+def hinged_frames(gp, zt, zb, zc, zbk, o_back_h, turn_deg, length=None):
+    """Round 9: outrigger_frames for plates hinged on the frame's widest point: the outer face's front edge a vertical
+    line through the hinge (x, y), so that seen from the front the plate hides behind the frame's side (Leatt's front
+    photos: nothing beyond the frame's widest point on the far side), the plate running back turned out by turn_deg
+    (a number, or {side: deg})."""
+    length = length or gp.get("or_hinge_len", OR_HINGE_LEN)
+    hinges = hinge_points(gp, zc)
+    out = {}
+    for sg in (1, -1):
+        a = math.radians(turn_deg[sg] if isinstance(turn_deg, dict) else turn_deg)
+        t = np.array([sg * math.sin(a), math.cos(a), 0.0])
+        n = np.array([sg * math.cos(a), -math.sin(a), 0.0])       # outwards, square to the plate
+        Hp = np.array([hinges[sg][0], hinges[sg][1], zc])
+        P0 = Hp                                                     # the outer face's front edge
+        C = np.array([P0 + [0, 0, zt - zc], P0 + [0, 0, zb - zc],
+                      P0 + t * length + [0, 0, zbk - zc - o_back_h / 2], P0 + t * length + [0, 0, zbk - zc + o_back_h / 2]])
+        box = np.vstack([C, C - n * OR_T])
+        out[sg] = (box, P0 + t * (length - 0.004) + [0, 0, zbk - zc] - n * OR_T / 2, n)
+    return out
+
+
 OR_GAP = 0.0015            # m, a mounted outrigger's inner face off the shell (it rests on it, strap tension)
+WORN_TURN = {}             # round 9: the worn plates' turns (deg), set by outrigger_grids(mount=...)
 OR_BEND = math.tan(math.radians(60))   # steepest outward bend of a mounted outrigger (lift per length)
 OR_ANCHOR = 0.010          # m, the strap's end sits this far inside the outrigger's back end (its buckle slot)
 OR_NU, OR_NV = 13, 7       # grid of each outrigger face (along x up)
@@ -952,14 +1001,47 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
     plate is lifted outwards (x only, the front edge fixed on the frame) to clear the shell by OR_GAP behind the
     eyeport's edge, bending out at most OR_BEND before it reaches the edge and never back in towards its end."""
     out = {}
-    for sg, (box, end, n) in outrigger_frames(gp).items():
-        u = np.linspace(0.0, 1.0, nu)[:, None, None]
-        v = np.linspace(0.0, 1.0, nv)[None, :, None]
+    u = np.linspace(0.0, 1.0, nu)[:, None, None]
+    v = np.linspace(0.0, 1.0, nv)[None, :, None]
 
-        def bil(c):                       # corners: front-top, front-bottom, back-bottom, back-top
-            return (1 - u) * ((1 - v) * c[1] + v * c[0]) + u * ((1 - v) * c[2] + v * c[3])
-        Go, Gi = bil(box[:4]), bil(box[4:])
+    def bil(c):                           # corners: front-top, front-bottom, back-bottom, back-top
+        return (1 - u) * ((1 - v) * c[1] + v * c[0]) + u * ((1 - v) * c[2] + v * c[3])
+    frames = outrigger_frames(gp)
+    hinged = (gp or GP).get("or_hinge", 1.0 if OR_HINGE else 0.0)
+    rows = {}
+    if hinged:
+        # round 9: each row of the plate a straight line from the hinge, turned out by its own angle: free, all
+        # OR_FREE_TURN (a flat plate); worn, the strap pulls the plate in until it rests on the shell (OR_GAP off it),
+        # and the shell's side widens upwards (the plate's top back corner meets it first, 9 mm before its bottom),
+        # so the plate twists: the turn grows linearly from its bottom row to its top, each row's the smallest that
+        # clears (its back edge leans out, its front edge stays on the hinge)
+        def row(sg, a, j):
+            box = outrigger_frames(gp, turn={1: a, -1: a})[sg][0]
+            return bil(box[:4])[:, j], bil(box[4:])[:, j]
+        free_t = (gp or GP).get("or_free_turn", OR_FREE_TURN)         # deg, or {side: deg} (each photo's strap
+        turns = {sg: np.full(nv, float(free_t[sg] if isinstance(free_t, dict) else free_t))   # swings them its own way)
+                 for sg in (1, -1)}
         if mount is not None:
+            for sg in (1, -1):
+                req = np.zeros(nv)
+                for j in range(nv):
+                    for a in np.arange(0.0, 90.0, 0.25):
+                        Gi_ = row(sg, a, j)[1]
+                        need = mount(Gi_)
+                        if not np.any((need > 0) & (np.abs(Gi_[:, 0]) < need + OR_GAP)):
+                            break
+                    req[j] = a
+                vv = np.linspace(0.0, 1.0, nv)
+                k = max(0.0, float(np.max((req[1:] - req[0]) / vv[1:])))
+                turns[sg] = req[0] + k * vv
+            WORN_TURN.clear()
+            WORN_TURN.update({sg: (round(float(t[0]), 2), round(float(t[-1]), 2)) for sg, t in turns.items()})
+        for sg in (1, -1):
+            rr = [row(sg, turns[sg][j], j) for j in range(nv)]
+            rows[sg] = (np.stack([r[0] for r in rr], 1), np.stack([r[1] for r in rr], 1))
+    for sg, (box, end, n) in frames.items():
+        Go, Gi = rows[sg] if hinged else (bil(box[:4]), bil(box[4:]))
+        if mount is not None and not hinged:
             need = mount(Gi.reshape(-1, 3)).reshape(nu, nv)
             req = np.maximum(0.0, np.where(need > 0, need + OR_GAP - np.abs(Gi[..., 0]), 0.0))
             ds = np.linalg.norm(np.diff(Gi[:, nv // 2], axis=0), axis=1)
@@ -1465,16 +1547,48 @@ STRAP_PLANE = (-0.058, -0.0135, 3.0)
 STRAP_LAND = 0.020                          # m: the strap leaves the outrigger's slot and lands on the shell
 STRAP_ACROSS = np.r_[-22.5, -20, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20,
                      22.5] / 1000.0         # m across the strap (bottom edge to top edge); +-2.5: the silicone band
-# the adjuster slides, from Leatt's MY27 back view at its strap's scale (217 px across the strap, which projects 44.3
-# of its 45 mm there: 0.204 mm/px): each slide body 103 x 252 px, the strap at x 42 mm turned 18 deg from the image
-# plane (cos 0.952), across it 0.986: 22 x 52 mm; their bodies' centres 402 px apart (82 mm), inner ends 302 px (62)
-SLIDE_X = 0.0410                            # centres at x +-41 mm
-SLIDE_L, SLIDE_H = 0.022, 0.052             # along the strap, across it
-SLIDE_T, SLIDE_BAR, SLIDE_END = 0.0025, 0.004, 0.0035   # proud of the doubled strap, crossbar and end bar widths
-TAB = 0.008                                 # the right slide's grip tab stands this far out from its end bar (40 px)
-SLIDE_SAG = 0.0012                          # a straight 22 mm crossbar over the shell's back (its chord's sag)
-DOUBLE_IN = 0.006                           # the strap's folded-back tail ends this far inside the right slide (MY27
-                                            # back view: 30 px)
+# the adjuster slides (round 9, decision 45): flat moulded frames, as Leatt's MY27 back view shows them at 1:1 (round
+# 8's scale: 0.204 mm/px across the strap there; the strap turned 18 deg out of the image plane, so 0.214 mm/px along
+# it and 0.207 across) and Leatt's 5.5 back photos of other colourways for the parts (ledger section 11). Slide
+# coordinates (mm in the comments, m in the code): a along the strap (towards the right outrigger: image right in the
+# back view), b across it (up), from the frame's centre.
+SLIDE_X = 0.0410                            # centres at x +-41 mm (round 8: bodies 402 px apart)
+SLIDE_L, SLIDE_H = 0.022, 0.052             # the frame outside: 103 to 105 x 247 px
+SLIDE_R = 0.0018                            # its outer corners' radius (8 px)
+SLIDE_RAIL = 0.0038                         # top and bottom rails, beside the strap's edges: b 22.2 to 26 (the strap's
+                                            # edge at 22.5; 15 to 17 px show above it)
+SLIDE_BAR = 0.0036                          # the right slide's end bars (17 px)
+SLIDE_CBAR = (-0.0035, 0.0018)              # the left slide's centre bar (x 772 to 797 px), the embossed LEATT on it
+SLIDE_T = 0.0022                            # moulded plastic, flat
+SLIDE_CBAR_T = 0.0040                       # the left centre bar stands over the tail (the tail passes under it): its
+                                            # wall catches the light, the tail beside it lies in its shadow (x 797 px)
+SLIDE_EDGE = 0.0006                         # its edges' round (the soft highlight along every bar)
+SLIDE_GAP = 0.0001                          # it rests on the strap
+# the right slide's grip tab on its outer bar (x 1240 to 1280 px, y 885 to 1010): sloped top, Leatt's triangle at the
+# top, a field of dimples below a groove (mm)
+TAB_POLY = [(7.6, 20.0), (15.0, 19.0), (18.7, 11.5), (18.7, -3.8), (16.6, -6.2), (7.6, -6.2)]
+TAB_R = 0.0012
+TAB_TRI = [(10.2, 9.6), (18.2, 9.6), (13.6, 18.6)]          # the triangle (x 1238 to 1278, y 890 to 935 px)
+TAB_GROOVE = 8.4
+TAB_DOTS = [(9.8 + 2.1 * i + (1.05 if j % 2 else 0.0), 6.6 - 2.07 * j) for j in range(6) for i in range(4)
+            if 9.8 + 2.1 * i + (1.05 if j % 2 else 0.0) < 18.0]  # 10 px pitch, rows staggered
+SLIDE_LEATT = (-0.85, -2.3, 14.0, 3.0)      # mm: the left centre bar's LEATT, centre (a, b), length (b), letter height
+# the strap's tail: from the left slide, where it comes up out of the slot beside the centre bar (x 800 px), doubled
+# over the strap to the right slide; there a crease (x 1115 px, the 'line' of the brief: Leatt's is a soft fold, not a
+# step) and two folds round the slide's left end bar and centre bar (x 1115 to 1170, 1170 to 1228 px), standing about
+# a strap's thickness above the tail, rounded at the strap's edges; into the slot beside the outer bar
+TAIL_START = 0.0021                         # a on the left slide
+TAIL_FOLD = 0.0016                          # the tail comes up out of the slot over this length (a quarter round)
+ROLLS = ((-0.0166, -0.0048), (-0.0048, 0.0076))   # a on the right slide
+ROLL_H = 0.0030                             # the folds stand this far above the tail
+ROLL_K = 2.0                                # their cross-section a parabola: the photo's folds brighten steadily
+                                            # across (93 to 154 of 255, lit from his right), where an ellipse's flat
+                                            # top rendered flat
+ROLL_END = 0.0020                           # rounded over this width at the strap's edges
+CREASE_W, CREASE_DEPTH = 0.0004, 0.75       # the crease and the gap between the folds: dark lines 2 to 4 px wide (0.4
+                                            # to 0.8 mm), the fabric's top pressed down to a quarter of its thickness
+TAIL_ACROSS = np.r_[-22.5, -22.2, -21.8, -21.2, -20.5, -19.5, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5,
+                    10, 12.5, 15, 17.5, 19.5, 20.5, 21.2, 21.8, 22.2, 22.5] / 1000.0
 
 
 def tri_closest(P, A, B, C):
@@ -1668,142 +1782,247 @@ def _band(part, base, nrm, h0, h1, mat_out, mat_in, uv=None, ends=True):
             _grid_faces(part, np.stack([lo[i], hi[i]], axis=0), mat_in, None, flip=flip)
 
 
-def strap_point(base, nrm, s, si, w, h):
-    """A point on the strap's coordinates: arc length si (m, along the centre line), across w (m, beyond the edges
-    continued along the edge's own direction) and height h above the base, with the local axes (along, across,
-    out) there."""
-    i = int(np.clip(np.searchsorted(s, si) - 1, 0, len(s) - 2))
-    f = (si - s[i]) / max(s[i + 1] - s[i], 1e-12)
-    B = base[i] * (1 - f) + base[i + 1] * f
+def strap_map(base, nrm, s, sq, bq, hq):
+    """Points on the strap's coordinates, vectorised: arc length sq (m), across bq (m; beyond the edges continued
+    along each edge's own direction), height hq above the base along the interpolated normal."""
+    sq, bq, hq = (np.broadcast_to(np.asarray(x, float), np.broadcast(sq, bq, hq).shape).ravel() for x in (sq, bq, hq))
+    i = np.clip(np.searchsorted(s, sq) - 1, 0, len(s) - 2)
+    f = ((sq - s[i]) / np.maximum(s[i + 1] - s[i], 1e-12))[:, None, None]
+    B = base[i] * (1 - f) + base[i + 1] * f                               # n x m x 3
     N = nrm[i] * (1 - f) + nrm[i + 1] * f
-    N /= np.linalg.norm(N, axis=1)[:, None]
-    wc = np.clip(w, STRAP_ACROSS[0], STRAP_ACROSS[-1])
-    b = np.array([np.interp(wc, STRAP_ACROSS, B[:, k]) for k in range(3)])
-    nn = np.array([np.interp(wc, STRAP_ACROSS, N[:, k]) for k in range(3)])
-    nn /= np.linalg.norm(nn)
-    j = 1 if w >= 0 else 0
-    e = (B[-1] - B[-2]) if j else (B[0] - B[1])
-    e /= np.linalg.norm(e)
-    b = b + e * (abs(w) - abs(wc))
-    along = base[i + 1, len(STRAP_ACROSS) // 2] - base[i, len(STRAP_ACROSS) // 2]
-    along /= np.linalg.norm(along)
-    across = B[-1] - B[0]
-    across /= np.linalg.norm(across)
-    return b + nn * h, along, across, nn
+    A = STRAP_ACROSS
+    bc = np.clip(bq, A[0], A[-1])
+    j = np.clip(np.searchsorted(A, bc) - 1, 0, len(A) - 2)
+    g = ((bc - A[j]) / (A[j + 1] - A[j]))[:, None]
+    r = np.arange(len(sq))
+    b = B[r, j] * (1 - g) + B[r, j + 1] * g
+    nn = N[r, j] * (1 - g) + N[r, j + 1] * g
+    nn /= np.linalg.norm(nn, axis=1)[:, None]
+    up = B[:, -1] - B[:, -2]
+    dn = B[:, 0] - B[:, 1]
+    e = np.where((bq >= 0)[:, None], up, dn)
+    e /= np.linalg.norm(e, axis=1)[:, None]
+    b = b + e * (np.abs(bq) - np.abs(bc))[:, None]
+    return b + nn * hq[:, None]
 
 
-def slide_parts(base, nrm, s, x_c, grip, h_base, h_top):
-    """One adjuster slide on the strap at x_c: a ladder frame SLIDE_L x SLIDE_H whose crossbars run just outside the
-    strap's edges, two end bars and a centre bar across the strap (MY27 back view); grip: the right slide's
-    triangular grip tab on its outer end bar with a 3 x 3 grid of dots. Built in the strap's coordinates (along a,
-    across b), each box from h_base (crossbars: down beside the strap) or h_top - SLIDE_T to h_top."""
+def _rounded_outline(core, rho, per_arc=5, seg=0.0015):
+    """The boundary of a convex polygon (or a segment) grown by rho, counter-clockwise in (a, b): an arc of per_arc
+    points at each corner, the straight runs cut every `seg` (the same count for every rho)."""
+    core = np.asarray(core, float)
+    k = len(core)
+    out = []
+    for i in range(k):
+        c, cp, cn = core[i], core[i - 1], core[(i + 1) % k]
+        e0, e1 = c - cp, cn - c
+        n0 = np.array([e0[1], -e0[0]]) / np.linalg.norm(e0)
+        n1 = np.array([e1[1], -e1[0]]) / np.linalg.norm(e1)
+        p0 = math.atan2(n0[1], n0[0])
+        sw = (math.atan2(n1[1], n1[0]) - p0) % (2 * math.pi)
+        if sw > math.pi + 1e-9:                     # a segment's ends sweep exactly pi
+            sw = math.pi
+        for t in np.linspace(0.0, 1.0, per_arc):
+            out.append(c + rho * np.array([math.cos(p0 + t * sw), math.sin(p0 + t * sw)]))
+        m = max(int(math.ceil(np.linalg.norm(e1) / seg)), 1)
+        for t in np.arange(1, m) / m:                # the straight run to the next corner's arc
+            out.append(c + rho * n1 + t * e1)
+    return np.array(out)
+
+
+def _rect_core(a0, a1, b0, b1, outer_top, r_out, rs, n=4):
+    """The core (to be grown by rs) of the rectangle a0..a1 x b0..b1 whose two outer corners (the b1 side if
+    outer_top, else the b0 side) are rounded by r_out and the other two by rs: counter-clockwise."""
+    pts = []
+    for (ca, cb), (t0, t1), outer in (((a0, b0), (180, 270), not outer_top), ((a1, b0), (270, 360), not outer_top),
+                                      ((a1, b1), (0, 90), outer_top), ((a0, b1), (90, 180), outer_top)):
+        r = r_out if outer else rs
+        cx = ca + (r if ca == a0 else -r)
+        cy = cb + (r if cb == b0 else -r)
+        rc = r - rs
+        if rc < 1e-6:
+            pts.append((cx, cy))
+            continue
+        for t in np.radians(np.linspace(t0, t1, n)):
+            pts.append((cx + rc * math.cos(t), cy + rc * math.sin(t)))
+    return pts
+
+
+def _slab(part, mapper, core, R, h0, T, mat, uvf, re=SLIDE_EDGE, grid=0.0015):
+    """A moulded plate: the convex core grown by R (rounded corners), from h0 up T, its top edge rounded by re
+    (a wall, then a quarter round to the flat top). mapper(a, b, h) -> points; uvf(a, b) -> (u, v) or None."""
+    from scipy.spatial import Delaunay
+    from matplotlib.path import Path
+    prof = [(R, h0), (R, h0 + T - re)]
+    prof += [(R - re + re * math.cos(t), h0 + T - re + re * math.sin(t)) for t in np.radians([30, 60])]
+    prof += [(R - re, h0 + T)]
+    rings = [_rounded_outline(core, r_) for r_, _ in prof]
+    n = len(rings[0])
+    o = len(part.V)
+    Vab, Vh = [], []
+    for ring, (_, h) in zip(rings, prof):
+        Vab.append(ring)
+        Vh.append(np.full(n, h))
+
+    def cap(ring, up):
+        lo, hi = ring.min(0), ring.max(0)
+        ga, gb = np.meshgrid(np.arange(lo[0] + grid / 2, hi[0], grid), np.arange(lo[1] + grid / 2, hi[1], grid))
+        G_ = np.c_[ga.ravel(), gb.ravel()]
+        if len(G_):
+            A_, B_ = ring, np.roll(ring, -1, axis=0)                    # distance to the ring's edges
+            d_ = B_ - A_
+            tt = np.clip(((G_[:, None] - A_[None]) * d_[None]).sum(2) / (d_ * d_).sum(1)[None], 0, 1)
+            dist = np.linalg.norm(G_[:, None] - (A_[None] + tt[..., None] * d_[None]), axis=2).min(1)
+            G_ = G_[Path(ring).contains_points(G_) & (dist > 0.5 * grid)]
+        P = np.vstack([ring, G_])
+        tri = Delaunay(P).simplices
+        e1_, e2_ = P[tri[:, 1]] - P[tri[:, 0]], P[tri[:, 2]] - P[tri[:, 0]]
+        ar = e1_[:, 0] * e2_[:, 1] - e1_[:, 1] * e2_[:, 0]                # twice the signed area
+        tri, ar = tri[np.abs(ar) > 1e-14], ar[np.abs(ar) > 1e-14]
+        flip = (ar < 0) if up else (ar > 0)
+        tri[flip] = tri[flip][:, ::-1]
+        assert len(np.unique(tri[tri < len(ring)])) == len(ring), "a ring point left out of the cap"
+        return P, tri
+    base_idx = n * len(prof)
+    Pt, Tt = cap(rings[-1], True)
+    Pb, Tb = cap(rings[0], False)
+    ab = np.vstack(Vab + [Pt[n:], Pb[n:]])
+    hh = np.concatenate(Vh + [np.full(len(Pt) - n, prof[-1][1]), np.full(len(Pb) - n, prof[0][1])])
+    part.V = np.vstack([part.V, mapper(ab[:, 0], ab[:, 1], hh)])
+    top0, bot0 = base_idx, base_idx + len(Pt) - n
+
+    def gid(k, ring_i):                               # ring k's point i, or a cap's own interior point
+        return o + k * n + ring_i
+
+    def add(f):
+        part.F.append(f)
+        part.M.append(mat)
+        part.UV.append([uvf(*ab[q - o]) for q in f] if uvf else [(0.5, 0.5)] * len(f))
+    for k in range(len(prof) - 1):                    # walls and the round, outwards
+        for i in range(n):
+            j = (i + 1) % n
+            add([gid(k, i), gid(k, j), gid(k + 1, j), gid(k + 1, i)])
+    K = len(prof) - 1
+    for t in Tt:
+        add([gid(K, q) if q < n else o + top0 + q - n for q in t])
+    for t in Tb:
+        add([gid(0, q) if q < n else o + bot0 + q - n for q in t])
+
+
+def slide_parts(base, nrm, s, x_c, right, h0):
+    """One adjuster slide at x_c (m, HELMET frame) on the strap: rails above and below the strap, the right slide's
+    end bars and outer bar with its grip tab, the left slide's centre bar (its end bars lie under the strap and the
+    tail: not seen, not built). Every bar a flat moulded plate with rounded corners and soft edges, bent to the
+    strap's curve (22 mm along a 95 mm radius is 0.6 mm of sag; 52 mm across, 2.3 mm). Returns the part and the
+    slide's centre (arc length)."""
+    import goggle_strap_art as SA
     mid = base[:, len(STRAP_ACROSS) // 2]
     k = np.argmin(np.abs(mid[:, 0] - x_c) + 10 * (mid[:, 1] < 0.05))
     s_c = s[k]
-    boxes = []
-    hl, hh = SLIDE_L / 2, SLIDE_H / 2
-    lo_bar = h_top - SLIDE_T
-    # crossbars, down beside the strap's edges; a rigid bar 22 mm long over the curved shell: its flat bottom clears
-    # the shell by STRAP_CLEAR at its middle, not only at its ends (the chord's sag)
-    h_cb = h_base + SLIDE_SAG
-    boxes.append((-hl, hl, hh - SLIDE_BAR, hh, h_cb))
-    boxes.append((-hl, hl, -hh, -hh + SLIDE_BAR, h_cb))
-    boxes.append((-hl, -hl + SLIDE_END, -hh, hh, lo_bar))         # end bars
-    boxes.append((hl - SLIDE_END, hl, -hh, hh, lo_bar))
-    boxes.append((-0.0015, 0.0015, -hh, hh, lo_bar))              # centre bar
     part = H.Part("goggle_slides")
-    for a0, a1, b0, b1, hb in boxes:
-        _box(part, base, nrm, s, s_c, a0, a1, b0, b1, hb, h_top, "goggle_slide")
-    if grip:
-        # the tab: a triangle on the outer end bar (away from the back's centre, MY27 back view), from the bar's top
-        # half out to a point TAB beyond it
-        a_bar = hl if s[k] > s[-1] / 2 else -hl
-        a_out = a_bar + np.sign(a_bar) * TAB
-        tri = [(a_bar, hh - SLIDE_BAR), (a_bar, -0.002), (a_out, hh * 0.55)]
-        _prism(part, base, nrm, s, s_c, tri, lo_bar, h_top + 0.0005, "goggle_slide")
-        for da in (0.25, 0.45, 0.65):
-            for db in (0.35, 0.55, 0.75):
-                ca = a_bar + np.sign(a_bar) * TAB * da * 0.8
-                cb = -0.002 + (hh - SLIDE_BAR + 0.002) * db * (1 - da * 0.6)
-                _box(part, base, nrm, s, s_c, ca - 0.0006, ca + 0.0006, cb - 0.0006, cb + 0.0006, h_top + 0.0005,
-                     h_top + 0.0011, "goggle_slide")
+    mapper = lambda a, b, h: strap_map(base, nrm, s, s_c + a, b, h)          # noqa: E731
+    uvf = lambda a, b: SA.slide_uv(a, b, right)                            # noqa: E731
+    hl, hh = SLIDE_L / 2, SLIDE_H / 2
+    R = SLIDE_R
+    rs = SLIDE_EDGE + 0.00005
+    for sg in (1, -1):                                                     # rails: full length, the frame's outer
+        b0, b1 = sorted((sg * (hh - SLIDE_RAIL), sg * hh))                 # corners round (SLIDE_R), the inner ones
+        core = _rect_core(-hl, hl, b0, b1, sg > 0, SLIDE_R, rs)            # square where the end bars go on
+        _slab(part, mapper, core, rs, h0, SLIDE_T, "goggle_slide", uvf)
+    bars = []
+    if right:
+        bars += [(-hl, -hl + SLIDE_BAR), (-0.0018, 0.0018), (hl - SLIDE_BAR, hl)]
+    else:
+        bars += [SLIDE_CBAR]
+    rb = 0.0008
+    for a0, a1 in bars:                                                   # across, rail to rail
+        b0, b1 = -hh + 0.5 * SLIDE_RAIL, hh - 0.5 * SLIDE_RAIL
+        core = [(a0 + rb, b0), (a1 - rb, b0), (a1 - rb, b1), (a0 + rb, b1)]
+        _slab(part, mapper, core, rb, h0, SLIDE_T if right else SLIDE_CBAR_T, "goggle_slide", uvf)
+    if right:                                                             # the grip tab, on the outer bar
+        poly = np.asarray(TAB_POLY) / 1000.0
+        c = poly.mean(0)
+        core = c + (poly - c) * (1 - TAB_R / np.linalg.norm(poly - c, axis=1))[:, None]
+        _slab(part, mapper, core, TAB_R, h0, SLIDE_T, "goggle_slide", uvf)
     return part, s_c
 
 
-def _box(part, base, nrm, s, s_c, a0, a1, b0, b1, h0, h1, mat):
-    """A box in the strap's coordinates (along a0..a1 about s_c, across b0..b1, height h0..h1), its faces outwards."""
-    P = {}
-    for ia, a in enumerate((a0, a1)):
-        for ib, b in enumerate((b0, b1)):
-            for ih, hh in enumerate((h0, h1)):
-                P[ia, ib, ih] = strap_point(base, nrm, s, s_c + a, b, hh)[0]
-    o = len(part.V)
-    keys = list(P)
-    part.V = np.vstack([part.V, [P[k_] for k_ in keys]])
-    idx = {k_: o + i for i, k_ in enumerate(keys)}
-    for f in ([(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)], [(0, 1, 0), (1, 1, 0), (1, 0, 0), (0, 0, 0)],
-              [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], [(0, 1, 1), (1, 1, 1), (1, 1, 0), (0, 1, 0)],
-              [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)], [(1, 0, 1), (1, 0, 0), (1, 1, 0), (1, 1, 1)]):
-        part.F.append([idx[k_] for k_ in f])
-        part.M.append(mat)
-        part.UV.append([(0.5, 0.5)] * 4)
-    _orient_last(part, 6, np.mean([P[k_] for k_ in keys], axis=0))
+def build_tail(base, nrm, s, sL, sR, h0, uv_of):
+    """The strap's tail doubled over it between the slides (goggle_strap_band faces): from TAIL_START on the left
+    slide (coming up out of its slot over TAIL_FOLD) to the right slide's outer bar, the crease and the two folds
+    there (ROLLS), rounded at the strap's edges."""
+    a0, a1 = sL + TAIL_START, sR + ROLLS[1][1]
+    creases = np.array([sR + ROLLS[0][0], sR + ROLLS[0][1]])
+    S = np.r_[np.arange(a0, a1, 0.0025), a0 + TAIL_FOLD * np.linspace(0, 1, 7),
+              np.arange(sR + ROLLS[0][0] - 0.002, a1, 0.0004), a1]
+    for c_ in creases:                                                         # fine through the creases
+        S = np.r_[S, c_ + np.linspace(-0.0012, 0.0012, 25)]
+    S = np.unique(S)
+    S = S[(S >= a0) & (S <= a1)]
+    x = np.clip((S - a0) / TAIL_FOLD, 0, 1)
+    th = np.maximum(0.0004, STRAP_T * np.sqrt(1 - (1 - x) ** 2))              # the quarter round out of the slot
+    dc = np.abs(S[:, None] - creases[None]).min(1)
+    th = th * (1 - CREASE_DEPTH * np.exp(-(dc / CREASE_W) ** 2))
+    bump = np.zeros(len(S))
+    for r0, r1 in ROLLS:
+        x = np.clip((S - (sR + r0)) / (r1 - r0), 0, 1)
+        bump += ROLL_H * np.clip(1 - np.abs(2 * x - 1) ** ROLL_K, 0, 1)
+    Bq = TAIL_ACROSS
+    e = (np.abs(Bq) - (STRAP_W / 2 - ROLL_END)) / ROLL_END
+    fall = np.where(e > 0, np.sqrt(np.clip(1 - e ** 2, 0, 1)), 1.0)          # the folds' rounded ends
+    SS, BB = np.meshgrid(S, Bq, indexing="ij")
+    top = h0 + th[:, None] + bump[:, None] * fall[None, :]
+    lo = strap_map(base, nrm, s, SS, BB, np.full(SS.shape, h0)).reshape(len(S), len(Bq), 3)
+    hi = strap_map(base, nrm, s, SS, BB, top).reshape(len(S), len(Bq), 3)
+    # u along the fabric, not along the strap beneath: up out of the slot and over the rolls the face runs up to 4
+    # times as far as the base (the weave stretched on their flanks); the tail's own centre line sets its u
+    c = hi[:, int(np.argmin(np.abs(Bq)))]
+    fab = a0 + np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(c, axis=0), axis=1))]
+    uv = uv_of(np.broadcast_to(fab[:, None], SS.shape), BB)
+    return lo, hi, uv
 
 
-def _prism(part, base, nrm, s, s_c, tri, h0, h1, mat):
-    lo = [strap_point(base, nrm, s, s_c + a, b, h0)[0] for a, b in tri]
-    hi = [strap_point(base, nrm, s, s_c + a, b, h1)[0] for a, b in tri]
-    o = len(part.V)
-    part.V = np.vstack([part.V, lo, hi])
-    faces = [[o + 3, o + 4, o + 5], [o + 2, o + 1, o]] + [[o + i, o + (i + 1) % 3, o + 3 + (i + 1) % 3, o + 3 + i]
-                                                          for i in range(3)]
-    for f in faces:
-        part.F.append(f)
-        part.M.append(mat)
-        part.UV.append([(0.5, 0.5)] * len(f))
-    _orient_last(part, len(faces), np.mean(lo + hi, axis=0))
+def rims(part, lo, hi, uv, mat, sides=True):
+    """The band's side faces (both edges, unless not sides) and both end caps, outwards; uv: the edge texels of
+    the print."""
+    n, m = lo.shape[:2]
+    for j, flip in ((0, False), (m - 1, True)) if sides else ():
+        G_ = np.stack([lo[:, j], hi[:, j]], axis=1)
+        u_ = np.stack([uv[:, j], uv[:, j] + [0, 0.004 if j == 0 else -0.004]], axis=1)
+        _grid_faces(part, G_, mat, u_, flip=flip)
+    for i, flip in ((0, False), (n - 1, True)):
+        G_ = np.stack([lo[i], hi[i]], axis=0)
+        u_ = np.stack([uv[i], uv[i] + [0.0004, 0]], axis=0)
+        _grid_faces(part, G_, mat, u_, flip=flip)
 
 
-def _orient_last(part, nf, centre):
-    """Turn the last nf faces of a convex solid outwards (away from its centre)."""
-    for k in range(len(part.F) - nf, len(part.F)):
-        f = part.F[k]
-        P = part.V[f]
-        nrm_ = np.cross(P[1] - P[0], P[2] - P[0])
-        if nrm_ @ (P.mean(0) - centre) < 0:
-            part.F[k] = f[::-1]
-
-
-def selvedges(base, nrm, h0, h1):
-    """The strap's woven edges and its ends (goggle_strap): vertices in four rows, outer bottom edge, outer top edge,
-    inner top edge, inner bottom edge (one per station, as helmet.py's strap, so each outer row pair is the strap's
-    width apart); faces outwards."""
-    lo, hi = base + nrm * h0, base + nrm * h1
-    rows = [hi[:, 0], hi[:, -1], lo[:, -1], lo[:, 0]]
-    n = len(base)
+def selvedges(lo, hi, uv, mat):
+    """The strap's woven side faces (goggle_strap): vertices in four rows, outer bottom edge, outer top edge, inner
+    top edge, inner bottom edge (one per station, as helmet.py's strap, so each outer row pair is the strap's width
+    apart: test_helmet's width check reads them so); faces outwards, uv on the print's edge texels (the navy
+    selvedges). The end caps are rims(sides=False) on the band."""
+    n = len(lo)
     part = H.Part("goggle_strap")
-    part.V = np.vstack(rows)
+    part.V = np.vstack([hi[:, 0], hi[:, -1], lo[:, -1], lo[:, 0]])
     W = hi[:, -1] - hi[:, 0]
-    T = np.gradient(hi[:, len(STRAP_ACROSS) // 2], axis=0)
+    dv = np.array([0.0, 0.004])
 
-    def add(f, out):
+    def add(f, out, u):
         P = part.V[f]
         if np.cross(P[1] - P[0], P[2] - P[0]) @ out < 0:
-            f = f[::-1]
+            f, u = f[::-1], u[::-1]
         part.F.append(list(f))
-        part.M.append("goggle_strap_in")
-        part.UV.append([(0.5, 0.5)] * 4)
+        part.M.append(mat)
+        part.UV.append([tuple(x) for x in u])
+    e0, e1 = uv[:, 0], uv[:, -1]
     for i in range(n - 1):
-        add([0 * n + i, 0 * n + i + 1, 3 * n + i + 1, 3 * n + i], -W[i])          # bottom edge
-        add([1 * n + i, 1 * n + i + 1, 2 * n + i + 1, 2 * n + i], W[i])           # top edge
-    add([0, n, 2 * n, 3 * n], -T[0])                                              # the ends (in the outriggers)
-    add([n - 1, 2 * n - 1, 3 * n - 1, 4 * n - 1], T[-1])
+        add([0 * n + i, 0 * n + i + 1, 3 * n + i + 1, 3 * n + i], -W[i], [e0[i], e0[i + 1], e0[i + 1] + dv, e0[i] + dv])
+        add([1 * n + i, 1 * n + i + 1, 2 * n + i + 1, 2 * n + i], W[i], [e1[i], e1[i + 1], e1[i + 1] - dv, e1[i] - dv])
     return part
 
 
 def build_strap(Rt, prof, ends, surf=None):
-    """The strap on the shell, in the MB rest frame: goggle_strap_band (the printed fabric, its inner face, the
-    silicone band inside and the doubled run between the slides), goggle_strap (its woven edges and ends) and
+    """The strap on the shell, in the MB rest frame: goggle_strap_band (the printed woven fabric, its inner face,
+    the silicone band inside, the ends and the tail doubled between the slides), goggle_strap (its side faces) and
     goggle_slides (the two adjusters). ends: {side: (anchor, up, back)} of the outriggers' slots in the HELMET
     frame."""
     R, t = Rt
@@ -1813,29 +2032,34 @@ def build_strap(Rt, prof, ends, surf=None):
     base, nrm, s, (kL, kR) = strap_layout(surf, ends)
     band = H.Part("goggle_strap_band")
     h_in = STRAP_CLEAR + SIL_H
-    uv = np.stack(np.meshgrid(s / s[-1], (STRAP_ACROSS - STRAP_ACROSS[0]) / STRAP_W, indexing="ij"), axis=-1)
-    _grid_faces(band, base + nrm * (h_in + STRAP_T), "goggle_strap", uv)
-    _grid_faces(band, base + nrm * h_in, "goggle_strap_in", None, flip=True)
-    strap = selvedges(base, nrm, h_in, h_in + STRAP_T)
+    W0 = STRAP_ACROSS[0]
+
+    def uv_of(S_, B_):
+        return np.stack([S_ / s[-1], (B_ - W0) / STRAP_W], axis=-1)
+    uv = uv_of(*np.meshgrid(s, STRAP_ACROSS, indexing="ij"))
+    lo, hi = base + nrm * h_in, base + nrm * (h_in + STRAP_T)
+    _grid_faces(band, hi, "goggle_strap", uv)
+    _grid_faces(band, lo, "goggle_strap_in", None, flip=True)
+    strap = selvedges(lo, hi, uv, "goggle_strap_rim")
+    rims(band, lo, hi, uv, "goggle_strap_rim", sides=False)               # the ends, in the outriggers
     jj = np.nonzero(np.abs(STRAP_ACROSS) <= SIL_W / 2 + 1e-9)[0]
     _band(band, base[:, jj], nrm[:, jj], STRAP_CLEAR, h_in, "goggle_silicone", "goggle_silicone", ends=True)
-    # the strap's tail, folded back through the right slide (his right), runs doubled under it and DOUBLE_IN past its
-    # inner end (MY27 back view): a second layer over the first, the same print
     slides = H.Part("goggle_slides")
     sc = []
-    h_top = h_in + 2 * STRAP_T + SLIDE_T
-    for x_c, grip in ((SLIDE_X, False), (-SLIDE_X, True)):
-        p, s_c = slide_parts(base, nrm, s, x_c, grip, STRAP_CLEAR, h_top)
+    h_slide = h_in + STRAP_T + SLIDE_GAP
+    for x_c, right in ((SLIDE_X, False), (-SLIDE_X, True)):
+        p, s_c = slide_parts(base, nrm, s, x_c, right, h_slide)
         o = len(slides.V)
         slides.V = np.vstack([slides.V, p.V])
         slides.F += [[i + o for i in f] for f in p.F]
         slides.M += p.M
         slides.UV += p.UV
         sc.append(s_c)
-    sR = max(sc)                                  # the right slide (x < 0) is the later one along s
-    i0, i1 = np.searchsorted(s, sR - SLIDE_L / 2 - DOUBLE_IN), np.searchsorted(s, sR + SLIDE_L / 2)
-    _band(band, base[i0:i1 + 1], nrm[i0:i1 + 1], h_in + STRAP_T + 0.0002, h_in + 2 * STRAP_T, "goggle_strap",
-          "goggle_strap_in", uv[i0:i1 + 1])
+    sL, sR = min(sc), max(sc)                     # the right slide (x < 0) is the later one along s
+    tlo, thi, tuv = build_tail(base, nrm, s, sL, sR, h_in + STRAP_T + SLIDE_GAP, uv_of)
+    _grid_faces(band, thi, "goggle_strap", tuv)
+    _grid_faces(band, tlo, "goggle_strap_in", None, flip=True)
+    rims(band, tlo, thi, tuv, "goggle_strap_rim")
     for P in (band, strap, slides):
         P.V = P.V @ R.T + t
         P.frame = "MB"
@@ -1991,19 +2215,51 @@ MATERIALS = {
                                thin_film=dict(thickness_nm=430, ior=1.33)),      # swatches: deep purple square on
     "goggle_lens_clear": dict(rgb=[120, 90, 150], rough=0.02, transmission=1.0),
 }
-for _k in ("goggle_strap", "goggle_strap_in"):
-    MATERIALS[_k] = H.MATERIALS[_k]
-# round 8: the silicone band inside the strap (translucent grey rubber, never seen worn) and the adjuster slides,
-# moulded in the strap's colour at the back in every Leatt back photo (white on the Forge, light blue on the Neon
-# Yellow / Light Grey, navy on the MY27 kit): his Pinata Teal strap is teal-green there (strap_texture), satin
+MATERIALS["goggle_strap_in"] = H.MATERIALS["goggle_strap_in"]
+# round 9: Leatt's woven elastic (goggle_strap_art.py): the Pinata print from Leatt's goggle ISO with the weave's
+# albedo, the knit loops and selvedge ribs as a normal map at their measured scale, the white LEATT a raised print;
+# a faint satin sheen and a low gloss: the MY27 back view's fabric reads deep and saturated (body 12/108/190, its
+# dark loops at a quarter of that), where sheen 0.35 and the default gloss glazed it grey (104/142/195 for an albedo
+# of 4/80/165). The band's side faces take the print's edge colour (no normal map: their UVs run along the edge).
+MATERIALS["goggle_strap"] = dict(image="goggle_strap_print.jpg", normal="goggle_strap_print_n.png", rough=0.85,
+                                 sheen=0.12, spec=0.25,
+                                 detail=dict(image="goggle_strap_weave.png", mask="goggle_strap_mask.png",
+                                             repeat=(0.645 * 1000.0 / 19.0, 1.0),    # SA.STRAP_LEN_UV / SA.TILE_MM
+                                             bump_strength=0.3))
+MATERIALS["goggle_strap_rim"] = dict(image="goggle_strap_print.jpg", rough=0.85, sheen=0.12, spec=0.25)
+# the silicone band inside the strap (translucent grey rubber, never seen worn)
 MATERIALS["goggle_silicone"] = dict(rgb=[150, 150, 152], rough=0.5)
-MATERIALS["goggle_slide"] = dict(rgb=[40, 175, 150], rough=0.35)
+# the adjuster slides: moulded in a colour of the strap's design in Leatt's 5.5 back photos (strap base: Forge
+# white, Fuel teal, Neon Yellow cyan; edge: MY27 Blue/Red and Royal navy; accent or black on others: ledger section
+# 11). No photo shows the Pinata Teal's; by the brief's rule (Forge: the strap's base there; MY27: its edges, and
+# the Pinata strap has no edge colour) the print's teal-green at the slides: the median of goggle_strap_print.jpg's
+# middle band over the u the slides cover (0.41 to 0.45 and 0.55 to 0.60 on the built strap; top band 123/165/145,
+# bottom 91/151/125). Satin; the moulded LEATT, triangle and dimples as a normal map.
+MATERIALS["goggle_slide"] = dict(rgb=[112, 159, 138], rough=0.55, spec=0.35, normal="goggle_slide_n.png")
 
+
+def write_strap_textures(outdir=None):
+    """The strap's print, its weave tile and the slides' details (goggle_strap_art.py) into textures/rider."""
+    import goggle_strap_art as SA
+    outdir = outdir or TEXDIR
+    assert abs(MATERIALS["goggle_strap"]["detail"]["repeat"][0] - SA.STRAP_LEN_UV * 1000.0 / SA.TILE_MM) < 1e-9
+    info = SA.strap_textures(outdir)
+    info.update(weave=SA.weave_tile(outdir))
+    mm = 1.0
+    SA.slide_texture(outdir, leatt=SLIDE_LEATT,
+                     tab=dict(tri=TAB_TRI, groove=TAB_GROOVE, dots=TAB_DOTS, r=0.38 * mm, rim=0.62,
+                              a_range=(8.6, 18.4)))
+    return info
 
 if __name__ == "__main__":
-    # python3 goggle.py --free OUT.npz: the goggle alone (free_parts) for goggle_views.py
+    # python3 goggle.py --free OUT.npz [TURN | TURN/TURN]: the goggle alone (free_parts) for goggle_views.py, its
+    # outriggers turned TURN deg out from straight back (side +1 / side -1; default OR_FREE_TURN)
     if len(sys.argv) > 2 and sys.argv[1] == "--free":
+        if len(sys.argv) > 3:
+            t_ = [float(a) for a in sys.argv[3].split("/")]
+            OR_FREE_TURN = {1: t_[0], -1: t_[-1]}
         os.makedirs(TEXDIR, exist_ok=True)
         outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
+        write_strap_textures()
         H.write_npz(sys.argv[2], free_parts())
         print("wrote", sys.argv[2])

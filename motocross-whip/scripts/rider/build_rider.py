@@ -137,11 +137,13 @@ def gear_material(name, spec):
     if "thin_film" in spec:                                       # an iridescent mirror coating (goggle lens)
         p.inputs["Thin Film Thickness"].default_value = spec["thin_film"].get("thickness_nm", 500.0)
         p.inputs["Thin Film IOR"].default_value = spec["thin_film"].get("ior", 1.5)
+    base = nrm = None
     if "image" in spec:
         f = spec["image"] if os.path.isabs(spec["image"]) else os.path.join(TEXDIR, spec["image"])
         t = nt.nodes.new("ShaderNodeTexImage")
         t.image = bpy.data.images.load(f)
         nt.links.new(t.outputs["Color"], p.inputs["Base Color"])
+        base = t.outputs["Color"]
     if "normal" in spec:
         f = spec["normal"] if os.path.isabs(spec["normal"]) else os.path.join(TEXDIR, spec["normal"])
         t = nt.nodes.new("ShaderNodeTexImage")
@@ -151,7 +153,12 @@ def gear_material(name, spec):
         n.inputs["Strength"].default_value = spec.get("normal_strength", 1.0)
         nt.links.new(t.outputs["Color"], n.inputs["Color"])
         nt.links.new(n.outputs["Normal"], p.inputs["Normal"])
-    elif "bump" in spec:
+        nrm = n.outputs["Normal"]
+    if "detail" in spec:                     # a repeated detail tile (the goggle strap's weave, goggle_strap_art)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import goggle_strap_art
+        goggle_strap_art.detail_nodes(nt, p, spec, TEXDIR, base, nrm)
+    if "bump" in spec and "normal" not in spec and "detail" not in spec:      # a fine noise (as before round 9)
         b = nt.nodes.new("ShaderNodeBump")
         b.inputs["Strength"].default_value = spec["bump"]
         tx = nt.nodes.new("ShaderNodeTexNoise")

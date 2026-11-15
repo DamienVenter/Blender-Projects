@@ -413,6 +413,46 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   match the silhouette from the wrong side: the render showed the shell's shaded side where his photo shows its lit
   top. Add a landmark or a prior, or say the view is unusable.
 
+## Goggle round 9: slides, woven strap, hinged outriggers (2026-11-15, goggle.py, goggle_strap_art.py, ledger goggle.md section 11)
+- Strap hardware is modelled from the 1:1 back view (MY27 kit back, 0.21 mm/px): flat moulded frames (slabs bent to
+  the strap's curve, rounded corners, soft edges), never rods or spheres. Thread the strap as Leatt does (under the
+  end bars, the tail up out of the left slot, doubled to the right slide, folded round its bars) and give the folds
+  height (3 mm) so the back light shades them. With no photo of a colourway's slides, use the brief's rule and say so.
+- Woven elastic: a detail tile (goggle_strap_art.weave_tile: red relief, green albedo factor, Non-Color) repeated
+  along u over the print, multiplied in where a mask is white, bumped after the print's normal map. The tile is
+  measured (loops 0.65 x 0.45 mm, jacquard 1.9 mm, 19 mm a tile). Turn the denoiser off for fabric close-ups
+  (GOGGLE_VIEWS_DENOISE=0): at low samples it smooths the weave away.
+- u is s / s_total along the strap on the shell, so STRAP_LEN_UV and the detail repeat must follow the built strap:
+  any change that moves the strap's ends (the outriggers) changes its length (618.8 to 645.0 mm in round 9). Rebuild,
+  read info["length_mm"], update both, regenerate the textures (`goggle.py --free` rewrites them every run). Measure
+  the tile on the printed face's centre line (length over u span); the edges differ by 2 to 3 % because the strap
+  wraps a cone-like shell, and a median of per-edge ratios is biased by the stations' density in the bends.
+- A layer that leaves the surface (a fold, a roll, a tail coming up out of a slot) needs its own u along its own
+  face: mapped by the strap beneath, the tail's rolls stretched the weave up to 4.2 times on their flanks. Test
+  every centre edge's face length per u (within 5 %), not only the total.
+- Keep goggle_strap's vertex layout (four rows: outer bottom, outer top, inner top, inner bottom edge, one per
+  station): test_helmet.py (another agent's file) reads the strap's width from rows 0 and 1. Round 9 broke it by
+  building the side faces with a grid helper; the end caps now live on goggle_strap_band.
+- One grain level does not fit both strap photos: the MY27 jacquard reads more grain than ours (0.26 against 0.16),
+  the Pinata kit photo less (0.14 against 0.19). The Pinata print also renders dull (saturation 0.65 against 0.92):
+  it is sampled from Leatt's render and shown under AgX. Calibrate the print against the kit photo, not the ISO.
+- Outriggers hinge on the frame's widest point with the OUTER face's front edge on the hinge (with the inner face
+  there the plate stands 5 mm beyond the frame in every front photo). 30 mm long (46 read far too wide).
+- Free goggles: each Leatt photo lays the strap its own way, so fit each plate's turn per photo and side. The IoU sees
+  only the far plate (the strap's cut hides the near plate's back end): set the near plate by where the strap leaves
+  it (project the plate's back edge through the fitted camera: iso55 and phr both 0 deg). Measure the far plate by
+  the silhouette's edge, not by dark pixels beyond the pink (part of Leatt's black there is the frame's side).
+- goggle_views.py per-camera "lights" ([x, y, z, W] per key): the back view needs a key from his right and behind;
+  the front rig lights folds flat. The studio's lights are placed only in studio mode: daylight() removes them and
+  touching them raises "StructRNA of type Object has been removed".
+- Comparison sheets: composite cut-out PNGs (palette transparency) onto Leatt's 236 grey before cropping, or they
+  show green. Read his photo 07 at its own resolution too: the 4x render shows weave the motion-blurred pan cannot.
+- Blender 5.2.0 and 5.2.3 render the same view pixel identical (Cycles CPU, daylight): one 5.2.0 view is enough.
+- Build the goggle from Leatt's goggle photos; do not tune it to the helmet shell's eyeport edge, which the
+  helmet agent found 35 to 40 mm too far forward (the brow about 20 mm, decision 44; a joint round moves both).
+  Keep the worn-fit tests passing on the current shell and list in the ledger which numbers are worn on it
+  (twist, anchor, strap length and so STRAP_LEN_UV, strap fit, clearances, the Pinata plate run).
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

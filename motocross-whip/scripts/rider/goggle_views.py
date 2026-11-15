@@ -26,6 +26,14 @@ Round 8: light "daylight" (head_closeups.py's sun and sky, the sun aimed by the 
 his outdoor photos; a camera may carry "offset" (m, the point it looks round, default the origin) and "box" (photo
 px: only that part is rendered, at GOGGLE_VIEWS_SCALE); the helmet's clear coat (coat_rough, spec) as build_rider.
 
+Round 9: a camera may carry "lights": [[x, y, z, W], ...] for the three area lights (m, about the origin, aimed at
+it; the MY27 back view: a key from his right and behind, a fill from his left, a dim top light, so the tail's rolls
+shade as in Leatt's photo, where the front rig lit them flat). The strap's woven fabric (goggle_strap_art.py: the
+print, its normal map, the weave tile and its mask) through the material's "detail". GOGGLE_VIEWS_STRAP_TEX another
+print image (textures/rider name or path) for another colourway's strap (the MY27 back check),
+GOGGLE_VIEWS_SLIDE_RGB "r,g,b" the slides' colour (sRGB), GOGGLE_VIEWS_DENOISE 0 to render without the denoiser
+(the 1:1 fabric checks: it smooths the weave away at low samples).
+
 light (round 6): "studio" (default) or a raking sun that shows every dent and wave in the frame as a dark or light
 streak (after the bike's rake.py: the studio lights off, the ambient at 12 %, a 0.5 deg sun, AgX Punchy):
 "rakeT" from above, "rakeB" from below, "rakeL" from his left, "rakeR" from his right, each 20 deg in front of the
@@ -56,6 +64,11 @@ SCALE = float(os.environ.get("GOGGLE_VIEWS_SCALE", "0.5"))
 LIGHT_SIZE = float(os.environ.get("GOGGLE_VIEWS_LIGHT_SIZE", "1.0"))       # the studio's area lights (m; round 6)
 FRAME_RGB = [int(v) for v in os.environ.get("GOGGLE_VIEWS_FRAME_RGB", "").split(",") if v]   # sRGB 0..255
 LENS_VLT = float(os.environ.get("GOGGLE_VIEWS_LENS_VLT", "0") or 0)                          # 0..1, 0: his mirror
+# round 9: the strap and slides in another colourway (the MY27 Blue/Red comparison): a print image (absolute path) and
+# the slides' colour
+STRAP_TEX = os.environ.get("GOGGLE_VIEWS_STRAP_TEX", "")
+SLIDE_RGB = [int(v) for v in os.environ.get("GOGGLE_VIEWS_SLIDE_RGB", "").split(",") if v]
+DENOISE = os.environ.get("GOGGLE_VIEWS_DENOISE", "1") != "0"     # round 9: 0 for 1:1 crops of the strap's weave
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -111,10 +124,25 @@ def material(name, spec):
     if "thin_film" in spec:
         p.inputs["Thin Film Thickness"].default_value = spec["thin_film"].get("thickness_nm", 500.0)
         p.inputs["Thin Film IOR"].default_value = spec["thin_film"].get("ior", 1.5)
+    base = nrm = None
     if "image" in spec:
         t = nt.nodes.new("ShaderNodeTexImage")
         t.image = bpy.data.images.load(os.path.join(TEXDIR, spec["image"]))
         nt.links.new(t.outputs["Color"], p.inputs["Base Color"])
+        base = t.outputs["Color"]
+    if "normal" in spec:                           # round 9: as build_rider.gear_material (the strap's weave)
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = bpy.data.images.load(os.path.join(TEXDIR, spec["normal"]))
+        t.image.colorspace_settings.name = "Non-Color"
+        n = nt.nodes.new("ShaderNodeNormalMap")
+        n.inputs["Strength"].default_value = spec.get("normal_strength", 1.0)
+        nt.links.new(t.outputs["Color"], n.inputs["Color"])
+        nt.links.new(n.outputs["Normal"], p.inputs["Normal"])
+        nrm = n.outputs["Normal"]
+    if "detail" in spec:                           # round 9: the weave tile (goggle_strap_art.detail_nodes)
+        sys.path.insert(0, HERE)
+        import goggle_strap_art
+        goggle_strap_art.detail_nodes(nt, p, spec, TEXDIR, base, nrm)
     return m
 
 
@@ -126,6 +154,12 @@ def load(path):
     if LENS_VLT:                                   # ... and a plain see-through lens (no mirror)
         for m in ("goggle_lens_mirror", "goggle_lens_clear"):
             spec[m] = dict(thin_vlt=LENS_VLT)
+    if STRAP_TEX:
+        for m in ("goggle_strap", "goggle_strap_rim"):
+            if m in spec:
+                spec[m] = dict(spec[m], image=STRAP_TEX)
+    if SLIDE_RGB and "goggle_slide" in spec:
+        spec["goggle_slide"] = dict(spec["goggle_slide"], rgb=SLIDE_RGB)
     mats = [str(m) for m in g["mats"]]
     bm = {m: material(m, spec.get(m, {})) for m in mats}
     for name in [str(n) for n in g["names"]]:
@@ -150,7 +184,7 @@ def load(path):
 def studio(sc):
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
-    sc.cycles.use_denoising = True
+    sc.cycles.use_denoising = DENOISE
     sc.view_settings.view_transform = "AgX"
     w = bpy.data.worlds.new("w")
     sc.world = w
@@ -178,6 +212,24 @@ def studio(sc):
         o.location = loc
         o.rotation_euler = (Vector((0, 0, 0)) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
         sc.collection.objects.link(o)
+        KEYS.append((o, loc))
+        KEY_W.append(en)
+
+
+KEYS, KEY_W = [], []
+
+
+def place_lights(s):
+    """Round 9: a camera's own studio rig, as a photographer moves the lights round with the camera: "lights", the
+    three area lights' [x, y, z, W] (GOGGLE frame; aimed at the origin). Leatt's MY27 back view: two side lights
+    grazing the strap's back (the doubled strap's folds by the right slide bright on their right sides and dark at
+    the creases, 93 to 154 of 255 across each fold; the left slide's centre bar lit on its left wall) and a dim one
+    above. Without it the back is lit only by the front rig's 90 W light above it, the folds read flat."""
+    rig = s.get("lights") or [list(loc) + [en] for (o, loc), en in zip(KEYS, KEY_W)]
+    for (o, _), (x, y, z, w) in zip(KEYS, rig):
+        o.location = (x, y, z)
+        o.data.energy = w
+        o.rotation_euler = (Vector((0, 0, 0)) - Vector((x, y, z))).to_track_quat("-Z", "Y").to_euler()
 
 
 def rake(sc, which):
@@ -293,6 +345,8 @@ def main():
     for name in NAMES:
         s = SPEC[name]
         camera(sc, name, s["x"], s["W"], s["H"], s.get("offset", (0.0, 0.0, 0.0)))
+        if LIGHT == "studio":                      # daylight removes the studio's lights; a rake hides them
+            place_lights(s)
         if day:
             bpy.context.view_layer.update()
             day_sun(day, sc.camera, s.get("sun", (90.0, 110.0)))
