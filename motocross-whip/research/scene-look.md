@@ -12,6 +12,10 @@ one of his photos is shown at that photo's own exposure, the bike's plastic red 
 again for the materials round. Sections marked (round 2) replace round 1's numbers; round 1's stay below them where
 they explain a choice.
 
+Round 2b (the coordinator's review of round 2's red at 1:1): the red is fitted on the plastic's diffuse body only,
+with his hue (G = B) and Honda's studio views within main's error, and the studio for Honda's views reflects dark as
+theirs does ("Round 2b" and "Honda's studio", under "The bike's red").
+
 ## The look
 
 | step | what | value (round 2; round 1) | source |
@@ -240,45 +244,153 @@ Does it move towards the photo's own colour (240, 50, 60)? In its ratios, yes: G
 B/R 0.013 to 0.062 (photo 0.052, a little past). In level, R goes down (208 to 187): the photo's 240 is a lit mean,
 light included. Not applied in round 1 (kit_canvas.RED paints the same plastic in the kit textures).
 
-### Round 2: one red, his 07's (applied)
+### Round 2: one red, his 07's (superseded by round 2b)
 
-`build_bike.RED`, `kit_canvas.RED` and `kit_sidepanel.PLASTIC_RED` are one plastic and stay one value (test_kit.py).
-Fitted as in round 1 but with round 2's light and look, photo 07 at its own exposure (-0.045), every plain red pixel
-relit through the diffuse passes (`look_fit.py bike`), checked through Blender:
+Round 2 fitted RED 205, 41, 62 to his 07 under round 2's light and look (dE 10.4 / 10.4 to 5.0 / 6.6 under round 2's
+gate, hue within 15 deg of red) and rebuilt the kit textures with it. The coordinator's review at 1:1: it read
+crimson (B above G in the albedo and on the bike), and Honda's studio views turned pink (dE 27 to 40 median, from 13
+to 30). Its photo "lit" (245, 94, 105) held the coat's sky highlights, which the hue gate kept.
 
-| | median | lit | dE median / lit |
-|---|---|---|---|
-| his photo 07 (13268 px) | 189, 47, 49 | 245, 94, 105 | |
-| RED 208, 10, 22 (13907 px) | 205, 42, 41 | 223, 79, 76 | 10.4 / 10.4 |
-| **RED 205, 41, 62** | 203, 52, 60 | 226, 88, 91 | **5.0 / 6.6** |
+### Round 2b: the red on the plastic's diffuse body (applied)
 
-Honda's studio photos under the studio look (Standard at -0.9, build_bike.STUDIO; the stock bike rendered at half
-the photos' 4000 x 2250, `look_fit.py honda`; plain red eroded 2 px, about 71 700 px per view):
+**The gate** (the coordinator's, `look_fit.red_test`): red the largest channel, saturation over 0.5, value over 77,
+G and B each under 0.45 R. The coat's pinkish highlights fail it. Applied alike to the photos and our renders.
 
-| view | Honda's photo median / lit | RED 208, 10, 22 dE | RED 205, 41, 62 dE | Honda's own fit | its dE |
+**His 07, the bike alone.** The coordinator's reading of round 2's sheet (median 183, 51, 45, lit 221, 87, 57: an
+orange-red with G at or above B) covers the whole photo panel, and 8522 of its 21378 gated pixels are the orange sign
+at the top left (median 180, 73, 48). On the bike (look_fit's region: the bike's red and black parts in cam07,
+dilated 15 px; 10405 px) the gate gives **183, 41, 41, lit 238, 74, 80**: G = B at the median, G/B 0.92, 0.91, 1.00,
+0.93 by luma quartile. The panel below row 380 (the bike, no sign) gives 190, 43, 42 / 235, 72, 77. So the diffuse hue
+of his plastic is a plain red with G about B, not an orange-red. Round 2's red had G/B 0.60 to 0.69 on the bike.
+
+**The render's body** (`look_fit.py bike`): the plain red pixels whose gloss (Glossy Direct + Indirect times Glossy
+Color) is under a fifth of the pixel (channel sums, `GLOSS_SHARE`): 9699 of 13914 in cam07, gloss share median 0.13.
+A red a reads there as its diffuse light x a x 0.956 (the coat's loss), through the daylight look at photo 07's
+exposure (-0.045); "all" puts the coat's reflection back (lin + light x (a - albedo)). Through Blender:
+
+| red | body median / lit | dE body | all of it median / lit | dE all | the coat adds (all - body) |
 |---|---|---|---|---|---|
-| left | 244, 24, 38 / 249, 90, 97 | 15.0 / 3.5 | 29.5 / 10.1 | 230, 1, 3 | 6.6 / 3.8 |
-| lf34 | 238, 27, 39 / 246, 88, 95 | 13.4 / 7.2 | 27.1 / 4.7 | 210, 2, 7 | 10.5 / 9.8 |
-| right | 244, 24, 38 / 246, 90, 96 | 30.1 / 11.2 | 39.8 / 16.5 | 251, 1, 4 | 12.5 / 9.4 |
+| his photo 07 (bike) | 183, 41, 41 / 238, 74, 80 | | | | |
+| 208, 10, 22 (main) | 182, 5, 11 / 202, 7, 16 | 14.0 / 22.7 | 187, 25, 28 / 204, 48, 50 | 8.3 / 11.0 | 5, 20, 17 |
+| 205, 41, 62 (round 2) | 179, 26, 39 / 199, 34, 49 | 3.9 / 12.4 | 184, 38, 48 / 202, 59, 66 | 4.3 / 11.5 | 5, 12, 9 |
+| 228, 74, 82 (the body's own fit) | 199, 50, 53 / 217, 61, 65 | 5.1 / 6.3 | 203, 57, 60 / 219, 75, 76 | 7.0 / 7.8 | 4, 7, 7 |
+| 230, 45, 50 (the grid's pick) | 201, 29, 31 / 218, 36, 38 | 12.3 / 16.0 | 204, 39, 41 / 220, 58, 58 | 9.5 / 7.7 | 3, 10, 10 |
+| **230, 46, 49 (round 2b, applied)** | **201, 30, 30 / 218, 37, 37** | **12.6 / 16.4** | 204, 40, 40 / 220, 59, 58 | 9.7 / 7.7 | 3, 10, 10 |
 
-One albedo cannot fit both, and the reasons:
-- **Our studio set-up veils the red**: in the studio renders 91 to 94 % of the plain red's G is reflection (the clear
-  coat and the specular mirroring the studio dome and lamps), G 54 to 57 on its own after the look, where Honda's
-  photo median has G 24. No albedo gets below that: Honda's own fit runs G and B to 1 to 7 and still reads G 55 to
-  58. In his 07 the same split leaves G 4.9 of reflection: the street mirrors far less than our dome.
-- **Honda's red is purer**: decoded to linear, Honda's photo medians have G/R 1.0 to 1.3 % and B/R 2.1 to 2.4 %,
-  his 07's 5.6 % and 6.0 % (the albedos: old RED 0.5 % and 1.3 %, his fit 3.6 % and 7.9 %). Honda's product photos
-  are graded and lit for a saturated red; his plastics are a used bike's in street light through a phone.
+- **The environment's part**: the coat adds about 3, 10, 10 to the medians (the rig's sky and ground mirrored), G and
+  B alike: a grey-blue veil, not a blue cast, and it is the environment's (his street of warm stone and pavement
+  mirrors less of the sky than our open rig), not the albedo's.
+- **The lit quarter's gap is light, not albedo**: our body's lit R is 218 against his 238 while its median is 201
+  against his 183 (his shade-to-sun spread 1.30, ours 1.09: his 07 has more sun on the tank and fender). No red with
+  his hue closes both; the body's own fit gets 6.3 by lifting G and B to 74 and 82, and Honda's views then go to 22
+  to 31.
 
-His photos lead for the scene (brief), so RED = 205, 41, 62. Honda's studio views now read crimson-pink against
-Honda's red (dE 27 to 40 median). A red for the STOCK livery alone (the shape work against Honda's photos) or a
-studio set-up with less reflection would close that; asked in the round's report, not done.
+**One red for both.** A grid of 288 reds (R 205 to 240, G 30 to 70 in steps of 5, B from G - 5 to G + 10; the look in
+numpy, `scene_look.display`, within a level of Blender's), kept when his 07 body's median G is within 3 of its B (his
+hue) and each Honda view (round 2b's studio, below) is at or under main's own error there (main's red in main's
+studio: left 15.1 / 7.2, lf34 13.8 / 4.0, right 30.1 / 11.9). No red keeps lf34's lit quarter under 4.0 in the round
+2b studio (Honda's own fit gets 8.2 there; see below), so it is ranked on the rest: the medians in all three views
+and the lit quarters of left and right. **230, 45, 50** comes first on Honda (left 13.9 / 4.5, lf34 13.3 / 7.3, right
+12.9 / 3.4) with his 07 body at 12.2 / 15.9; 230, 50, 50 is 0.3 better in his 07 and worse in every Honda view;
+220, 40, 45 (10.5 / 16.5 in his 07) misses lf34's median (14.8). Of the 43 reds that pass, none gets his 07's body
+under about 12 / 16 (median / lit): Honda's purer red and his photo's wider shade-to-sun spread set that floor.
+
+Applied one level off it, **230, 46, 49**: the side panels' artwork holds 230, 45, 50 itself in lone anti-aliased
+texels (11 a side, already there in round 2's textures), which test_kit's slit check then reads as plain plastic
+showing through the print (5 a side); no texel in the panels' box holds 230, 46, 49. Checked through Blender on the
+final renders (round 2b's code and red, `look_fit.py honda`, dE median / lit):
+
+| view | Honda's photo median / lit | main (main's red and studio) | round 2 (205, 41, 62, main's studio) | **round 2b (230, 46, 49, round 2b's studio)** | main's red in round 2b's studio | Honda's own fit, main's studio | Honda's own fit, round 2b's studio |
+|---|---|---|---|---|---|---|---|
+| left | 243, 24, 37 / 249, 79, 87 | 15.1 / 7.2 | 28.4 / 8.5 | **13.7 / 4.8** | 11.6 / 2.7 | 229, 1, 0: 6.0 / 6.0 | 232, 0, 21: 4.4 / 5.1 |
+| lf34 | 238, 25, 39 / 246, 79, 87 | 13.8 / 4.0 | 27.7 / 6.2 | **13.1 / 7.7** | 12.0 / 10.9 | 228, 0, 10: 7.5 / 7.2 | 241, 41, 47: 9.5 / 8.2 |
+| right | 243, 24, 38 / 245, 87, 92 | 30.1 / 11.9 | 39.3 / 17.2 | **12.8 / 3.6** | 10.7 / 6.7 | 255, 1, 5: 11.3 / 9.4 | 230, 25, 30: 5.8 / 7.6 |
+
+Five of the six numbers are under main's; lf34's lit quarter is not (7.7 against 4.0; see "Honda's studio", below).
+
+Honda's red in their photos is purer and leans to B (G 24, B 37 at the median): with his hue (G = B) no red gets
+Honda's medians under about 12. The two photos still disagree on purity (decoded G/R 1 % in Honda's, 2 % and more in
+his 07); the red sits between them, with his hue.
 
 The kit textures were rebuilt from their scripts with the new red (kit_template.py, kit_sidepanel.py, kit_canvas.py;
-no hand edits): every changed texel was the old red (exactly) or an anti-aliased blend of it, moved along the same
-blend line (`kit_diff`: 0 texels off it). The rebuild also carries panel-edge changes from parts.py since the
-textures were last built (commit 298c20a): 114 texels on fender.png, 140 to 488 on the side textures and their
-material maps, 1 on side_L_n.png, the same with the old red.
+no hand edits; `kit_diff`: every changed texel was round 2's red exactly or an anti-aliased blend of it, moved along
+the same blend line).
+
+### Honda's studio (round 2b, `build_bike.studio`, the honda_* views)
+
+**What their photos show.** For each plain red pixel of a honda_* render, the camera ray's mirror direction (the
+Normal and Position passes; the camera's centre by a DLT on the Position pass, rms 0.000 px), binned by its
+elevation; Honda's photo decoded to linear and box-averaged to our pixels; linear x 1000 at the studio exposure
+(-0.9). Left view, 87 702 px (scratch honda_env.py):
+
+| reflected ray's elevation (deg) | px | Honda's photo R, G, B | main's studio: the coat's gloss G | round 2b: gloss G |
+|---|---|---|---|---|
+| -90 to -30 | 2374 | 853, 8, 17 | 46 | 43 |
+| -30 to -10 | 5238 | 853, 9, 17 | 41 | 37 |
+| -10 to 0 | 36533 | 901, 9, 18 | 26 | 19 |
+| 0 to 10 | 3343 | 861, 13, 22 | 33 | 15 |
+| 10 to 20 | 5403 | 859, 10, 20 | 48 | 16 |
+| 20 to 30 | 4840 | 913, 9, 20 | 122 | 26 |
+| 30 to 45 | 10256 | 920, 9, 22 | 137 | 29 |
+| 45 to 60 | 5379 | 909, 10, 22 | 108 | 41 |
+| 60 to 90 | 14336 | 913, 45, 60 | 95 | 81 |
+
+Honda's G is the albedo's and the coat's together: 8 to 13 wherever their coat looks below 60 deg, 45 overhead. Their
+studio mirrors dark flags round the bike and one soft light above it. Ours mirrored a grey world (0.9 at 0.7) all
+round and the key lamp from 20 to 60 deg. The light groups (two renders of the left view, A with every lamp seen in
+reflections, B with none; per lamp its diffuse part B and its reflection A - B; the red's medians at strength 1,
+linear x 1000): key diffuse R 1247, reflection G 11; top 389 / 2; rim 270 / 1; front 198 / 1; fill 18 / 0; the world's
+reflection G 80, the veil.
+
+**The change** (`build_bike.STUDIO`, `STUDIO_LAMPS`, `studio()`, `turn_lamps()`):
+- The world is hidden from reflected rays in the honda_* views (`world.cycles_visibility.glossy`); a sphere of its
+  grey seen by reflected rays only (`refl_dome`, emission 0.9 x STUDIO[3]) takes its place: the dark flags. STUDIO[3]
+  = 0.2 from a scan on the left view's light groups (world 0.6 to 0.8, lamps 0.4 to 0.6, the dome 0.15 to 0.25;
+  scratch studio_scan.py), checked in the real render: the frame's median G 139 against Honda's 163, the black
+  plastics' 44 against 28 (the table below).
+- Of the lamps only the top one is seen in reflections: Honda's overhead light.
+- The lamps turn with the camera about the bike's vertical axis (`turn_lamps`): Honda's left and right photos light
+  the bike alike (the plain red's linear R 896 and 899), where our fixed lamps lit the right at 548 against the left's
+  802; now 769 and 761.
+- Kept: the world's light 0.7, the lamps 0.5, the exposure -0.9 (STUDIO's first three). Every other view keeps the
+  world in reflections and every lamp as before.
+
+The bike's other materials, sRGB G quartiles (25, 50, 75 %) against Honda's photo:
+
+| view, class | Honda's photo | main's studio | round 2b |
+|---|---|---|---|
+| left, frame (spars and castings) | 87, 163, 184 | 161, 179, 190 | 99, 139, 152 |
+| left, swingarm | 176, 180, 187 | 166, 184, 197 | 144, 172, 189 |
+| left, engine | 55, 104, 135 | 114, 140, 151 | 82, 113, 134 |
+| left, black plastics | 22, 28, 43 | 52, 58, 62 | 40, 44, 47 |
+| left, the whole bike | 28, 53, 105 | 50, 60, 115 | 39, 60, 94 |
+| right, frame | 64, 163, 184 | 154, 176, 186 | 89, 135, 152 |
+| right, black plastics | 22, 33, 49 | 45, 48, 50 | 40, 44, 45 |
+| lf34, frame | 25, 93, 154 | 137, 168, 183 | 76, 141, 156 |
+| lf34, black plastics | 19, 26, 42 | 50, 60, 63 | 40, 45, 47 |
+
+Closer in every class but the frame's and swingarm's top quartile (their highlights).
+
+**Tried and left out**: the floor (the shadow catcher) hidden from reflections too: the red's G 4 lower, but the
+frame fell to a median 68 and the swingarm to 67 (they mirror the floor). The light-group composite predicted half the
+coat's reflection the real render had (G 13 against 26 per mille with main's red): the lamps' groups in B also hold
+the lamp-lit floor and bike seen in reflections. Check a studio in a real render.
+
+**lf34's lit quarter** stays over main's (7.7 against 4.0). Honda's lf34 photo has one strong light in the coat: in
+the bike's frame (front +X) the reflected rays at azimuth -60 to -30 deg and 20 to 30 deg up read G 559 per mille
+(2071 px), -90 to -60 deg 105 (5888 px). Their right photo reflects that same direction too (507 px) and reads 8, so
+it is no fixed studio light; turning with the camera it sits 95 deg right of the camera, where their left photo
+reads 6 to 15 (scratch env_world.py). Tried with 230, 46, 49: each lamp seen in reflections in turn (the light-group
+composite, which underestimates: key 13.6 / 4.4, rim 13.9 / 3.8 with the median over main's, fill 13.2 / 6.6, front
+13.3 / 7.0; the key sits 18 deg off the camera and 38 up, nowhere near the highlight, and lights the left's 20 to 60
+deg where Honda's is dark), and in a real render a card seen by reflections only at the highlight's direction
+(1.8 x 0.6 m, 3.5 m out, 150 W): lf34 13.2 / 4.9 (it matches the highlight, 486
+against 559, but also lights 30 to 45 deg up, 117 against 10), left 13.7 / 4.7 to 14.0 / 5.6 with 53 to 224 put on
+about 4300 px where Honda's left reads 6 to 15. Honda lit that shot for itself; a studio that turns with the camera
+cannot copy it without contradicting their left photo, and the rest of the lit quarter's gap is R (ours clips at 255,
+theirs 246), the diffuse light, not the reflections. Main's grey world reached 4.0 by chance: main's red there is
+12.0 / 10.9 in the round 2b studio, Honda's own fit 9.5 / 8.2. Left out; lf34's lit quarter is the one number over
+main's.
 
 ### The kit's printed colours in his 07 (round 2)
 
@@ -380,6 +492,17 @@ Round 1's readings (decision 54's sky), kept for the record:
 - Round 2's tests, each failing on main: `test_day_rig.py` (collection error without day_rig.py; with it copied in,
   the 3 script tests fail and the module's 6 pass), `test_scene_look.py`'s two exposure tests, `test_kit.py`'s one
   red.
+- Round 2b's tests, each failing on main and on round 2's scripts (2b13352): bike `test_scene_look.py`'s studio
+  reflects dark (the dome at STUDIO[3] at most a third of the world's light, only the top lamp seen), the world shown
+  to reflections through the dome in Honda's views only, the lamps turning with Honda's camera, and the red gate
+  leaving out the coat's highlights; `test_kit.py`'s red (230, 46, 49, G within 5 of B, no texture holding 208, 10,
+  22 or 205, 41, 62); rider `test_day_rig.py`'s three on the view lines: cam07 takes p07's sun
+  (head_closeups.DAY_SUN), cam07 turns the sky to his sun's height with his photos' views (SUN_HEIGHT_VIEWS), and
+  goggle_views' photo views get the sun's height through day_rig.
+- Round 2b's red through Blender on the final renders: his 07 (`look_fit.py bike`, cam07 relit) and Honda's three
+  views (`look_fit.py honda` on renders of round 2b's code and red), the tables above. Kit textures rebuilt from their
+  scripts with 230, 46, 49: every texel that changed from round 2's was round 2's red exactly or on its blend line
+  (642 and 640 blend texels on the side textures, 1923 and 1928 in the side panel art, off the line by at most 1).
 
 ## Commands
 
@@ -388,9 +511,10 @@ Round 1's readings (decision 54's sky), kept for the record:
 python3 scripts/common/look_fit.py pairs pairs_his.npz p07=head_p07.exr p08=head_p08.exr p09=head_p09.exr --index index.json
 python3 scripts/common/look_fit.py fit pairs_his.npz --work WORK --out fit.json
 python3 scripts/common/look_fit.py report pairs_his.npz --work WORK --out report.json
-python3 scripts/common/look_fit.py bike head_cam07.exr index.json 208,10,22 --out bike_red.json    # --ev7: PHOTO_EV["07"]
+python3 scripts/common/look_fit.py bike head_cam07.exr index.json "208,10,22;205,41,62" --also "r2b=230,46,49" --out bike_red.json    # REDS: the reds the render holds; --ev7: PHOTO_EV["07"]
 # Honda's studio views: build_bike.py stock with SCENE_LOOK=linear BIKE_STUDIO_RES=2000,1125, views honda_left etc.
-python3 scripts/common/look_fit.py honda left render_honda_left.exr index.json 208,10,22 --out honda_red_left.json
+# (BIKE_STUDIO="w,l,e,r" and BIKE_STUDIO_LAMPS='{"key": [1, 1]}' to test other studios)
+python3 scripts/common/look_fit.py honda left render_honda_left.exr index.json 230,46,49 --ev -0.9 --also "main=208,10,22" --out honda_red_left.json
 blender -b --factory-startup --python scripts/common/day_rig.py -- e1      # the E1 table
 blender -b --factory-startup --python scripts/common/day_rig.py -- turn    # the turned sky's check
 python3 scripts/common/look_fit.py sheet p09 head_p09.exr p09.jpg
