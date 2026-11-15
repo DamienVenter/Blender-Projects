@@ -892,6 +892,15 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   under AgX; under the fitted look it reads 218, 42, 38 against his 189, 47, 49. Re-derive such constants when the
   look changes, and brief every copy together (kit_canvas.RED with build_bike.RED and test_kit).
 - Two rounds adding PROJECT.md decision rows conflict at the same spot: keep both, in numeric order, 4 cells each.
+  A cherry-pick of several commits that each touch the row conflicts once per commit: resolve each with a script
+  that keeps every row of both sides (the picked side wins for its own number) and asserts the numbers ascend
+  (scratchpad resolve_rows.py, run with python3 -I).
+- An agent's own tests pass on what it measured, not on what it broke: jersey round 3b's yoke shrank from 354 to 200
+  px wide at the chest (sheet 05, a magenta mask per row) with every test green. Measure each part the round touched
+  against the previous round at 1:1, not only the fixed items, and ask for a test of each regression found.
+- When one agent loosens another's test (helmet phase 2 raised the goggle plate's turn bound 20 to 22 deg), accept it
+  only if the test's real checks still hold (gap, rest, place), then hand the bound back to its owner to set from a
+  measured value with a source.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
