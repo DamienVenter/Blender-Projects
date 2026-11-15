@@ -102,3 +102,8 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
 
 ## Render budget
 - A trivial scene at 4K, 128 samples, Cycles CPU took 7.0 min per frame here. Final 4K60 animation needs a render farm (SheepIt supports 5.2 but sends files to volunteers: ask Damien first) or Damien's GPU.
+
+- **sRGB curve inside a compositor group** (5.2, decision 59, scene_look._compositor): math nodes only, piecewise by
+  a pick, `cond ? a : b` = cond * a + (1 - cond) * b with cond = ShaderNodeMath LESS_THAN; encode 12.92 v under
+  0.0031308 else 1.055 v^(1/2.4) - 0.055, decode back the same way; clamp to 0..1 before POWER (a negative base gives
+  NaN). Blender's output then matches the numpy reference within a level (test_scene_look's swatch chart).

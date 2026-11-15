@@ -1154,3 +1154,27 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   (a straight edge, a material, a height on the shell) instead.
 - Compare a part with a reference edge at each point's own height: the pads' front read 6 mm off on the notch's
   slope with a band-wide window, and was within -4 to +3 mm point by point.
+
+## Gear materials round 1, phase A (decision 59): lessons (scene_look.py, look_fit.py gear / darks / boot_white)
+
+- A cast shared by unrelated materials is not a dye. Test it on a neutral the maker's studio shows neutral (the
+  helmet's black print, the tyres): if they read as blue, and bluer than the light itself (the white shell's shade
+  in the same photo), it is the phone. His 07 does that; 08's and 09's blue is the shade's light. Fix it in the look,
+  per photo (PHOTO_TINT), never in the dyes.
+- Check the lightness, not only the hue: his matte darks read 10 to 20 levels over ours in every photo while the
+  white matched, and the same blacks read darker in Leatt's studio than ours under Standard. A material cannot be
+  both lighter (his photos) and darker (the studio): that is two processings. Here: his phone's lift of the darks
+  (scene_look.DARK_LIFT, display d + o (1 - max d)^2) and Leatt's black point (left as round 3's error).
+- Fit the look's extras on neutrals outside the gear (black print pairs, tyres) and hold the gear out: held-out
+  dark dE 11.3 to 5.2. A tint fitted on the gloss print alone turned the matte darks navy (the print mirrors the sky
+  and is bluer than them): fit on matte and gloss neutrals together.
+- Gate the render's pixels on the material's own look, before any photo tint: a blue lift pushes the deepest darks
+  over the dark gate's saturation limit and leaves only the lighter ones (a false 29, 32, 54 for a 5, 10, 37 tyre).
+- The diffuse body's median and quartiles cannot split the grey layer (sheen, coat) from the albedo: classes made with
+  k 0.6 fit as well at k 2.3 with a third of the albedo. Take k from the maker's studio highlights, then the albedo
+  at that k (look_fit.gear_fit reports k 0.5, 1, 2).
+- A white's albedo from his photos: ratio it to the helmet's white shell in the same photo, only where both face the
+  sun (his 08: boot 0.93 of the shell). Photos that see the boot's underside (06, 09: 0.43 to 0.55) measure the
+  pose, not the paint. The maker's studio fixes the hue (clean neutral), not the level (its exposure is free).
+- A darker ground is not a fix for darks: it took the black print from 33 to 10 (his 35) while it made 08's and
+  09's shade bluer and right. Each lever moves several classes: measure all of them before and after.
