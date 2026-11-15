@@ -695,6 +695,14 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Fine relief textures read as glitter: the woven strap's grain (taken from the MY27 jacquard) speckled the Pinata
   strap in his 07 at 4x. Take each product's grain from its own photo, and check at whip distance across two frames
   for shimmer (Cycles has no mip-maps).
+- Main moves while parallel rounds run. Goggle round 11's new overlap test failed on main after helmet round 3
+  (the helmet sat 3.9 mm lower, which moved his nose 3.2 mm back and the comb met the plate). The agent caught it by
+  fetching main and running the whole suite on a trial merge before reporting. Brief every agent to do that.
+- A crop lined up on a feature can hide a layout offset: the strap LEATT sheet at 4x was aligned on the T's end, but
+  the unaligned 1:1 crop through the same camera shows our strap print about 80 px further along than Leatt's (his
+  yellow by the outrigger, ours magenta). Read the unaligned crop too; the strap's layout on the helmet is worn fit.
+- Say which way a part leans in the brief: round 11 leaned the comb's tongues back (depth), while Leatt's phr and
+  iso55 show them fanned square to a strongly curved arch (image plane); ours stand nearly upright on a flatter arch.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
