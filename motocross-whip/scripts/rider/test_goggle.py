@@ -941,7 +941,13 @@ GOGGLE_PAIRS = [(a, b, "none") for a, b in (
     ("noseguard", "lens_outer"), ("noseguard", "lens_inner"), ("lens_outer", "noseguard"),
     ("lens_inner", "noseguard"), ("noseguard", "foam"), ("foam", "noseguard"), ("noseguard", "noseribs"),
     ("noseribs", "noseguard"), ("outriggers", "lens_outer"), ("outriggers", "lens_inner"),
-    ("lens_outer", "outriggers"), ("lens_inner", "outriggers"))] + [
+    ("lens_outer", "outriggers"), ("lens_inner", "outriggers"),
+    # round 13: the strap carriers and the strap's ends threaded behind them
+    ("carrier", "frame"), ("frame", "carrier"), ("carrier", "lens_outer"), ("carrier", "lens_inner"),
+    ("lens_outer", "carrier"), ("lens_inner", "carrier"), ("carrier", "posts"), ("posts", "carrier"),
+    ("strap_end", "frame"), ("frame", "strap_end"), ("strap_end", "carrier"), ("carrier", "strap_end"),
+    ("strap_end", "lens_outer"), ("strap_end", "lens_inner"), ("lens_outer", "strap_end"),
+    ("lens_inner", "strap_end"), ("strap_end", "posts"), ("posts", "strap_end"))] + [
     ("lens_outer", "frame", "window"), ("lens_inner", "frame", "window"), ("frame", "lens_outer", "window"),
     ("frame", "lens_inner", "window"), ("noseribs", "frame", "bridge"), ("frame", "noseribs", "bridge"),
     ("foam", "frame", "seat"), ("frame", "foam", "seat")]
@@ -959,13 +965,18 @@ def goggle_overlaps(parts, gp=None, h=0.0004):
     for P in parts:
         key = P.name.replace("goggle_", "")
         for V, T, bad in solids(P):
+            X = V[np.unique(T)]
             if key == "lens":
-                s_, z_, off = lens_coords(L, V[np.unique(T)])
+                s_, z_, off = lens_coords(L, X)
                 k = "lens_outer" if (off + back(s_, z_)).mean() > -0.0015 else "lens_inner"
+            elif key == "outriggers" and np.abs(X[:, 0]).mean() < 0.1:
+                # round 13: the strap carrier on the frame's end (its clear post, moulded 0.5 mm into it, unpaired)
+                k = "carrier" if len(X) > 100 else "carrier_post"
             else:
                 k = key
             comps.setdefault(k, []).append((V, T, bad))
-    for k in ("frame", "lens_outer", "lens_inner", "noseribs", "foam", "noseguard", "outriggers"):
+    for k in ("frame", "lens_outer", "lens_inner", "noseribs", "foam", "noseguard", "outriggers", "carrier",
+              "strap_end"):
         if k not in comps:
             faults.append(f"{k}: missing")
         elif sum(b for _, _, b in comps[k]):
@@ -1006,7 +1017,7 @@ def test_round11_goggle_parts_do_not_run_into_each_other(built):
     worn = []
     for name, P in built["parts"].items():
         if name in ("goggle_frame", "goggle_lens", "goggle_noseribs", "goggle_foam", "goggle_noseguard",
-                    "goggle_outriggers"):
+                    "goggle_outriggers", "goggle_strap_end", "goggle_posts"):
             Q = H.Part(name)
             Q.V, Q.F = G.h2g((np.asarray(P.V) - t) @ R), P.F
             worn.append(Q)
@@ -1266,6 +1277,98 @@ def test_round12_face_foam_is_matte():
     assert foam.get("sheen", 0.0) <= 0.05 and foam.get("rough", 0.5) >= 0.9 and max(foam["rgb"]) < 50, foam
 
 
+# ---------------------------------------------------------------- round 13: the strap carrier (decision 57)
+def carrier_pieces():
+    """Round 13: the far (x > 0) strap carrier, its clear post and the strap's end behind it, from the free goggle
+    (GOGGLE frame): {name: (V, T, open edges)}."""
+    parts = {P.name: P for P in G.free_parts()}
+    out = {}
+    for V, T, bad in solids(parts["goggle_outriggers"]):
+        X = V[np.unique(T)]
+        if 0.06 < X[:, 0].mean() < 0.1:
+            out["post" if len(X) < 100 else "carrier"] = (V, T, bad)
+    for V, T, bad in (solids(parts["goggle_strap_end"]) if "goggle_strap_end" in parts else []):
+        if V[np.unique(T)][:, 0].mean() > 0:
+            out["strap_end"] = (V, T, bad)
+    return out, parts
+
+
+def coverage(view, V, T):
+    """The pixels the triangles (V, T) cover through Leatt's photo camera (1920 x 1920, bool)."""
+    from PIL import Image, ImageDraw
+    q = G.photo_project(np.array(json.load(open(G.CAMERAS))[view]["x"]), V, 1920, 1920)[0]
+    im = Image.new("1", (1920, 1920), 0)
+    d = ImageDraw.Draw(im)
+    for t in T:
+        d.polygon([tuple(q[i]) for i in t], fill=1)
+    return np.asarray(im, bool)
+
+
+def test_round13_strap_carrier_round_the_lens_post():
+    """Round 13 item 1: in Leatt's ISO renders (iso55, the Pinata, his SKU; the white ISO) the piece beyond the
+    frame's far end is a C in the plates' colour: outer edge at 1703 / 1701 px over rows 840 to 1080, top 800 / 797,
+    bottom 1124 / 1125, two windows at the chassis slots' heights (rows 830 to 900 and 1025 to 1092; the white ISO 832
+    to 903 and 1027 to 1092), the strap dark behind them and its cut end a column of teal in the lower window (1679 to
+    1683 px, rows 1040 to 1076). Main had none: the frame's black end face, 1658 to 1696. Built as part of the
+    outriggers on each side, a closed solid with a clear post on its outer edge, the strap's end threaded behind it
+    (goggle_strap_end): through both cameras its outer edge within 3 px, the windows' rows within 8, its top 0 to 8
+    and its bottom 0 to 16 px short (it stops where our frame's corners reach its back: 1.1 and 3.0 mm), the strap's
+    teal within 3 px and in the lower window only."""
+    pc, parts = carrier_pieces()
+    assert set(pc) == {"carrier", "post", "strap_end"}, sorted(pc)
+    assert all(b == 0 for _, _, b in pc.values()), {k: b for k, (_, _, b) in pc.items()}
+    assert "goggle_post_clear" in parts["goggle_outriggers"].M and G.MATERIALS["goggle_post_clear"]["transmission"] > 0.9
+    shade = [f for f, m in zip(parts["goggle_strap_end"].F, parts["goggle_strap_end"].M) if m == "goggle_strap_teal"]
+    for view, edge, top, bot, wins in (("iso55", 1703, 800, 1124, ((830, 900), (1025, 1092))),
+                                       ("wiso", 1701, 797, 1125, ((832, 903), (1027, 1092)))):
+        m = coverage(view, *pc["carrier"][:2])
+        outer = np.array([np.nonzero(m[r])[0].max() for r in range(840, 1081)])
+        assert np.abs(outer - edge).max() <= 3, (view, outer.min(), outer.max())
+        col = m[:, edge - 18]
+        rows = np.nonzero(col[700:1200])[0] + 700
+        assert 0 <= rows.min() - top <= 8 and 0 <= bot - rows.max() <= 16, (view, rows.min(), rows.max())
+        holes = np.nonzero(np.diff(np.r_[0, (~col[rows.min():rows.max() + 1]).astype(int), 0]))[0].reshape(-1, 2)
+        assert len(holes) == 2 and np.abs(holes + rows.min() - np.array(wins)).max() <= 8, (view, holes + rows.min())
+        # the strap's end seen through the windows, its teal (the cut end's rows in the shade) in the lower one
+        se = coverage(view, *pc["strap_end"][:2]) & ~m
+        for a, b in wins:
+            assert se[a + 5:b - 5, edge - 30:edge - 6].sum() > 100, (view, a, b)
+        V = np.asarray(parts["goggle_strap_end"].V)
+        T = np.array([np.asarray(f)[list(k)] for f in shade if V[f, 0].mean() > 0 for k in ((0, 1, 2), (0, 2, 3))])
+        teal = coverage(view, V, T) & ~m
+        ys, xs = np.nonzero(teal)
+        assert abs(np.median(xs) - 1681) <= 3 and wins[1][0] <= ys.min() and ys.max() <= wins[1][1], \
+            (view, np.median(xs), ys.min(), ys.max())
+
+
+def test_round13_carrier_stands_off_the_frame_flat():
+    """Round 13 item 1: the carrier is flat (Leatt's bar reads one tone top to bottom, 43; bowed with our frame's end
+    its face tilted down 28 deg below the lower window and mirrored the studio's low light, 250) and stands CAR_OFF in
+    front of the most the frame comes forwards over the windows' heights (5.5 mm, the lower window's foot), running
+    up and down only while the frame's corners stay CAR_CLEAR behind its back face; the strap's end lies between them
+    (parts apart: test_round11_goggle_parts_do_not_run_into_each_other). Its front face is one plane within 0.01 mm
+    and every face's vertices are its own (the renders shade every face smooth: shared with the window sills, the
+    face's normals bent at the sills' rows into white dashes, 255)."""
+    F = G.car_frame()
+    zg, bow = F["bow"]
+    inside = (zg >= F["zb"]) & (zg <= F["zt"])
+    assert 0.004 < F["b0"] < 0.007 and (bow[inside] <= F["b0"] + G.CAR_OFF - G.CAR_CLEAR + 1e-9).all()
+    assert F["zt"] > 0.025 and F["zb"] < -0.031                   # its top 1 mm and its bottom 3 mm short of Leatt's
+    pc, parts = carrier_pieces()
+    V, T, _ = pc["carrier"]
+    X = V[np.unique(T)]
+    d = (X - F["R0"]) @ F["nrm"]
+    front = d > d.max() - 0.0005
+    assert np.ptp(d[front]) < 1e-5 and abs(d.max() - (F["b0"] + G.CAR_OFF + G.CAR_T)) < 1e-6
+    P = parts["goggle_outriggers"]
+    PV = np.asarray(P.V)
+    slab = lambda f: (PV[f, 0] > 0).all() and (np.abs((PV[f] - F["R0"]) @ F["nrm"] - F["b0"] - G.CAR_OFF   # noqa: E731
+                                                       - G.CAR_T / 2) < G.CAR_T / 2 + 1e-6).all()
+    car = [f for f, m in zip(P.F, P.M) if m in ("goggle_outrigger", "goggle_slot") and slab(f)]
+    idx = np.concatenate([np.asarray(f) for f in car])
+    assert len(car) > 100 and len(np.unique(idx)) == len(idx)    # no vertex shared between two faces
+
+
 def test_frame_width_and_wrap():
     """Outer frame 205 to 218 mm across (round 4 fit 212.6, round 5 fit 205.8: the photos fix the shape, not the size;
     Leatt's 45 mm strap beside the outrigger reads 45 to 48 mm at round 5's size, the calibrated kit side views ask
@@ -1344,13 +1447,14 @@ def test_brown_eyes_and_the_lens_hides_them():
 def test_frame_colour_and_parts(built):
     """Red-pink frame: his 08 and 09 measure hue 346 deg (median 165/20/54); the base is set bluer (337 deg) so the
     render (AgX shifts reds towards orange) measures 347 deg in his 09 view. Black outriggers with their LEATT, fins,
-    the lower band's LEATT, bare tear-off posts (no tear-offs, decision 7), nose guard, nose ribs, foam, strap."""
+    the lower band's LEATT, bare tear-off posts (no tear-offs, decision 7), nose guard, nose ribs, foam, strap, and
+    (round 13) the strap's ends behind the carriers."""
     import colorsys
     r, g, b = G.MATERIALS["goggle_frame"]["rgb"]
     h = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[0] * 360
     assert 330 < h < 345 and r > 120 and g < 10
     for name in ("goggle_frame", "goggle_fins", "goggle_logo", "goggle_lens", "goggle_posts", "goggle_outriggers",
-                 "goggle_noseguard", "goggle_noseribs", "goggle_foam", "goggle_strap"):
+                 "goggle_noseguard", "goggle_noseribs", "goggle_foam", "goggle_strap", "goggle_strap_end"):
         assert name in built["parts"]
     assert "goggle_vent" in built["parts"]["goggle_frame"].M
 
