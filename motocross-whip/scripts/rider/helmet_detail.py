@@ -1,7 +1,8 @@
 """Moulded detail away from the helmet's front, as geometry (helmet round 3, decision 46): the crown's two mesh vents
 (a raised white insert round a triangle lattice over the dark opening), the two rear exhaust slots' wire mesh and
 the rear lower white pieces round the lower rear vents; and (joint front fit phase 2, decision 51) the eye port's
-grip panels with their triangle relief, and the textures of the port's trim roll and pads (helmet.strip_rings).
+grip panels with their triangle relief, the textures of the port's trim roll and pads (helmet.strip_rings), and
+the chin's mouthpiece (its black frame, dark floor and triangle lattice) and the chin bar's side vents.
 
 Each outline is traced in one of Leatt's Pinata photos (px) and cast onto the shell through that photo's camera in
 helmet.PRINT_CAMS (round 4: the cameras solved with all of Leatt's photos, research/helmet-ba.json), the cameras the
@@ -221,10 +222,10 @@ def plate_outline(px, wpx, tip):
     return p, q
 
 
-def mesh_wires(P, N, shell, h, inset=0.0004):
-    """A wire mesh across a slot's loop P on the shell: two sets of straight wires MESH_ANGLE either side of the
-    slot's long axis, MESH_PITCH apart, MESH_W thick, from SINK under the shell to h over it, ending inset inside
-    the loop (under its wall). Returns [(V, F)]."""
+def mesh_wires(P, N, shell, h, inset=0.0004, pitch=MESH_PITCH, w=MESH_W, angle=MESH_ANGLE):
+    """A wire mesh across a slot's loop P on the shell: two sets of straight wires angle either side of the slot's
+    long axis, pitch apart, w thick (the rear slots': MESH_ANGLE, MESH_PITCH, MESH_W), from SINK under the shell to h
+    over it, ending inset inside the loop (under its wall). Returns [(V, F)]."""
     from matplotlib.path import Path
     c = P.mean(0)
     n = N.mean(0) / np.linalg.norm(N.mean(0))
@@ -237,11 +238,11 @@ def mesh_wires(P, N, shell, h, inset=0.0004):
     out = []
     R = np.abs(xy).max() * 1.5
     for sgn in (1.0, -1.0):
-        a = np.radians(MESH_ANGLE) * sgn
+        a = np.radians(angle) * sgn
         dv, nv = np.array([np.cos(a), np.sin(a)]), np.array([-np.sin(a), np.cos(a)])
-        for k in range(-int(R / MESH_PITCH) - 1, int(R / MESH_PITCH) + 2):
+        for k in range(-int(R / pitch) - 1, int(R / pitch) + 2):
             s = np.linspace(-R, R, int(2 * R / 0.0002) + 1)
-            pts = cen + nv * (k * MESH_PITCH) + s[:, None] * dv
+            pts = cen + nv * (k * pitch) + s[:, None] * dv
             ins = shrink.contains_points(pts)
             if ins.sum() < 3:
                 continue
@@ -253,7 +254,7 @@ def mesh_wires(P, N, shell, h, inset=0.0004):
                 m = max(2, int(np.ptp(s[run]) / 0.001) + 1)
                 st = np.linspace(pts[run[0]], pts[run[-1]], m)
                 Q, NQ = shell.snap(c + st[:, :1] * e1 + st[:, 1:] * e2)
-                out.append(bar(Q, NQ, MESH_W, h))
+                out.append(bar(Q, NQ, w, h))
     return out
 
 
@@ -632,10 +633,216 @@ def textures(texdir, force=False):
             fn(path)
 
 
+# ---------------------------------------------------------------- the chin's mouthpiece (phase 2, decision 51)
+# A recessed shield across the chin's front: the white shell folds in at its rim (a lit white lip, 10 to 14 px in the
+# Pinata photos), a black moulded wall 5 to 13 mm wide runs in to the opening, and in the opening a triangle
+# lattice over a dark floor, with two rails down the middle framing its central column. Traced at
+# 2.4x to 3x with grids (scratch gridcrop.py) on Leatt's MY27 front-iso-left and Pinata iso-right photos, whose solved
+# cameras (research/helmet-ba.json) see the chin's outline within 5 mm, cast onto the shell and averaged: the two
+# agree within 3 mm. (Pinata iso-left, whose chin outline stands 13 mm off, read the lower sides 10 to 15 mm narrow
+# and is not used.) In the chin's front plane (x, z in mm), his left half from the centre line at the top round to
+# it at the bottom; his right half is the mirror. Its bottom is flat (iso-right at 4x: the frame's lower edge level
+# for 25 px, 6 mm, each side of the centre line). The rim: the white paint's edge; the opening: where the wall meets
+# the lattice (MY27: the wall's inner edge line; iso-right: the lattice's edge).
+MOUTH_RIM = [(0.0, -92.5), (5.0, -92.7), (11.0, -93.4), (17.5, -94.8), (26.0, -98.5), (33.0, -102.0), (40.0, -105.0),
+             (45.0, -107.5), (48.5, -110.0), (50.2, -113.0), (50.4, -116.0), (50.0, -119.5), (49.2, -123.5),
+             (47.5, -128.0), (44.8, -133.0), (41.5, -138.0), (37.8, -142.8), (31.4, -150.1), (25.0, -156.0),
+             (20.5, -161.0), (16.5, -165.5), (11.0, -168.6), (5.0, -169.5), (0.0, -169.6)]
+MOUTH_OPEN = [(0.0, -98.0), (8.0, -99.0), (15.0, -100.5), (24.0, -104.5), (32.0, -109.5), (36.5, -113.0),
+              (37.8, -116.5), (37.8, -120.0), (37.0, -124.3), (33.0, -133.0), (27.0, -141.5), (19.5, -150.8),
+              (13.5, -158.0), (10.0, -162.5), (6.0, -164.8), (0.0, -165.3)]
+# The column's rails, their centre lines at the opening's top and bottom (x, z mm; MY27 read them 37 mm apart at the
+# top and 19 at the bottom, iso-right 31 and 14: their means, centred, as each camera puts the centre line 5 to 8 mm
+# to one side there)
+MOUTH_RAIL = [(17.0, -100.0), (8.5, -164.5)]
+MOUTH_FRAME_H = 0.0020            # the wall's top over the shell (the lattice stays under it: inside the recess)
+MOUTH_FLOOR_H = 0.0004
+MOUTH_CELL = 0.0070               # the column's triangles (their rows 26 to 30 px apart at 0.23 mm/px)
+MOUTH_BAR_W, MOUTH_BAR_H = 0.0010, 0.0014
+MOUTH_RAIL_W, MOUTH_RAIL_H = 0.0030, 0.0018
+MAT_FRAME = "helmet_frame_black"
+
+
+def cast_any(shell, view, uv):
+    """Cast photo points onto the shell, his left side first, else his right; the misses dropped."""
+    out_P, out_N = [], []
+    for p in np.atleast_2d(uv):
+        for s in (1.0, -1.0):
+            try:
+                P, N = shell.cast(view, p[None], side=s)
+            except ValueError:
+                continue
+            out_P.append(P[0])
+            out_N.append(N[0])
+            break
+    return np.array(out_P), np.array(out_N)
+
+
+def cast_dir(shell, P0, d):
+    """Points P0 moved along d onto the shell (first hit), with the shell's normals there."""
+    V, F = shell.V, shell.F
+    v0 = V[F[:, 0]]
+    e1, e2 = V[F[:, 1]] - v0, V[F[:, 2]] - v0
+    p = np.cross(d, e2)
+    det = (e1 * p).sum(1)
+    ok = np.abs(det) > 1e-14
+    inv = np.where(ok, 1.0 / np.where(ok, det, 1.0), 0.0)
+    P, N = [], []
+    for C in P0:
+        t0 = C - v0
+        u = (t0 * p).sum(1) * inv
+        q = np.cross(t0, e1)
+        w = (q @ d) * inv
+        t = (e2 * q).sum(1) * inv
+        hit = ok & (u >= 0) & (w >= 0) & (u + w <= 1) & (t > 0)
+        j = np.argmin(np.where(hit, t, np.inf))
+        f = F[j]
+        P.append(C + t[j] * d)
+        n = (1 - u[j] - w[j]) * shell.N[f[0]] + u[j] * shell.N[f[1]] + w[j] * shell.N[f[2]]
+        N.append(n / np.linalg.norm(n))
+    return np.array(P), np.array(N)
+
+
+def sym_loop(shell, px):
+    """A closed loop on the shell, symmetric about the centre plane, from its left half traced in iso-left px (an
+    open line from the centre line round to the centre line; its ends are carried across to the centre plane). Read
+    as a closed loop, its closing segment down the traced centre (which the iso-left camera puts 8 to 10 mm off the
+    model's at the brow) cut a notch 16 mm wide into the brow vent's lower edge."""
+    uv = H.resample_open(np.asarray(px, float), 3.0)
+    P, _ = cast_any(shell, "isoleft", uv)
+    P = P[P[:, 0] > 0.002]
+    ends = [P[0] * [0, 1, 1], P[-1] * [0, 1, 1]]
+    L = np.vstack([ends[0], P, ends[1], (P * [-1, 1, 1])[::-1]])
+    return shell.snap(L)
+
+
+def front_cast(shell, xz):
+    """Points of the chin's front plane (x, z in m) on the shell, cast along +y from ahead of it, and the shell's
+    normals there."""
+    xz = np.atleast_2d(xz)
+    y0 = shell.V[:, 1].min() - 0.05
+    return cast_dir(shell, np.c_[xz[:, 0], np.full(len(xz), y0), xz[:, 1]], np.array([0.0, 1.0, 0.0]))
+
+
+def mouth_xz(half, m=48):
+    """The closed loop (x, z in m) of a half outline in mm (his left, from the centre line at the top round to it at
+    the bottom): resampled to m points by length and mirrored (2 m - 2 points)."""
+    h = np.asarray(half, float) / 1000.0
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(h, axis=0), axis=1))]
+    t = np.linspace(0, s[-1], m)
+    h = np.c_[np.interp(t, s, h[:, 0]), np.interp(t, s, h[:, 1])]
+    return np.vstack([h, (h[1:-1] * [-1, 1])[::-1]])
+
+
+def mouth_lattice(shell, open_xz):
+    """The opening's lattice in the chin's front plane, cast onto the shell: across bars on every row of the
+    triangles from edge to edge, the two diagonal families, and the column's two rails over them. Mirror symmetric by
+    construction. Pieces (V, F, mats)."""
+    from matplotlib.path import Path
+    inside = Path(open_xz).contains_points
+    (xt, zt), (xb, zb) = np.asarray(MOUTH_RAIL) / 1000.0
+
+    def xr(z):                                          # the rail's centre line at height z
+        return xt + (xb - xt) * (z - zt) / (zb - zt)
+
+    xs = np.linspace(0.0, open_xz[:, 0].max(), 600)
+
+    def xo(z):                                          # the opening's edge on his left at height z
+        m = inside(np.c_[xs, np.full(len(xs), z)])
+        return xs[m].max() if m.any() else 0.0
+
+    a = MOUTH_CELL
+    h = a * 3 ** 0.5 / 2
+    z0, z1 = open_xz[:, 1].min(), open_xz[:, 1].max()
+    rows = z1 - h * (np.arange(int((z1 - z0) / h) + 1) + 0.5)
+    rows = rows[rows > z0 + 0.001]
+    inset = 0.0005
+    lines = []                                          # (polyline x z, width, height, mirrored too)
+
+    def runs(p, ok, w, hh, mirror):
+        idx = np.nonzero(ok)[0]
+        for r in np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1):
+            if len(r) >= 3:
+                lines.append((p[r], w, hh, mirror))
+
+    for z in rows:                                      # across: symmetric of themselves
+        e = xo(z) - inset
+        if e > 0.003:
+            p = np.c_[np.linspace(-e, e, max(3, int(2 * e / 0.0015))), np.full(max(3, int(2 * e / 0.0015)), z)]
+            runs(p, np.ones(len(p), bool), MOUTH_BAR_W, MOUTH_BAR_H, False)
+    t = np.linspace(z0, z1, int((z1 - z0) / 0.00075))   # the 60 deg lines (and their mirror, 120 deg)
+    for n in range(-14, 15):
+        p = np.c_[n * a + (t - rows[0]) / 3 ** 0.5, t]
+        runs(p, inside(p), MOUTH_BAR_W, MOUTH_BAR_H, True)
+    z = np.linspace(z1, z0, 90)                         # the rails
+    p = np.c_[xr(z), z]
+    runs(p, inside(p), MOUTH_RAIL_W, MOUTH_RAIL_H, True)
+    out = []
+    for p, w, hh, mirror in lines:
+        S3, NS = front_cast(shell, p)
+        Vb, Fb = bar(S3, NS, w, hh)
+        mat = MAT_FRAME if w == MOUTH_RAIL_W else MAT_MESH
+        out.append((Vb, [list(f) for f in Fb], [mat] * len(Fb)))
+        if mirror:
+            out.append((Vb * [-1, 1, 1], [list(f)[::-1] for f in Fb], [mat] * len(Fb)))
+    return out
+
+
+def mouthpiece(shell):
+    """The mouthpiece: its wall (MAT_FRAME, the outer wall in MAT: the white paint folding in at the rim), the dark
+    floor (MAT_DARK), the lattice (MAT_MESH) and the column's rails (MAT_FRAME). Pieces (V, F, mats)."""
+    open_xz = mouth_xz(MOUTH_OPEN)
+    Q, NQ = front_cast(shell, mouth_xz(MOUTH_RIM))
+    P, N = front_cast(shell, open_xz)
+    V, F = plate(P, N, Q, NQ, MOUTH_FRAME_H)
+    n = len(P)
+    out = [(V, [list(f) for f in F], [MAT_FRAME] * (4 * n) + [MAT] * n)]
+    Vc, Fc = cap(P, N, MOUTH_FLOOR_H, shell)
+    out.append((Vc, [list(f) for f in Fc], [MAT_DARK] * len(Fc)))
+    return out + mouth_lattice(shell, open_xz)
+
+
+def vent_pieces(shell, P, N, rim_w, rim_h, rim_mat=MAT_FRAME, mesh=None):
+    """A vent's rim (rim_mat), dark floor (MAT_DARK) and wire mesh (MAT_MESH; mesh: its pitch, wire width and angle,
+    else the rear slots') round its loop P on the shell."""
+    Q, NQ = shell.snap(P + outward(P, N) * rim_w)
+    V, F = plate(P, N, Q, NQ, rim_h)
+    out = [(V, F, [rim_mat] * len(F))]
+    Vc, Fc = cap(P, N, MOUTH_FLOOR_H, shell)
+    out.append((Vc, Fc, [MAT_DARK] * len(Fc)))
+    kw = dict(zip(("pitch", "w", "angle"), mesh)) if mesh else {}
+    return out + [(Vm, Fm, [MAT_MESH] * len(Fm)) for Vm, Fm in mesh_wires(P, N, shell, rim_h * 0.5, **kw)]
+
+
+# The chin bar's side vent each side: a slanting slot under a square wire mesh in a wall of the shell's white
+# (Pinata iso-left: the wall lit along its back edge, 10 to 15 px) round a dark floor. Traced at 3x with a grid on
+# Leatt's MY27 front-iso-left photo and cast onto the shell through its solved camera: the slot's centroid then lies
+# 2.5 mm from the chin_vent landmark solved from five photos (research/helmet-ba.json). (Pinata iso-left, whose
+# camera puts the chin 13 mm off, reads it 9 mm further forward: not used.) Its outline as (y, z) mm on his left side,
+# cast across (-x) onto the shell; his right is the mirror. The mesh: wires 3.2 mm apart (MY27: 13 to 15 px at 0.23
+# mm/px), 0.6 mm thick (3 px), 45 deg either side of the slot's long axis.
+SIDE_VENT_YZ = [(-161.8, -125.6), (-155.1, -123.9), (-148.9, -122.5), (-150.4, -125.3), (-153.1, -129.8),
+                (-156.7, -135.7), (-160.3, -141.6), (-163.6, -146.4), (-167.4, -147.0), (-169.3, -144.7),
+                (-168.8, -138.4), (-167.4, -132.3), (-165.4, -127.7)]
+SIDE_VENT_RIM_W, SIDE_VENT_RIM_H = 0.0015, 0.0010
+SIDE_MESH = (0.0032, 0.0006, 45.0)                  # pitch, wire width, angle
+
+
+def side_vents(shell):
+    """The chin bar's side vents, his left as traced and his right its mirror. Pieces (V, F, mats)."""
+    yz = resample_loop(np.asarray(SIDE_VENT_YZ, float) / 1000.0, 0.0015)
+    x0 = shell.V[:, 0].max() + 0.05
+    P, N = cast_dir(shell, np.c_[np.full(len(yz), x0), yz], np.array([-1.0, 0.0, 0.0]))
+    pieces = vent_pieces(shell, P, N, SIDE_VENT_RIM_W, SIDE_VENT_RIM_H, rim_mat=MAT, mesh=SIDE_MESH)
+    return mirror(pieces, 1.0) + mirror(pieces, -1.0)
+
+
 def build(Vo, Fo, part=None):
     """The detail as one Part (helmet frame): the crown vents in MAT_INSERT, the rear lower pieces in MAT, their
-    slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH, the grip panels in MAT_GRIP (top, UVs for the
-    relief) and MAT_GRIP_EDGE (walls)."""
+    slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH, the grip panels in MAT_GRIP (top, UVs for its
+    grain), MAT_GRIP_RIDGE (the relief) and MAT_GRIP_EDGE (walls), the chin's mouthpiece in MAT_FRAME (its outer wall in
+    MAT) with its floor in MAT_DARK and its lattice in MAT_MESH, the chin bar's side vents (wall MAT, floor MAT_DARK,
+    mesh MAT_MESH)."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
@@ -648,6 +855,8 @@ def build(Vo, Fo, part=None):
     for side in (1.0, -1.0):                            # the grip panels, with their relief's UVs
         for V, F, mats, uv in grip_panel(shell, side):
             part.add(V, F, mats, uv)
+    for V, F, mats in mouthpiece(shell) + side_vents(shell):
+        part.add(V, [list(f) for f in F], mats)
     return part
 
 

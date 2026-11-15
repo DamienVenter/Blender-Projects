@@ -135,6 +135,42 @@ def test_shell_outline_through_the_solved_cameras():
         z, off = max(b.items(), key=lambda kv: abs(kv[1]))
         assert abs(off) < 1.5, f"{v}: the outline {off:+.1f} mm off the photo's at band {z} mm"
 
+def surface_height(V, Vo, Fo, k=12):
+    """Signed distance of points V from the shell (Vo, Fo), + outside: to the closest point on the k triangles
+    whose centroids lie nearest (exact on the triangle, not the nearest vertex's tangent plane, which on the chin's
+    coarser triangles read 1.5 mm under a piece that stands on the surface)."""
+    from scipy.spatial import cKDTree
+    A, B, C = Vo[Fo[:, 0]], Vo[Fo[:, 1]], Vo[Fo[:, 2]]
+    Nf = np.cross(B - A, C - A)
+    Nf /= np.linalg.norm(Nf, axis=1)[:, None]
+    j = cKDTree((A + B + C) / 3).query(V, k)[1]
+    a, b, c = A[j], B[j], C[j]
+    p = V[:, None, :]
+    ab, ac, ap = b - a, c - a, p - a
+    d00, d01, d11 = (ab * ab).sum(-1), (ab * ac).sum(-1), (ac * ac).sum(-1)
+    d20, d21 = (ap * ab).sum(-1), (ap * ac).sum(-1)
+    den = d00 * d11 - d01 * d01
+    v = (d11 * d20 - d01 * d21) / den
+    w = (d00 * d21 - d01 * d20) / den
+    best = np.full(V.shape[0], np.inf)
+    h = np.zeros(V.shape[0])
+    cand = [a + v[..., None] * ab + w[..., None] * ac]                    # inside the triangle
+    ok = [(v >= 0) & (w >= 0) & (v + w <= 1)]
+    for e0, e1 in ((a, b), (b, c), (c, a)):                              # its edges
+        e = e1 - e0
+        t = np.clip(((p - e0) * e).sum(-1) / (e * e).sum(-1), 0, 1)
+        cand.append(e0 + t[..., None] * e)
+        ok.append(np.ones_like(t, bool))
+    for q, m in zip(cand, ok):
+        d = np.where(m, np.linalg.norm(p - q, axis=-1), np.inf)
+        i = np.argmin(d, 1)
+        r = np.arange(len(V))
+        better = d[r, i] < best
+        best[better] = d[r, i][better]
+        h[better] = ((V - q[r, i]) * Nf[j[r, i]]).sum(1)[better]
+    return h
+
+
 def test_vents_are_moulded_away_from_the_front(built):
     """Round 3 (decision 46): main's crown vents were flat painted triangles; Leatt's top photo shows a raised white
     insert round a triangle lattice over the dark opening. The rear exhaust slots carry a wire mesh (round 4) and the
@@ -150,11 +186,10 @@ def test_vents_are_moulded_away_from_the_front(built):
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
     assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
-    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE}
+    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE,
+                        D.MAT_FRAME}
     Vo, Fo, _ = H.shell_outer()
-    No = H.normals(Vo, Fo)
-    j = cKDTree(Vo).query(V)[1]
-    h = np.sum((V - Vo[j]) * No[j], 1)                  # height above the shell
+    h = surface_height(V, Vo, Fo)                       # height above the shell
     assert h.min() > -D.SINK - 0.0004 and h.max() < D.LOW_PIECE_H + 0.0002
     ins = np.zeros(len(V), bool)
     for f, m in zip(P.F, P.M):
@@ -169,7 +204,7 @@ def test_vents_are_moulded_away_from_the_front(built):
                                axis=1) for a, b in seg], 0)
     assert np.all(Path(q).contains_points(uv) | (d < 5.0))    # outside it by 5 px (1.2 mm) at most
     assert len(D.lattice_lines(A.CROWN_VENT)) >= 10
-    low = ~ins & (V[:, 2] < -0.03)
+    low = ~ins & (V[:, 2] < -0.03) & (V[:, 1] > 0.0)      # the rear lower piece (not the chin's vents)
     assert np.ptp(V[low & (V[:, 0] > 0), 2]) > 0.04      # the lower piece runs 40 mm or more down the shell
 
 def test_crown_vent_outline_and_lattice():
@@ -224,7 +259,7 @@ def test_rear_pieces_soft_slot_edge_flat_plate_point_and_mesh(built):
     mats = list(P.M)
     left = V[:, 0] > 0
     slot = left & (V[:, 1] > 0.08) & (V[:, 2] > 0.03) & (V[:, 2] < 0.10)
-    low = left & (V[:, 2] < -0.03)
+    low = left & (V[:, 2] < -0.03) & (V[:, 1] > 0.0)      # the rear lower piece (not the chin's vents)
 
     def faces(mat, region):
         return [list(f) for f, m in zip(P.F, mats) if m == mat and region[list(f)].all()]
@@ -416,8 +451,10 @@ def test_pads_fill_the_port_to_the_side_notch(body):
     """Phase 2 (decision 51): past the trim's roll (TRIM_DEPTH from the crest) the port's rolled edge is the comfort
     liner's pad face (knit mesh, red stitching: helmet_pad). Leatt's Royal side photo shows the cheek pads filling the
     port ahead of the shell's cut edge as far as its notch (FACE_PORT as traced): at every 5 mm of height from z -45
-    to 0 mm the pads' front on his left stands within 5 mm of the notch's line (main: the cut edge's trim alone, 12 to
-    24 mm behind it), the pads keep 1.5 mm off his skin, and the goggle's lens stays clear (test above)."""
+    to 0 mm the pads' front on his left stands within 5 mm of the notch's line, each point against the line at its own
+    height (main: the cut edge's trim alone, 17 to 29 mm behind it; read at the band's centre height instead, the
+    line's slope at the chin bar's top, 1.4 mm in y per mm, put a point 2 mm low 6 mm ahead), the pads keep 1.5 mm
+    off his skin, and the goggle's lens stays clear (test above)."""
     from scipy.spatial import cKDTree
     Vo, Fo, prof = H.shell_outer()
     R, tr, _ = H.fit_on_head(body, Vo, Fo, prof)
@@ -430,9 +467,9 @@ def test_pads_fill_the_port_to_the_side_notch(body):
     notch = S[np.argsort(S[:, 1])]
     for z in np.arange(-0.045, 0.001, 0.005):
         sel = pts[(pts[:, 0] > 0.03) & (np.abs(pts[:, 2] - z) < 0.002)]
-        y_notch = np.interp(z, notch[:, 1], notch[:, 0])
-        front = sel[:, 1][sel[:, 1] > y_notch - 0.02].min()
-        assert abs(front - y_notch) < 0.005, f"pads' front {1000 * (front - y_notch):+.1f} mm off the notch at z {z}"
+        d = sel[:, 1] - np.interp(sel[:, 2], notch[:, 1], notch[:, 0])
+        front = d[d > -0.02].min()
+        assert abs(front) < 0.005, f"pads' front {1000 * front:+.1f} mm off the notch at z {z}"
     near = cKDTree(skin).query(pts)[0].min()
     assert near > 0.0015, f"pads {1000 * near:.1f} mm off his skin"
     # the pads' face is smooth round the port: its bow at mid depth changes by under 2.5 mm between neighbouring
@@ -472,6 +509,99 @@ def test_chin_bar_outline_on_the_royal_side_photo():
     assert len(low) >= 10
     assert np.abs(chin).max() < 2.0, f"chin front up to {chin[np.argmax(np.abs(chin))]:+.1f} mm off Royal's outline"
     assert np.abs(low).max() < 2.0, f"lower edge up to {low[np.argmax(np.abs(low))]:+.1f} mm off Royal's outline"
+
+
+def outline_mm(view, Vo, Fo):
+    """The shell's outline vertices in a Leatt photo through its solved camera (edges between a face turned to the
+    camera and one turned away, on the projected outline) and their signed distance to the photo's silhouette (mm
+    at the vertex's depth, + = outside it)."""
+    import helmet_ba as BA
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+    cam = BA.solved_cameras()[view]
+    FC = Vo[Fo].mean(1)
+    FN = np.cross(Vo[Fo[:, 1]] - Vo[Fo[:, 0]], Vo[Fo[:, 2]] - Vo[Fo[:, 0]])
+    face = np.sign(((cam["C"] - FC) * FN).sum(1))
+    E = np.sort(np.vstack([Fo[:, [0, 1]], Fo[:, [1, 2]], Fo[:, [2, 0]]]), 1)
+    fid = np.tile(np.arange(len(Fo)), 3)
+    key = E[:, 0] * (len(Vo) + 1) + E[:, 1]
+    o = np.argsort(key)
+    E, fid, key = E[o], fid[o], key[o]
+    a = np.nonzero(key[1:] == key[:-1])[0]
+    idx = np.unique(E[a[face[fid[a]] != face[fid[a + 1]]]].ravel())
+    uv = BA.project(cam, Vo)
+    im = Image.new("L", (960, 960), 0)
+    d = ImageDraw.Draw(im)
+    for f in Fo:
+        d.polygon([tuple(uv[i] / 2) for i in f], fill=255)
+    m = np.asarray(im) > 0
+    dist = ndimage.distance_transform_edt(~(m & ~ndimage.binary_erosion(m)))
+    q = uv[idx] / 2
+    ok = (q[:, 0] > 0) & (q[:, 0] < 959) & (q[:, 1] > 0) & (q[:, 1] < 959)
+    ok[ok] = dist[q[ok, 1].astype(int), q[ok, 0].astype(int)] < 1.5
+    idx = idx[ok]
+    depth = (Vo[idx] - cam["C"]) @ cam["R"][2]
+    return Vo[idx], BA.sample(BA.sdf(view), uv[idx]) * depth / cam["f"] * 1000
+
+
+def test_chin_front_on_the_iso_photos():
+    """Phase 2 (decision 51): the chin's front in plan. Through the solved cameras (research/helmet-ba.json) the chin
+    bar's outline ahead of y -0.12 m and below z -0.06 m has its median within 4 mm of Leatt's in MY27 front-iso-left
+    (the camera that sees the front best) and within 8 mm in Pinata iso-right; the side vent's landmark (chin_vent,
+    solved from five photos) lies within 1.5 mm of the shell. Main: the V too sharp at its front, its outline -14.4
+    and -15.6 mm inside Leatt's (now +3.1 and -4.2), the landmark +0.8 mm (now 0.0). (Pinata iso-left reads -12.4 mm,
+    main -18.9: that camera's whole outline sits 10 to 15 mm off, its back as far outside.)"""
+    Vo, Fo, _ = H.shell_outer()
+    for view, lim in (("my27_isoleft", 4.0), ("pin_isoright", 8.0)):
+        P, mm = outline_mm(view, Vo, Fo)
+        chin = (P[:, 1] < -0.12) & (P[:, 2] < -0.06)
+        assert chin.sum() >= 20
+        assert abs(np.median(mm[chin])) < lim, f"{view}: chin outline {np.median(mm[chin]):+.1f} mm off Leatt's"
+    X = np.array(json.load(open(H.BA_JSON))["landmarks"]["chin_vent"]["X"])
+    No = H.normals(Vo, Fo)
+    j = np.argmin(((Vo - X) ** 2).sum(1))
+    off = (X - Vo[j]) @ No[j]
+    assert abs(off) < 0.0015, f"chin_vent landmark {1000 * off:+.1f} mm off the shell"
+
+
+def test_mouthpiece_and_side_vents(built):
+    """Phase 2 (decision 51): the chin's mouthpiece (helmet_detail.MOUTH_RIM, MOUTH_OPEN: traced on Leatt's MY27
+    front-iso-left and Pinata iso-right photos and cast through their solved cameras) is a black moulded wall from
+    the white rim in to the opening, a triangle lattice across the whole opening with two rails framing its central
+    column, over a dark floor; and the chin bar's side vents a wire mesh in a white wall. On the built part: the wall in
+    MAT_FRAME reaches 48 mm or more each side of the centre line at z -116 mm (the shield's corners) and 35 mm or
+    more at z -142 mm (its lower sides; the first trace through the Pinata iso-left camera made a diamond, 28 mm
+    there), from z -92 to -170 mm; 30 or more lattice bars (cells 7 mm a side), all under the wall's top (inside the
+    recess); the side vents' floor centred within 5 mm of the chin_vent landmark, with 30 or more wires. Main: none
+    of it (print)."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    fr = [k for k, m in enumerate(P.M) if m == D.MAT_FRAME]
+    assert fr, "no mouthpiece (main: the print's black)"
+    Vf = V[np.unique(np.concatenate([P.F[k] for k in fr]))]
+    Vf = Vf[(Vf[:, 1] < -0.18) & (Vf[:, 2] < -0.085)]
+    for z, w in ((-0.116, 0.048), (-0.142, 0.035)):
+        row = Vf[np.abs(Vf[:, 2] - z) < 0.0015]
+        assert row[:, 0].max() > w and row[:, 0].min() < -w, f"mouthpiece {1000 * row[:, 0].max():.1f} mm at z {z}"
+    assert -0.094 < Vf[:, 2].max() < -0.090 and -0.173 < Vf[:, 2].min() < -0.169
+    Vo, Fo, _ = H.shell_outer()
+    shell = D.Shell(Vo, Fo)
+    pieces = D.mouthpiece(shell)
+    bars = [p for p in pieces if p[2][0] == D.MAT_MESH]
+    assert len(bars) >= 30
+    rails = [p for p in pieces[2:] if p[2][0] == D.MAT_FRAME]
+    assert len(rails) == 2 and np.allclose(rails[0][0], rails[1][0] * [-1, 1, 1])
+    Vb = np.vstack([p[0] for p in bars])
+    assert Vb[:, 2].max() < -0.095 and Vb[:, 2].min() > -0.168           # inside the opening
+    assert D.MOUTH_BAR_H < D.MOUTH_RAIL_H < D.MOUTH_FRAME_H
+    side = D.side_vents(shell)
+    floor = [p[0] for p in side if p[2][0] == D.MAT_DARK]
+    wires = [p for p in side if p[2][0] == D.MAT_MESH]
+    X = np.array(json.load(open(H.BA_JSON))["landmarks"]["chin_vent"]["X"])
+    c = floor[0].mean(0)
+    assert np.linalg.norm(c - X) < 0.005, f"side vent {1000 * np.linalg.norm(c - X):.1f} mm off the landmark"
+    assert len(wires) >= 30 and all(p[2][0] == D.MAT for p in side[:1])
 
 
 def test_fit_on_his_head(built):
@@ -609,11 +739,13 @@ def test_his_photo_cameras_fitted_to_the_helmet():
     """Decision 47: his photos 07, 08 and 09 as cameras in the helmet frame (his_cameras.py,
     research/his-photo-cameras.json), fitted to the helmet's measured points (landmarks, print centres, chevrons)
     and its print's colour; head_closeups.py's p07, p08, p09 are these cameras. 08 sees the crown from ahead and
-    above (his head pitched far down in the whip); main's p08, set by eye, saw his face from below."""
+    above (his head pitched far down in the whip); main's p08, set by eye, saw his face from below. 09's colour match
+    is 0.40 since the print was retraced on phase 2's front (its chin and visor changed; 0.43 before): its floor is
+    0.38."""
     import his_cameras as HC
     cams = HC.load()
     pts = HC.points()
-    for k, rms_max, ncc_min in (("07", 4.0, 0.35), ("08", 6.0, 0.7), ("09", 10.0, 0.4)):
+    for k, rms_max, ncc_min in (("07", 4.0, 0.35), ("08", 6.0, 0.7), ("09", 10.0, 0.38)):
         c = cams[k]
         X = np.array([pts[n] for n in HC.READINGS[k]])
         read = np.array([v[:2] for v in HC.READINGS[k].values()], float)
@@ -953,3 +1085,44 @@ def chevron_band_check(A, tex, chev, frames):
         out.append(float((rgb[band].max(1) < 120).mean()))
     assert max(out) < 0.01, out
     return out
+
+
+def test_mouthpiece_print_white_round_its_rim(art):
+    """Phase 2 (decision 51): the print round the mouthpiece and the side vents is the white paint, inside them the
+    black: the Pinata iso-left camera, which owns the chin's front, laid Leatt's black 10 to 15 mm off there and it
+    ran past the rim as teeth (main: 8 % of the band round the rim not white). In the band 1.5 to 7 mm outside the rim
+    on the chin's front (|x| under 45 mm: beside the rim's upper corners stand the MX.26 labels, as in Leatt's photos;
+    above the chin's lower edge) and round the side vents, 98 % of the texels are white (every channel over 190);
+    inside the opening shrunk 20 %, 98 % black. The chin cap's edge (helmet_art.CHIN_CAP, across the chin's front
+    within 40 mm of the centre line) is as clean: from 2 to 8 mm under it 98 % white, from 2 to 5 mm over it 98 %
+    black (main: 24 % under it not white; the atlas's slivers there had hung its black 7 mm under it). The 3D inks are set in the trace and again
+    on the drawn texels (helmet_art.mouth_ink)."""
+    from matplotlib.path import Path
+    from scipy.spatial import cKDTree
+    import helmet_detail as D
+    A = art["A"]
+    img = art["drawn"][0]
+    r, c, P, N, S = A.texels(SMALL)
+    rim = D.mouth_xz(D.MOUTH_RIM, 200)
+    front = (S == 0) & (P[:, 1] < -0.12)
+    xz = P[:, [0, 2]]
+    d = cKDTree(rim).query(xz)[0]
+    band = front & ~Path(rim).contains_points(xz) & (d > 0.0015) & (d < 0.007)
+    band &= (np.abs(P[:, 0]) < 0.045) & (P[:, 2] > -0.172)  # not the labels beside its corners, nor the lower trim
+    op = D.mouth_xz(D.MOUTH_OPEN, 200)
+    inner = front & Path(op.mean(0) + 0.8 * (op - op.mean(0))).contains_points(xz)
+    sv = D.resample_loop(np.asarray(D.SIDE_VENT_YZ, float) / 1000.0, 0.0005)
+    yz = P[:, [1, 2]]
+    sd = (S == 0) & (np.abs(P[:, 0]) > 0.035) & (P[:, 1] < -0.12)
+    ds = cKDTree(sv).query(yz)[0]
+    sband = sd & ~Path(sv).contains_points(yz) & (ds > 0.0015) & (ds < 0.004)
+    cap = np.asarray(A.CHIN_CAP) / 1000.0
+    zc = np.interp(np.abs(P[:, 0]), cap[:, 0], cap[:, 1])
+    face = (S == 0) & (P[:, 1] < A.CHIN_CAP_Y) & (np.abs(P[:, 0]) < 0.04)
+    below = face & (P[:, 2] < zc - 0.002) & (P[:, 2] > zc - 0.008)
+    above = face & (P[:, 2] > zc + 0.002) & (P[:, 2] < zc + 0.005)
+    for sel, ink in ((band, "white"), (sband, "white"), (inner, "black"), (below, "white"), (above, "black")):
+        assert sel.sum() > 100
+        px = img[r[sel], c[sel]]
+        ok = px.min(1) > 190 if ink == "white" else px.max(1) < 60
+        assert ok.mean() > 0.98, f"{100 * (1 - ok.mean()):.0f} % of the {ink} texels not {ink}"

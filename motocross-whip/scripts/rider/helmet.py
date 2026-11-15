@@ -191,6 +191,17 @@ class Profile:
 # ---------------------------------------------------------------- half width over the profile
 L_CROWN, P_CROWN = 0.1239, 1.933  # roundness of the crown and back (m, superellipse power): fitted with W_Z, Q_Y
 L_CHIN, P_CHIN = 0.140, 1.25       # the chin bar narrows to a blunt V in plan (Pinata iso-left camera fit)
+# Joint front fit, phase 2 (decision 51): through the solved cameras (research/helmet-ba.json) the chin's outline in
+# the three iso photos stood 17 to 23 mm inside Leatt's (median of its outline vertices ahead of y -0.12 m, below
+# z -0.06 m: Pinata iso-left -22.7 mm, iso-right -17.6, MY27 front-iso-left -18.6), and the chin vent's landmark, solved
+# from five photos, 3.8 mm outside the shell: the V was too sharp at its front (the mouthpiece's broad shield). A
+# blunt nose joins the V (a smooth maximum of the two, power CHIN_NOSE[3]): a superellipse reaching CHIN_NOSE[0] of the
+# width CHIN_NOSE[1] behind the chin's rim, power CHIN_NOSE[2]. Fitted on a grid (scratch chinw2.py): the outline now
+# MY27 front-iso-left +1.7 mm (p10 -0.5, p90 +6.5), iso-right -4.8, iso-left -13.0 (that camera's whole outline sits
+# 10 to 15 mm off: its back stands outside Leatt's by as much, the shell's top and back views agree within 2 mm), the
+# chin vent's landmark on the shell (0.0 mm). The V behind it is unchanged (the nose's share is the smaller beyond
+# 30 mm from the rim: the grip panels, the port's side, the strap's anchor as before).
+CHIN_NOSE = (0.45, 0.015, 2.5, 6.0)
 # Half width by height (back view) and plan factor by y (top view). Round 1 fitted them with L_CROWN and P_CROWN to
 # Leatt's back and top views through hand-fitted cameras (residuals 1.6 mm back, 2.3 mm top) and evened out the
 # fit's dip at z = 0 by hand. Round 3 (decision 46) refitted W_Z between z = -0.13 and +0.06 m (knots every 10 mm)
@@ -280,7 +291,7 @@ def raw_width(prof, Y, Z):
     # 3 mm mesh that hid the surface's own normal from the shading test (round 3)
     Lc, Pc = crown_shape(foot[:, 0])
     w = _W_OF_Z(Z) * _Q_OF_Y(Y)
-    return w * falloff(dc / Lc, Pc) * falloff(dh / L_CHIN, P_CHIN), np.minimum(dc, dh)
+    return w * falloff(dc / Lc, Pc) * chin_g(dh), np.minimum(dc, dh)
 
 
 SMOOTH_H = 0.002                    # m, grid of the smoothed field
@@ -343,6 +354,28 @@ def ring_offsets(L, p, n):
     return L * (1.0 - (1.0 - s ** p) ** (1.0 / p))
 
 
+def chin_g(d):
+    """The chin bar's share of the width at a distance d from its rim: the V (L_CHIN, P_CHIN) and the blunt nose
+    (CHIN_NOSE), their smooth maximum."""
+    g = falloff(d / L_CHIN, P_CHIN)
+    nose = CHIN_NOSE[0] * falloff(d / CHIN_NOSE[1], CHIN_NOSE[2])
+    return (g ** CHIN_NOSE[3] + nose ** CHIN_NOSE[3]) ** (1.0 / CHIN_NOSE[3])
+
+
+CHIN_RING_STEP, CHIN_RING_W = 0.0035, 0.11   # m: the rings' spacing across the surface, the chin's width scale there
+
+
+def chin_ring_offsets(d_max):
+    """Distances from the chin's rim for the domain's rings, CHIN_RING_STEP apart across the 3D surface (in d and in
+    CHIN_RING_W chin_g together) out to d_max. Graded by the V's falloff alone (as the crown's), the rings left the
+    nose's front face and its rounded corner with two or three vertices across (x 0, 24, 40, 44 mm at z -130 mm):
+    its triangles up to 25 mm long showed as lumps along the chin's outline and dents in its shading (phase 2)."""
+    d = np.linspace(0.0, d_max, 4001)
+    x = CHIN_RING_W * chin_g(d)
+    s = np.r_[0.0, np.cumsum(np.hypot(np.diff(d), np.diff(x)))]
+    return np.interp(np.arange(1, int(s[-1] / CHIN_RING_STEP) + 1) * CHIN_RING_STEP, s, d)
+
+
 # The crown rim is the centre line, where the half width x = W falloff(d / L) rises as the square root of the
 # distance d from the rim: 3 mm of x across the crown is 0.04 mm of d. Main graded its crown rings by the brow's
 # roundness all round and thinned them against the 3 mm outline samples, so the first point kept off the centre
@@ -402,7 +435,7 @@ def domain_points(prof, h=0.005, nring=14):
     nc = np.c_[-t[:, 1], t[:, 0]]
     if prof.area < 0:
         nc = -nc
-    for d in ring_offsets(L_CHIN, P_CHIN, nring)[:-3]:
+    for d in chin_ring_offsets(ring_offsets(L_CHIN, P_CHIN, nring)[-4]):
         pts.append(resample_open(prof.rim_chin + nc * d, max(0.003, min(h, d * 0.9))))
     lo, hi = prof.outline.min(0), prof.outline.max(0)
     gy, gz = np.meshgrid(np.arange(lo[0], hi[0], h), np.arange(lo[1], hi[1], h * 0.866))
@@ -1364,6 +1397,9 @@ MATERIALS = {
     # the rear slots' wire mesh (round 4): near black in Leatt's back photos, its wires seen by their faint glints
     # (Pinata back at 3x: the exhaust slot's mesh barely shows, the lower slot's dark grey on black)
     "helmet_vent_mesh": dict(rgb=[36, 37, 40], rough=0.4),
+    # the chin's mouthpiece frame (phase 2, decision 51): glossy black plastic (Pinata iso-left: its lower band mid 11
+    # 11 12 with glints to 66, its lit side to 184 185 195, the softbox's reflection)
+    "helmet_frame_black": dict(rgb=[16, 16, 18], rough=0.3),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     # the eye port (phase 2, decision 51; helmet_detail's tables): the grip panels' moulded rubber, dark grey with its
     # triangle relief (Pinata iso-left: the flat cells' mid grey 76 73 77 beside the white paint's 185 186 190, de-lit

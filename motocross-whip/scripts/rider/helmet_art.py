@@ -165,10 +165,9 @@ WHITE = (226, 229, 235)            # the white base's ink (helmet.BASE_WHITE): e
 # The unpainted black plastic parts: their moulded texture (the grip panel's triangles, the chin vent's mesh, the
 # eye port's trim) catches the studio light in grey and white streaks that are no print. Hand-marked on Leatt's
 # iso-left photo (px, 1920 x 1920), applied to each texel's design point (so his right side gets the mirror):
-# every shell texel inside is that ink. The moulded LEATT on the chin cap is black on black (no print).
+# every shell texel inside is that ink. The moulded LEATT on the chin cap is black on black (no print). The chin
+# vent's ink comes from the mouthpiece's rim in 3D instead (mouth_ink).
 FORCE = {"isoleft": [
-    ("black", [(372, 1289), (447, 1293), (504, 1311), (554, 1336), (629, 1389), (622, 1421), (597, 1486),
-               (569, 1550), (547, 1607), (533, 1629), (419, 1607), (390, 1521), (369, 1436), (365, 1364)]),   # chin vent
     ("black", [(470, 577), (700, 577), (783, 590), (883, 602), (992, 619), (1100, 644), (1160, 655), (1350, 697),
                (1347, 735), (1331, 816), (1316, 897), (1300, 954), (1287, 1010), (1275, 1047), (1262, 1085),
                (1256, 1097), (1175, 1122), (1100, 1150), (950, 1140), (950, 760), (700, 740), (470, 720)]),  # port trim, grip panel
@@ -272,6 +271,62 @@ def back_zone(P, N, S):
     return Path(BACK_ZONE).contains_points(uv) & vis & (cos > 0.0) & (S == 0)
 
 
+# The chin's mouthpiece (phase 2, decision 51): its moulding covers the shell inside its rim (helmet_detail.MOUTH_RIM,
+# traced through the two solved cameras that see the chin's outline within 5 mm). The Pinata iso-left camera, which
+# owns the chin's front, puts Leatt's black 10 to 15 mm off there (its chin outline stands 13 mm inside Leatt's): its
+# black ran past the rim as teeth, a FORCE polygon in its px could not hold it. Inside the rim the shell is black, in
+# a band MOUTH_RING round it white (the paint folding in at the rim). The same for the chin bar's side vents
+# (helmet_detail.SIDE_VENT_YZ, on the chin's sides): black inside, white in a band SIDE_RING round them.
+MOUTH_RING = 0.008
+SIDE_RING = 0.005
+# The chin cap's lower edge across the chin's front (x, z in mm): the dark moulding over the chin bar's top meets the
+# white paint there (Pinata iso-right at 1.5x with a grid, cast through its solved camera; Leatt's black from the
+# iso-left view, 10 to 15 mm off at the chin, hung below it as teeth). Ahead of y CHIN_CAP_Y and inside |x| 48 mm:
+# black above the line, white below it down to the mouthpiece's rim (beside the rim's top corners, |x| over 40 mm,
+# only down to z -82 mm: the upper side slots' print below that stays).
+CHIN_CAP = [(0.0, -68.0), (13.0, -68.0), (25.0, -69.0), (34.0, -70.3), (48.5, -74.0)]
+CHIN_CAP_Y = -0.185
+# Along the chin bar's sides (|x| over 40 mm, y -205 to -150 mm) the same edge as (y, z) mm, from the same photo;
+# white for CHIN_CAP_BAND under it (the upper side slots' print lies 7 to 10 mm under it there)
+CHIN_CAP_SIDE = [(-205.0, -72.5), (-200.0, -74.0), (-185.1, -81.0), (-170.5, -81.9), (-153.7, -82.2)]
+CHIN_CAP_BAND = 0.005
+
+
+def mouth_ink(P, S, out):
+    """The mouthpiece's ink on the shell's texels (index into INKS, in place): black inside the rim, white in the
+    band round it, on the chin's front (y < -0.12 m); the same round the chin bar's side vents; the chin cap black
+    above its lower edge (CHIN_CAP, CHIN_CAP_SIDE) and the paint white below it."""
+    import helmet_detail as D
+    from matplotlib.path import Path
+    from scipy.spatial import cKDTree
+    rim = D.mouth_xz(D.MOUTH_RIM, 200)
+    xz = P[:, [0, 2]]
+    cap = np.asarray(CHIN_CAP) / 1000.0
+    ax = np.abs(P[:, 0])
+    zc = np.interp(ax, cap[:, 0], cap[:, 1])
+    face = (S == 0) & (P[:, 1] < CHIN_CAP_Y) & (ax < cap[-1, 0])
+    out[face & (P[:, 2] > zc + 0.001)] = INKS.index("black")
+    out[face & (P[:, 2] < zc - 0.001) & ((ax < 0.040) | (P[:, 2] > -0.082))] = INKS.index("white")
+    cs = np.asarray(CHIN_CAP_SIDE) / 1000.0
+    zs = np.interp(P[:, 1], cs[:, 0], cs[:, 1])
+    flank = (S == 0) & (ax > 0.040) & (P[:, 1] > cs[0, 0]) & (P[:, 1] < cs[-1, 0])
+    out[flank & (P[:, 2] > zs + 0.001)] = INKS.index("black")
+    out[flank & (P[:, 2] < zs - 0.001) & (P[:, 2] > zs - CHIN_CAP_BAND)] = INKS.index("white")
+    front = (S == 0) & (P[:, 1] < -0.12)
+    inside = Path(rim).contains_points(xz) & front
+    near = cKDTree(rim).query(xz)[0] < MOUTH_RING
+    out[front & near & ~inside] = INKS.index("white")
+    out[inside] = INKS.index("black")
+    sv = D.resample_loop(np.asarray(D.SIDE_VENT_YZ, float) / 1000.0, 0.0005)
+    yz = P[:, [1, 2]]
+    side = (S == 0) & (np.abs(P[:, 0]) > 0.035) & (P[:, 1] < -0.12)
+    inside = Path(sv).contains_points(yz) & side
+    near = cKDTree(sv).query(yz)[0] < SIDE_RING
+    out[side & near & ~inside] = INKS.index("white")
+    out[inside] = INKS.index("black")
+    return out
+
+
 def force_labels(P, N, S):
     """The ink FORCE (shell) and FORCE_VISOR (visor's top) put on each texel (index into INKS), -1 where none: the
     texel's design point is looked up in the marked view and must be seen there. The visor's wings: white."""
@@ -293,7 +348,7 @@ def force_labels(P, N, S):
     # thin grey marks and two small blue slivers (joint front fit, decision 47)
     a = np.abs(N)
     out[(S == 1) & (a[:, 0] >= a[:, 2]) & (a[:, 0] >= a[:, 1])] = INKS.index("white")
-    return out
+    return mouth_ink(P, S, out)
 
 
 def labels(t):
@@ -648,6 +703,13 @@ def draw(out_path=None, tex=None, log=print):
         if len(a) and len(b):
             j = cKDTree(tx[2][a]).query(tx[2][b])[1]
             out[tx[0][b], tx[1][b]] = out[tx[0][a[j]], tx[1][a[j]]]
+    # the 3D inks (mouth_ink: the chin cap's edge, the mouthpiece's and the side vents' rims) once more on the texels
+    # themselves: the chin bar's top front lies in thin atlas slivers (its faces alternate between two islands, 2 to
+    # 5 texels wide), where the fill above took the cap's black from over its edge and hung it 7 mm below it (phase 2)
+    f = mouth_ink(tx[2], tx[4], np.full(len(tx[2]), -1))
+    for k in np.unique(f[f >= 0]):
+        m = f == k
+        out[tx[0][m], tx[1][m]] = np.asarray(data["inks"][INKS[k]], np.float32)
     art = draw_elements(out, tex, data, log, tx)
     # bleed: every texel off the islands takes the colour of the nearest island texel, so the renderer's texture
     # filtering at an island's edge never reads the fill (no seams where the islands meet on the shell)
