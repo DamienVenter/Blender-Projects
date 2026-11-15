@@ -1200,7 +1200,12 @@ def hidden_skin(body, Rt, prof=None):
 
 
 def extras(body, parts, Rt):
-    return dict(hide_body=hidden_skin(body, Rt))
+    """hide_body: the skin under the helmet; helmet_shell__frame: the helmet frame's placement on him (4x4,
+    p_MB = F p_H), so views fitted in the helmet frame (his-photo-cameras.json, head_closeups.py) ride the shell."""
+    R, t = Rt
+    F = np.eye(4)
+    F[:3, :3], F[:3, 3] = R, t
+    return dict(hide_body=hidden_skin(body, Rt), helmet_shell__frame=F)
 
 
 MATERIALS = {

@@ -19,6 +19,8 @@ Gear: RIDER_GEAR="a.npz,b.npz" adds gear modules' parts (helmet.py, boots.py, ..
   <p>__bone        a bone name: the part rides that bone rigidly (helmet: "head"), or
   <p>__wv, <p>__wb, <p>__ww   skin weights (vertex, bone index into body.npz "bones", weight): it deforms
   <p>__smooth      optional: 1 = smooth shading (default), 0 = flat
+  <p>__frame       optional: 4x4, the part's own frame in the mesh's (helmet: p_MB = F p_H), kept on the object
+                   as the custom property gear_frame (head_closeups.py's views fitted in the helmet frame)
   hide_body        optional: body vertex ids the gear covers completely; they are masked out of the render so
                    skin never shows through (a vertex group "covered" and a Mask modifier on the body)
 """
@@ -192,6 +194,8 @@ def add_gear(path, rig, body_bones):
         me.validate()
         ob = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(ob)
+        if name + "__frame" in g:                 # the part's own frame in the mesh's (helmet: p_MB = F p_H)
+            ob["gear_frame"] = [float(x) for x in np.asarray(g[name + "__frame"]).ravel()]
         if name + "__bone" in g:                                  # rigid on one bone, at its rest place
             bone = str(g[name + "__bone"])
             ob.parent = rig

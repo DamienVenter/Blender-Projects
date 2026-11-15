@@ -392,6 +392,40 @@ def test_npz_loads_for_build_rider(built):
         assert str(m) in mats
 
 
+def test_gear_frame_places_the_helmet_frame(built):
+    """The gear npz carries the helmet frame's placement (helmet_shell__frame, p_MB = F p_H; build_rider keeps it as
+    the shell's gear_frame) so views fitted in the helmet frame ride the shell (head_closeups.py's p07 to p09)."""
+    g = np.load(built["path"])
+    F = g["helmet_shell__frame"]
+    Vo = H.shell_outer()[0]
+    assert F.shape == (4, 4) and np.allclose(F[3], [0, 0, 0, 1])
+    assert np.allclose(Vo[:50] @ F[:3, :3].T + F[:3, 3], built["parts"]["helmet_shell"].V[:50], atol=1e-9)
+
+
+def test_his_photo_cameras_fitted_to_the_helmet():
+    """Decision 47: his photos 07, 08 and 09 as cameras in the helmet frame (his_cameras.py,
+    research/his-photo-cameras.json), fitted to the helmet's measured points (landmarks, print centres, chevrons)
+    and its print's colour; head_closeups.py's p07, p08, p09 are these cameras. 08 sees the crown from ahead and
+    above (his head pitched far down in the whip); main's p08, set by eye, saw his face from below."""
+    import his_cameras as HC
+    cams = HC.load()
+    pts = HC.points()
+    for k, rms_max, ncc_min in (("07", 4.0, 0.35), ("08", 6.0, 0.7), ("09", 10.0, 0.4)):
+        c = cams[k]
+        X = np.array([pts[n] for n in HC.READINGS[k]])
+        read = np.array([v[:2] for v in HC.READINGS[k].values()], float)
+        rms = np.sqrt(np.mean(np.sum((HC.project(c, X) - read) ** 2, axis=1)))
+        assert rms < rms_max, f"{k}: landmarks {rms:.1f} px off"
+        assert abs(rms - c["landmark_rms_px"]) < 0.5 and c["colour_ncc"] > ncc_min, k
+        assert np.allclose(np.asarray(c["R"]) @ np.asarray(c["R"]).T, np.eye(3), atol=1e-6)
+    v = {k: np.asarray(cams[k]["to_camera"]) for k in cams}
+    assert v["07"][0] > 0.9                                    # his left side, near side-on
+    assert v["08"][2] > 0.5 and v["08"][1] < -0.5               # ahead and above: the crown faces the camera
+    assert v["09"][0] > 0.4 and v["09"][1] < -0.4 and v["09"][2] > 0.3
+    src = open(os.path.join(HERE, "head_closeups.py")).read()
+    assert "his-photo-cameras.json" in src and '"p08": ((' not in src
+
+
 def test_goggle_in_the_port_on_his_eyes(body, built):
     """Lens ahead of both eyes, nothing of the lens inside the shell; the strap 45 mm wide (Leatt); the frame
     raspberry (his photos, not Leatt's hot pink render). More in test_goggle.py."""

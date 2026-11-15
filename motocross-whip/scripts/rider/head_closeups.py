@@ -4,15 +4,18 @@ blender -b --python-exit-code 1 --python head_closeups.py -- RIDER.blend OUT_DIR
 
 views: comma list of the names in VIEWS (default all). light: "studio" (default, build_rider.studio()) or
 "daylight" (a sun and Blender's sky, for comparisons with his outdoor photos 07, 08, 09; see daylight()). The
-cameras are set in the rest frame of build_rider.py
-(rider standing at the origin facing +x, z up, his head at rest) and carried with his head into the blend's pose:
-each camera rides the helmet shell's rigid motion (the shell is parented to the "head" bone), so a view shows his
+cameras ride the helmet shell's rigid motion (the shell is parented to the "head" bone), so a view shows his
 head from the same side whatever the pose, as in the photo it was matched to.
 
-Sources of the views (rest frame, metres; target near the goggle lens centre):
-  p09, p07, p08   the goggle round 2/3 views matched by eye to his photos 09 (front-left from below), 07 (left
-                  side, riding pan) and 08 (his right from below); research/rider-ledger/goggle.md
-  front, isol     square on and front-left three-quarter at goggle height, for the frame and lens shape
+Sources of the views:
+  p09, p07, p08   his photos 09 (front-left from below), 07 (left side, riding pan) and 08 (from below, his head
+                  pitched far down: the crown faces the camera): each photo's camera fitted to the helmet in its own
+                  frame (his_cameras.py, research/his-photo-cameras.json; decision 47), placed by the shell's
+                  gear_frame (helmet.extras). The render is the photo's crop round his head (the comparison sheets'
+                  crop, x y size in photo px) at HIS_SCALE x the photo's pixels, so it lies 1:1 on the crop
+  front, isol     square on and front-left three-quarter at goggle height, for the frame and lens shape (rest frame
+                  of build_rider.py, metres: rider standing at the origin facing +x, z up; target near the goggle
+                  lens centre)
   cam07           the camera fitted to his photo 07 (research/rider-cameras.json, fitted to the bike), the render
                   cropped round his head: the true angle of that photo when the blend has the bike in it
 The studio matches build_rider.studio(): Cycles, the same world and two area lights, and the scene look shared with
@@ -27,16 +30,16 @@ from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 BLEND, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1])
+HIS_VIEWS = ("p09", "p07", "p08")          # his photos' cameras in the helmet frame (his-photo-cameras.json)
+HIS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "research", "his-photo-cameras.json")
+HIS_SCALE = 4                              # render px per photo px (07's 240 px crop renders 960 px)
 VIEWS = {  # name: (camera, target, lens mm, (w, h)) in the rest frame
-    "p09": ((0.95, 0.55, 1.30), (0.07, 0.0, 1.71), 60, (1200, 1200)),
-    "p07": ((0.02, 1.10, 1.62), (0.00, 0.0, 1.71), 60, (1200, 1200)),
-    "p08": ((0.70, -0.85, 1.25), (0.05, 0.0, 1.72), 60, (1200, 1200)),
     "front": ((0.80, 0.0, 1.74), (0.08, 0.0, 1.73), 85, (1200, 900)),
     "isol": ((0.62, 0.48, 1.78), (0.08, 0.0, 1.73), 85, (1200, 900)),
 }
 CAMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "research", "rider-cameras.json")
 PHOTO_CROP = 0.16        # the photo views: half size of the crop round the head, as a fraction of the photo width
-NAMES = [v for v in argv[2].split(",")] if len(argv) > 2 and argv[2] else list(VIEWS) + ["cam07"]
+NAMES = [v for v in argv[2].split(",")] if len(argv) > 2 and argv[2] else [*HIS_VIEWS, *VIEWS, "cam07"]
 SAMPLES = int(argv[3]) if len(argv) > 3 and argv[3] else 64
 LIGHT = argv[4] if len(argv) > 4 else "studio"
 os.makedirs(OUT, exist_ok=True)
@@ -81,7 +84,7 @@ def head_motion():
     rest = Matrix.Rotation(math.pi / 2, 4, "Z")
     zs = [(rest @ v.co).z for v in shell.data.vertices]
     assert 1.4 < min(zs) and max(zs) < 2.1, (min(zs), max(zs))      # the rest helmet sits at head height
-    return shell.matrix_world @ rest.inverted(), shell.name
+    return shell.matrix_world @ rest.inverted(), shell
 
 
 def studio(sc):
@@ -195,6 +198,41 @@ def photo_view(sc, name, D, scale=2, day=None):
     print("RENDERED", sc.render.filepath, "head at", round(c.x * spec["W"]), round((1 - c.y) * spec["H"]), "px")
 
 
+def his_view(sc, name, shell, day=None):
+    """His photo's camera, fitted in the helmet frame (rows of R: x right, y up, z forward; u = cx + f x / z,
+    v = cy - f y / z), carried by the shell: world = shell's matrix @ gear_frame (helmet -> mesh) @ camera. Only the
+    photo's crop round his head is rendered, at HIS_SCALE x its pixels."""
+    import json
+    spec = json.load(open(HIS))["cameras"][name[1:]]
+    if "gear_frame" not in shell:
+        raise SystemExit("the helmet shell has no gear_frame: rebuild the rider from a gear npz of helmet.py")
+    F = Matrix([shell["gear_frame"][4 * i:4 * i + 4] for i in range(4)])
+    R, C = spec["R"], spec["C"]
+    M = Matrix([[R[0][i], R[1][i], -R[2][i], C[i]] for i in range(3)] + [[0.0, 0.0, 0.0, 1.0]])
+    W, H = spec["W"], spec["H"]
+    cam = bpy.data.objects.new("cam_" + name, bpy.data.cameras.new("cam_" + name))
+    cam.data.sensor_fit = "HORIZONTAL"
+    cam.data.sensor_width = 36.0
+    cam.data.lens = spec["f"] * 36.0 / W
+    cam.data.shift_x = (W / 2 - spec["cx"]) / W                 # Blender's shift: in units of the wider side
+    cam.data.shift_y = (spec["cy"] - H / 2) / W
+    cam.matrix_world = shell.matrix_world @ F @ M
+    sc.collection.objects.link(cam)
+    sc.camera = cam
+    if day:
+        day_sun(day, name, cam)
+    sc.render.resolution_x, sc.render.resolution_y = W * HIS_SCALE, H * HIS_SCALE
+    x, y, n = spec["crop"]
+    sc.render.border_min_x, sc.render.border_max_x = x / W, (x + n) / W
+    sc.render.border_min_y, sc.render.border_max_y = 1 - (y + n) / H, 1 - y / H
+    sc.render.use_border = sc.render.use_crop_to_border = True
+    sc.render.filepath = os.path.join(OUT, f"head_{name}.png")
+    bpy.ops.render.render(write_still=True)
+    sc.render.use_border = sc.render.use_crop_to_border = False
+    print("RENDERED", sc.render.filepath, "camera", [round(v, 3) for v in cam.matrix_world.translation],
+          "crop", spec["crop"], "landmark rms %.1f px" % spec["landmark_rms_px"])
+
+
 def main():
     bpy.ops.wm.open_mainfile(filepath=BLEND)
     sc = bpy.context.scene
@@ -202,8 +240,11 @@ def main():
         raise SystemExit("light must be studio or daylight, not %r" % LIGHT)
     day = daylight(sc) if LIGHT == "daylight" else studio(sc)
     D, shell = head_motion()
-    print("HEAD", shell, [round(x, 4) for x in D.translation])
+    print("HEAD", shell.name, [round(x, 4) for x in D.translation])
     for name in NAMES:
+        if name in HIS_VIEWS:
+            his_view(sc, name, shell, day=day)
+            continue
         if name.startswith("cam"):
             photo_view(sc, name, D, day=day)
             continue
