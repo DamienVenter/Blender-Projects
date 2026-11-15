@@ -1608,35 +1608,32 @@ def draw_stripe(P, N, col, white):
         col[sel[ins]] = np.stack([ndimage.map_coordinates(fimg[..., k], [qy, qx], order=1) for k in range(3)], -1)
 
 
-# The crown's two vents: a white moulded insert with a triangle lattice over the dark opening (moulded parts, no
-# print, painted so the crown reads right on a shell without the openings). Leatt's top photo px, the vent on his
+# The crown's two vents: a white moulded insert with a triangle lattice over the dark opening. Round 3 (decision 46)
+# builds the insert and the lattice as geometry (helmet_detail.py, through the same top camera); the print keeps
+# the insert's colour under them and the opening dark (no painted bars: they would double the built ones). Leatt's top photo px, the vent on his
 # right (image left); his left gets the mirror. Lattice: cells a along the opening's top edge, b down its side,
 # bars along a, b and a + b (the photo's three bar directions), 4 to 5 px wide.
 CROWN_VENT = dict(view="top", insert=[(690, 605), (770, 583), (772, 716), (670, 746)],
                   opening=[(697, 612), (760, 592), (761, 712), (683, 737)],
                   origin=(700.0, 615.0), a=(20.3, -6.7), b=(0.0, 25.0), bar=0.15)
-VENT_BAR_RGB = (209, 213, 219)      # top photo, bars de-lit against the shell's white beside the vent
+VENT_BAR_RGB = (209, 213, 219)      # top photo, bars de-lit (now built: helmet.MATERIALS helmet_vent_insert)
 VENT_RIM_RGB = (202, 206, 214)      # the insert's moulded rim, same measure
-VENT_HOLE_RGB = (14, 14, 16)        # the opening (photo: 0 0 0)
+VENT_HOLE_RGB = (24, 23, 25)        # the opening (photo: 0 0 0): the print's black ink, one black in the print
 
 
 def draw_crown_vents(P, N, S, col):
     from matplotlib.path import Path
     v = CROWN_VENT
     sel = np.nonzero((S == 0) & (P[:, 2] > 0.05) & (N[:, 2] > 0.3))[0]
-    M = np.linalg.inv(np.array([v["a"], v["b"]]).T)
     for sg in (np.ones(3), MX):
         Q, Nq = P[sel] * sg, N[sel] * sg
         uv, vis, cos = view_lookup(v["view"], Q, Nq, Q)
         ok = vis & (cos > 0.2)
         ins = Path(v["insert"]).contains_points(uv) & ok
         op = Path(v["opening"]).contains_points(uv) & ok
-        st = (uv - np.asarray(v["origin"])) @ M.T
-        fam = np.c_[st[:, 0], st[:, 1], st[:, 0] - st[:, 1]]
-        bar = (np.abs(fam - np.round(fam)) < v["bar"]).any(1)
         c = col[sel]
         c[ins] = VENT_RIM_RGB
-        c[op] = np.where(bar[op, None], VENT_BAR_RGB, VENT_HOLE_RGB)
+        c[op] = VENT_HOLE_RGB
         col[sel] = c
 
 

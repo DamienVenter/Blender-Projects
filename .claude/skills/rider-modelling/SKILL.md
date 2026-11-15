@@ -696,3 +696,38 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   vertices inside the solid at T_MIN 18 mm; the cheek pads fill that corner (T_MIN_PORT "iso" 14 mm).
 - **Cache on the object, not by id().** A dict keyed by id(prof) can hand a new Profile the field of a dead one
   (ids are reused); helmet.smoothed_width keeps its spline on the profile.
+
+## Helmet round 3 phase A: photos solved together, shell rebuilt, moulded vents (2026-11-15, helmet.py, helmet_ba.py, helmet_detail.py, ledger helmet.md section 6, decision 46)
+
+- **Stripes in a clear coat are normals first.** The crown stem's purple and white ladder was the coat mirroring
+  vertex normals 3 to 8 deg off the surface (fans meshed from unevenly graded rings), not print. Compare Blender's
+  angle-weighted normals with the analytic surface before touching the texture (`test_crown_shading_follows_the_surface`).
+- **Lamps in the coat bleach the print.** A pale stem or salmon teal in a comparison render can be the studio's
+  lamps mirrored in the clear coat or AgX's highlight roll-off: judge inks in the Standard view with the lamps kept
+  out of the coat, then check the scene look (AgX - Punchy -0.6, shared with the bike) separately.
+- **Solve all the photos together.** Cameras fitted one at a time to the outline (helmet.CAMS) each match their own
+  silhouette and still disagree by 20 to 35 mm on the crown: the print traced through the top camera puts the crown
+  vents at y 16 mm, Royal_Left (the frame's own gauge) sees them at y 37, and the back camera sees the painted vent
+  137 px above the photo's. Before trusting any print or part placed through one camera, project it into a second
+  view. `helmet_ba.py` solves the eleven cameras with shared landmarks and outlines; `research/helmet-ba.json`
+  keeps them (load with `helmet_ba.solved_cameras()`).
+- **Bundle adjustment of long-lens photos.** An outline fixes a long-lens camera's scale but hardly its distance, so
+  landmarks drifted 16 to 29 mm inside the shell: hold the ones on a measured part of the shell on it (1.5 mm), finish
+  with plain least squares after the robust (soft-l1) rounds (soft-l1 alone ignored the constraint), and divide each
+  reading's sigma by the cosine of the view's incidence. Read the per-landmark residuals, not only the total: two
+  landmarks (crown vent, rear badge) at 43 to 52 px rms meant no rigid shape fits them on the shell.
+- **Measure a shell by bands through the solved cameras.** The outline offset per 10 mm of height (back views) and
+  20 mm of length (top view), median per band, showed main 1 to 3 mm narrow below z -50 and 1.3 to 3.6 mm wide at the
+  shoulder; refit W_Z and Q_Y to it with a held-out view (MY27 back) as the check (`helmet_ba.outline_bands`).
+- **Published dimensions need their reference.** Leatt's Technical File 172 (in the Moto 8.5 kit PDF on
+  pim.leatt.com) gives shell and EPS W x L x H per size: width and height match ours within 1 and 3 mm, the length
+  is 20 mm under ours (chin bar to back), so it is measured to another reference; do not fit to it blind.
+- **Moulded detail from photo px through the print's camera.** Trace the feature in the photo, cast it onto the
+  shell through the same camera the print was traced through, so part and print agree; measure its size through the
+  solved cameras. Snap a frame's outer edge back onto the shell (a tangent offset sank 1 mm into the concave lower
+  back). Do not paint what is built: the painted lattice doubled the built one wherever the casts differ.
+- **A recess on a closed shell.** A slot sunk into the shell reads as a lip rising to a rounded crest at the slot's
+  edge with a dark inner wall; a raised ring with a flat top reads as a bezel (tried on the rear slots).
+- **Grazing features.** The rear lower vents are seen at a 0.13 to 0.43 cosine from every camera that sees them:
+  sizes along them agree (59 and 60 mm), across them not (10 and 17 mm). Measure such features in two views and
+  quote the spread; the print traced there is unreliable too.

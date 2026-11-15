@@ -135,6 +135,43 @@ def test_shell_outline_through_the_solved_cameras():
         z, off = max(b.items(), key=lambda kv: abs(kv[1]))
         assert abs(off) < 1.5, f"{v}: the outline {off:+.1f} mm off the photo's at band {z} mm"
 
+def test_vents_are_moulded_away_from_the_front(built):
+    """Round 3 (decision 46): main's crown vents were flat painted triangles; Leatt's top photo shows a raised white
+    insert round a triangle lattice over the dark opening. The rear exhaust slots carry a moulded surround and the
+    lower rear vents a raised white piece drawn to a point (helmet_detail.py, from the photos' px through the print's
+    cameras). The part is mirror symmetric and stands on the shell (no more than its height above it, no more than
+    SINK under it); the crown rims stand 1.5 mm proud; each vent with its lattice (10 bars or more) lies inside its
+    insert's outline in the top photo (within 5 px); the lower piece runs 40 mm or more down the shell."""
+    from scipy.spatial import cKDTree
+    import helmet_art as A
+    import helmet_detail as D
+    from matplotlib.path import Path
+    assert "helmet_vents" in built["parts"], "no moulded vents (main: painted only)"
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
+    assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
+    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK}
+    Vo, Fo, _ = H.shell_outer()
+    No = H.normals(Vo, Fo)
+    j = cKDTree(Vo).query(V)[1]
+    h = np.sum((V - Vo[j]) * No[j], 1)                  # height above the shell
+    assert h.min() > -D.SINK - 0.0004 and h.max() < D.LOW_PIECE_H + 0.0002
+    ins = np.zeros(len(V), bool)
+    for f, m in zip(P.F, P.M):
+        if m == D.MAT_INSERT:
+            ins[f] = True
+    crown = ins & (V[:, 0] < 0)                         # the vent on his right, as in the top photo
+    assert abs(h[crown].max() - D.CROWN_RIM_H) < 0.0002
+    uv = H.cam_project(H.CAMS["top"], V[crown])[0]
+    q = np.asarray(A.CROWN_VENT["insert"], float)        # the insert's outline: four corners, traced by eye
+    seg = [(q[i], q[(i + 1) % 4]) for i in range(4)]
+    d = np.min([np.linalg.norm(uv - (a + np.clip((uv - a) @ (b - a) / ((b - a) @ (b - a)), 0, 1)[:, None] * (b - a)),
+                               axis=1) for a, b in seg], 0)
+    assert np.all(Path(q).contains_points(uv) | (d < 5.0))    # outside it by 5 px (1.2 mm) at most
+    assert len(D.lattice_lines(A.CROWN_VENT)) >= 10
+    low = ~ins & (V[:, 2] < -0.03)
+    assert np.ptp(V[low & (V[:, 0] > 0), 2]) > 0.04      # the lower piece runs 40 mm or more down the shell
+
 def shading_normals(V, F):
     """Vertex normals as Blender's smooth shading makes them: face normals weighted by the corner angles."""
     fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
@@ -407,6 +444,23 @@ def test_art_data_complete():
     assert "visor_leatt" not in names                     # the visor's LEATT band is traced (its file did not fit)
     assert len(d["element_rgb"]["back_icon"]) == 3
 
+
+def test_crown_vent_openings_drawn_dark(art):
+    """Round 3 (decision 46): with the lattice built (helmet_detail.py), the print under it is the dark opening only:
+    main also painted the bars, a second lattice offset from the built one wherever the two cameras' casts differ.
+    The opening (shrunk 20 % to its centre, top photo px) is dark (every channel under 60) at 97 % of its texels."""
+    from matplotlib.path import Path
+    A = art["A"]
+    r, c, P, N, S = A.texels(SMALL)
+    v = A.CROWN_VENT
+    sel = np.nonzero((S == 0) & (P[:, 2] > 0.05) & (N[:, 2] > 0.3) & (P[:, 0] < 0))[0]
+    uv, vis, cos = A.view_lookup(v["view"], P[sel], N[sel], P[sel])
+    op = np.asarray(v["opening"], float)
+    op = op.mean(0) + 0.8 * (op - op.mean(0))
+    k = sel[Path(op).contains_points(uv) & vis]
+    assert len(k) > 100
+    dark = art["drawn"][0][r[k], c[k]].max(1) < 60
+    assert dark.mean() > 0.97, f"{100 * (1 - dark.mean()):.0f} % of the opening painted light (bars)"
 
 def test_visor_chevrons_from_the_top_photo(art):
     """The visor's chevrons: seven per side, vectorised from Leatt's top photo (the stored outlines are the photo's,

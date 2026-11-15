@@ -780,6 +780,8 @@ def build(body):
     visor = Part("helmet_visor")
     thicken_grid(visor_surface(prof), VISOR_T, "helmet_paint", "visor_under", "visor_under", visor)
     parts = [shell, visor]
+    import helmet_detail                              # moulded vents away from the front (round 3, decision 46)
+    parts.append(helmet_detail.build(Vo, Fo))
     if PAINT:                                         # the old projection of Leatt's photos (lighting baked in)
         Vt, Ft, Nt, UVt = visor.top
         info["paint"] = paint_atlas([(Vo, Fo, normals(Vo, Fo), uv_o), (Vt, Ft, Nt, UVt)],
@@ -1123,6 +1125,11 @@ MATERIALS = {
     # IOR 1.5 (4 % at normal incidence), rough 0.03 (Leatt's studio photos show the softboxes with crisp edges).
     "helmet_paint": dict(image="helmet_pinata.png", rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     "helmet_trim": dict(rgb=[18, 18, 20], rough=0.65),
+    # the moulded detail (helmet_detail.py): the crown vents' insert and lattice are white plastic, satin (Leatt's top
+    # photo, de-lit: rim 202 206 214, bars 209 213 219); the rear slots' surround and the rear lower pieces are the
+    # shell's own white under its clear coat (the print's white ink, helmet_art.json, and helmet_paint's coat)
+    "helmet_vent_insert": dict(rgb=[205, 209, 216], rough=0.35),
+    "helmet_moulded": dict(rgb=[226, 229, 235], rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
     "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),

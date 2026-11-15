@@ -223,3 +223,128 @@ ink is fully saturated (166.7, 0, 102.2), so AgX's highlight desaturation and th
 it: to look at with the lighting (AgX look or exposure), not in the print. Medians of the brightest quarter of the
 low-saturation pixels (white) and of hue 300 to 350 deg, saturation over 0.45 (magenta), in boxes on the photos'
 own pixels and the 16-sample close-ups.
+
+## 6. Round 3 phase A (2026-11-15, decision 46): the photos solved together, the shell rebuilt, moulded vents
+
+### Stem ladder and crown stripe (done, merged as 9bba9fa and f3778be)
+- The purple and white ladder on the crown-back stem was shading: the crown band was meshed as fans with normals 3
+  to 8 deg off the surface, mirrored by the clear coat. A structured crown band fixes it (Blender's normals within
+  1.25 deg of the surface, main 67 deg; `test_crown_shading_follows_the_surface`).
+- The crown stripe (teal bands, purple stem and chevron, white margins, step notch) is drawn from Leatt's de-lit top
+  photo (`helmet_art_stripe.png`); the scene look is the bike's AgX - Punchy at -0.6, daylight gain 3.4 EV.
+
+### Bundle adjustment of Leatt's 8.5 photos (`scripts/rider/helmet_ba.py`, `research/helmet-ba.json`)
+Eleven cameras (Pinata iso-left, iso-right, back, top; Royal_Left as the gauge; V25 white iso-left and back; MY27
+front-iso, left, right, back) and twelve landmarks solved together with the shell's back and top outlines. Gauge:
+Royal_Left is the helmet frame's own camera (only its distance is free) and the shell is mirror symmetric. Landmarks
+read on 1:1 crops (disc and blob centroids to sub-pixel, the rest by eye at 3x); sigma divided by the cosine of the
+view's incidence; the landmarks away from the front held on the model shell (1.5 mm), the two on the centre line on
+the traced profile. Three soft-l1 rounds, then plain least squares (soft-l1 alone left the back group 16 to 29 mm
+inside the shell: a long lens's outline fixes its scale, not its distance). Result: landmarks 1.69 sigma rms,
+outlines 3.2 px rms, reduced chi-square 2.50. The front's outlines (iso views: 13 to 15 px off, the visor and
+brow) are left out of the solve: phase B rebuilds the front from these cameras.
+
+| Camera | Landmark readings | Landmark rms (px) | Outline rms (px) | mm per px at the origin |
+|---|---|---|---|---|
+| royal_left | 7 | 17.8 | - | 0.248 |
+| pin_isoleft | 6 | 21.3 | - | 0.255 |
+| pin_isoright | 5 | 17.2 | - | 0.247 |
+| pin_back | 7 | 15.4 | 3.1 | 0.208 |
+| pin_top | 6 | 22.7 | 3.1 | 0.243 |
+| v25w_isoleft | 7 | 10.3 | - | 0.263 |
+| v25w_back | 7 | 19.3 | 3.6 | 0.205 |
+| my27_isoleft | 6 | 4.9 | - | 0.237 |
+| my27_left | 6 | 30.2 | 3.8 | 0.265 |
+| my27_right | 6 | 20.1 | 3.0 | 0.255 |
+| my27_back | 8 | 12.4 | 2.7 | 0.228 |
+
+Landmarks in the helmet frame (mm; x his left, y back, z up; the pair's left member), 1-sigma, the model's own
+feature now (its print or part through the art view's old camera, helmet.CAMS), the difference (measured - model)
+and the measured point's distance off the model shell (+ outside):
+
+| Landmark | Measured | Sigma | Model now | Difference | Off the shell |
+|---|---|---|---|---|---|
+| side_screw | (124, -37, -66) | (6, 1, 1) | (125, -21, -69) | (0, -16, 3) | +2.4 |
+| release_tab | (106, -87, -132) | (7, 1, 1) | (109, -67, -131) | (-3, -20, -1) | +4.0 |
+| rear_slot | (38, 120, 64) | (0, 3, 1) | (37, 118, 68) | (0, 2, -4) | -0.1 |
+| crown_vent | (56, 46, 100) | (1, 2, 1) | (58, 15, 115) | (-2, 32, -16) | -8.8 |
+| side_vent | (86, 50, 80) | (1, 1, 1) | (96, 55, 74) | (-10, -5, 6) | -4.0 |
+| low_vent | (97, 82, -80) | (2, 2, 1) | (98, 80, -78) | (-1, 1, -2) | +0.4 |
+| eyeport_triangle | (113, -93, 31) | (7, 1, 1) | (112, -74, 25) | (1, -19, 6) | +8.1 |
+| chin_vent | (66, -161, -126) | (9, 1, 1) | (58, -161, -125) | (8, 0, -1) | +6.2 |
+| rear_badge | (0, 117, 86) | (0, 1, 1) | (1, 120, 90) | (-1, -3, -4) | -2.4 |
+| dot_o | (0, 127, -99) | (0, 1, 1) | (0, 133, -89) | (0, -6, -10) | -0.1 |
+| brow_badge | (0, -137, 83) | (0, 4, 4) | (33, -136, 80) | (-33, -1, 3) | -1.1 |
+| visor_rear_edge | (0, 21, 115) | (0, 2, 1) | - | - | -14.1 |
+
+Readings of the table:
+- Residuals per landmark (px rms over its readings): DOT 2.5, side screw 3.6, rear slot 4.4, eye-port triangle 5.1,
+  chin vent 7.1, release tab 8.3, side vent 10.5, brow badge 11.0, low vent 13.5, but rear badge 42.6 and crown vent
+  51.9 (to 103 px in my27_left). No rigid, mirror-symmetric solution puts those two on the shell: either the
+  crown-back surface between the outlines (seen face-on, which no outline measures) or the traced centre-line profile
+  is off there, or a reading is of another feature. To settle first in phase B, before the crown print is re-traced.
+- Away from the front the solve agrees with the shell: rear slot -0.1 mm, low vent +0.4, DOT -0.1, rear badge -2.4.
+- The crown vent does not: 8.8 mm inside the shell and 32 mm behind the painted vent. Royal_Left alone (the gauge,
+  no solve) sees the crown vent at y 36 to 38 mm, z 112 (the print: y 16, z 115) and the visor's rear edge at y 20
+  (the model: 8.7). In Leatt's back photo the painted vent through the old back camera lands 137 px (28 mm) above
+  the photo's vent. So the crown print (traced through the old top camera, which fits the outline but is pitched)
+  sits about 20 mm too far forward and the visor ends about 12 mm short: both phase B (print re-traced through the
+  solved cameras; the visor's rear edge).
+- The front landmarks (side screw, release tab, eye-port triangle) are 16 to 20 mm further forward than the print:
+  the front moves in phase B.
+
+### Published figures (Leatt Technical File 172 r01, in the Moto 8.5 kit document)
+Source: pim.leatt.com, Helmet Kit Moto 8.5, `07100200 R22 ALL - MOTO 8.5.pdf`. Shell (W x L x H, mm): XS/S 268 x 361
+x 309, M/L 260 x 350 x 300, XL/XXL 252 x 342 x 276. EPS liner: XS/S 260 x 294 x 276, M/L 256 x 287 x 270, XL/XXL 244 x
+268 x 255. Weights 1250 / 1305 / 1340 / 1430 g (+-50 g); EPS liner, moulded EVA padding, cheek pads 25 / 30 / 35 / 40
+mm. The label in Leatt's photos reads M, 57-58 cm, 1305 g +-50, ECE 22.06 (one M/L shell in all the photos).
+Model now: 260.8 x 369.7 x 303.3 mm (width and height within 1 and 3 mm of M/L). The length is 20 mm over the
+figure; ours is chin bar to back (Royal_Left's 0.2484 mm/px strap scale), so the file's length is likely measured to
+another reference (no drawing in the file). Not changed for it.
+Liner build-up (phase B, decision 47): the same file's EPS envelope, M/L 256 x 287 x 270 mm inside the 260 x 350 x
+300 shell, with the cheek pads' 25 to 40 mm per size, is the source; the model's shell solid runs 21.3 to 40.0 mm
+between the outer surface and his head now.
+
+### The shell rebuilt to the measurement (crown, back, back band, lower rear)
+W_Z (half width by height) and Q_Y (by length) refitted to the outlines through the solved back cameras (Pinata,
+V25 white; MY27 back as a check, not fitted) and the top camera. Median offset per band, model outside the photo
+(+), mm:
+
+| View | main max | main rms | round 3 max | round 3 rms |
+|---|---|---|---|---|
+| Pinata back (z bands 10 mm) | 3.32 | 2.11 | 1.31 | 0.47 |
+| V25 white back | 3.57 | 2.19 | 1.05 | 0.53 |
+| MY27 back (check) | 2.89 | 1.84 | 1.00 | 0.46 |
+| Pinata top (y bands 20 mm) | 1.22 | 0.70 | 0.72 | 0.50 |
+
+Main was 1 to 3 mm too narrow below z -50 mm and 1.3 to 3.6 mm too wide from z -40 to +10 mm. The fairness test
+holds. New test `test_shell_outline_through_the_solved_cameras` (every band within 1.5 mm; main fails at 3.3 mm).
+The print was re-traced and redrawn on the new shell.
+
+### Moulded detail away from the front (`scripts/rider/helmet_detail.py`)
+Traced in Leatt's Pinata photos (px) and cast onto the shell through the print's cameras (helmet.CAMS), so each
+piece stands on its own print. Sizes through the solved cameras (helmet_detail.measure):
+- Crown mesh vents (top photo): insert 41 x 28 mm, opening 35 x 21 mm (0.222 mm/px); rim 1.2 to 3.5 mm, raised 1.5
+  mm; a triangle lattice of bars 0.85 mm wide, 0.9 mm high (0.6 under the rim), cells 4.7 x 5.6 mm, over the dark
+  opening. White plastic, satin (`helmet_vent_insert`, top photo de-lit 202 to 219). The print no longer paints the
+  bars (`test_crown_vent_openings_drawn_dark`: main paints 68 % of the opening light).
+- Rear exhaust slots (back photo): 30.5 x 6.1 mm (0.194 mm/px). The photos show the slot sunk into the shell with
+  its edge rounded down into it: a lip rising 1.0 mm to a crest at the slot (2 mm wide along the top, 1 mm round the
+  rest), its inner wall dark. The shell stays closed, so the recess itself is not cut.
+- Rear lower white pieces (back photo): the slot 60 x 10 mm through the solved back camera and 59 x 17 mm through V25
+  iso-left (its own trace), z -110 to -68 mm; both cameras see it at a grazing 0.13 to 0.43 cosine, so the sizes
+  across it carry a few mm. The white frame 4.5 mm wide (4.4 to 5.8 mm on the shell from 8 to 13 px), 2 mm high,
+  drawn to a point 11 mm under the slot (42 px), the slot's floor dark 1.7 mm down.
+- The frames' outer edges are put on the shell (a tangent offset sank 1 mm into the concave lower back). The goggle
+  strap clears every piece by 34.7 mm.
+- New test `test_vents_are_moulded_away_from_the_front` (main: no moulded vents).
+
+### Still not right (phase A)
+- The crown print and vents sit about 20 mm too far forward and the visor ends about 12 mm short (above): in the top
+  view at 1:1 the visor's rear edge covers the vents' front 4 mm, where Leatt's edge is 10 mm ahead of them.
+- The print round the rear lower pieces is not Leatt's (magenta and grey where the photo has the white piece's
+  plate, the white band and black): traced at a grazing angle in both views. The pieces read rounder than Leatt's
+  flat plate.
+- The rear slots' crest reads brighter than Leatt's soft edge.
+- The "moulded ridge line across the crown" of the brief is the visor's rear edge (top photo: the print crosses its
+  step): phase B.
