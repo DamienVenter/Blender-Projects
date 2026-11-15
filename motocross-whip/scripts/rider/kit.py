@@ -962,7 +962,7 @@ class Photo:
     sampled bilinearly. exclude: boxes (x0, y0, x1, y1) that are not the garment (helmet, hands), filled from the
     nearest garment pixel."""
 
-    def __init__(self, name, exclude=(), median=5):
+    def __init__(self, name, exclude=(), median=5, inks=None):
         from PIL import Image
         from scipy import ndimage
         im = Image.open(os.path.join(REF, name))
@@ -985,6 +985,20 @@ class Photo:
             _, (iy, ix) = ndimage.distance_transform_edt(bad, return_indices=True)
             a = a[iy, ix]
         self.a = a
+        self.bad = bad
+        self.inks = inks                           # 4 x 3 map onto the reference's inks (ink_map), or None
+
+    def lin(self, u, v):
+        """Linear colour on the reference's inks."""
+        c = to_lin(self.sample(u, v))
+        return c if self.inks is None else c @ self.inks[:3] + self.inks[3]
+
+    def seen(self, u, v):
+        """1 where (u, v) is the garment in the photo, 0 where it was filled (background, excluded boxes)."""
+        H, W = self.bad.shape
+        i = np.clip(np.round(v).astype(int), 0, H - 1)
+        j = np.clip(np.round(u).astype(int), 0, W - 1)
+        return (~self.bad[i, j]).astype(float)
 
     def sample(self, u, v):
         H, W = self.a.shape[:2]
@@ -1007,14 +1021,74 @@ JB_KZ = (1040 - 258) / (NECK_BACK - WAIST_BACK)
 # sleeves (PHOTO): shoulder point and cuff end of each arm in each photo, pixels
 J_ARMS = {("front", "R"): ((400, 370), (350, 1300)), ("front", "L"): ((1205, 370), (1255, 1300)),
           ("back", "L"): ((427, 400), (293, 1324)), ("back", "R"): ((1156, 409), (1271, 1324))}
+# Leatt US's front flat (1920 px, PHOTO: its alpha's runs per row): the sleeves' centres at y 950 and 1500 (x 496
+# and 531 on the image's left, 1380 and 1464 on its right: the form is turned a little), the line through them from
+# the shoulder (y 470) to the cuff's end; 216 px across at y 950, 173 at 1300, 143 at 1550. The back three-quarter
+# flat (1600 px, PHOTO: its runs per row and the side panel's seam): his left sleeve from behind, centres at y 750,
+# 1250 and 1450 (x 433, 366, 331), 194, 128 and 97 px across. Half widths 0.85 of half the sleeve's, as before.
+J_ARMS.update({("flat", "R"): ((467, 470), (543, 1640)), ("flat", "L"): ((1307, 470), (1485, 1565)),
+               ("b34", "L"): ((489, 330), (327, 1480))})
+J_ARM_CX = {"front": 800.0, "back": 800.0, "flat": 940.0, "b34": 800.0}   # px, the photo's body centre
+J_ARM_TAB = {"flat": ((0.0, 0.2, 0.41, 0.72, 0.93, 1.0), (95, 95, 92, 74, 61, 58)),
+             "b34": ((0.0, 0.2, 0.37, 0.80, 0.97, 1.0), (90, 88, 82, 54, 41, 40))}
 J_ARM_HALF = ((0.0, 0.2, 0.6, 1.0), (68, 72, 60, 48))   # px: 0.85 of half the sleeve's width (PHOTO front), so
                                                         # the silhouette's soft edge is never sampled
+
+
+SIDE_REF = os.path.join("jersey", "jersey55_tigerpink_back-flat-34_nz-distributor_LE5026000201-1_1600.jpg")
+# the side panel in Leatt's back three-quarter flat (PHOTO, 1600 px): its top under the arm at y 600, the hem at
+# 1450; per row its front seam (beside the sleeve) and back seam (where the black back panel starts)
+SIDE_ROWS = ((1.35, 600.0), (HEM_Z, 1450.0))
+SIDE_EDGES = ((600.0, 800.0, 1450.0), (545.0, 530.0, 530.0), (615.0, 640.0, 648.0))
+
+
+def side_panel(pos):
+    """The mesh side panels' texels (MESH_PANEL: either side of the side seam, under the arm)."""
+    return ((np.abs(pos[..., 1] - Y_SIDE) < MESH_PANEL[0]) & (np.abs(pos[..., 0]) > MESH_PANEL[1])
+            & (pos[..., 2] < MESH_PANEL[2]))
+
+
+def side_photo_uv(P):
+    """A side panel point in the back three-quarter flat: rows by height, across from the front seam to the back."""
+    (z0, y0), (z1, y1) = SIDE_ROWS
+    v = y0 + (P[:, 2] - z0) * (y1 - y0) / (z1 - z0)
+    a = np.clip((P[:, 1] - Y_SIDE + MESH_PANEL[0]) / (2 * MESH_PANEL[0]), 0, 1)
+    xf = np.interp(v, SIDE_EDGES[0], SIDE_EDGES[1])
+    xb = np.interp(v, SIDE_EDGES[0], SIDE_EDGES[2])
+    return xf + a * (xb - xf), v
+
+
+# the trunk between the arms in Leatt's on-model photos (PHOTO: the gap or the seam between arm and side panel, rows
+# under the shoulders): what maps outside is the model's arm, not his side
+J_TORSO = {"front": (550.0, 1050.0, 420.0), "back": (490.0, 1070.0, 380.0)}   # x from, x to, from row
+
+
+def torso_seen(u, v, view):
+    x0, x1, y0 = J_TORSO[view]
+    return ((u > x0) & (u < x1)) | (v < y0)
 
 
 def jersey_photo_uv(body, P, view):
     if view == "front":
         return JF_C + JF_KX * P[:, 0], JF_V0 + JF_KZ * (NECK_FRONT - P[:, 2])
     return JB_C - JB_KX * P[:, 0], JB_V0 + JB_KZ * (NECK_BACK - P[:, 2])
+
+
+def arm_facing(body, s, P):
+    """Round each segment of the arm (upper arm, forearm): the cosine of a point's angle from the segment's front,
+    and that front per point. (One axis from shoulder to cuff, as rounds 1 and 2 had, runs in front of the upper
+    arm when the forearm reaches forward: its front half was painted from the back photo.)"""
+    S, E, W, f, o = arm_frame(body, s)
+    cos, fr = np.zeros(len(P)), np.zeros((len(P), 3))
+    upper = ((P - S) @ (E - S)) < np.dot(E - S, E - S)
+    for A, B, sel in ((S, E, upper), (E, W, ~upper)):
+        d = (B - A) / np.linalg.norm(B - A)
+        fs = np.array([0, -1.0, 0]) - d * (-d[1])
+        fs /= np.linalg.norm(fs)
+        r = (P[sel] - A) - np.outer((P[sel] - A) @ d, d)
+        cos[sel] = (r @ fs) / np.maximum(np.linalg.norm(r, axis=1), 1e-6)
+        fr[sel] = fs
+    return cos, fr
 
 
 def sleeve_photo_uv(body, P, s, view):
@@ -1033,12 +1107,13 @@ def sleeve_photo_uv(body, P, s, view):
     rad = np.where(upper, np.linalg.norm((P - S) - np.outer(t1, d1), axis=1),
                    np.linalg.norm((P - E) - np.outer((P - E) @ d2, d2), axis=1))
     lat = lat / np.maximum(rad, 1e-6)                                   # -1 .. 1 across the arm seen square on
-    half = np.interp(t, J_ARM_HALF[0], J_ARM_HALF[1])
+    tab = J_ARM_TAB.get(view, J_ARM_HALF)
+    half = np.interp(t, tab[0], tab[1])
     (u0, v0), (u1, v1) = J_ARMS[(view, s)]
     A, B = np.array([u0, v0], float), np.array([u1, v1], float)
     dd = (B - A) / np.linalg.norm(B - A)
     out_px = np.array([dd[1], -dd[0]])                              # across the photo's arm, away from the body
-    if np.dot(out_px, (A + B) / 2 - [800.0, (v0 + v1) / 2]) < 0:
+    if np.dot(out_px, (A + B) / 2 - [J_ARM_CX[view], (v0 + v1) / 2]) < 0:
         out_px = -out_px
     q = A + t[:, None] * (B - A) + (lat * half)[:, None] * out_px
     return q[:, 0], q[:, 1], t
@@ -1046,7 +1121,12 @@ def sleeve_photo_uv(body, P, s, view):
 
 # Pant photo landmarks (PHOTO, Leatt US on-model 1920 px): rows of the waist top, crotch and boot top; the
 # pant's silhouette in each row (alpha) gives the across position, mapped onto his pant's silhouette.
-THIGH_LOGO = (0.19, -0.005, 0.26)   # m: centre above the knee joint, y, length (PHOTO: knee+5 to +31 cm)
+# the big LEATT on his left thigh: centre above the knee joint (m), its angle from the outer side toward the front
+# (deg), its length (m). PHOTO Leatt US front on-model: rows 790 to 1260 (knee+5 to +31 cm on PF_ROWS), across the
+# leg's run at 0.83 to 0.98 of its width from the inner edge (row 1100: x 1377 to 1437 in 1022 to 1443): on a round
+# thigh 37 to 84 deg from the front, its centre 62 deg from the front, 28 from the side (rounds 1 and 2 put it on
+# the side line: Leatt's front view then saw it edge-on, it sees 60 px of it); the back photo does not see it
+THIGH_LOGO = (0.19, 28.0, 0.26)
 PF_ROWS = ((205, WAIST_FRONT), (None, 0.862), (1670, PANT_CUFF_Z + 0.005))   # crotch row: from alpha
 PB_ROWS = ((190, WAIST_BACK), (None, 0.862), (1650, PANT_CUFF_Z + 0.005))
 
@@ -1073,8 +1153,11 @@ def pant_photo_uv(pants, P, view, alpha, sil3d):
         if not runs:
             continue
         cx = alpha.shape[1] / 2
-        if y < crotch_y:                                     # the whole pant: the run nearest the middle
-            run = min(runs, key=lambda q: abs((q[0] + q[1]) / 2 - cx) if q[0] <= cx <= q[1] else 1e9)
+        if y < crotch_y:                                     # the whole pant: its runs near the middle, merged
+            near = [q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500]
+            if not near:
+                continue
+            run = (min(q[0] for q in near), max(q[1] for q in near))
             spans = {"L": run, "R": run}
         else:
             legs = sorted([q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500],
@@ -1122,19 +1205,499 @@ def pant_silhouette(V, crotch_z):
     return out
 
 
-# ================================================================ graphics: stamps and Damien's additions
-def logo_stamps():
-    """Leatt's wordmark and brain icon as alpha masks, cut from the chest of the front on-model photo (PHOTO:
-    LEATT at x 610-1015, y 495-600; the brain at x 975-1020, y 452-492), white on pink."""
-    from PIL import Image
-    a = np.asarray(Image.open(os.path.join(REF, "jersey", "jersey55_tigerpink_front-on-model_nz-distributor_"
-                                                    "LE5026000201-2_1600.jpg")).convert("RGB")).astype(float) / 255
+# ================================================================ graphics: the clean flat print (decision 52)
+# The base print is flat artwork, as the helmet's (helmet_art.py): Leatt's photos give the shapes only. Per chart
+# (one pattern piece), the stripes and the white elements are level sets of fields traced from the photos, cut at
+# their half-way contour and anti-aliased over one texel (crisp at any distance); the inks are classes whose colour
+# is a smooth field (the stripes' lime-to-teal gradient, the yoke's magenta fading to black) averaged from the texels
+# the photo sees square on (each texel weighs cos^2 of its view angle, so grazing sides take their colour from their
+# neighbours, not from the photo's shaded edge); white is one ink. The photos' colours are first mapped onto the inks
+# of Leatt US's front flat, the colour reference (ledger "Round 3"): the NZ distributor's on-model photos show the same
+# inks paler (magenta with 4 times the green, teal with 7 times the red).
+FLAT_REF = os.path.join("jersey", "jersey55_tigerpink_front-flat_leatt-us_5026000200_1920.png")
+JF_REF = os.path.join("jersey", "jersey55_tigerpink_front-on-model_nz-distributor_LE5026000201-2_1600.jpg")
+JB_REF = os.path.join("jersey", "jersey55_tigerpink_back-on-model_nz-distributor_LE5026000201-3_1600.jpg")
+PF_REF = os.path.join("pants", "pant55iks_tigerpink_front-on-model_leatt-us_5026000320_1920.png")
+PB_REF = os.path.join("pants", "pant55iks_tigerpink_back-on-model_leatt-us_5026000320_1920.png")
+# where each ink is measured, (x0, y0, x1, y1) px (PHOTO; boxes checked on overlays): a flat part of the yoke, the
+# chest LEATT, the chest's lime stripes and the black between them, the teal stripes low on the front
+INK_BOXES = {
+    FLAT_REF: {"magenta": (800, 300, 1250, 500), "white": (850, 540, 1250, 650), "lime": (750, 800, 1250, 1000),
+               "teal": (750, 1200, 1250, 1450), "black": (750, 800, 1250, 1000)},
+    JF_REF: {"magenta": (620, 370, 980, 470), "white": (610, 495, 1015, 600), "lime": (650, 720, 950, 860),
+             "teal": (600, 1000, 1000, 1100), "black": (650, 740, 950, 900)},
+    # the back: the yoke panel's flat middle and the black over the right shoulder blade (its shoulder LEATT clips
+    # at 255: the back is exposed about 1.37 times the front)
+    JB_REF: {"magenta": (700, 560, 900, 720), "black": (380, 480, 500, 640)},
+}
+JB_STRIPES = (250, 1350, 600, 1000, 25)   # PHOTO x0, x1, y0, y1, band rows: the back's stripes (back_map)
+FP_FEATURE = 0.0004      # m, the traced fields' smoothing (the on-model photos' pixel: 0.66 mm, after a 5 px median)
+FP_RANGE = 0.030         # m, the window for the stripes' local light and dark levels (stripes 12 to 25 mm wide)
+FP_STRIPE_FIELD = 0.012  # m, the stripes' colour field (the airbrush gradients run over 50 to 300 mm)
+FP_GROUND_FIELD = 0.0006  # m, the ground's colour field (keeps the yoke panel's cut edge, takes out the mesh)
+FP_FILL = (0.02, 0.06, 0.18)   # m, wider fields filling where the photo saw nothing square on
+FP_WHITE_CUT = 0.55      # white: min channel less 0.6 x chroma (display) over this; grey stripes reach 0.47
+FP_STRIPE_CUT = 0.5      # the stripes: half-way between the local dark and light levels
+FP_WHITE_MIN = 3e-6      # m2: smaller white specks are the photos' perforations reading light (holes 2.5 mm2; the
+                         # FIVE.FIVE letters are 15 to 20 mm2 of ink)
+FP_SPECK = 4e-5          # m2: stripe islands and gaps smaller than this are noise (the stripes' smallest tips: 1 cm2)
+# the sleeves: two photos meet along their top and underarm lines and the arms are seen turned: bigger specks are
+# noise there (stripes 2 cm wide), and white under 20 mm2 is the piping's broken trace (the sleeve's LEATT letters
+# and brain icon are 100 mm2 and more); their ground (the magenta to black fade, the black) has no cut edge, and
+# a field over 0.6 mm kept the photos' fold shading as grey blotches 2 to 5 cm across: over 20 mm (Leatt's airbrush
+# fades run over 50 to 300 mm). The back panel likewise (its magenta fades at every edge, NZ back photo); the
+# front keeps 0.6 mm for the yoke's cut edge over the chest
+FP_SLEEVE = {"white_min": 2e-5, "speck": 1.5e-4, "ground": 0.02}
+FP_BACK = {"ground": 0.02}
+# the pant: the black zebra over teal, lime and magenta (chroma is stripe); Leatt US's on-model pant
+# photos show folds on the black and airbrushed fades: stripe specks under 1.5 cm2 dropped, the ground's colour
+# averaged over 3 mm (its fades run over 100 mm and more); their teal is paler than the jersey flat's (min channel
+# less 0.6 chroma up to 0.40, PHOTO), so only over 0.5 counts as a white element's edge
+# and its shins' stripes are seen at 60 to 80 deg and fade to purple: their colour from themselves (weights at
+# least 0.1, from 0.6 of the way into the stripe), not from the thighs' lime 10 cm up
+FP_PANT = {"speck": 1.5e-4, "feature": 0.0008, "ground": 0.003, "near_white": 0.5, "light": "chroma",
+           "qfloor": 0.1, "s_in": 0.6}
 
-    def cut(x0, y0, x1, y1):
-        c = a[y0:y1, x0:x1]
-        w = smoothstep(0.55, 0.8, c.min(2)) * smoothstep(0.35, 0.15, c.max(2) - c.min(2))
-        return w
-    return cut(606, 492, 1018, 603), cut(972, 450, 1023, 494)
+
+def to_lin(c):
+    c = np.clip(c, 0, 1)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def to_srgb(c):
+    c = np.clip(c, 0, 1)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * c ** (1 / 2.4) - 0.055)
+
+
+def ink_class(name, a):
+    """The pixels of one ink (display values 0..1)."""
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    if name == "magenta":
+        return (r > 0.43) & (g < 0.45 * r) & (b > 0.3 * r)
+    if name == "lime":
+        return (g > 0.47) & (r > 0.55 * g) & (b < 0.55 * g)
+    if name == "teal":
+        return (g > 0.39) & (b > 0.6 * g) & (r < 0.75 * g)
+    if name == "black":
+        return a.max(-1) < 0.275
+    if name == "white":
+        return (a.min(-1) > 0.667) & (a.max(-1) - a.min(-1) < 0.176)
+    raise ValueError(name)
+
+
+def photo_inks(name):
+    """A photo's inks (linear RGB): per class in its box, the median of the brighter half of its pixels (the black:
+    of all of them), so the shading and the edges' blends do not count."""
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(REF, name)).convert("RGB")).astype(float) / 255
+    out = {}
+    for k, (x0, y0, x1, y1) in INK_BOXES[name].items():
+        px = a[y0:y1, x0:x1].reshape(-1, 3)
+        px = px[ink_class(k, px)]
+        if k != "black":
+            L = px.mean(1)
+            px = px[L >= np.median(L)]
+        out[k] = to_lin(np.median(px, 0))
+    return out
+
+
+# The stripes are one airbrushed gradient, lime under the yoke to teal at the hem, not two inks: the boxes' "teal" is
+# the hem's on the flat (rows 1200-1450) but 20 cm higher on the NZ photo (tucked in under the pant), so a map
+# fitted to the boxes sent the NZ photo's lower stripes past the flat's teal (R 0, B 208 against 55-93, 178-181).
+# GRAD_* (PHOTO, both front views): the stripe/black profile down the centre (16 cm wide band) from the chest LEATT
+# in each, scaled by the LEATT's length (0.275 m), matched by correlation (0.97: the flat runs 1.20 times as long as
+# the on-model jersey, bloused over the body); the brighter half of the stripe pixels per 24-row band 0.10 to 0.40 m
+# under the LEATT, 24 cm wide, on both, are the pairs the NZ photos' map is fitted to (with the boxes' magenta and
+# white, each weighing as 4 pairs).
+GRAD_LEATT = {JF_REF: (590, 480, 1030, 610), FLAT_REF: (840, 520, 1280, 640)}   # search boxes for the LEATT, px
+GRAD_Z = np.arange(0.10, 0.41, 0.02)    # m under the LEATT's bottom (on the NZ photo)
+GRAD_INK_WEIGHT = 4
+
+
+def _stripe_px(a):
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    return (g > 0.40) & (a.min(-1) < 0.6) & (r < 1.1 * g) & (g - 0.5 * (r + b) > 0.08)
+
+
+def gradient_pairs(src_name=JF_REF, dst_name=FLAT_REF):
+    """The stripes' gradient matched row by row between two front views (GRAD_*): linear colours (src, dst)."""
+    from PIL import Image
+    from scipy import ndimage
+    ims = {}
+    for name, med in ((src_name, 5), (dst_name, 3)):
+        im = Image.open(os.path.join(REF, name)).convert("RGBA")
+        a = np.asarray(im).astype(float) / 255
+        rgb = np.stack([ndimage.median_filter(a[..., k], med) for k in range(3)], -1)
+        x0, y0, x1, y1 = GRAD_LEATT[name]
+        w = (rgb[y0:y1, x0:x1].min(-1) > 0.7) & (np.ptp(rgb[y0:y1, x0:x1], -1) < 0.2)
+        ys, xs = np.nonzero(w)
+        ims[name] = (rgb, a[..., 3] > 0.5, y0 + ys.max(), (2 * x0 + xs.min() + xs.max()) / 2,
+                     (xs.max() - xs.min()) / 0.275)                 # image, alpha, LEATT bottom, centre, px per m
+    zs = np.arange(0.0, 0.45, 0.002)
+
+    def profile(name):
+        rgb, al, bot, c, s = ims[name]
+        out = np.full(len(zs), np.nan)
+        for i, z in enumerate(zs):
+            r = int(bot + z * s)
+            if r < rgb.shape[0]:
+                out[i] = _stripe_px(rgb[r, int(c - 0.08 * s):int(c + 0.08 * s)]).mean()
+        return out
+    ps, pd = profile(src_name), profile(dst_name)
+    best = (-2, 1.0, 0.0)
+    for k in np.arange(0.85, 1.25, 0.005):                           # dst z = k src z + o
+        for o in np.arange(-0.06, 0.06, 0.002):
+            zd = k * zs + o
+            ok = ~np.isnan(ps) & (zd >= 0) & (zd <= zs[-1])
+            if ok.sum() >= 100:
+                cc = np.corrcoef(ps[ok], np.interp(zd[ok], zs, np.nan_to_num(pd)))[0, 1]
+                best = max(best, (cc, k, o))
+    _, k, o = best
+    pairs = []
+    for z in GRAD_Z:
+        cols = []
+        for name, zz in ((src_name, z), (dst_name, k * z + o)):
+            rgb, al, bot, c, s = ims[name]
+            r, x0, x1 = int(bot + zz * s), int(c - 0.12 * s), int(c + 0.12 * s)
+            blk = rgb[r - 12:r + 12, x0:x1]
+            px = blk[_stripe_px(blk) & al[r - 12:r + 12, x0:x1]]
+            if len(px) < 80:
+                break
+            L = px.mean(1)
+            cols.append(to_lin(np.median(px[L >= np.median(L)], 0)))
+        if len(cols) == 2:
+            pairs.append(cols)
+    return np.array([p[0] for p in pairs]), np.array([p[1] for p in pairs])
+
+
+def ink_map(src_name, dst_name=FLAT_REF):
+    """The map (4 x 3, linear RGB: a 3 x 3 matrix and the offset) taking one photo's inks onto the reference's: the
+    black onto the black exactly, the matrix fitted to the other inks in relative error per channel (least
+    squares in linear light would favour the light inks and leave the darks wrong). For the NZ front view, the
+    stripes' gradient pairs (gradient_pairs) stand for the lime and teal boxes."""
+    s, d = photo_inks(src_name), photo_inks(dst_name)
+    if src_name in GRAD_LEATT and dst_name in GRAD_LEATT:
+        gs, gd = gradient_pairs(src_name, dst_name)
+        keys = ["magenta", "white"] * GRAD_INK_WEIGHT
+        A = np.array([s[k] for k in keys] + list(gs)) - s["black"]
+        B = np.array([d[k] for k in keys] + list(gd)) - d["black"]
+    else:
+        keys = [k for k in sorted(s) if k != "black"]
+        A = np.array([s[k] - s["black"] for k in keys])
+        B = np.array([d[k] - d["black"] for k in keys])
+    M3 = np.zeros((3, 3))
+    for j in range(3):
+        wgt = 1.0 / (B[:, j] + d["black"][j] + 0.02)
+        M3[:, j] = np.linalg.lstsq(A * wgt[:, None], B[:, j] * wgt, rcond=None)[0]
+    return np.vstack([M3, d["black"] - s["black"] @ M3])
+
+
+def back_map(base, dst_name=FLAT_REF):
+    """The NZ back photo's map: the front's (base) refitted so the back's yoke magenta and black land on the flat's
+    while its stripes keep what the front's map gives them. The back photo is brighter (its magenta (230, 47, 149)
+    against the front's (202, 30, 125), its white clipped): through the front's map its yoke read (255, 40, 157)
+    against the flat's (225, 11, 134), and his photo 06 shows his back's magenta as deep as his front's."""
+    from PIL import Image
+    s, d = photo_inks(JB_REF), photo_inks(dst_name)
+    a = np.asarray(Image.open(os.path.join(REF, JB_REF)).convert("RGB")).astype(float) / 255
+    x0, x1, y0, y1, step = JB_STRIPES
+    S = []
+    for y in range(y0, y1, step):
+        px = a[y:y + step, x0:x1].reshape(-1, 3)
+        px = px[_stripe_px(px)]
+        if len(px) > 200:
+            L = px.mean(1)
+            S.append(to_lin(np.median(px[L >= np.median(L)], 0)))
+    S = np.array(S)
+    A = np.array([s["magenta"]] * GRAD_INK_WEIGHT + list(S)) - s["black"]
+    B = np.array([d["magenta"]] * GRAD_INK_WEIGHT + list(S @ base[:3] + base[3])) - d["black"]
+    M3 = np.zeros((3, 3))
+    for j in range(3):
+        wgt = 1.0 / (B[:, j] + d["black"][j] + 0.02)
+        M3[:, j] = np.linalg.lstsq(A * wgt[:, None], B[:, j] * wgt, rcond=None)[0]
+    return np.vstack([M3, d["black"] - s["black"] @ M3])
+
+
+def nc_blur(val, w, sigma):
+    """Normalised convolution: the w-weighted Gaussian mean of val (sigma in texels) and the local weight; the wide
+    ones on a coarser grid. val (H, W) or (H, W, 3), w (H, W)."""
+    from scipy import ndimage
+    H, W = w.shape
+    k = max(1, int(sigma / 4))
+    vw = val * (w[..., None] if val.ndim == 3 else w)
+    ww = w
+    if k > 1:
+        Hp, Wp = -(-H // k) * k, -(-W // k) * k
+
+        def down(x):
+            x = np.pad(x, [(0, Hp - H), (0, Wp - W)] + [(0, 0)] * (x.ndim - 2))
+            return x.reshape(Hp // k, k, Wp // k, k, *x.shape[2:]).mean((1, 3))
+        vw, ww = down(vw), down(ww)
+    s = sigma / k
+    num = ndimage.gaussian_filter(vw, (s, s, 0) if vw.ndim == 3 else s, mode="constant")
+    den = ndimage.gaussian_filter(ww, s, mode="constant")
+    if k > 1:
+        yy, xx = np.meshgrid((np.arange(H) + 0.5) / k - 0.5, (np.arange(W) + 0.5) / k - 0.5, indexing="ij")
+
+        def up(x):
+            if x.ndim == 3:
+                return np.stack([ndimage.map_coordinates(x[..., i], [yy, xx], order=1, mode="nearest")
+                                 for i in range(x.shape[2])], -1)
+            return ndimage.map_coordinates(x, [yy, xx], order=1, mode="nearest")
+        num, den = up(num), up(den)
+    out = num / np.maximum(den, 1e-9)[..., None] if num.ndim == 3 else num / np.maximum(den, 1e-9)
+    return out, den
+
+
+def nc_fill(val, w, sigmas, lo=0.004, hi=0.03):
+    """val's weighted mean at the first scale; where that scale had little weight round a texel, the next wider."""
+    res = [nc_blur(val, w, s) for s in sigmas]
+    out = res[-1][0]
+    for o, c in res[-2::-1]:
+        a = smoothstep(lo, hi, c)
+        out = o * a[..., None] + out * (1 - a[..., None]) if o.ndim == 3 else o * a + out * (1 - a)
+    return out
+
+
+def clean_cut(f, t, sel, min_in, min_out):
+    """The field f with the specks of its cut {f > t} taken out: islands smaller than min_in texels pushed under the
+    cut, holes smaller than min_out over it (the photos' noise, a perforation reading light, a fold's highlight)."""
+    from scipy import ndimage
+    f = f.copy()
+    for inside, mn, val in ((True, min_in, t - 0.5), (False, min_out, t + 0.5)):
+        b = ((f > t) if inside else (f <= t)) & sel
+        lab, n = ndimage.label(b)
+        if not n:
+            continue
+        size = ndimage.sum(b, lab, np.arange(1, n + 1))
+        small = np.isin(lab, np.nonzero(size < mn)[0] + 1)
+        small = ndimage.binary_dilation(small, iterations=2) & ~(b & ~small)   # with its rim, not its neighbours
+        f[small] = np.minimum(f[small], val) if inside else np.maximum(f[small], val)
+    return f
+
+
+def aa_cut(f, t):
+    """Coverage of {f > t} per texel, anti-aliased over one texel by the field's slope."""
+    gy, gx = np.gradient(f)
+    return np.clip(0.5 + (f - t) / np.maximum(np.hypot(gx, gy), 1e-6), 0, 1)
+
+
+def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=None, feature=None, ground=None,
+                near_white=0.3, light="green", qfloor=0.0, s_in=0.85):
+    """The flat print of one chart (arrays cropped to it): col the photos' colour (linear, on the reference's inks),
+    q the view weight (0 unseen .. 1 square on), sel the chart's texels, texel its size in m, white the white ink,
+    shapes where the photo's shapes count (elsewhere plain ground: what a photo does not see is not traced).
+    Returns the colour (linear) and the stripe and white coverages."""
+    from scipy import ndimage
+    w0 = sel.astype(float)
+    d = to_srgb(col)
+    G = d[..., 1]
+    fw = d.min(-1) - 0.6 * (d.max(-1) - d.min(-1))                   # white: light and grey
+    # the stripes (grey, teal, green, lime): green light; the magenta and purple grounds count as dark as the black
+    # (the jersey); on the pant the black zebra lies over every ink (teal, lime, magenta): their chroma (the folds'
+    # grey highlights on the black have none)
+    if light == "green":
+        fs = np.clip(G - 0.7 * np.maximum(d[..., 0] - G, 0) - 0.7 * np.maximum(d[..., 2] - G, 0), 0, 1)
+    else:
+        fs = d.max(-1) - d.min(-1)
+    sf = (FP_FEATURE if feature is None else feature) / texel
+    fw = nc_blur(fw, w0, sf)[0]
+    fs = nc_blur(fs, w0, sf)[0]
+    if shapes is not None:
+        off = sel & ~shapes
+        fw = np.where(off, np.minimum(fw, 0.0), fw)
+        fs = np.where(off, 0.0, fs)
+    white_min = FP_WHITE_MIN if white_min is None else white_min
+    speck = FP_SPECK if speck is None else speck
+    fw = clean_cut(fw, FP_WHITE_CUT, sel, white_min / texel ** 2, FP_WHITE_MIN / texel ** 2)
+    aw = aa_cut(fw, FP_WHITE_CUT) * sel
+    # the stripes, cut half-way between the local dark and light levels; never next to the white elements (their
+    # blended edges would read as stripe)
+    near_w = ndimage.binary_dilation(fw > near_white, iterations=max(1, int(round(0.0015 / texel))))
+    r = max(3, int(round(FP_RANGE / texel)))
+    okf = sel & ~near_w
+    lo = ndimage.minimum_filter(np.where(okf, fs, 9.0), r)
+    hi = ndimage.maximum_filter(np.where(okf, fs, -9.0), r)
+    ok = okf & (lo < 5) & (hi > -5)
+    lo = nc_blur(np.where(ok, lo, 0.0), ok.astype(float), r / 2)[0]
+    hi = nc_blur(np.where(ok, hi, 0.0), ok.astype(float), r / 2)[0]
+    span = hi - lo
+    # no pattern round a texel (span under 0.25: a dark gradient's grey against the black; the back's flanks beside
+    # the magenta panel, PHOTO back on-model): an absolute cut, so plain grounds stay plain and solid cuffs solid
+    k = smoothstep(0.25, 0.4, span)
+    s = k * (fs - lo) / np.maximum(span, 1e-3) + (1 - k) * (fs - 0.12) / 0.3
+    s = np.where(near_w, -1.0, s)
+    s = clean_cut(s, FP_STRIPE_CUT, sel, speck / texel ** 2, speck / texel ** 2)
+    a_s = aa_cut(s, FP_STRIPE_CUT) * sel * (1 - aw)
+    # the inks' colour fields
+    clean = (aw < 0.01) & sel & (True if shapes is None else shapes)
+    qw = np.maximum(q ** 2, qfloor)
+    ws = qw * ((s > s_in) & clean)
+    wb = qw * ((s < 0.15) & clean)
+    Cs = nc_fill(col, ws, [FP_STRIPE_FIELD / texel] + [f / texel for f in FP_FILL])
+    Cb = nc_fill(col, wb, [(FP_GROUND_FIELD if ground is None else ground) / texel] + [f / texel for f in FP_FILL])
+    out = Cb * (1 - a_s)[..., None] + Cs * a_s[..., None]
+    out = out * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
+    return np.minimum(out, np.asarray(white)), a_s, aw            # no ink lighter than the white
+
+
+def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None):
+    """The flat print over the given charts: lin the photos' colours (linear, on the reference's inks), q the view
+    weights, shapes where the photos' shapes count. Returns display values."""
+    lin = lin * gain
+    out = np.zeros_like(lin)
+    for c in charts:
+        m = chm == c
+        if not m.any():
+            continue
+        ys, xs = np.nonzero(m)
+        y0, y1, x0, x1 = max(ys.min() - 8, 0), ys.max() + 9, max(xs.min() - 8, 0), xs.max() + 9
+        sl = (slice(y0, y1), slice(x0, x1))
+        o, _, _ = flat_layers(np.clip(lin[sl], 0, 1), q[sl], m[sl], texel, white,
+                              None if shapes is None else shapes[sl], **(opts or {}).get(c, {}))
+        out[sl][m[sl]] = o[m[sl]]
+    return to_srgb(out)
+
+
+def sleeve_unroll(body, s, P):
+    """A sleeve point unrolled about its arm: the angle round the segment's axis (upper arm, forearm; from its
+    front, his outward side positive), the distance from that axis and the distance along the arm from the shoulder
+    point (the segments as arm_facing and sleeve_photo_uv split them)."""
+    S, E, W, f, o = arm_frame(body, s)
+    L1 = np.linalg.norm(E - S)
+    ang, rad, along = np.zeros(len(P)), np.zeros(len(P)), np.zeros(len(P))
+    upper = ((P - S) @ (E - S)) < np.dot(E - S, E - S)
+    for A, B, sel, a0 in ((S, E, upper, 0.0), (E, W, ~upper, L1)):
+        d = (B - A) / np.linalg.norm(B - A)
+        fs = np.array([0, -1.0, 0]) - d * (-d[1])
+        fs /= np.linalg.norm(fs)
+        os_ = o - d * np.dot(o, d) - fs * np.dot(o, fs)
+        os_ /= np.linalg.norm(os_)
+        r = (P[sel] - A) - np.outer((P[sel] - A) @ d, d)
+        ang[sel] = np.arctan2(r @ os_, r @ fs)
+        rad[sel] = np.linalg.norm(r, axis=1)
+        along[sel] = a0 + (P[sel] - A) @ d
+    return ang, rad, along
+
+
+FP_SLEEVE_WRAP = 0.04    # m, the unrolled sleeve's raster runs on this far past its back line, both ways
+
+
+def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes):
+    """The flat print of both halves of each sleeve at once (decision 52, round 3): per chart, the halves' stripes
+    were cut and coloured apart and stepped along the sleeve's top and underarm lines (59 and 35 of 255 at the
+    median). The sleeve is unrolled about its arm onto one raster (round = angle times the sleeve's median radius
+    at that distance along, wrapped past the back line), traced and cut there by flat_layers, and read back.
+    Returns {chart: display colours of its texels}."""
+    from scipy import ndimage
+    out = {}
+    for s, base in (("L", 2), ("R", 4)):
+        m = (chm == base) | (chm == base + 1)
+        P = pos[m]
+        ang, rad, along = sleeve_unroll(body, s, P)
+        k = np.floor(along / 0.01).astype(int)
+        k -= k.min()
+        med = np.array([np.median(rad[k == i]) if (k == i).any() else np.nan for i in range(k.max() + 1)])
+        ok = ~np.isnan(med)
+        med = np.interp(np.arange(len(med)), np.nonzero(ok)[0], med[ok])
+        med = ndimage.uniform_filter1d(med, 5, mode="nearest")
+        a0 = np.floor(along.min() / 0.01) * 0.01
+
+        def rho(al):
+            return np.interp((al - a0) / 0.01 - 0.5, np.arange(len(med)), med)
+        x, y = ang * rho(along), along
+        tree = cKDTree(np.stack([x, y], 1))
+        R = np.pi * med.max() + FP_SLEEVE_WRAP
+        nx, ny = int(np.ceil(2 * R / texel)) + 1, int(np.ceil((y.max() - y.min()) / texel)) + 9
+        gx = -R + np.arange(nx) * texel
+        gy = y.min() - 4 * texel + np.arange(ny) * texel
+        GX, GY = np.meshgrid(gx, gy)
+        rr = rho(GY)
+        ga = GX / rr
+        ga = (ga + np.pi) % (2 * np.pi) - np.pi                       # wrapped round the arm
+        inside = np.abs(GX) <= np.pi * rr + FP_SLEEVE_WRAP
+        dist, idx = tree.query(np.stack([ga * rr, GY], -1).reshape(-1, 2), distance_upper_bound=2.5 * texel)
+        hit = (np.isfinite(dist) & inside.ravel()).reshape(ny, nx)
+        idx = np.where(hit.ravel(), idx, 0).reshape(ny, nx)
+        src = np.nonzero(m)
+        col = np.clip(lin[src][idx] * gain, 0, 1) * hit[..., None]
+        qq = q[src][idx] * hit
+        sh = shapes[src][idx] & hit
+        o, _, _ = flat_layers(col, qq, hit, texel, white, sh, **FP_SLEEVE)
+        o = np.where(hit[..., None], o, 0.0)
+        # back onto the texels: each at its own place on the raster (the cut's edge stays within a texel)
+        cx, cy = (x + R) / texel, (y - gy[0]) / texel
+        val = np.stack([ndimage.map_coordinates(o[..., i], [cy, cx], order=1, mode="nearest") for i in range(3)], -1)
+        wgt = ndimage.map_coordinates(hit.astype(float), [cy, cx], order=1, mode="nearest")
+        val = val / np.maximum(wgt, 1e-6)[:, None]
+        res = to_srgb(val)
+        cm = chm[m]
+        for c in (base, base + 1):
+            out[c] = (np.nonzero(chm == c), res[cm == c])
+    return out
+
+
+RAGLAN_LEVEL = 0.06      # m, how far into the sleeve its colour is drawn to the trunk's at the raglan seam
+
+
+def level_raglan(img, pos, chm, V, Q, chart, reach=RAGLAN_LEVEL):
+    """The sleeves' ground drawn to the trunk's colour at the raglan seams (display colours in, out): the trunk takes
+    its colour from further in (its photos' sleeves show past the seam), the sleeve's raglan part from the photo
+    right at the shoulder, shaded where it turns away: a step along the seam (27 of 255 on the yoke beside the
+    collar, and the seam's zigzag of faces drawn by it). Each seam point's step (the medians within 1 cm each side,
+    in linear light, averaged over 2 cm of seam) is added to the sleeve's texels of that ink (within 0.16 of its
+    median, display), fading over `reach`."""
+    lin = to_lin(img)
+    trunk = (chm == 0) | (chm == 1)
+    sleeve = chm >= 2
+    tt = cKDTree(pos[trunk])
+    st = cKDTree(pos[sleeve])
+    T, S_ = lin[trunk], lin[sleeve]
+    pts = seam_points(V, Q, chart, {(0, 2), (0, 3), (0, 4), (0, 5), (1, 2), (1, 3), (1, 4), (1, 5)}, step=0.005)
+    d, ref, ok = np.zeros((len(pts), 3)), np.zeros((len(pts), 3)), np.zeros(len(pts), bool)
+    for i, p in enumerate(pts):
+        a, b = tt.query_ball_point(p, 0.01), st.query_ball_point(p, 0.01)
+        if len(a) >= 5 and len(b) >= 5:
+            ref[i] = np.median(S_[b], 0)
+            d[i] = np.median(T[a], 0) - ref[i]
+            ok[i] = True
+    pts, d, ref = pts[ok], d[ok], ref[ok]
+    pt = cKDTree(pts)
+    nb = pt.query_ball_point(pts, 0.02)
+    d = np.array([d[j].mean(0) for j in nb])
+    ref = np.array([ref[j].mean(0) for j in nb])
+    dist, k = pt.query(pos[sleeve])
+    fade = 1 - smoothstep(0.0, reach, dist)
+    sim = np.clip(1 - np.abs(to_srgb(S_) - to_srgb(ref[k])).max(1) / 0.16, 0, 1)
+    out = lin.copy()
+    out[sleeve] = np.clip(S_ + d[k] * (fade * sim)[:, None], 0, 1)
+    return to_srgb(out)
+
+
+# ================================================================ graphics: stamps and Damien's additions
+def leatt_icon(up=8):
+    """Leatt's three-piece triangle from its official file (reference/leatt-gear: us.leatt.com's favicon, 100 px),
+    the registered sign dropped, upsampled `up` times and re-thresholded (straight edges, round corners), cropped."""
+    from PIL import Image
+    from scipy import ndimage
+    a = np.asarray(Image.open(os.path.join(REF, "leatt-icon-triangle_official-favicon_leatt-us_100x100.png"))
+                   .convert("RGBA"))[..., 3].astype(np.float32) / 255
+    lab, n = ndimage.label(a > 0.5)
+    sizes = ndimage.sum(a > 0.5, lab, range(1, n + 1))
+    a = a * ndimage.binary_dilation(np.isin(lab, 1 + np.nonzero(sizes > 500)[0]), iterations=2)
+    a = ndimage.gaussian_filter(np.where(ndimage.zoom(a, up, order=3) > 0.5, 1.0, 0.0), up * 0.35)
+    ys, xs = np.nonzero(a > 0.5)
+    return np.ascontiguousarray(a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]).astype(np.float32)
+
+
+def official_wordmark():
+    """Leatt's slanted LEATT from its official file (reference/leatt-gear, README: us.leatt.com's header logo) as an
+    alpha mask cropped to the letters (646 x 161 px: 4.0 long per height)."""
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(REF, "leatt-wordmark-slanted_official_leatt-us_1200x300.png"))
+                   .convert("RGBA"))[..., 3].astype(float) / 255
+    ys, xs = np.nonzero(a > 0.5)
+    return a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
 
 
 def font(size, bold=True, italic=False):
@@ -1248,7 +1811,15 @@ GLYPH_SLANT = 0.23       # tan of the italic lean of the 114 on his plate art (s
 # front patches: centre (x, z) on the front (Leatt's photo frame, as the print) and width with any contour, m;
 # heights follow the official artwork (PHOTO 09 and 08 against the chest LEATT, then the photo-matched renders)
 FRONT = {"bikewise": (-0.091, 1.447, 0.095), "pirelli": (0.102, 1.446, 0.080), "usn": (-0.063, 1.320, 0.080),
-         "motul": (-0.057, 1.286, 0.064), "cworx": (0.064, 1.313, 0.077)}
+         "motul": (-0.057, 1.286, 0.064), "cworx": (0.064, 1.313, 0.077),
+         # Leatt's triangle icon beside the chest LEATT (Leatt's print, laid with the patches so it prints at 0.1 mm:
+         # its 3 mm strokes do not survive the flat print's trace of the photo at 0.8 mm). PHOTO NZ front on-model:
+         # white ink x 984-1019, y 457-488 px: centre (0.133, 1.423) in the photo's frame, 24.4 mm across, times
+         # 1.137 where the chest turns (the frame's stretch there, BODY: normal (0.44, -0.81, 0.39)): 27.7 mm;
+         # Leatt US's front flat sees it square on: 37 x 38 px (the favicon's aspect, 1.0) beside a 395 px LEATT,
+         # 0.094 of the LEATT's 0.275 m on him: 25.8 mm; the geometric mean, 26.7 mm. Its stroke is 0.14 of its
+         # width as the official favicon's 0.13 (distance transform), so the favicon is the printed art
+         "icon": (0.133, 1.423, 0.0267)}
 CONTOUR = 0.0016         # m, white contour round the USN and Cycleworx inks on the black jersey (PHOTO 08)
 PRINT_LIFT = 0.0001      # m, the print overlay over the cloth (0.3 mm left a contact-shadow line at its edges)
 PRINT_TEXEL = {"number": 0.25e-3, "name": 0.15e-3, "front": 0.10e-3}   # m per texel of the print atlas
@@ -1463,6 +2034,9 @@ def front_arts():
     ys, xs = np.nonzero(cov > 0.5)
     sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
     arts["cworx"] = np.dstack([col[sl] * cov[sl][..., None], cov[sl]]).astype(np.float32)
+    # Leatt's icon: the official favicon's three pieces (the registered sign dropped), white ink
+    m = leatt_icon()
+    arts["icon"] = np.dstack([np.array(INK_WHITE, np.float32) / 255 * m[..., None], m]).astype(np.float32)
     out = {}
     for k, a in arts.items():
         x, z, w = FRONT[k]
@@ -1801,18 +2375,23 @@ def save_png(img, path, mask=None):
 
 
 def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
-    """The Tiger Pink print on the jersey's charts: Leatt's on-model photos projected (front panel from the front
-    view, back panel from the back view, each sleeve half from its view, blended over the sleeve's top line),
-    then Damien's additions (`prints`); the relief: raglan, side and underarm seams, 238 laser-cut holes, riding
-    folds. Returns the hole count and the print-free colour, the holes' darkening and the normal map (for the print
-    overlay)."""
+    """The Tiger Pink print on the jersey's charts, as flat artwork (decision 52): Leatt's photos give the shapes
+    (front and back panels from the NZ on-model views, mapped onto the flat's inks; each sleeve's front from Leatt
+    US's front flat, its back from the back views; the side panels from the back three-quarter flat), each texel
+    weighted by how squarely its photo saw it; flat_print traces the stripes and white elements, cuts them crisp and
+    fills each ink's colour field. Then Damien's additions (`prints`); the relief: raglan, side and underarm seams,
+    238 laser-cut holes, riding folds. Returns the hole count and the print-free colour, the holes' darkening and
+    the normal map (for the print overlay)."""
     pos, nrm, chm = raster(UV, V, N, Q, chart)
     mask = chm >= 0
-    img = np.zeros(pos.shape)
-    pf = Photo(os.path.join("jersey", "jersey55_tigerpink_front-on-model_nz-distributor_LE5026000201-2_1600.jpg"),
-               exclude=[(560, 0, 1060, 345), (160, 1290, 470, 1600), (1130, 1290, 1440, 1600)])
-    pb = Photo(os.path.join("jersey", "jersey55_tigerpink_back-on-model_nz-distributor_LE5026000201-3_1600.jpg"),
-               exclude=[(600, 0, 1000, 266), (900, 60, 1120, 330), (120, 1330, 420, 1600), (1180, 1330, 1460, 1600)])
+    img = np.zeros(pos.shape)                                  # linear, on the front flat's inks
+    q = np.zeros(pos.shape[:2])                                # how squarely the photo saw each texel
+    nz = ink_map(JF_REF)                                       # the NZ distributor's photos onto the flat's inks
+    pf = Photo(JF_REF, exclude=[(560, 0, 1060, 345), (160, 1290, 470, 1600), (1130, 1290, 1440, 1600)], inks=nz)
+    pb = Photo(JB_REF, exclude=[(600, 0, 1000, 266), (900, 60, 1120, 330), (120, 1330, 420, 1600),
+                                (1180, 1330, 1460, 1600)], inks=back_map(nz))   # the back photo is brighter
+    pl = Photo(FLAT_REF, median=3)                             # the flat itself: the sleeves' fronts
+    ps = Photo(SIDE_REF, inks=nz)                              # the back three-quarter flat: the side panels
     if prints:
         erase_back_logo(pb)                                  # his name is printed there instead (Damien's additions)
     for c, view in ((0, "front"), (1, "back")):
@@ -1820,23 +2399,58 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
         Pm = pos[m].copy()
         Pm[:, 2] -= np.clip(0.02 - neck_cut(Pm), 0, None)
         u, v = jersey_photo_uv(body, Pm, view)
-        img[m] = (pf if view == "front" else pb).sample(u, v)
+        ph = pf if view == "front" else pb
+        img[m] = ph.lin(u, v)
+        q[m] = np.clip(nrm[m][:, 1] * (-1 if view == "front" else 1), 0, 1) * ph.seen(u, v) * torso_seen(u, v, view)
+    # the sleeves: the front half from Leatt US's front flat (the whole sleeve square on, evenly lit; the on-model
+    # photos see the arms turned and shaded), the back half from the back on-model photo, the raglan part over the
+    # shoulder from the trunk's views; blended over the sleeve's top and underarm lines
     for s, base in (("L", 2), ("R", 4)):
         m = (chm == base) | (chm == base + 1)
         P = pos[m]
-        S, E, W, f, o = arm_frame(body, s)
-        ax = W - S
-        ax /= np.linalg.norm(ax)
-        rr = P - S - ((P - S) @ ax)[:, None] * ax
-        wf = smoothstep(-0.35, 0.35, (rr @ f) / np.maximum(np.linalg.norm(rr, axis=1), 1e-6))
-        uf, vf, t = sleeve_photo_uv(body, P, s, "front")
-        ub, vb, _ = sleeve_photo_uv(body, P, s, "back")
-        cf = pf.sample(uf, vf)
-        cb = pb.sample(ub, vb)
+        cosf, fseg = arm_facing(body, s, P)
+        wf = smoothstep(-0.15, 0.15, cosf)                    # a narrow blend: the two photos' stripes differ
+        uf, vf, t = sleeve_photo_uv(body, P, s, "flat")
+        bview, pbk = ("b34", ps) if s == "L" else ("back", pb)   # his left sleeve's back: the back 3/4 flat
+        ub, vb, _ = sleeve_photo_uv(body, P, s, bview)
         ws = smoothstep(0.02, 0.14, t)[:, None]               # the raglan part over the shoulder: the trunk's views
-        cf = cf * ws + pf.sample(*jersey_photo_uv(body, P, "front")) * (1 - ws)
-        cb = cb * ws + pb.sample(*jersey_photo_uv(body, P, "back")) * (1 - ws)
+        uF, vF = jersey_photo_uv(body, P, "front")
+        uB, vB = jersey_photo_uv(body, P, "back")
+        cf = pl.lin(uf, vf) * ws + pf.lin(uF, vF) * (1 - ws)
+        cb = pbk.lin(ub, vb) * ws + pb.lin(uB, vB) * (1 - ws)
         img[m] = cf * wf[:, None] + cb * (1 - wf[:, None])
+        nf = (nrm[m] * fseg).sum(1)                          # the photos see the hanging arm square to its front
+        ws = ws[:, 0]
+        sf = pl.seen(uf, vf) * ws + pf.seen(uF, vF) * (1 - ws)
+        sb = pbk.seen(ub, vb) * ws + pb.seen(uB, vB) * (1 - ws)
+        q[m] = wf * np.clip(nf, 0, 1) * sf + (1 - wf) * np.clip(-nf, 0, 1) * sb
+    # the trunk's views near the raglan seams: the photo's model and his differ by a few cm there, so the photos'
+    # sleeves show past the seam (their stripes read as blotches on his upper back): no shapes from the trunk's
+    # photos within 3.5 cm of the seam above the armpit, its colour from further in
+    shapes = mask.copy()
+    trunk = (chm == 0) | (chm == 1)
+    P = pos[trunk]
+    r = np.maximum(raglan(body, P, 1), raglan(body, P, -1))
+    hi = P[:, 2] > RAGLAN_PIT[2] - 0.01
+    q[trunk] *= np.where(hi, smoothstep(-0.005, -0.035, r), 1.0)
+    # and the trunk's sides: past 75 deg the photos' shapes are smears
+    shapes[trunk] = ((q[trunk] > 0.02) | ~hi) & (q[trunk] > 0.25)
+    # the side panels (the mesh under the arms): Leatt's back three-quarter flat sees his left one square on, with
+    # no arm over it; the right one is its mirror image
+    side = side_panel(pos) & trunk
+    u, v = side_photo_uv(pos[side])
+    img[side] = ps.lin(u, v)
+    q[side] = ps.seen(u, v)
+    shapes[side] = True
+    # the clean flat print (decision 52): shapes traced, inks on the front flat's
+    white = to_lin(np.array(INK_WHITE) / 255)
+    gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
+    texel = 1.0 / (scale * TEX_RES)
+    src = img
+    img = flat_print(src, q, chm, (0, 1), texel, gain, white, shapes, opts={1: FP_BACK})
+    for c, (ix, v) in sleeve_print(src, q, chm, pos, body, texel, gain, white, shapes).items():
+        img[ix] = v                                            # each sleeve's halves as one print
+    img = level_raglan(img, pos, chm, V, Q, chart)
     # Damien's additions (also printed sharper on the print overlay, which takes `base` round them)
     base = img.copy()
     img = lay_prints(img, pos, nrm, mask, prints, texel=1.0 / (scale * TEX_RES))
@@ -1883,33 +2497,52 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
 
 
 def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
-    """The pant's print: Leatt US's on-model front and back photos projected leg by leg, each photo row's pant
-    silhouette laid onto his pant's silhouette at the matching height (waist top, crotch, boot top rows). Relief:
+    """The pant's print, as flat artwork (decision 52): Leatt US's on-model front and back photos give the shapes
+    leg by leg, each photo row's pant silhouette laid onto his pant's silhouette at the matching height (waist top,
+    crotch, boot top rows); flat_print cuts the black zebra over the teal, lime and magenta crisp; the big LEATT on
+    the left thigh from Leatt's official wordmark file. Relief:
     centre, in- and outseams, the I.K.S panels' and the rear yoke's seams, the waistband's stitching, 250
     laser-cut holes, the creases riding puts behind the knees and across the hips."""
     pos, nrm, chm = raster(UV, V, N, Q, chart)
     mask = chm >= 0
     img = np.zeros(pos.shape)
-    pf = Photo(os.path.join("pants", "pant55iks_tigerpink_front-on-model_leatt-us_5026000320_1920.png"),
-               exclude=[(470, 140, 1010, 330)])                       # the Waistlock (modelled in 3D)
-    pb = Photo(os.path.join("pants", "pant55iks_tigerpink_back-on-model_leatt-us_5026000320_1920.png"))
+    # Leatt US's photos, as the jersey's front flat: their lime and black are the flat's within 5 levels (ledger
+    # "Round 3"), so no ink map
+    pf = Photo(PF_REF, exclude=[(470, 140, 1010, 330)])                # the Waistlock (modelled in 3D)
+    pb = Photo(PB_REF)
     crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
     sil = pant_silhouette(V, crotch)
+    q = np.zeros(pos.shape[:2])
     for cs, view, ph in (((0, 2), "front", pf), ((1, 3), "back", pb)):
         m = np.isin(chm, cs)
         u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
-        img[m] = ph.sample(u, v)
-    # the big LEATT on the outer left thigh: the photos see it edge-on, so it is printed flat from a side view
-    # (PHOTO: Leatt front on-model and back flat, his 07): reading up from the knee, letter tops to the front
-    word, _ = logo_stamps()
+        img[m] = ph.lin(u, v)
+        q[m] = np.clip(nrm[m][:, 1] * (-1 if view == "front" else 1), 0, 1) * ph.seen(u, v)
+    # the clean flat print (decision 52); past 83 deg (the legs' outer sides) the photos' shapes are smears: plain
+    # ground there, its colour from further in
+    white = to_lin(np.array(INK_WHITE) / 255)
+    gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
+    # the big LEATT on the outer left thigh, printed flat from a view square to it (PHOTO: Leatt front on-model,
+    # front three-quarter and back flat): reading up from the knee, letter tops to the front. The photo's own,
+    # stretched over the side, is taken out first (its white and a 2 mm rim to the black ink: the print fills it)
     K = body.j("lowerleg01.L")
     zc = K[2] + THIGH_LOGO[0]
-    side = Canvas((0.4, THIGH_LOGO[1], zc), (0, 1, 0), (0, 0, 1), 0.2, 0.40)
-    side.stamp(word, 0.0, 0.0, THIGH_LOGO[2], rot=90)
-    zone = mask & (pos[..., 0] > 0.10) & (nrm[..., 0] > 0.35) & (np.abs(pos[..., 2] - zc) < THIGH_LOGO[2] / 2 + 0.04)
-    c = img[zone]
-    whiteish = smoothstep(0.45, 0.7, c.min(1)) * smoothstep(0.25, 0.1, c.max(1) - c.min(1))
-    img[zone] = c * (1 - whiteish[:, None]) + np.array([0.11, 0.105, 0.13]) * whiteish[:, None]
+    ring = (V[:, 0] > 0.02) & (np.abs(V[:, 2] - zc) < 0.01)
+    C = np.array([(V[ring, 0].min() + V[ring, 0].max()) / 2, (V[ring, 1].min() + V[ring, 1].max()) / 2, zc])
+    t = np.radians(THIGH_LOGO[1])
+    d = np.array([np.cos(t), -np.sin(t), 0.0])                     # out from the thigh's centre, to the logo
+    side = Canvas(C + 0.4 * d, (np.sin(t), np.cos(t), 0.0), (0, 0, 1), 0.2, 0.40)
+    side.stamp(official_wordmark(), 0.0, 0.0, THIGH_LOGO[2], rot=90, color=INK_WHITE)
+    zone = mask & (pos[..., 0] > 0.02) & (((pos - C) @ d) > 0) & ((nrm @ d) > 0.2) & \
+        (np.abs(pos[..., 2] - zc) < THIGH_LOGO[2] / 2 + 0.04)
+    c = to_srgb(img)
+    whiteish = (c.min(-1) > 0.5) & (c.max(-1) - c.min(-1) < 0.25) & zone
+    from scipy import ndimage
+    whiteish = ndimage.binary_dilation(whiteish, iterations=max(1, int(round(0.002 * scale * TEX_RES)))) & zone
+    img[whiteish] = to_lin(np.array([18, 17, 20]) / 255)          # the pant's black (PHOTO, ledger "Round 3")
+    q[whiteish] = 1.0
+    img = flat_print(img, q, chm, range(4), 1.0 / (scale * TEX_RES), gain, white, mask & (q > 0.12),
+                     {c: FP_PANT for c in range(4)})
     img = side.apply(img, pos, zone)
     iks = mask.copy()
     iks[mask] = iks_field(pants, body, pos[mask]) > 0

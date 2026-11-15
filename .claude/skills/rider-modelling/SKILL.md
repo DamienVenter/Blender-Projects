@@ -696,6 +696,55 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - His name replaced Leatt's back LEATT (06 shows none beside it): erase it from Leatt's photo before projecting
   (normalised Gaussian fill).
 
+## Jersey and pant round 3: flat print, true colours, 1:1 checks (2026-11-15, kit.py, ledger kit.md, decision 52)
+- **Flat print, not projected photos**: trace each pattern piece's white and stripe fields from the photos, cut the
+  stripes half-way between the local dark and light levels (3 cm window; where the span is under 0.25 there is no
+  pattern: cut absolutely, or plain grounds and solid cuffs speckle), drop specks by area, anti-alias the cut over
+  one texel, and fill each ink's colour from a smooth weighted field (weight cos^2 of the view angle, so grazing
+  sides take their colour from their neighbours). Thresholds: white = min channel less 0.6 chroma over 0.55 (grey
+  stripes reach 0.47); white specks under 3 mm2 are the photos' perforations; the pant's stripes are its chroma
+  (the black zebra lies over every ink), with a weight floor 0.1 on the shins or their colour comes from the thighs.
+- **Cut a garment piece as the cloth runs, not as the UV charts run**: per chart, the sleeve's two halves were cut
+  and coloured apart and stepped 51 of 255 along the top line (a UV cut only). Unroll the whole sleeve about its
+  arm (angle times the median radius per cm along, wrap 4 cm past the back line), cut it once, read each texel
+  back from its own place: 5. Test it: the colour a few mm inside each face across every UV seam of a region.
+- **Neighbouring pieces take their colour from different places** (the trunk from further in, the sleeve's raglan
+  part from the photo where the shoulder turns away, shaded): the yoke stepped 37 of 255 at the raglan seam and the
+  seam's zigzag of faces showed in 08's view. Draw the sleeve to the trunk at the seam (the step per seam point,
+  2 cm along, fading over 6 cm, on texels of the same ink only).
+- **An ink map from a few boxes extrapolates**: a 3x3 map fitted to magenta, lime, teal and white boxes sent the
+  NZ photo's lower stripes to R 0, B 208 (the flat's teal is 55, 177): the boxes' "teal" was the hem's on the flat
+  but 20 cm higher on the on-model photo (the hem is tucked in). The stripes are one gradient: match it row by row
+  (the stripe/black profile down the centre from the chest LEATT, scale and offset by correlation: 0.97, the flat
+  1.2 times as long) and fit the map to those pairs: errors median 18, max 27 of 255 (were 28, 93).
+- **Each photo needs its own map, even from one shoot**: the NZ back photo is brighter than the front (its magenta
+  (230, 47, 149) against (202, 30, 125), its shoulder LEATT clipped at 255): through the front's map the back yoke
+  read (255, 40, 157), paler than the front's. Refit per photo: its magenta and black onto the flat's, its own
+  stripes kept where the front's map puts them (they moved 3 of 255). Test the same ink in two places (back yoke
+  against front yoke: 28 to under 15 of 255).
+- **A fine colour field keeps the photo's shading**: the ground's field at 0.6 mm (needed for the yoke's cut edge
+  over the chest) kept the on-model photos' fold shading on the sleeves and the back as grey blotches 2 to 5 cm
+  across. Choose the field per piece by its print: no cut edge in the ground (airbrushed fades of 50 to 300 mm) means
+  a field of 20 mm.
+- **A photo's median filter kills thin strokes**: Leatt's chest icon (3 mm strokes) and the thigh LEATT came out
+  as blobs; print them from the official files (us.leatt.com's favicon and header wordmark).
+- **Pant rows**: Leatt's back photo opens a 5 px gap at its centre column 120 rows above the crotch; taking the
+  first run of the alpha there took the model's glove and painted his seat from it. Merge the central runs.
+- **Fit a camera to his photo by its print**: symmetric chamfer between the posed model's projected white print
+  and the photo's white mask (inside a box, subsampled), a grid over azimuth, elevation, roll, then CMA (1500
+  evaluations); a 180 deg flip fits the 114 as well, so add an anchor (0.1 x the px distance of one glyph's
+  centroid). Keep only the print you trust in the fit (BikeWise and the icon pulled the LEATT fit off). Residuals
+  0.9 px (06), 2.4 (09), 2.3 (08). Then zoom: turn the camera about its centre so its axis meets a window's centre,
+  focal times k: the window enlarged k times, exactly comparable with the photo crop. A fitted camera can sit below
+  the floor plane: hide the floor for photo views.
+- **Sizes from two photos disagree**: Pirelli's long side reads 74 mm in 09 and 110 mm in 08; BikeWise's short side
+  +30 % in 09 and -5 % in 08 through the fitted cameras (the model's chest faces each camera differently from his).
+  Keep the geometric mean, never one photo.
+- **What daylight does to the inks is the look's, not the texture's**: AgX Punchy desaturates the magenta (render
+  (189, 85, 151) against his 09's (217, 8, 111); green per white 0.14 against 0.050 in Standard); compare inks in
+  the Standard view against the flat, as ratios to the white beside them (that takes out the exposure).
+- The worktree guard also refuses multi-line heredocs: write scripts with the Write tool and run them plainly.
+
 ## Coordinating the gear rounds (coordinator's notes, 2026-11-15)
 - Never `cd` into an agent's worktree from the coordinating session: the session's working directory follows the
   shell and later relative paths resolve inside the worktree. Use absolute paths and `git -C <worktree>`.

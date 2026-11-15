@@ -238,7 +238,9 @@ def test_prints_read_the_right_way_round(built):
     assert (V[back][ok & (s > 0.08), 0] < 0).all() and (V[back][ok & (s < -0.08), 0] > 0).all()
     for k in K.FRONT:
         p = prints[k]
-        assert p.R[0] > 0.9 and p.U[2] > 0.5                   # reader's right = +x (his left), up = up
+        # reader's right = +x (his left), up = up; the chest icon (round 3, Leatt's place under Pirelli) lies where
+        # the chest turns: its right is 28 deg round from +x (R 0.88, 0.47), a mirrored print's would be -0.88
+        assert p.R[0] > 0.8 and p.U[2] > 0.5
 
 
 def test_logos_are_official_files():
@@ -249,6 +251,177 @@ def test_logos_are_official_files():
         assert os.path.exists(os.path.join(K.SPONSORS, f)), f
         line = [ln for ln in readme.splitlines() if f in ln]
         assert line and "https://" in line[0], f
+
+
+def texture(name):
+    from PIL import Image
+    return np.asarray(Image.open(os.path.join(K.HERE, "..", "..", "textures", "rider", name)).convert("RGB")) / 255.0
+
+
+def test_jersey_inks_are_leatts_flat(built):
+    """Decision 52: the print's inks are those of Leatt US's front flat (evenly lit), not the on-model photos' paler
+    ones (round 2: magenta with 4 times the flat's green, teal with 2.3 times its red, lime with twice its blue).
+    The teal is not one ink but the end of the stripes' gradient, and the flat's teal box is its hem, tucked under
+    the pant on him: test_stripe_gradient_maps_onto_the_flats checks it band by band."""
+    a = texture("jersey_color.png")
+    ref = K.photo_inks(K.FLAT_REF)
+    for ink in ("magenta", "lime", "black"):
+        m = K.ink_class(ink, a)
+        got = np.median(a[m], 0) * 255
+        want = K.to_srgb(ref[ink]) * 255
+        assert m.sum() > 20000 and np.abs(got - want).max() < 30, (ink, got.round(), want.round())
+
+
+def test_stripe_gradient_maps_onto_the_flats(built):
+    """The NZ photo's stripes (lime to teal, one airbrushed gradient) land on the flat's colours band by band (round
+    3's first map, fitted to four ink boxes, sent the lower stripes past the flat's teal: errors to 93 of 255, a
+    tenth of the print's stripe texels at R under 0.15 and B over 0.72, none on the flat's teal)."""
+    gs, gd = K.gradient_pairs()
+    M = K.ink_map(K.JF_REF)
+    err = np.abs(K.to_srgb(gs @ M[:3] + M[3]) - K.to_srgb(gd)).max(1) * 255
+    assert len(gs) >= 12 and np.median(err) < 22 and err.max() < 35, err.round()
+    x = texture("jersey_color.png").reshape(-1, 3)
+    r, g, b = x[:, 0], x[:, 1], x[:, 2]
+    st = (g > 0.6) & (g > r) & (x.min(1) < 0.6)
+    assert (st & (r < 0.15) & (b > 0.72)).sum() / st.sum() < 0.02
+    # nor paler: the flat's teal has red 18 to 80 (medians per 100 rows, 900 to 1700); round 2's had 127
+    teal = np.median(x[K.ink_class("teal", x)], 0) * 255
+    assert teal[0] < 100, teal.round()
+
+
+def test_back_yoke_is_the_fronts_magenta(built):
+    """One ink on the yoke, front and back (his photo 06 shows his back's magenta as deep as his front's in 09): the
+    NZ back photo is brighter than the front, and through the front's map the back read (246, 41, 160) against the
+    front's (226, 14, 132): 28 of 255 (main 41)."""
+    body, g = built
+    V, faces = part(g, "jersey")
+    FS, UV = g["jersey__FS"], g["jersey__UV"].reshape(-1, 2)
+    C = np.array([V[f].mean(0) for f in faces])
+    U = np.array([UV[s:s + n].mean(0) for s, n in zip(np.r_[0, np.cumsum(FS)[:-1]], FS)])
+    a = texture("jersey_color.png")
+    H, W = a.shape[:2]
+    col = a[np.minimum(((1 - U[:, 1]) * H).astype(int), H - 1), np.minimum((U[:, 0] * W).astype(int), W - 1)]
+    mag = K.ink_class("magenta", col)
+    front = mag & (C[:, 1] < 0) & (C[:, 2] > 1.46) & (np.abs(C[:, 0]) < 0.10)
+    back = mag & (C[:, 1] > 0) & (C[:, 2] > 1.30) & (C[:, 2] < 1.48) & (np.abs(C[:, 0]) < 0.10)
+    f, b = np.median(col[front], 0) * 255, np.median(col[back], 0) * 255
+    assert front.sum() > 30 and back.sum() > 30 and np.abs(f - b).max() < 15, (f.round(), b.round())
+
+
+def test_print_is_cut_not_blurred(built):
+    """The stripes are traced and cut, anti-aliased over one texel: few lime texels at mid brightness (the airbrush
+    fades only), where the projected photos had a soft ramp at every edge (round 2: 0.16 jersey, 0.51 pant)."""
+    for name, most in (("jersey_color.png", 0.10), ("pants_color.png", 0.25)):
+        a = texture(name)
+        r, g, b = a[..., 0], a[..., 1], a[..., 2]
+        G = g[(r > 0.45 * g) & (b < 0.45 * g) & (r < 1.1 * g)]
+        assert ((G > 0.3) & (G < 0.7)).sum() / (G >= 0.7).sum() < most, name
+
+
+def test_pant_rows_above_the_crotch_take_the_whole_pant(built):
+    """Leatt's back photo opens a 5 px gap at its centre column 120 rows above the crotch: those rows must still map
+    onto the pant (round 2 took the first run, the model's glove, and painted a band of his seat from it)."""
+    body, g = built
+    V, faces = part(g, "pants")
+    crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
+    sil = K.pant_silhouette(V, crotch)
+    for ref, view, sel in ((K.PB_REF, "back", V[:, 1] > 0.02), (K.PF_REF, "front", V[:, 1] < -0.02)):
+        ph = K.Photo(ref)
+        P = V[sel & (V[:, 2] > 0.862) & (V[:, 2] < 1.0) & (np.abs(V[:, 0]) < 0.15)]
+        u, v = K.pant_photo_uv(None, P, view, ph.alpha, sil)
+        H, W = ph.alpha.shape
+        on = ph.alpha[np.clip(v.astype(int), 0, H - 1), np.clip(u.astype(int), 0, W - 1)]
+        assert len(P) > 100 and on.mean() > 0.97, view
+        assert (np.abs(u - 960) < 500).all(), view
+
+
+def test_thigh_logo_where_leatts_front_photo_sees_it():
+    """The big LEATT on his left thigh: Leatt US's front photo sees 60 px of it near the leg's outer edge, so it
+    faces front-outward, not square to the side (rounds 1 and 2)."""
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(K.REF, K.PF_REF)).convert("RGB")).astype(float) / 255
+    ph = K.Photo(K.PF_REF)
+    fr = []
+    for y in range(900, 1250, 10):
+        row = a[y, 1250:1460]
+        x = np.nonzero((row.min(1) > 0.6) & (row.max(1) - row.min(1) < 0.2))[0] + 1250
+        xs = np.nonzero(ph.alpha[y])[0]
+        runs = np.split(xs, np.nonzero(np.diff(xs) > 3)[0] + 1)
+        leg = [q for q in runs if 980 < q[0] < 1150][0]           # his left leg (the image's right)
+        if len(x) > 8:
+            fr.append(((x.min() + x.max()) / 2 - leg.min()) / (leg.max() - leg.min()))
+    f = np.median(fr)                                     # across the leg seen from the front, 0 inner .. 1 outer
+    from_front = np.degrees(np.arcsin(np.clip(2 * f - 1, -1, 1)))
+    assert 0.85 < f < 0.95 and abs((90 - from_front) - K.THIGH_LOGO[1]) < 8
+
+
+def test_chest_icon_is_leatts_official_mark(built):
+    """Leatt's triangle beside the chest LEATT is printed from the official favicon (its stroke 0.13 of its width,
+    the printed one 0.14), sharp at 0.1 mm, where the flat print's trace of the photo lost it (3 mm strokes)."""
+    body, g = built
+    pr = json.loads(str(g["prints"]))
+    x, z, w = K.FRONT["icon"]
+    assert abs(pr["icon"]["w"] - w) < 1e-6 and 0.12 < x < 0.15 and 1.40 < z < 1.44
+    m = K.leatt_icon()
+    assert abs(m.shape[1] / m.shape[0] - 1.0) < 0.05 and 0.3 < (m > 0.5).mean() < 0.6
+
+
+def uv_seam_steps(g, a, select):
+    """The colour step (of 255, the largest channel's) across the jersey's UV seams that `select` keeps (by the
+    edge's midpoint): the texture a few mm inside each of the edge's two faces."""
+    V = g["jersey__V"].astype(float)
+    FS, F, UV = g["jersey__FS"], g["jersey__F"], g["jersey__UV"].reshape(-1, 2)
+    edges = {}
+    for s, n in zip(np.r_[0, np.cumsum(FS)[:-1]], FS):
+        f, uv = F[s:s + n], UV[s:s + n]
+        for i in range(n):
+            j = (i + 1) % n
+            mid = (uv[i] + uv[j]) / 2
+            ends = np.r_[uv[i], uv[j]] if f[i] < f[j] else np.r_[uv[j], uv[i]]
+            edges.setdefault((min(f[i], f[j]), max(f[i], f[j])), []).append((mid + 0.15 * (uv.mean(0) - mid), ends))
+    H, W = a.shape[:2]
+    out = []
+    for (i, j), sides in edges.items():
+        if len(sides) != 2 or np.abs(sides[0][1] - sides[1][1]).max() < 1e-4 or not select((V[i] + V[j]) / 2):
+            continue                                        # one face, or no UV seam, or not asked for
+        c = [a[min(int((1 - v) * H), H - 1), min(int(u * W), W - 1)] for (u, v), _ in sides]
+        out.append(np.abs(c[0] - c[1]).max() * 255)
+    return np.array(out)
+
+
+def _along_arm(body, P, s):
+    S, E, W, f, o = K.arm_frame(body, s)
+    d = (W - S) / np.linalg.norm(W - S)
+    t = (P - S) @ d
+    return t, np.linalg.norm((P - S) - t * d), (P - S) @ o, np.linalg.norm(W - S)
+
+
+def test_sleeve_print_runs_on_over_its_top_line(built):
+    """Each sleeve is one pattern piece seamed under the arm; its UV charts are cut along its top line too. The flat
+    print is cut once over the whole sleeve: along the top line the colour runs on (main, a photo blend: 0 median;
+    round 3's first per-chart cut: 51, the stripes and the grounds stepped along the arm)."""
+    body, g = built
+
+    def top(P):
+        for s in ("L", "R"):
+            t, r, out, L = _along_arm(body, P, s)
+            if 0.12 < t < L - 0.05 and r < 0.09 and out > 0:
+                return True
+        return False
+    d = uv_seam_steps(g, texture("jersey_color.png"), top)
+    assert len(d) > 30 and np.median(d) < 15 and np.percentile(d, 75) < 25, (len(d), np.percentile(d, [50, 75]))
+
+
+def test_raglan_seam_has_no_colour_step_on_the_yoke(built):
+    """The magenta yoke runs over the raglan seams (Leatt's front flat: one ink there). The sleeve's raglan part takes
+    its colour from the trunk's photo where it turns away (shaded) and the trunk from further in: round 3's first cut
+    stepped 37 along the seam (a zigzag of faces on the shoulder in photo 08's view); main 2."""
+    body, g = built
+
+    def yoke(P):
+        return P[2] > 1.45 and abs(P[0]) > 0.07 and any(_along_arm(body, P, s)[0] < 0.03 for s in ("L", "R"))
+    d = uv_seam_steps(g, texture("jersey_color.png"), yoke)
+    assert len(d) > 50 and np.median(d) < 12 and np.percentile(d, 75) < 20, (len(d), np.percentile(d, [50, 75]))
 
 
 def test_materials_cover_every_part(built):

@@ -78,9 +78,9 @@ Textures `textures/rider/jersey_color.png`, `jersey_normal.png`, `pants_color.pn
 |---|---|---|
 | UV charts | one per pattern piece: jersey front, back (split at the side seam y -0.005), each sleeve's front and back half (split by the plane through each arm segment's axis), raglan seam from (0.088, -0.072, 1.522) front and (0.078, 0.052, 1.556) back to the armpit (0.178, -0.005, 1.362); pant legs' front and back halves (leg frame), left and right; least-squares conformal maps, shelf packed | PHOTO (raglan seam in the flat front and collar close-up), BODY |
 | Jersey front and back | Leatt's on-model photos (1600 px) projected: front neckline at (800, 290), 1513 px/m across, rows from the neckline to the pant top (1130); back neckline (790, 258), 1580 px/m, pant top 1040. Photos median-filtered 5 px (takes out the micro-mesh dots), studio background and the helmet, neck and hands masked and filled from the nearest garment pixel | PHOTO |
-| Sleeves | each half from its view: along the arm from the shoulder point to the cuff end, across normalised to the photo arm's half width (68, 72, 60, 48 px at 0, 0.2, 0.6, 1.0 of the arm: 0.85 of the silhouette so its soft edge is never sampled); the two halves blended over the sleeve's top line; the raglan part over the shoulder takes the trunk's views | PHOTO |
+| Sleeves | each half from its view: along the arm from the shoulder point to the cuff end, across normalised to the photo arm's half width (68, 72, 60, 48 px at 0, 0.2, 0.6, 1.0 of the arm: 0.85 of the silhouette so its soft edge is never sampled); the two halves blended over the sleeve's top line; the raglan part over the shoulder takes the trunk's views. Round 3: the front half from Leatt US's front flat, his left sleeve's back from the back 3/4 flat; the whole sleeve printed as one (section "Round 3") | PHOTO |
 | Pant | Leatt US on-model front and back (1920 px, alpha): rows waist top (205 front, 190 back), crotch (first open row in the alpha), boot top (1670, 1650); across, each photo row's silhouette laid onto his pant's silhouette at the same height, leg by leg | PHOTO |
-| Big LEATT, outer left thigh | printed flat from a side view (the photos see it edge-on): length 0.26 m, centre 0.19 m above the knee joint, reading up from the knee, letter tops to the front; the wordmark cut from the jersey chest in the front photo (x 606-1018, y 492-603) | PHOTO (Leatt front on-model, back flat; his 07 seated: reads knee to hip) |
+| Big LEATT, outer left thigh | printed flat from a canvas square to it: length 0.26 m, centre 0.19 m above the knee joint, reading up from the knee, letter tops to the front; round 3: turned 28 deg from the side toward the front (rounds 1 and 2: on the side line, where Leatt's front view would see it edge-on; it sees 60 px of it), the official wordmark (us.leatt.com's header logo) instead of the chest's trace | PHOTO (Leatt US front on-model rows 790 to 1260: 0.83 to 0.98 across the leg, centre 62 deg from the front; back flat; his 07 seated: reads knee to hip), official file |
 | I.K.S panels in the print | black (0.085) inside the panel field, so the material seam and the print agree | PHOTO |
 | Laser-cut holes | jersey 238 (Leatt's number): 50 on each upper sleeve front, 40 on each side panel, two rows of 29 across the lower back; pant 250: 60 on each front thigh, 25 each side of the rear yoke, 40 behind each knee. 1.8 mm holes, darkened and dented | Leatt features, PHOTO (fields' places) |
 | Damien's additions | round 2 (2026-11-13): see the section "Damien's additions" below | |
@@ -111,8 +111,97 @@ carries at known places; 07: nothing on the left side). Code: kit.py "graphics: 
 
 Patch sizes (BikeWise box, Pirelli patch) stay estimates: Damien 2026-11-13 "You estimate it".
 
-Known limits: the projected print carries the photos' soft lighting and is softer than Leatt's real print; the
-side panels and the outer shins are seen at grazing angles by the front and back photos and look smeared close up.
+Known limits (round 2; round 3 replaced the projected print by a flat one, see "Round 3"): the projected print
+carried the photos' soft lighting; the side panels and the outer shins are seen at grazing angles by the front and
+back photos.
+
+## Round 3 (decision 52, 2026-11-15): a crisp print, true colours, his number and sponsors at 1:1
+
+Code: kit.py "graphics: the clean flat print (decision 52)", tests in test_kit_rider.py. Checkpoint
+`renders/checkpoints/2026-11-15_jersey3/`.
+
+### The print, element by element
+
+| Element | How, numbers | Source |
+|---|---|---|
+| Colour reference | Leatt US's front flat (1920 px, evenly lit): each ink is the median of the brighter half of its class in a box (`INK_BOXES`): magenta (225, 11, 134), lime (174, 226, 35), teal (55, 196, 177), black (21, 21, 24), white (232, 227, 240). The NZ distributor's on-model photos show the same inks paler: (202, 30, 125), (198, 235, 75), (140, 211, 162), (34, 34, 34) | PHOTO |
+| Ink map | the NZ photos (front, back, back 3/4 flat) onto the flat's inks: 3 x 3 plus offset, black onto black exactly, fitted in relative error to magenta and white (each weighing as 4 pairs) and 16 pairs along the stripes' gradient: the stripe/black profile down the centre of each front view from the chest LEATT (scaled by its 0.275 m), matched by correlation (0.97; the flat runs 1.205 times as long as the on-model jersey), the brighter half of the stripe pixels per band 0.10 to 0.40 m under the LEATT. Residual on the gradient: median 18, max 27 of 255. A map fitted to four boxes (round 3's first) had 28 and 93: its "teal" box is the hem on the flat but 20 cm higher on the on-model photo (the hem is tucked in), so the lower stripes went to R 0, B 208. The NZ back photo is brighter (its yoke magenta (230, 47, 149) against the front's (202, 30, 125), its shoulder LEATT clipped at 255): through the front's map its yoke read (255, 40, 157). Its own map (`back_map`): the front's refitted so its magenta (box 700, 560, 900, 720) and black (380, 480, 500, 640) land on the flat's, while its stripes (the 11 bands of 25 rows between rows 600 and 1000 that hold over 200 stripe pixels) keep what the front's map gives them (moved median 3, max 6 of 255): back yoke against front yoke in the texture (median of the magenta faces' colours) 28 to 11 of 255 (main 41) | PHOTO (both front views; the back view; his 06: his back's magenta as deep as his front's) |
+| White elements | white = min channel less 0.6 chroma, over 0.55 (the grey stripes reach 0.47), smoothed over 0.4 mm, cut and anti-aliased over one texel (0.8 mm); white specks under 3 mm2 dropped (the photos' perforations: holes 2.5 mm2; FIVE.FIVE's letters are 15 to 20 mm2), on the sleeves under 20 mm2 (the piping's broken trace; the sleeve's LEATT and icon are 100 mm2 and more) | PHOTO |
+| Zebra stripes, centre chevron | green light (G less 0.7 of R and B over it) cut half-way between the local dark and light levels in a 3 cm window (stripes 12 to 25 mm wide); where that span is under 0.25 there is no pattern (plain grounds, solid cuffs) and the cut is absolute (0.12 plus 0.15); islands and gaps under 0.4 cm2 dropped (the stripes' smallest tips are 1 cm2), on the sleeves under 1.5 cm2 | PHOTO NZ front and back on-model (trunk), Leatt US front flat (sleeve fronts), back views (sleeve backs), back 3/4 flat (side panels) |
+| Ink colours | each ink a smooth field: stripes over 12 mm (the airbrush gradient lime to teal runs over 50 to 300 mm), the ground over 0.6 mm on the front (keeps the yoke's cut edge over the chest) and over 20 mm on the sleeves and the back (their magenta fades at every edge; at 0.6 mm the photos' fold shading stayed as grey blotches 2 to 5 cm across), wider fields (2, 6, 18 cm) where the photo saw nothing square on; every texel weighs cos^2 of its photo's view angle | PHOTO |
+| Yoke | magenta ground fading to black over the shoulders and down the back: the ground field from the NZ front and back photos on the flat's inks; at the raglan seams the sleeve's ground is drawn to the trunk's (each seam point's step from the medians within 1 cm each side, averaged over 2 cm of seam, fading over 6 cm, on texels of that ink only): step 37 to 2 of 255 (median over the yoke's seam edges; main 2) | PHOTO (front flat: one ink over the seam) |
+| Sleeves | each sleeve printed as one piece: unrolled about its arm (angle round the upper arm's or forearm's axis times the sleeve's median radius per cm along, wrapped 4 cm past the back line), traced and cut there, each texel read back from its own place. The step along the top line (a UV cut only) went from 51 (per-chart cuts, round 3's first) to 5 of 255 (main 0, a photo blend). His left sleeve carries Leatt's thin white line from the back LEATT down the arm to the icon at the elbow, and the forearm LEATT (back 3/4 flat) | PHOTO, BODY |
+| FIVE.FIVE | the white trace (letters 15 to 20 mm2 survive the speck rule); at 0.8 mm per texel each letter is 4 to 5 texels high and reads as dots at 1:1 | PHOTO |
+| Chest icon | Leatt's triangle printed from the official favicon (us.leatt.com, 100 px, upsampled 8 times and re-thresholded), 26.7 mm, centre (0.133, 1.423) in the front photo's frame: the geometric mean of the NZ photo's 27.7 mm (24.4 mm seen, times 1.137 where the chest turns) and the flat's 25.8 mm (37 px beside a 395 px LEATT); the trace had lost its 3 mm strokes | PHOTO, official file |
+| Perforations | modelled holes as before (238 jersey, 250 pant; 1.8 mm, darkened), not printed | Leatt features |
+| Cuffs | lime, solid: from the flat's sleeve fronts (the absolute cut keeps solid areas solid) | PHOTO |
+| Pant panels | the black zebra over teal, lime and magenta: the stripes are the chroma; specks under 1.5 cm2 dropped, the ground over 3 mm, white edges only over 0.5 (the pant's teal is paler: up to 0.40), the shins' stripes coloured from themselves (weights at least 0.1, from 0.6 of the way into the stripe; they are seen at 60 to 80 deg); past 83 deg (the legs' outer sides) plain ground. The rows above the crotch take the whole pant: Leatt's back photo opens a 5 px gap at its centre 120 rows above the crotch, and round 2 took the first run there (the model's glove) | PHOTO Leatt US on-model pant |
+| Thigh LEATT | the official wordmark, 0.26 m, 28 deg from the side toward the front (row "Big LEATT" above) | PHOTO, official file |
+
+### Colours, measured (Standard view against Leatt's studio photos; daylight against his)
+
+Each ink's core (median of the brighter half of its class in a box; the black of all of it), display sRGB, and
+in brackets its ratio to the white beside it in linear light (R, G, B), which takes out the exposure. Renders: the
+front (jf) and back (jb) studio views, Standard at -1.6 (nothing clips) or -1.0; daylight is AgX - Punchy -0.6.
+Script: the checkpoint's 08 sheet.
+
+| Ink | Leatt US flat | NZ on-model | main, Standard -1.6 | round 3, Standard -1.6 |
+|---|---|---|---|---|
+| magenta | 225, 11, 134 (0.93, 0.004, 0.27) | 202, 30, 125 (0.75, 0.017, 0.24) | 175, 58, 112 (0.72, 0.075, 0.25) | 209, 53, 127 (0.89, 0.050, 0.29) |
+| lime | 174, 226, 35 (0.53, 0.99, 0.02) | 198, 235, 75 (0.71, 1.12, 0.08) | 146, 189, 80 (0.48, 0.90, 0.12) | 122, 184, 51 (0.27, 0.68, 0.04) |
+| teal | 55, 196, 177 (0.05, 0.72, 0.51) | 140, 211, 162 (0.33, 0.87, 0.42) | 96, 157, 145 (0.20, 0.60, 0.44) | 94, 156, 147 (0.16, 0.47, 0.39) |
+| black | 21, 21, 24 (0.009, 0.010, 0.010) | 34, 34, 34 (0.020) | 49, 49, 50 (0.051, 0.054, 0.049) | 45, 45, 47 (0.037, 0.037, 0.038) |
+| back magenta (Standard -1.0) | | 230, 47, 149 (the NZ back photo; its white clips) | 221, 69, 152 (0.89, 0.074, 0.37) | 221, 56, 139 (0.89, 0.049, 0.30) |
+
+- Magenta, front and back: green per white 0.075 to 0.050 (flat 0.004, his 09 0.005, his 06 0.014); the rest of
+  the green is the cloth's sheen in the render (the texture's front yoke is 226, 14, 132; its back 231, 25, 140).
+- Lime and teal: the render's boxes see the chest's chevrons and the stripes above the pant, the middle of the
+  airbrushed gradient (lime to green to teal), while the flat's boxes are the chest's brightest lime and the hem's
+  teal: these two rows are not like for like. The texture's stripes against the flat's at the same height (the
+  gradient pairs): median 18, max 27 of 255; the texture's lime 166, 221, 18 (flat 174, 226, 35).
+- Daylight (AgX - Punchy -0.6) against his photos: magenta 189, 85, 151 (0.80, 0.14, 0.43) round 3, 170, 75, 138
+  (0.67, 0.11, 0.37) main, his 09 217, 8, 111 (1.03, 0.005, 0.22), his 08 175, 22, 72. The look lifts the
+  magenta's green per white from 0.050 (Standard) to 0.14: the look's, not the kit's (not changed).
+
+### His number and sponsors at 1:1
+
+Cameras fitted to his photos 06, 09 and 08 by the print (symmetric chamfer between the posed model's projected
+white print and the photo's white mask, a grid over azimuth, elevation and roll, then CMA; an anchor on the name's
+centroid in 06 and the L of LEATT in 09 and 08, as a 180 deg turn fits the 114 as well): 06 f 1342 px, 0.90 px
+residual; 09 f 2087 px, 2.43 px; 08 f 1590 px, 2.26 px. Windows of each photo are rendered through the same camera
+turned onto the window, enlarged 4 times (06) and 8 times (09, 08), and turned upright: photo | main | round 3.
+
+| What | Photo | Round 3 | Verdict |
+|---|---|---|---|
+| 114 box (06, 4x upright) | 414 x 278 px | 401 x 294 px | width within 3 %, height 6 % over |
+| 1s' stems (4x) | 77, 58 px | 70, 51 px | within 2 photo px (06 is blurred over 1 to 2 px) |
+| gaps 1-1, 1-4 (4x) | 29, 8 px | 24, 10 px | within 1.3 photo px |
+| glyph centroids | | | within 1 px of the fit |
+| the 4's counter (4x) | 39 px tall | 89 px | 06's 4 is crossed by a fold and smeared on its right by the shoulder: the plate art (the same glyphs) stays the source |
+| DAMIEN | DAMI over the fold | the same | as round 2 |
+| BikeWise (09, 08) | | centre +2, -17 mm; -8, -8 mm | long side within 4 to 7 % in both; short side +30 % in 09, -5 % in 08 (the model's chest faces each camera differently from his): kept |
+| Pirelli | 74 mm (09), 108 to 112 mm (08) long | 80 mm; centre -12, -9; -11, -14 mm | the photos disagree: 80 mm kept. Its colours in 08 (red letters (143, 2, 38) on (245, 152, 58)) are the official red on yellow in daylight |
+| USN | | -16, -35 mm; +20, +6 mm | the lower patches move in opposite directions in the two photos (his chest turned, the jersey pulled over the pant): not moved |
+| Motul | hidden in 08 | -30, -40 mm (09) | as USN |
+| Cycleworx | | -20, -18 mm; +24, -16 mm | as USN |
+| chest icon | under Pirelli at its right | the same place; 09's camera does not see it on the model (the chest turns away sooner than his) | |
+
+Offsets are round 3 minus the photo, along the photo's axes, at 3.69 (09) and 3.21 (08) mm per photo px.
+
+### Not seen, estimated
+
+- The lower back under the magenta fade: his 06 shows about 5 staggered rows of light dots there; Leatt's back
+  on-model photo shows 2 rows about 13 mm apart near the pant, its back flat an upper field of 4 rows and a lower
+  tail field of 4 rows (light: lit through). The model has 2 rows 60 mm apart (z 1.155 and 1.215). What shows
+  through the holes (skin, a base layer) is Damien's to say: asked.
+- The top two chevrons under FIVE.FIVE fade from black to lime in Leatt's print (an airbrushed end); the trace
+  cuts them where they cross the cut level, so their tops are ragged. Keeping them as fades from the photo
+  brought back the photo's mottle (tried, not kept).
+- The sleeves' backs, the underarms and the pant's outer sides are seen at grazing angles by every photo: the
+  sleeves' stripes there are the photos' shapes, smoothed (some read as soft grey bands on the black), and the
+  pant's outer sides are plain black.
+- AgX - Punchy (the daylight look) desaturates the magenta (render (189, 85, 151) against his 09's (217, 8, 111));
+  the look is not the kit's.
 
 ## Materials (component 4)
 
