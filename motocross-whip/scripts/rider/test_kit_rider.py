@@ -69,6 +69,52 @@ def test_gear_file_loads_and_is_consistent(built):
     assert hb.min() >= 0 and hb.max() < len(body.V) and len(np.unique(hb)) == len(hb)
 
 
+def committed(path):
+    """A file's bytes as the git index holds it (under Git LFS, the object its pointer names); None outside a git
+    checkout or without git-lfs."""
+    import subprocess
+    d, n = os.path.split(os.path.abspath(path))
+    try:
+        blob = subprocess.run(["git", "show", ":./" + n], cwd=d, capture_output=True, check=True).stdout
+        if blob.startswith(b"version https://git-lfs"):
+            blob = subprocess.run(["git", "lfs", "smudge", n], cwd=d, input=blob, capture_output=True,
+                                  check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return blob
+
+
+def test_kit_textures_rebuild_to_the_committed_files(built):
+    """The kit's textures are a pure function of kit.py and its references (numpy only: no random, no resampler,
+    the same bytes on 1 and 4 threads): the suite's build (the fixture writes them into textures/rider) gives the
+    committed files, every texel and every byte, so the suite leaves the tree clean. Main at ea66687 failed: its
+    jersey_print_color.png was round 3c's (778fd8d, rebuilt byte for byte by 778fd8d's kit.py), not rebuilt when
+    round 4 (decision 58) changed the jersey colour it samples: 2 texels 1 level apart. Bytes depend on Pillow's PNG
+    encoder (zlib); the texels do not."""
+    import hashlib
+    import io
+
+    from PIL import Image
+    if os.environ.get("KIT_TEX", "1") != "1":
+        pytest.skip("KIT_TEX=0: the textures were not built")
+    _, g = built
+    spec = json.loads(str(g["materials"]))
+    names = sorted({m[k] for m in spec.values() for k in ("image", "normal") if k in m})
+    assert {"jersey_color.png", "jersey_print_color.png", "pants_color.png"} <= set(names), names
+    for n in names:
+        p = os.path.join(K.TEXDIR, n)
+        old = committed(p)
+        if old is None:
+            pytest.skip("no git checkout with git-lfs to compare with")
+        a = np.asarray(Image.open(io.BytesIO(old)))
+        b = np.asarray(Image.open(p))
+        assert a.shape == b.shape, (n, a.shape, b.shape)
+        d = (a != b).reshape(a.shape[0], a.shape[1], -1).any(-1)
+        assert not d.any(), "%s: %d texels differ (max %d levels) at %s" % (
+            n, int(d.sum()), int(np.abs(a.astype(int) - b).max()), np.argwhere(d)[:4].tolist())
+        assert hashlib.sha256(old).hexdigest() == hashlib.sha256(open(p, "rb").read()).hexdigest(), n
+
+
 def test_sizes_against_the_charts(built):
     """Jersey L: its girth at his chest is the chart's top of L (112 cm) within 3 cm; pant L: the waistband's
     inside, less the tucked jersey under it, inside L's waist range (83 to 88 cm); cuffs where the brief puts
