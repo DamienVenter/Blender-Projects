@@ -29,5 +29,5 @@ What is still not right (none of it the look's):
 
 Checked: the same view rendered by head_closeups.py itself with the look (p09, 32 samples) equals the linear render
 put through the look to 0.6 levels mean (medians of the white shell and black print identical); the same render in
-Blender 5.2.0 equals 5.2.3's in every pixel; the swatch chart through 5.2.0 and 5.2.3 within a level of the numpy
+Blender 5.2.0 equals 5.2.3's (one pixel one level off); the swatch chart through 5.2.0 and 5.2.3 within a level of the numpy
 reference.

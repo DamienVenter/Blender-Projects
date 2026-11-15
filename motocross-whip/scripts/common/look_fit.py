@@ -11,6 +11,10 @@ python3 look_fit.py fit PAIRS.npz --work DIR --out FIT.json
     them, the third held out; DIR caches decision 46's look on the pairs and the AgX table (both made by Blender)
 python3 look_fit.py report PAIRS.npz --work DIR --out REPORT.json
     scene_look.apply(scene, "daylight") against decision 46's look, both through Blender, per view and class
+python3 look_fit.py bike EXR INDEX.json R,G,B --work DIR --out OUT.json [--ev7 EV]
+    the bike's red in his 07 (cam07's EXR) under both looks, and the albedo that matches it (bike_red)
+python3 look_fit.py sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
+    photo | decision 46's look | the scene look, for the checkpoints (sheet)
 
 Pairs keep only photo pixels whose 4x4 (2x2) render block is one material, one albedo class and away from the class's
 edge (eroded by about the camera's landmark rms). Classes (trusted materials, the brief of decision 54): the
