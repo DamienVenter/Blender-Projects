@@ -121,6 +121,40 @@ def test_shell_is_fair_at_the_crown_back():
     assert dk.max() < 120.0, f"normal turn {dk.max():.0f} /m above its neighbours at {np.round(worst)} mm"
 
 
+def shading_normals(V, F):
+    """Vertex normals as Blender's smooth shading makes them: face normals weighted by the corner angles."""
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    fn /= np.linalg.norm(fn, axis=1)[:, None]
+    vn = np.zeros_like(V)
+    for k in range(3):
+        a, b, c = V[F[:, k]], V[F[:, (k + 1) % 3]], V[F[:, (k + 2) % 3]]
+        e1, e2 = b - a, c - a
+        ang = np.arccos(np.clip(np.sum(e1 * e2, 1) / (np.linalg.norm(e1, axis=1) * np.linalg.norm(e2, axis=1)), -1, 1))
+        np.add.at(vn, F[:, k], fn * ang[:, None])
+    return vn / np.linalg.norm(vn, axis=1)[:, None]
+
+
+def test_crown_shading_follows_the_surface():
+    """Round 3 (decision 46): a purple and white ladder of clear-coat reflections ran along the print's stem in
+    the top view. Main's first vertices off the crown's centre line stood 7 or 14 mm out by turns (rings graded by
+    the brow's roundness, thinned against the 3 mm outline samples): one strip of fan triangles across the crown,
+    its shading normals 3 to 8 deg off the width field's own. Within 35 mm of the centre line over the crown, every
+    shading normal must lie within 1.5 deg of the surface's."""
+    V, F, prof = H.shell_outer()
+    sel = (V[:, 2] > 0.08) & (np.abs(V[:, 0]) > 0.0005) & (np.abs(V[:, 0]) < 0.035) & prof.inside(V[:, 1:])
+    N = shading_normals(V, F)[sel]
+    P, h = V[sel], 1e-6
+    dy = (H.half_width(prof, P[:, 1] + h, P[:, 2]) - H.half_width(prof, P[:, 1] - h, P[:, 2])) / (2 * h)
+    dz = (H.half_width(prof, P[:, 1], P[:, 2] + h) - H.half_width(prof, P[:, 1], P[:, 2] - h)) / (2 * h)
+    Na = np.c_[np.sign(P[:, 0]), -dy, -dz]
+    Na /= np.linalg.norm(Na, axis=1)[:, None]
+    N *= np.sign(np.median(np.sum(N * Na, 1)))
+    err = np.degrees(np.arccos(np.clip(np.sum(N * Na, 1), -1, 1)))
+    assert sel.sum() > 300
+    worst = P[np.argmax(err)] * 1000
+    assert err.max() < 1.5, f"shading normal {err.max():.1f} deg off the surface's at {np.round(worst)} mm"
+
+
 def port_edge_px(view, rows, port=None):
     """The face port's rear edge on the near side through one of Leatt's cameras: the loop's rightmost crossing
     of each image row (iso-left: the helmet's left side, its back to the right)."""

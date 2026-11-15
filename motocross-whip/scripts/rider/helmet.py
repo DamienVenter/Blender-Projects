@@ -199,25 +199,33 @@ Y_BROW = (-0.10, 0.00)             # the crown rim blends from the brow's roundn
 SMOOTH_SIGMA = 0.010               # m, Gaussian smoothing of the width field away from the rims (no creases)
 
 
-def rim_shape(prof):
-    """Roundness length and power at each crown rim sample (brow in front, crown and back behind)."""
-    y = prof.fine_crown[:, 0]
-    k = np.clip((y - Y_BROW[0]) / (Y_BROW[1] - Y_BROW[0]), 0, 1)
+def crown_shape(y):
+    """Roundness length and power of the crown rim at y (brow in front, crown and back behind)."""
+    k = np.clip((np.asarray(y, float) - Y_BROW[0]) / (Y_BROW[1] - Y_BROW[0]), 0, 1)
     k = k * k * k * (k * (6 * k - 15) + 10)
     return L_BROW + (L_CROWN - L_BROW) * k, P_BROW + (P_CROWN - P_BROW) * k
 
 
+def falloff_at(f, L, p):
+    """The distance from a rim at which falloff(d / L, p) reaches f (the inverse of falloff)."""
+    return L * (1.0 - (1.0 - f ** p) ** (1.0 / p))
+
+
 def rim_dist(tree, C, P):
-    """Distance from points to a finely sampled rim polyline (to its segments, not its samples) and the index of
-    the nearest sample."""
+    """Distance from points to a finely sampled rim polyline (to its segments, not its samples), the index of the
+    nearest sample and the foot point on the polyline."""
     d, i = tree.query(P)
-    best = d.copy()
+    best, foot = d.copy(), C[i].copy()
     for j0 in (i - 1, i):
         j = np.clip(j0, 0, len(C) - 2)
         A, AB = C[j], C[j + 1] - C[j]
         t = np.clip(np.sum((P - A) * AB, 1) / np.sum(AB * AB, 1), 0, 1)
-        best = np.minimum(best, np.linalg.norm(P - (A + AB * t[:, None]), axis=1))
-    return best, i
+        Q = A + AB * t[:, None]
+        dq = np.linalg.norm(P - Q, axis=1)
+        near = dq < best
+        best = np.where(near, dq, best)
+        foot[near] = Q[near]
+    return best, i, foot
 
 
 # W_Z and Q_Y were read with straight lines between their knots: the width's slope jumped at every knot (z every
@@ -243,11 +251,14 @@ _Q_OF_Y = _table(Q_Y, TABLE_LAM[1])
 def raw_width(prof, Y, Z):
     """The width field before smoothing: back view width x plan factor x the two rims' roundness."""
     P = np.c_[Y, Z]
-    dc, ic = rim_dist(prof.ftree_crown, prof.fine_crown, P)
+    dc, _, foot = rim_dist(prof.ftree_crown, prof.fine_crown, P)
     dh = rim_dist(prof.ftree_chin, prof.fine_chin, P)[0]
-    Lc, Pc = rim_shape(prof)
+    # the roundness at the foot point on the rim: read at the nearest 0.25 mm sample it stepped at every sample
+    # (up to 0.04 mm of width at the brow, where it blends from the brow's to the crown's), a staircase under the
+    # 3 mm mesh that hid the surface's own normal from the shading test (round 3)
+    Lc, Pc = crown_shape(foot[:, 0])
     w = _W_OF_Z(Z) * _Q_OF_Y(Y)
-    return w * falloff(dc / Lc[ic], Pc[ic]) * falloff(dh / L_CHIN, P_CHIN), np.minimum(dc, dh)
+    return w * falloff(dc / Lc, Pc) * falloff(dh / L_CHIN, P_CHIN), np.minimum(dc, dh)
 
 
 SMOOTH_H = 0.002                    # m, grid of the smoothed field
@@ -310,41 +321,91 @@ def ring_offsets(L, p, n):
     return L * (1.0 - (1.0 - s ** p) ** (1.0 / p))
 
 
+# The crown rim is the centre line, where the half width x = W falloff(d / L) rises as the square root of the
+# distance d from the rim: 3 mm of x across the crown is 0.04 mm of d. Main graded its crown rings by the brow's
+# roundness all round and thinned them against the 3 mm outline samples, so the first point kept off the centre
+# line stood 7 or 14 mm out by turns: one strip of fan triangles across the crown, its vertex normals 3 to 8 deg
+# off the surface's, a ladder of clear-coat reflections along the print's stem (helmet round 3, Leatt's top view).
+# Now a band of rows at equal steps of x, each row the rim's own samples moved along the rim's normals by the
+# crown's local roundness: a structured grid (quads between straight columns, Delaunay at any scale of d), as fine
+# across the crown as along it. Rings at the local roundness beyond it.
+BAND_DF, BAND_N = 0.025, 20        # the band's rows: x steps of 2.5 % of the half width (3.1 to 3.4 mm), to 50 %
+RING_DF = 1.0 / 28                 # the crown rings beyond it: steps of 3.6 % (4.5 mm), to 11/14 as before
+BAND_CLEAR = 0.0012                # m, band points this close to another free edge (port, lower edge) are left out
+BAND_SQUEEZE = 0.6                 # a column stops where its row spacing falls below this share of the rim's (the
+                                   # crown's tight turn down to the back, 15 mm radius, focuses the normals)
+BAND_NEAR = 0.0025                 # m (3D), other points this close to a band point are left out
+
+
+def crown_frame(prof):
+    """The crown rim's samples, their unit normals into the domain and the roundness there."""
+    rim = prof.rim_crown
+    t = np.gradient(rim, axis=0)
+    t /= np.linalg.norm(t, axis=1)[:, None]
+    n = np.c_[-t[:, 1], t[:, 0]]
+    if prof.area < 0:
+        n = -n
+    L, p = crown_shape(rim[:, 0])
+    return rim, n, L, p
+
+
+def crown_band(prof):
+    """The band's points along the crown rim, rows of increasing distance (row k at x steps of k BAND_DF); each
+    column stops where the rows close up (before the normals of a tight turn cross)."""
+    rim, n, L, p = crown_frame(prof)
+    B = np.stack([rim + n * falloff_at(k * BAND_DF, L, p)[:, None] for k in range(1, BAND_N + 1)])
+    gap = np.linalg.norm(np.diff(B, axis=1), axis=2) / np.linalg.norm(np.diff(rim, axis=0), axis=1)
+    tight = np.zeros(B.shape[:2], bool)
+    tight[:, :-1] |= gap < BAND_SQUEEZE
+    tight[:, 1:] |= gap < BAND_SQUEEZE
+    tight = np.logical_or.accumulate(tight, axis=0)
+    B = B[~tight]
+    others = np.vstack([prof.lower, prof.rim_chin, prof.port])
+    return B[prof.inside(B) & (cKDTree(others).query(B)[0] > BAND_CLEAR)]
+
+
 def domain_points(prof, h=0.005, nring=14):
-    """Points of the profile domain: the outline itself, rings graded towards the rims, an interior grid."""
-    pts = [prof.outline]
-    for rim, L, p in ((prof.rim_crown, L_BROW, P_BROW), (prof.rim_chin, L_CHIN, P_CHIN)):
-        t = np.gradient(rim, axis=0)
-        t /= np.linalg.norm(t, axis=1)[:, None]
-        n = np.c_[-t[:, 1], t[:, 0]]
-        if prof.area < 0:
-            n = -n
-        for d in ring_offsets(L, p, nring)[:-3]:
-            step = max(0.003, min(h, d * 0.9))
-            r = resample_open(rim + n * d, step)
-            pts.append(r)
+    """Points of the profile domain: the outline itself, the crown band, rings graded towards the rims, an
+    interior grid."""
+    rim, n, L, p = crown_frame(prof)
+    f_band = BAND_N * BAND_DF
+    pts = []
+    for f in f_band + RING_DF * np.arange(1, 40):
+        if f > (nring - 3) / nring + 1e-9:
+            break
+        d = falloff_at(f, L, p)
+        pts.append(resample_open(rim + n * d[:, None], max(0.003, min(h, float(np.median(d)) * 0.9))))
+    t = np.gradient(prof.rim_chin, axis=0)
+    t /= np.linalg.norm(t, axis=1)[:, None]
+    nc = np.c_[-t[:, 1], t[:, 0]]
+    if prof.area < 0:
+        nc = -nc
+    for d in ring_offsets(L_CHIN, P_CHIN, nring)[:-3]:
+        pts.append(resample_open(prof.rim_chin + nc * d, max(0.003, min(h, d * 0.9))))
     lo, hi = prof.outline.min(0), prof.outline.max(0)
     gy, gz = np.meshgrid(np.arange(lo[0], hi[0], h), np.arange(lo[1], hi[1], h * 0.866))
     gy = gy + (np.arange(gy.shape[0])[:, None] % 2) * h / 2
     pts.append(np.c_[gy.ravel(), gz.ravel()])
-    P = np.vstack(pts)
-    n_out = len(prof.outline)
-    keep = np.ones(len(P), bool)
-    keep[n_out:] = prof.inside(P[n_out:])
-    # nothing closer than 1.2 mm to the outline (other than the outline itself)
-    d_out = cKDTree(prof.outline).query(P)[0]
-    keep[n_out:] &= d_out[n_out:] > 0.0012
-    P = P[keep]
-    # thin out points closer than a local spacing (greedy, rings first)
+    Q = np.vstack(pts)
+    # inside, nothing closer than 1.2 mm to the outline, clear of the band (3D) and of the rings it replaces
+    keep = prof.inside(Q) & (cKDTree(prof.outline).query(Q)[0] > 0.0012)
+    band = crown_band(prof)
+    Q = Q[keep]
+    B3 = np.c_[half_width(prof, band[:, 0], band[:, 1]), band]
+    Q3 = np.c_[half_width(prof, Q[:, 0], Q[:, 1]), Q]
+    keep = cKDTree(B3).query(Q3)[0] > BAND_NEAR
+    P = np.vstack([prof.outline, band, Q[keep]])
+    n_fix = len(prof.outline) + len(band)
+    # thin out points closer than a local spacing (greedy, rings first; the outline and the band stay)
     tree = cKDTree(P)
     alive = np.ones(len(P), bool)
     dc = np.minimum(prof.tree_crown.query(P)[0], prof.tree_chin.query(P)[0])
     rad = np.clip(dc * 0.35, 0.0008, h * 0.6)
-    for i in range(n_out, len(P)):
+    for i in range(n_fix, len(P)):
         if not alive[i]:
             continue
         for j in tree.query_ball_point(P[i], rad[i]):
-            if j > i and j >= n_out:
+            if j > i and j >= n_fix:
                 alive[j] = False
     return P[alive]
 
