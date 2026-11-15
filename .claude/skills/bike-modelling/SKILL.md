@@ -42,14 +42,27 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   `"studio"` (Standard at STUDIO's exposure) for the honda_* views (`build_bike.render`, `rake.py`). A tone curve per
   channel crushes the red's G and B (G 7 against 47 in his 07); the shipped curve on max(R,G,B) keeps them (50).
   Under it, at photo 07's own exposure, RED (208, 10, 22) reads 218, 42, 38 against his 189, 47, 49 (dE 16.9 / 14.7
-  median / lit); RED (187, 28, 49) matches (4.1 / 6.9; `look_fit.py bike`, research/scene-look.md). Not applied:
-  `kit_canvas.RED` paints the same plastic in the kit textures (test_kit checks it): move both together, then
-  recheck the honda views against Honda's photos.
+  median / lit) under round 1's look; round 2 (decision 55, below) applied (205, 41, 62) under its light and look
+  (`look_fit.py bike`, research/scene-look.md).
 - Check a fitted paint colour's hue on its diffuse body, not its lit mean (coordinator, look round 2's review): a
   "lit" quartile by luma takes in the clear coat's sky highlights, which run pink on red plastic under a blue sky.
   Round 2's RED (205, 41, 62) fitted that way had B above G and read crimson at 1:1, and Honda's studio views turned
   pink (27 to 40 dE). Gate: max channel red, saturation over 0.5, G and B each under 0.45 R. His 07 then reads
   183, 51, 45 (lit 221, 87, 57): an orange-red, G at or above B. One red must read right in his photos AND Honda's.
+- **The plastic red is one value in three places** (decision 55): `build_bike.RED`, `kit_canvas.RED`,
+  `kit_sidepanel.PLASTIC_RED` = (205, 41, 62), fitted to his photo 07 under round 2's look at the photo's own
+  exposure (dE 5.0 / 6.6 median / lit, from 10.4 / 10.4); test_kit fails if they part or a texture keeps the old
+  red. Change all three, then rebuild the textures from their scripts (kit_template.py PARTS TPL, kit_sidepanel.py
+  KIT, kit_canvas.py KIT TPL) and check every changed texel was the old red or a blend of it.
+- **His photos and Honda's studio photos cannot share one red here**: in our honda_* views 91 to 94 % of the plain
+  red's G is the coat and specular mirroring the studio dome and lamps (G 54 to 57 after the look against Honda's
+  24), and Honda's red is purer (decoded G/R 1 %, B/R 2 % against his 5.6 %, 6 %). His photos lead for the scene;
+  the honda_* views now read crimson-pink (dE 27 to 40). Fixing that is a studio set-up with less reflection or a
+  STOCK-only red, not the scene's RED.
+- **Measuring a printed colour in his 07** (research/scene-look.md, "The kit's printed colours"): cam07 is 15 to 22
+  px off on the bike and the pose hides parts, so compare photo boxes picked on a 6x crop with our whole class; a
+  white on the same panel is no reference when the photo has sun and shade on it (his number in shade, the red zone
+  in sun).
 - Relative texture paths load as magenta: pass absolute paths to bpy.data.images.load.
 - Solid discs and sprockets hide the spokes: real ones are rings full of holes (`plate2d`).
 - Bar pad lettering must read from the front AND from the seat: pick the UV direction by the face normal.

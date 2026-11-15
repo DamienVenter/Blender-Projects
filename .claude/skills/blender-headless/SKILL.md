@@ -69,6 +69,16 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
   against a sun lamp on a matte sphere; the brightest equirect pixel misleads). At strength 1 the multiple-scattering
   sky puts about 14.9 (luminance units) on a horizontal plane at sun elevations 60 to 75 deg: scale its strength from
   that, not by eye (rider-modelling, round 6 daylight).
+- **Multiple-scattering sky, 5.2.3** (decision 55, `scripts/common/day_rig.py`): with its sun disc on it has
+  NO Vector input (the socket disappears, links are ignored); to turn the sky (a Vector Rotate on Generated
+  coordinates, EULER_XYZ applies R v like mathutils' Euler XYZ) put the disc off and use a sun lamp.
+  `sky_ground_albedo` has no effect on it (0.1, 0.3, 0.6: the same light to 4 digits). With the disc, a level
+  white plane at strength 1 gets luminance 141.03 with the sun 78 deg high (9.6 % of it from the sky): a lamp of
+  W watts at that height wants sky strength W sin(78) / 141.03.
+- **Light groups**: `object.lightgroup = "sun"` on the lamp, `world.lightgroup = "sky"`, a view layer
+  lightgroup of each name: the EXR gets Combined_sun and Combined_sky (not denoised). Diffuse Direct + Indirect
+  passes relight a surface with another albedo without rendering: lin + light x (new - old Diffuse Color),
+  exact but for interreflection (`look_fit.relight`).
 - **Colour**: keep the working space Linear Rec.709; AgX is the default view; looks are named like `'AgX - Punchy'`.
   Our renders take their look from `scene_look.apply(scene, kind)` (decision 54), never their own view settings.
 - Render passes are spelled out (`Depth`, not `Z`).
