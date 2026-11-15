@@ -121,6 +121,20 @@ def test_shell_is_fair_at_the_crown_back():
     assert dk.max() < 120.0, f"normal turn {dk.max():.0f} /m above its neighbours at {np.round(worst)} mm"
 
 
+
+def test_shell_outline_through_the_solved_cameras():
+    """Round 3 (decision 46): the shell's outline in Leatt's back views (Pinata, V25 white, MY27) and top view, through
+    the cameras solved together with the shared landmarks (research/helmet-ba.json, helmet_ba.py). Each 10 mm band of
+    height (back views) and 20 mm band of length (top view) lies within 1.5 mm of the photo's outline, median over
+    the band. Main (round 2 tables): 1 to 3 mm too narrow below z = -50 mm and 1.3 to 3.6 mm too wide from z = -40 to
+    +10 mm, 3.6 mm worst (V25 white)."""
+    import helmet_ba as BA
+    bands = BA.outline_bands()
+    assert set(bands) == set(BA.BAND_VIEWS) and all(len(b) >= 8 for b in bands.values())
+    for v, b in bands.items():
+        z, off = max(b.items(), key=lambda kv: abs(kv[1]))
+        assert abs(off) < 1.5, f"{v}: the outline {off:+.1f} mm off the photo's at band {z} mm"
+
 def shading_normals(V, F):
     """Vertex normals as Blender's smooth shading makes them: face normals weighted by the corner angles."""
     fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])

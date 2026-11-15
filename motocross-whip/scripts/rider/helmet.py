@@ -179,14 +179,24 @@ class Profile:
 # ---------------------------------------------------------------- half width over the profile
 L_CROWN, P_CROWN = 0.1239, 1.933  # roundness of the crown and back (m, superellipse power): fitted with W_Z, Q_Y
 L_CHIN, P_CHIN = 0.140, 1.25       # the chin bar narrows to a blunt V in plan (Pinata iso-left camera fit)
-# Half width by height (back view) and plan factor by y (top view), fitted together with L_CROWN and P_CROWN to
-# Leatt's back view (Royal_Back, camera 13.5 deg above, 0.2046 mm/px) and top view (Pinata Teal top, 0.247
-# mm/px) by least squares with a smoothness penalty: residuals 7.7 px (1.6 mm) back, 9.3 px (2.3 mm) top. The
-# fit's 7 % dip at z = 0 (a 1.5 % waist in the back photo, rows 880 to 960) is evened out by hand to 0.1300.
-W_Z = np.array([[-0.20, 0.1115], [-0.16, 0.1155], [-0.12, 0.1197], [-0.08, 0.1287], [-0.04, 0.1347],
-                [0.00, 0.1300], [0.04, 0.1304], [0.08, 0.1322], [0.12, 0.1342], [0.16, 0.1362]])
-Q_Y = np.array([[-0.30, 0.9126], [-0.04, 0.9126], [0.00, 0.9755], [0.04, 0.9413], [0.08, 0.9447],
-                [0.12, 1.0228], [0.16, 1.1211]])
+# Half width by height (back view) and plan factor by y (top view). Round 1 fitted them with L_CROWN and P_CROWN to
+# Leatt's back and top views through hand-fitted cameras (residuals 1.6 mm back, 2.3 mm top) and evened out the
+# fit's dip at z = 0 by hand. Round 3 (decision 46) refitted W_Z between z = -0.13 and +0.06 m (knots every 10 mm)
+# and Q_Y's knots at y 0 to 0.12 to the shell's outline through the bundle adjustment's cameras (helmet_ba.py,
+# research/helmet-ba.json) in Pinata back, V25 white back and Pinata top: least squares on the outline vertices'
+# offsets binned by z (back views) and y (top view), a smoothness penalty on W's second differences. Before: the
+# back views' outline 2.3 to 3.5 mm inside the model at z -0.03 to +0.02 (a waist: the shell narrows above its
+# shoulder) and 2.5 to 3.4 mm outside it at z -0.06 to -0.04 (the shoulder, a moulded corner where the lower shell
+# flares out) and at z -0.13 to -0.11; Pinata and V25 agree within 0.5 mm, MY27 shows the same with its strap on.
+# After: every 10 mm bin within 1.0 mm in the three views (rms 0.43 mm). The shoulder is a sharp corner on Leatt's
+# shell; the 10 mm smoothing below rounds it (about 1 mm left either side of it).
+W_Z = np.array([[-0.20, 0.1115], [-0.16, 0.1155], [-0.13, 0.1221], [-0.12, 0.1234], [-0.11, 0.1247],
+                [-0.10, 0.1256], [-0.09, 0.1265], [-0.08, 0.1285], [-0.07, 0.1322], [-0.06, 0.1358],
+                [-0.05, 0.1368], [-0.04, 0.1344], [-0.03, 0.1313], [-0.02, 0.1297], [-0.01, 0.1287],
+                [0.00, 0.1270], [0.01, 0.1254], [0.02, 0.1265], [0.03, 0.1296], [0.04, 0.1320], [0.05, 0.1321],
+                [0.06, 0.1314], [0.08, 0.1322], [0.12, 0.1342], [0.16, 0.1362]])
+Q_Y = np.array([[-0.30, 0.9126], [-0.04, 0.9126], [0.00, 0.9753], [0.04, 0.9469], [0.08, 0.9673],
+                [0.12, 1.0198], [0.16, 1.1211]])
 
 
 def falloff(t, p):
