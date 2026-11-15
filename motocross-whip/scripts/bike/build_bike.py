@@ -128,10 +128,14 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
     return m
 
 
-# the plastic's red, one value with kit_canvas.RED and kit_sidepanel.PLASTIC_RED (test_kit): fitted to his photo 07
-# under the scene look at the photo's own exposure (decision 55, research/scene-look.md "The bike's red": median and
-# lit median of 13268 photo px, dE 10.4 / 10.4 -> 5.0 / 6.6); was (208, 10, 22), tuned in the studio views
-RED = (205, 41, 62)
+# the plastic's red, one value with kit_canvas.RED and kit_sidepanel.PLASTIC_RED (test_kit), Honda's plastic in his
+# photos and theirs (decision 55, round 2b, research/scene-look.md "Round 2b"): on the plastic's diffuse body in his
+# photo 07 his hue (G = B: 183, 41, 41 on the bike; ours 201, 30, 30, dE 12.6 / 16.4), and Honda's three studio views
+# under main's error at the median (left 13.7, lf34 13.1, right 12.8 against 15.1, 13.8, 30.1; the lit quarters 4.8,
+# 7.7, 3.6 against 7.2, 4.0, 11.9: lf34's is the light Honda set for that shot alone). Was (208, 10, 22)
+# (the studio views), then (205, 41, 62) (round 2: B above G, crimson at 1:1). One level off the grid's 230, 45, 50:
+# the side panels' artwork holds that colour in lone texels, which then read as red slits (test_kit)
+RED = (230, 46, 49)
 MATS = {
     "livery_L": dict(image="side_L.png", rough=0.34, coat=0.08),
     "livery_R": dict(image="side_R.png", rough=0.34, coat=0.08),
@@ -190,8 +194,19 @@ if STOCK:
     MATS["seat"] = dict(rgb=(176, 18, 26), rough=0.8, bump=0.35)
     MATS["swing_L"] = MATS["swing_R"] = dict(rgb=(200, 200, 204), metal=1.0, rough=0.32, aniso=0.6)
 # single surfaces: solidify (the number plate, panels and mudguard are built with their thickness)
-# studio look for the honda_* cameras: world strength, lamp scale, exposure (BIKE_STUDIO="w,l,e" to test others)
-STUDIO = tuple(float(v) for v in os.environ.get("BIKE_STUDIO", "0.7,0.5,-0.9").split(","))
+# studio look for the honda_* cameras: world strength, lamp scale, exposure, and the world's strength as the coat and
+# the metals see it (BIKE_STUDIO="w,l,e,r" to test others; without r the world is seen as it lights)
+_S = [float(v) for v in os.environ.get("BIKE_STUDIO", "0.7,0.5,-0.9,0.2").split(",")]
+STUDIO = tuple((_S + _S[:1])[:4])
+# and per lamp, on top of STUDIO's scale: (energy scale, seen in reflections) (BIKE_STUDIO_LAMPS='{"key": [1, 1]}').
+# Honda's studio reflects dark (decision 55, round 2b, research/scene-look.md "Honda's studio"): on the plain red of
+# their left photo the coat's light is linear G 8 to 13 per mille at the studio exposure wherever it reflects below
+# 60 deg of elevation and 45 overhead, where main's grey world and lamps put 26 to 137; their frame's median G 163 and
+# black plastics' 28 (sRGB) need a dim surround, not black. So the world shows in reflections at 0.2 (a dome seen by
+# reflected rays only: the coat's light 15 to 43 below 60 deg, 81 overhead; the frame 139, the black 44) and of the
+# lamps only the top one is seen.
+STUDIO_LAMPS = {"key": (1.0, False), "fill": (1.0, False), "top": (1.0, True), "rim": (1.0, False), "front": (1.0, False)}
+STUDIO_LAMPS.update({k: tuple(v) for k, v in json.loads(os.environ.get("BIKE_STUDIO_LAMPS", "{}") or "{}").items()})
 THIN = {"front_fender", "rear_fender", "fork_guards", "fender_flap", "shroud_decks", "mud_flap"}
 BEVEL = {"engine": 0.006, "frame": 0.003, "swingarm": 0.003, "clamps": 0.003}           # rounded machined edges
 SMOOTH_ANGLE = {"shrouds": 70, "side_panels": 70, "seat": 70, "front_fender": 70, "rear_fender": 70,
@@ -498,12 +513,50 @@ def studio():
         sc.collection.objects.link(lo)
         lo.visible_camera = False                           # the front and rear studio cameras look past the lights
         lo["base_energy"] = power
+        lo["base_loc"], lo["target"] = list(loc), list(target)
 
     area("key", (1.8, 3.2, 3.2), (0.75, 0, 0.6), 3.0, 420)
     area("fill", (0.2, -3.0, 2.2), (0.75, 0, 0.6), 3.5, 160)
     area("top", (0.75, 0.0, 4.0), (0.75, 0, 0.6), 4.0, 300)
     area("rim", (-2.5, 1.5, 2.0), (0.75, 0, 0.7), 2.0, 130)
     area("front", (4.0, 1.0, 1.4), (0.75, 0, 0.6), 2.5, 150)
+    # the world as Honda's studio shows it in reflections (STUDIO[3]): a sphere of the world's grey seen only by
+    # reflected rays, the world itself hidden from them (render(): honda_* views only)
+    me = bpy.data.meshes.new("refl_dome")
+    nu, nv, rad = 32, 16, 40.0
+    me.from_pydata([(0.0, 0.0, rad)] + [(rad * math.sin(math.pi * j / nv) * math.cos(2 * math.pi * i / nu),
+                                         rad * math.sin(math.pi * j / nv) * math.sin(2 * math.pi * i / nu),
+                                         rad * math.cos(math.pi * j / nv)) for j in range(1, nv) for i in range(nu)]
+                   + [(0.0, 0.0, -rad)], [],
+                   [(0, 1 + (i + 1) % nu, 1 + i) for i in range(nu)]
+                   + [(1 + j * nu + i, 1 + j * nu + (i + 1) % nu, 1 + (j + 1) * nu + (i + 1) % nu, 1 + (j + 1) * nu + i)
+                      for j in range(nv - 2) for i in range(nu)]
+                   + [(1 + (nv - 2) * nu + i, 1 + (nv - 2) * nu + (i + 1) % nu, (nv - 1) * nu + 1) for i in range(nu)])
+    dm = bpy.data.materials.new("refl_dome")
+    dm.use_nodes = True
+    nt = dm.node_tree
+    nt.nodes.clear()
+    em = nt.nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = bg.inputs["Color"].default_value
+    em.inputs["Strength"].default_value = STUDIO[3]
+    nt.links.new(em.outputs["Emission"], nt.nodes.new("ShaderNodeOutputMaterial").inputs["Surface"])
+    dm.cycles.emission_sampling = "NONE"                    # found by reflected rays only, never sampled as a lamp
+    me.materials.append(dm)
+    dome = bpy.data.objects.new("refl_dome", me)
+    sc.collection.objects.link(dome)
+    dome.location = (0.75, 0.0, 0.0)
+    for k in ("camera", "diffuse", "transmission", "volume_scatter", "shadow"):
+        setattr(dome, "visible_" + k, False)
+    dome.hide_render = True
+    dome.hide_set(True)
+    if scene_look.kind_of("scene") == "linear":             # each light as its own pass (Combined_<name>) for the
+        for vl in sc.view_layers:                           # studio light's fit (decision 55, round 2b)
+            for n in (*STUDIO_LAMPS, "world"):
+                if n not in vl.lightgroups:
+                    vl.lightgroups.add(name=n)
+        for n in STUDIO_LAMPS:
+            bpy.data.objects[n].lightgroup = n
+        w.lightgroup = dome.lightgroup = "world"
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
     sc.cycles.samples = int(os.environ.get("BIKE_SAMPLES", "64"))
@@ -512,6 +565,24 @@ def studio():
     if os.environ.get("BIKE_VIEW"):                        # look tests: e.g. BIKE_VIEW="Standard,None,-0.3"
         vt, look, ex = os.environ["BIKE_VIEW"].split(",")
         sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = vt, look, float(ex)
+
+
+def turn_lamps(cam=None):
+    """Honda's studio turns with its camera (decision 55, round 2b): their left and right photos light the bike
+    alike (the plain red's R 896 and 898 linear, the same reflections: research/scene-look.md "Honda's studio"),
+    where the fixed lamps lit our right side at two thirds of the left. The lamps stand for honda_left's camera and
+    turn about the bike's vertical axis (x 0.75, y 0) by the camera's azimuth from it; cam None: back home."""
+    a = 0.0
+    if cam is not None:
+        ref = bpy.data.objects.get("honda_left")
+        az = lambda o: math.atan2(o.matrix_world.translation.y, o.matrix_world.translation.x - 0.75)  # noqa: E731
+        a = az(cam) - (az(ref) if ref is not None else math.pi / 2)
+    R, piv = Matrix.Rotation(a, 3, "Z"), Vector((0.75, 0.0, 0.0))
+    for lo in bpy.data.objects:
+        if lo.type == "LIGHT" and "base_loc" in lo:
+            p, t = piv + R @ (Vector(lo["base_loc"]) - piv), piv + R @ (Vector(lo["target"]) - piv)
+            lo.location = p
+            lo.rotation_euler = (t - p).to_track_quat("-Z", "Y").to_euler()
 
 
 def camera(name, loc, target, lens=50.0, ortho=None, roll=0.0, res=(1280, 720)):
@@ -613,9 +684,15 @@ def render(cams):
         # studio views: an even dome of light and weaker lamps (the lamps alone left a grey haze on the shadow
         # catcher and washed the red to salmon); values tuned against the red of Honda's photo (STUDIO)
         sc.world.node_tree.nodes["Background"].inputs["Strength"].default_value = STUDIO[0] if honda else 0.30
+        # Honda's studio reflects dark (STUDIO_LAMPS): the world seen in reflections at STUDIO[3] through the dome
+        sc.world.cycles_visibility.glossy = not honda
+        bpy.data.objects["refl_dome"].hide_render = not honda
+        turn_lamps(co if honda else None)
         for lo in bpy.data.objects:
             if lo.type == "LIGHT":
-                lo.data.energy = lo["base_energy"] * (STUDIO[1] if honda else 1.0)
+                scale, seen = STUDIO_LAMPS.get(lo.name, (1.0, True)) if honda else (1.0, True)
+                lo.data.energy = lo["base_energy"] * (STUDIO[1] * scale if honda else 1.0)
+                lo.visible_glossy = bool(seen)
         sc.render.resolution_x, sc.render.resolution_y = co["res"]
         sc.render.resolution_percentage = 100
         # BIKE_BORDER="u0,v0,u1,v1": only that box of a honda_* view, in the 4000x2250 photo's pixels (pair.py)

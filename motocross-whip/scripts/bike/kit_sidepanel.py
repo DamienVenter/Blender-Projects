@@ -78,7 +78,7 @@ MAT_SPECK = (0.30, 1.0)              # aluminium flake (rough 0.25..0.35 per fla
 # Rayleigh-distributed with 12 deg per axis (median 14 deg, 9 in 10 under 26 deg), random azimuth; metal-flake
 # coatings hold their flakes within about 20 deg of the film. A check: a close photo of the panel in sun.
 FLAKE_TILT = 12.0                    # deg
-PLASTIC_RED = (205, 41, 62)          # kit_canvas.RED: the plastic itself, round the intake opening (decision 55)
+PLASTIC_RED = (230, 46, 49)          # kit_canvas.RED: the plastic itself, round the intake opening (decision 55)
 LEATT_RED = (233, 0, 41)
 
 # the panel in left art px (template of bike v6, side_panels: tools in the ledger)

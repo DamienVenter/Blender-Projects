@@ -79,6 +79,20 @@ Full checklist with sources: `motocross-whip/research/blender-pipeline.md` secti
   lightgroup of each name: the EXR gets Combined_sun and Combined_sky (not denoised). Diffuse Direct + Indirect
   passes relight a surface with another albedo without rendering: lin + light x (new - old Diffuse Color),
   exact but for interreflection (`look_fit.relight`).
+- **Per-light reflections (decision 55, round 2b)**: render a view twice with each lamp in its own light group, A
+  with every lamp's `visible_glossy` on, B with it off: per lamp, B's Combined_<lamp> is its diffuse part and
+  A - B its reflection in the clear coat and the metals. Caveat: B's lamp groups also hold the lamp-lit floor and
+  bike seen in reflections, so "the world's diffuse = (Diffuse Direct + Indirect) x Diffuse Color - the lamps'" came
+  out negative on the red's G, and a studio composed from A and B predicted half the coat's reflection the real
+  render had (G 13 against 26 per mille). Pick with it, then check in a real render.
+- **Where a pixel's reflection points**: the Normal and Position passes give the mirrored camera ray per pixel; the
+  camera's centre comes from a DLT on the Position pass (rms 0.000 px on a honda_* view). Binned by elevation,
+  it reads a studio's reflections off a photo (Honda's coat: dark below 60 deg, a light overhead).
+- **Reflections only, 5.2.3**: `world.cycles_visibility.glossy = False` hides the world from reflected rays (and
+  from light sampling for glossy closures). A sphere with an Emission material, object `visible_camera`,
+  `visible_diffuse`, `visible_transmission`, `visible_volume_scatter`, `visible_shadow` all False and
+  `material.cycles.emission_sampling = "NONE"` (not `material.emission_sampling`: AttributeError) is seen by
+  reflected rays alone: a world for reflections at its own strength (build_bike.py's refl_dome).
 - **Colour**: keep the working space Linear Rec.709; AgX is the default view; looks are named like `'AgX - Punchy'`.
   Our renders take their look from `scene_look.apply(scene, kind)` (decision 54), never their own view settings.
 - Render passes are spelled out (`Depth`, not `Z`).

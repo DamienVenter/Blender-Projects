@@ -202,20 +202,24 @@ def test_barpad_lettering_on_the_faces_emblem_on_top():
 
 def test_the_plastic_red_is_one_value_his_photos():
     """build_bike.RED (the plain plastic), kit_canvas.RED and kit_sidepanel.PLASTIC_RED (the same plastic in the kit
-    textures) are one value, fitted to his photo 07 under the scene look (decision 55, research/scene-look.md "The
-    bike's red"), and the kit textures were rebuilt with it: their plain plastic is that red, none of the old one is
-    left (a seam between the textured and the plain plastic otherwise)."""
+    textures) are one value, Honda's plastic in his photo 07 and in Honda's studio views (decision 55, round 2b,
+    research/scene-look.md "Round 2b": his diffuse hue, G about B, not round 2's crimson with B above G), and the kit
+    textures were rebuilt with it: their plain plastic is that red, none of the old ones is left (a seam between the
+    textured and the plain plastic otherwise)."""
     import ast
     import kit_sidepanel
     tree = ast.parse(open(os.path.join(HERE, "build_bike.py")).read())
     bike = [ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "RED" for t in n.targets)]
     assert bike == [kit_canvas.RED] and kit_sidepanel.PLASTIC_RED == kit_canvas.RED
-    assert kit_canvas.RED == (205, 41, 62)
+    assert kit_canvas.RED == (230, 46, 49)
+    r, g, b = kit_canvas.RED
+    assert abs(g - b) <= 5, kit_canvas.RED                 # his hue: G about B (round 2's 41, 62 read crimson)
     for f in ("side_L", "side_R", "fender", "front_fender", "plate", "seat", "top"):
         a = np.asarray(Image.open(os.path.join(KIT, f + ".png")).convert("RGB"))
         assert (a == kit_canvas.RED).all(-1).sum() > 100000, f
-        assert not (a == (208, 10, 22)).all(-1).any(), f
+        for old in ((208, 10, 22), (205, 41, 62)):
+            assert not (a == old).all(-1).any(), (f, old)
 
 
 # ---- the side panels, drawn by script (kit_sidepanel.py, decision 37) ---------------------------------------------

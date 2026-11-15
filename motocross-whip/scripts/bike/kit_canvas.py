@@ -39,7 +39,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageFilter
 
-RED = (205, 41, 62)                      # the plastic's red: build_bike.RED (decision 55), one value (test_kit)
+RED = (230, 46, 49)                      # the plastic's red: build_bike.RED (decision 55), one value (test_kit)
 MAPS = {"mat": "_mr", "nrm": "_n"}       # kit.json key -> the texture's file suffix
 FLAT = (128, 128, 255)                   # a tangent-space normal map's flat texel: the surface's own normal
 

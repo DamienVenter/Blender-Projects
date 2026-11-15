@@ -217,9 +217,12 @@ def _compositor(scene, gains, p=P, xmax=XMAX):
 def _linear(scene):
     """Scene-referred output for the look fit: Standard, no look, exposure 0; a multilayer float EXR without
     compression (common/exr.py reads it) with the albedo (Diffuse Color), the diffuse light (Diffuse Direct and
-    Indirect: a pixel's colour with another albedo is Combined + light x (new - old albedo), decision 55), Depth and
-    Material Index passes, and the light groups' passes (day_rig: Combined_sun, Combined_sky). Every material gets a
-    pass index (1 + its place in the sorted names); SCENE_LOOK_INDEX=<path> writes that table."""
+    Indirect: a pixel's colour with another albedo is Combined + light x (new - old albedo), decision 55), the gloss
+    (Glossy Direct, Indirect and Color: the specular layer and the clear coat, what the surroundings put on a
+    surface; decision 55's round 2b fits the red on the diffuse body without it), Normal and Position (world space:
+    the direction a surface reflects), Depth and Material Index passes, and the light groups' passes (day_rig:
+    Combined_sun, Combined_sky). Every material gets a pass index (1 + its place in the sorted names);
+    SCENE_LOOK_INDEX=<path> writes that table."""
     import bpy
     _plain(scene, "Standard", "None", 0.0)
     im = scene.render.image_settings
@@ -231,6 +234,11 @@ def _linear(scene):
         vl.use_pass_diffuse_color = True
         vl.use_pass_diffuse_direct = True
         vl.use_pass_diffuse_indirect = True
+        vl.use_pass_glossy_direct = True
+        vl.use_pass_glossy_indirect = True
+        vl.use_pass_glossy_color = True
+        vl.use_pass_normal = True
+        vl.use_pass_position = True
         vl.use_pass_z = True
         vl.use_pass_material_index = True
     names = sorted(m.name for m in bpy.data.materials)
