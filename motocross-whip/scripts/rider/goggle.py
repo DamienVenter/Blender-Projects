@@ -11,7 +11,10 @@ Sources (research/rider-ledger/goggle.md has every number with its source):
             fitted to the helmet shell's silhouette (fitted in helmet.py's helmet frame): the goggle's front outline
             back-projected onto its front surface, the side profile from the side views; the Pinata Teal ISO view
             and Leatt's exploded view for the facets, vents and nose bridge.
-  SCALE     the helmet (its own 45 mm strap scale, helmet.py).
+  SCALE     the helmet (its own 45 mm strap scale, helmet.py); round 8: x 1.02 on it (PLACE), the most his face
+            and the eyeport take (ledger section 10).
+  STRAP     round 8: laid on the shell by build_strap (its height from his photo 07 and Leatt's Pinata kit
+            photo, the slides from Leatt's MY27 back view).
   EYES      MakeHuman's CC0 high-poly eye proxy fitted by its mhclo onto his shaped mesh puts the eyeball (radius
             0.955 x and centre 0.03 x the helper-eye sphere's radius behind its centre) where the lids close round
             it; here it is rebuilt by script on the same sphere, iris and cornea anatomical (iris 11.8 mm, pupil
@@ -873,8 +876,10 @@ def build_posts(gp=None):
     return posts
 
 
-OR_LEN, OR_T, OR_BACK_H = 0.030, 0.008, 0.059     # outrigger: length behind the frame, thickness, height at the
-                                                 # strap end (Leatt ISO: 1.3 x the 45 mm strap beside it)
+OR_LEN, OR_T, OR_BACK_H = 0.030, 0.005, 0.059     # outrigger: length behind the frame, thickness, height at the
+                                                 # strap end (Leatt ISO: 1.3 x the 45 mm strap beside it); round 8:
+                                                 # 5 mm thick (rounds 1 to 7: 8), its back edge in the Pinata kit photo
+                                                 # 10 px at 4.5 px/mm seen at 0.53: 4.2 mm (ledger section 10)
 
 
 OR_TURN = 0.4                      # the outrigger turns out from the side face's backward line by atan(0.4) = 22 deg
@@ -934,7 +939,7 @@ def shell_mount(prof):
     def need(Pg):
         Ph = g2h(Pg)
         ins = prof.inside(Ph[:, 1:])
-        return np.where(ins, H.shell_hw(prof, Ph[:, 1], Ph[:, 2]), 0.0)
+        return np.where(ins, H.shell_hw(prof, Ph[:, 1], Ph[:, 2]) / _place(None)[3], 0.0)   # GOGGLE units
     return need
 
 
@@ -1358,23 +1363,37 @@ def build_nose_ribs(gp=None, skin_G=None):
 # "Scale"), 0.2 mm further forward and at round 4's height: centring it on the side views' top and bottom (2.5 mm
 # lower) put the lens's lower corners into the shell's eyeport edge and his nose bridge into the frame, so its top
 # sits about 3 mm under the side views' and its beak bottom about 5 mm above (the scale question).
-PLACE = (-0.1468, -0.004, 5.0)
+# Round 8 (decision 43): a uniform scale, the fourth number, about the GOGGLE origin (the lens front). The goggle-alone
+# photos fix the shape, not the size (section 7, "Scale"). On the helmet, at the helmet's own scale (the 45 mm strap
+# in Leatt's MY27 side view, helmet.py, confirmed by his bike's 1483 mm wheelbase in his 07), Leatt's MY27 right view
+# reads the frame 3.9 mm taller than round 7's 100 mm and Leatt's Pinata Teal iso-right (his helmet and goggle) 1 to
+# 6 mm taller; the goggle-alone photos' 45 mm strap reads ours 0 to 6 % too large; his own photos (2.3 mm a pixel)
+# cannot tell. His face and the eyeport decide: x 1.02 is the largest that keeps his nose bridge off the frame and
+# the lens out of the eyeport's edge, with the goggle 0.5 mm higher (x 1.03 touches his skin, x 1.04 puts the lens
+# into the shell at any fore-aft place). Not moved fore-aft: the kit views' 8 to 9 mm are an empty helmet (no face
+# pushing the goggle forward) and back from here his nose bridge meets the frame. Ledger goggle.md section 10.
+PLACE = (-0.1468, -0.0035, 5.0, 1.02)
 FOAM_MIN, FOAM_MAX, FOAM_DEFAULT = 0.0015, 0.030, 0.014  # triple-layer foam, compressed against the face
 FOAM_W = 0.013                     # foam band width on the frame's back face (round 2's seat, 13 mm at the top)
 
 
+def _place(pl):
+    pl = tuple(pl or PLACE)
+    return pl + (1.0,) * (4 - len(pl))                            # (ty, tz, pitch[, scale]); round 7's had no scale
+
+
 def g2h(V, pl=None):
-    ty, tz, pitch = pl or PLACE
+    ty, tz, pitch, k = _place(pl)
     c, s = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
     Rg = np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
-    return np.asarray(V) @ Rg.T + np.array([0.0, ty, tz])
+    return k * np.asarray(V) @ Rg.T + np.array([0.0, ty, tz])
 
 
 def h2g(V, pl=None):
-    ty, tz, pitch = pl or PLACE
+    ty, tz, pitch, k = _place(pl)
     c, s = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
     Rg = np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
-    return (np.asarray(V) - np.array([0.0, ty, tz])) @ Rg
+    return (np.asarray(V) - np.array([0.0, ty, tz])) @ Rg / k
 
 
 def march_to_skin(P, D, tree, step=0.0005, reach=FOAM_MAX + 0.01, tol=0.0015):
@@ -1428,6 +1447,403 @@ def build_foam(rings, info, skin_G):
     return foam, (out[0], f)
 
 
+# ---------------------------------------------------------------- the strap on the shell (round 8, decision 43)
+# helmet.py's strap (rounds 1 to 7) was one ruled band whose chord across its width sagged into the convex shell (the
+# shell came 1.5 to 1.9 mm through it at x +-45 mm) and ran about 23 mm lower at the back than Leatt's. Here it is
+# laid on the shell: its centre line where a plane cuts the shell, each cross-section walked across the surface (45 mm
+# along the shell, not a chord), every layer offset along the shell's normal: the silicone band on the shell, the
+# fabric on it. Sources: research/rider-ledger/goggle.md section 10.
+STRAP_W, STRAP_T = H.STRAP_W, H.STRAP_T     # 45 mm (Leatt features), 2 mm (woven elastic, helmet.py)
+SIL_W, SIL_H = 0.005, 0.0006                # the silicone anti-slip band inside: 5 mm (Leatt features), 0.6 mm (est.)
+STRAP_CLEAR = 0.0007                        # the silicone's face off the shell: it rests on it (the test asks 0.5 mm)
+# the centre line's plane, HELMET frame: through (y, z) and rising towards the back by the angle (deg). Fitted on his
+# gear first (scratch strapfit2: the strap's edges picked in his photo 07, near side-on, and in Leatt's Pinata Teal
+# iso-right of his helmet, goggle and strap): centre z -13.5 mm at y -58 behind the outrigger, rising 3 deg; rms
+# 4.5 and 0.3 mm there. Leatt's MY27 kit views (an empty helmet, a stylist's strap) want it 6 to 10 deg steeper and
+# its back about 22 mm higher (ledger section 10)
+STRAP_PLANE = (-0.058, -0.0135, 3.0)
+STRAP_LAND = 0.020                          # m: the strap leaves the outrigger's slot and lands on the shell
+STRAP_ACROSS = np.r_[-22.5, -20, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20,
+                     22.5] / 1000.0         # m across the strap (bottom edge to top edge); +-2.5: the silicone band
+# the adjuster slides, from Leatt's MY27 back view at its strap's scale (217 px across the strap, which projects 44.3
+# of its 45 mm there: 0.204 mm/px): each slide body 103 x 252 px, the strap at x 42 mm turned 18 deg from the image
+# plane (cos 0.952), across it 0.986: 22 x 52 mm; their bodies' centres 402 px apart (82 mm), inner ends 302 px (62)
+SLIDE_X = 0.0410                            # centres at x +-41 mm
+SLIDE_L, SLIDE_H = 0.022, 0.052             # along the strap, across it
+SLIDE_T, SLIDE_BAR, SLIDE_END = 0.0025, 0.004, 0.0035   # proud of the doubled strap, crossbar and end bar widths
+TAB = 0.008                                 # the right slide's grip tab stands this far out from its end bar (40 px)
+SLIDE_SAG = 0.0012                          # a straight 22 mm crossbar over the shell's back (its chord's sag)
+DOUBLE_IN = 0.006                           # the strap's folded-back tail ends this far inside the right slide (MY27
+                                            # back view: 30 px)
+
+
+def tri_closest(P, A, B, C):
+    """Closest points to P on the triangles (A, B, C), all n x 3, and their barycentric weights (Ericson, Real-Time
+    Collision Detection 5.1.5, vectorised; regions assigned in reverse order of precedence)."""
+    ab, ac = B - A, C - A
+    ap, bp, cp = P - A, P - B, P - C
+    d1, d2 = (ab * ap).sum(1), (ac * ap).sum(1)
+    d3, d4 = (ab * bp).sum(1), (ac * bp).sum(1)
+    d5, d6 = (ab * cp).sum(1), (ac * cp).sum(1)
+    va, vb, vc = d3 * d6 - d5 * d4, d5 * d2 - d1 * d6, d1 * d4 - d3 * d2
+    den = va + vb + vc
+    den = np.where(np.abs(den) < 1e-30, 1e-30, den)
+    v, w = vb / den, vc / den
+    bary = np.c_[1 - v - w, v, w]
+    z = np.zeros(len(P))
+
+    def edge(m, t, cols):
+        t = np.where(m, t, 0.0)
+        e = np.c_[z, z, z]
+        e[:, cols[0]], e[:, cols[1]] = 1 - t, t
+        bary[m] = e[m]
+    m = (va <= 0) & (d4 - d3 >= 0) & (d5 - d6 >= 0)
+    edge(m, (d4 - d3) / np.where(m, (d4 - d3) + (d5 - d6), 1.0), (1, 2))
+    m = (vb <= 0) & (d2 >= 0) & (d6 <= 0)
+    edge(m, d2 / np.where(m, d2 - d6, 1.0), (0, 2))
+    bary[(d6 >= 0) & (d5 <= d6)] = [0, 0, 1]
+    m = (vc <= 0) & (d1 >= 0) & (d3 <= 0)
+    edge(m, d1 / np.where(m, d1 - d3, 1.0), (0, 1))
+    bary[(d3 >= 0) & (d4 <= d3)] = [0, 1, 0]
+    bary[(d1 <= 0) & (d2 <= 0)] = [1, 0, 0]
+    return bary[:, :1] * A + bary[:, 1:2] * B + bary[:, 2:] * C, bary
+
+
+def triangulate(F):
+    return np.array([[f[0], f[j], f[j + 1]] for f in F for j in range(1, len(f) - 1)])
+
+
+class Surface:
+    """A triangle mesh with outward faces, for laying parts on it: closest points, signed distances (positive
+    outside) and smooth normals; the k triangles with the nearest centroids are tested exactly."""
+
+    def __init__(self, V, F, k=24):
+        self.V, self.F = np.asarray(V, float), triangulate(F) if len(F) and len(F[0]) != 3 else np.asarray(F)
+        self.A, self.B, self.C = (self.V[self.F[:, i]] for i in range(3))
+        fn = np.cross(self.B - self.A, self.C - self.A)
+        self.fn = fn / np.maximum(np.linalg.norm(fn, axis=1), 1e-30)[:, None]
+        self.N = H.normals(self.V, self.F)
+        self.tree = cKDTree((self.A + self.B + self.C) / 3)
+        self.k = min(k, len(self.F))
+
+    def closest(self, P):
+        P = np.atleast_2d(P)
+        _, idx = self.tree.query(P, k=self.k)
+        n, k = idx.shape
+        T = idx.ravel()
+        PP = np.repeat(P, k, axis=0)
+        Q, bary = tri_closest(PP, self.A[T], self.B[T], self.C[T])
+        d2 = ((PP - Q) ** 2).sum(1).reshape(n, k)
+        sel = np.arange(n) * k + d2.argmin(1)
+        Q, bary, tri = Q[sel], bary[sel], T[sel]
+        nrm = (bary[:, :, None] * self.N[self.F[tri]]).sum(1)
+        nrm /= np.maximum(np.linalg.norm(nrm, axis=1), 1e-30)[:, None]
+        sd = np.sqrt(d2.min(1)) * np.sign(((P - Q) * self.fn[tri]).sum(1) + 1e-15)
+        return Q, nrm, sd
+
+    def ray_out(self, O, D, t0=0.0, t1=0.35, it=32):
+        """Where rays from inside (O) along D first leave through the surface (bisection on the signed distance)."""
+        lo, hi = np.full(len(D), t0), np.full(len(D), t1)
+        for _ in range(it):
+            mid = 0.5 * (lo + hi)
+            out = self.closest(O + D * mid[:, None])[2] > 0
+            hi, lo = np.where(out, mid, hi), np.where(out, lo, mid)
+        return O + D * hi[:, None]
+
+
+def strap_layout(surf, ends, plane=STRAP_PLANE, land=STRAP_LAND, step=0.0025):
+    """The strap's stations from the left outrigger round the back to the right one (HELMET frame): base points
+    (n x m x 3, m = STRAP_ACROSS), their normals, the centre line's arc length (m) and how many stations at each end
+    hang free (from the outrigger's slot to the landing). ends: {side: (anchor, up, back)} of each outrigger's slot.
+    On the shell the base points are on its surface; in the free span they are the band's surface under the
+    silicone's height, blended from the slot (the band centred on the anchor, across its up) to the landing."""
+    y0, z0, rise = plane
+    a = math.radians(rise)
+    yp = np.array([0.0, math.cos(a), math.sin(a)])                # in the plane, towards the back
+    npl = np.array([0.0, -math.sin(a), math.cos(a)])              # its normal (up)
+    A = np.array([0.0, 0.010, z0 + math.tan(a) * (0.010 - y0)])   # the plane's point inside the helmet at y 10 mm
+    xh = np.array([1.0, 0.0, 0.0])
+    sides = {}
+    for sg in (1, -1):
+        E, up, back = ends[sg]
+        e = E - A
+        phi_a = math.atan2(sg * (e @ xh), e @ yp)                 # the anchor's angle from the back (0) round
+        zeta_a = e @ npl                                          # its height off the plane
+        phi = np.linspace(0.0, phi_a, 600)
+        k = np.clip(phi / phi_a, 0, 1)
+        blend = np.clip((k - 0.55) / 0.40, 0, 1)
+        zeta = zeta_a * blend * blend * (3 - 2 * blend)           # the centre line rises/falls to the slot's height
+        Dr = np.cos(phi)[:, None] * yp + sg * np.sin(phi)[:, None] * xh
+        S = surf.ray_out(A + zeta[:, None] * npl, Dr)
+        s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(S, axis=0), axis=1))]
+        d_anchor = np.linalg.norm(S - E, axis=1)
+        i_land = int(np.nonzero(d_anchor > land)[0].max())        # the last surface station far enough from the slot
+        sides[sg] = (S[:i_land + 1], s[:i_land + 1], E, up, back)
+    # centre line on the shell, left landing -> back -> right landing, resampled every `step`
+    SL, SR = sides[1][0][::-1], sides[-1][0][1:]
+    S = np.vstack([SL, SR])
+    s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(S, axis=0), axis=1))]
+    n = max(int(round(s[-1] / step)), 8)
+    su = np.linspace(0, s[-1], n + 1)
+    C = np.c_[[np.interp(su, s, S[:, i]) for i in range(3)]].T
+    C, nC, _ = surf.closest(C)
+    T = np.gradient(C, axis=0)
+    T /= np.linalg.norm(T, axis=1)[:, None]
+    # walk across the surface from the centre, up and down, 1.25 mm a step, keeping the stations at STRAP_ACROSS
+    m = len(STRAP_ACROSS)
+    base = np.zeros((len(C), m, 3))
+    nrm = np.zeros((len(C), m, 3))
+    j0 = int(np.argmin(np.abs(STRAP_ACROSS)))
+    base[:, j0], nrm[:, j0] = C, nC
+    h = 0.00125
+    for sgn in (1, -1):
+        p, nn = C.copy(), nC.copy()
+        targets = {int(round(abs(w) / h)): j for j, w in enumerate(STRAP_ACROSS) if np.sign(w) == sgn}
+        for it in range(1, max(targets) + 1):
+            Wd = np.cross(nn, T)
+            Wd /= np.linalg.norm(Wd, axis=1)[:, None]
+            Wd *= np.sign((Wd @ npl) + 1e-12)[:, None] * sgn
+            p, nn, _ = surf.closest(p + Wd * h)
+            if it in targets:
+                base[:, targets[it]], nrm[:, targets[it]] = p, nn
+    # the free spans: from the slot (band centred on the anchor, across `up`, its face normal) to each landing
+    off = STRAP_CLEAR + SIL_H + STRAP_T / 2                       # the band's mid-thickness above its base
+    spans = []
+    for sg, i_end in ((1, 0), (-1, len(C) - 1)):
+        _, _, E, up, back = sides[sg]
+        L = base[i_end]
+        nL = nrm[i_end]
+        nE = np.cross(up, back) * sg
+        nE /= np.linalg.norm(nE)
+        nE *= np.sign(nE @ nL[j0])
+        bE = E[None] + STRAP_ACROSS[:, None] * up[None] - nE[None] * off
+        d = np.linalg.norm(L[j0] - E)
+        k = max(int(round(d / step)), 2)
+        u = np.linspace(0.0, 1.0, k + 1)[:-1]
+        uu = (u * u * (3 - 2 * u))[:, None, None]
+        B = bE[None] * (1 - uu) + L[None] * uu
+        Nn = nE[None, None] * (1 - uu) + nL[None] * uu
+        Nn /= np.linalg.norm(Nn, axis=2)[..., None]
+        # never into the shell: lift any base point under the shell's surface back onto it
+        flat = B.reshape(-1, 3)
+        Q, nq, sd = surf.closest(flat)
+        flat = np.where((sd < 0)[:, None], Q, flat)
+        B = flat.reshape(B.shape)
+        spans.append((B, Nn, k))
+    (BL, NL, kL), (BR, NR, kR) = spans
+    base = np.concatenate([BL, base, BR[::-1]])
+    nrm = np.concatenate([NL, nrm, NR[::-1]])
+    mid = base[:, j0] + nrm[:, j0] * off
+    s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(mid, axis=0), axis=1))]
+    return base, nrm, s, (kL, kR)
+
+
+def _grid_faces(part, G, mat, uv=None, flip=False):
+    """Quads over a (n x m x 3) grid: i along, j across; uv (n x m x 2) or None."""
+    n, m = G.shape[:2]
+    o = len(part.V)
+    part.V = np.vstack([part.V, G.reshape(-1, 3)])
+    for i in range(n - 1):
+        for j in range(m - 1):
+            q = [o + i * m + j, o + (i + 1) * m + j, o + (i + 1) * m + j + 1, o + i * m + j + 1]
+            u = None if uv is None else [tuple(uv[i, j]), tuple(uv[i + 1, j]), tuple(uv[i + 1, j + 1]),
+                                         tuple(uv[i, j + 1])]
+            if flip:
+                q, u = q[::-1], (None if u is None else u[::-1])
+            part.F.append(q)
+            part.M.append(mat)
+            part.UV.append(u if u is not None else [(0.5, 0.5)] * 4)
+
+
+def _band(part, base, nrm, h0, h1, mat_out, mat_in, uv=None, ends=True):
+    """A layer from h0 to h1 above the base points along their normals: outer face (uv), inner face, both rims and
+    (ends) both end caps."""
+    lo, hi = base + nrm * h0, base + nrm * h1
+    _grid_faces(part, hi, mat_out, uv)
+    _grid_faces(part, lo, mat_in, None, flip=True)
+    for j, flip in ((0, False), (-1, True)):                      # bottom and top rims
+        _grid_faces(part, np.stack([lo[:, j], hi[:, j]], axis=1), mat_in, None, flip=flip)
+    if ends:
+        for i, flip in ((0, False), (-1, True)):
+            _grid_faces(part, np.stack([lo[i], hi[i]], axis=0), mat_in, None, flip=flip)
+
+
+def strap_point(base, nrm, s, si, w, h):
+    """A point on the strap's coordinates: arc length si (m, along the centre line), across w (m, beyond the edges
+    continued along the edge's own direction) and height h above the base, with the local axes (along, across,
+    out) there."""
+    i = int(np.clip(np.searchsorted(s, si) - 1, 0, len(s) - 2))
+    f = (si - s[i]) / max(s[i + 1] - s[i], 1e-12)
+    B = base[i] * (1 - f) + base[i + 1] * f
+    N = nrm[i] * (1 - f) + nrm[i + 1] * f
+    N /= np.linalg.norm(N, axis=1)[:, None]
+    wc = np.clip(w, STRAP_ACROSS[0], STRAP_ACROSS[-1])
+    b = np.array([np.interp(wc, STRAP_ACROSS, B[:, k]) for k in range(3)])
+    nn = np.array([np.interp(wc, STRAP_ACROSS, N[:, k]) for k in range(3)])
+    nn /= np.linalg.norm(nn)
+    j = 1 if w >= 0 else 0
+    e = (B[-1] - B[-2]) if j else (B[0] - B[1])
+    e /= np.linalg.norm(e)
+    b = b + e * (abs(w) - abs(wc))
+    along = base[i + 1, len(STRAP_ACROSS) // 2] - base[i, len(STRAP_ACROSS) // 2]
+    along /= np.linalg.norm(along)
+    across = B[-1] - B[0]
+    across /= np.linalg.norm(across)
+    return b + nn * h, along, across, nn
+
+
+def slide_parts(base, nrm, s, x_c, grip, h_base, h_top):
+    """One adjuster slide on the strap at x_c: a ladder frame SLIDE_L x SLIDE_H whose crossbars run just outside the
+    strap's edges, two end bars and a centre bar across the strap (MY27 back view); grip: the right slide's
+    triangular grip tab on its outer end bar with a 3 x 3 grid of dots. Built in the strap's coordinates (along a,
+    across b), each box from h_base (crossbars: down beside the strap) or h_top - SLIDE_T to h_top."""
+    mid = base[:, len(STRAP_ACROSS) // 2]
+    k = np.argmin(np.abs(mid[:, 0] - x_c) + 10 * (mid[:, 1] < 0.05))
+    s_c = s[k]
+    boxes = []
+    hl, hh = SLIDE_L / 2, SLIDE_H / 2
+    lo_bar = h_top - SLIDE_T
+    # crossbars, down beside the strap's edges; a rigid bar 22 mm long over the curved shell: its flat bottom clears
+    # the shell by STRAP_CLEAR at its middle, not only at its ends (the chord's sag)
+    h_cb = h_base + SLIDE_SAG
+    boxes.append((-hl, hl, hh - SLIDE_BAR, hh, h_cb))
+    boxes.append((-hl, hl, -hh, -hh + SLIDE_BAR, h_cb))
+    boxes.append((-hl, -hl + SLIDE_END, -hh, hh, lo_bar))         # end bars
+    boxes.append((hl - SLIDE_END, hl, -hh, hh, lo_bar))
+    boxes.append((-0.0015, 0.0015, -hh, hh, lo_bar))              # centre bar
+    part = H.Part("goggle_slides")
+    for a0, a1, b0, b1, hb in boxes:
+        _box(part, base, nrm, s, s_c, a0, a1, b0, b1, hb, h_top, "goggle_slide")
+    if grip:
+        # the tab: a triangle on the outer end bar (away from the back's centre, MY27 back view), from the bar's top
+        # half out to a point TAB beyond it
+        a_bar = hl if s[k] > s[-1] / 2 else -hl
+        a_out = a_bar + np.sign(a_bar) * TAB
+        tri = [(a_bar, hh - SLIDE_BAR), (a_bar, -0.002), (a_out, hh * 0.55)]
+        _prism(part, base, nrm, s, s_c, tri, lo_bar, h_top + 0.0005, "goggle_slide")
+        for da in (0.25, 0.45, 0.65):
+            for db in (0.35, 0.55, 0.75):
+                ca = a_bar + np.sign(a_bar) * TAB * da * 0.8
+                cb = -0.002 + (hh - SLIDE_BAR + 0.002) * db * (1 - da * 0.6)
+                _box(part, base, nrm, s, s_c, ca - 0.0006, ca + 0.0006, cb - 0.0006, cb + 0.0006, h_top + 0.0005,
+                     h_top + 0.0011, "goggle_slide")
+    return part, s_c
+
+
+def _box(part, base, nrm, s, s_c, a0, a1, b0, b1, h0, h1, mat):
+    """A box in the strap's coordinates (along a0..a1 about s_c, across b0..b1, height h0..h1), its faces outwards."""
+    P = {}
+    for ia, a in enumerate((a0, a1)):
+        for ib, b in enumerate((b0, b1)):
+            for ih, hh in enumerate((h0, h1)):
+                P[ia, ib, ih] = strap_point(base, nrm, s, s_c + a, b, hh)[0]
+    o = len(part.V)
+    keys = list(P)
+    part.V = np.vstack([part.V, [P[k_] for k_ in keys]])
+    idx = {k_: o + i for i, k_ in enumerate(keys)}
+    for f in ([(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)], [(0, 1, 0), (1, 1, 0), (1, 0, 0), (0, 0, 0)],
+              [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], [(0, 1, 1), (1, 1, 1), (1, 1, 0), (0, 1, 0)],
+              [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)], [(1, 0, 1), (1, 0, 0), (1, 1, 0), (1, 1, 1)]):
+        part.F.append([idx[k_] for k_ in f])
+        part.M.append(mat)
+        part.UV.append([(0.5, 0.5)] * 4)
+    _orient_last(part, 6, np.mean([P[k_] for k_ in keys], axis=0))
+
+
+def _prism(part, base, nrm, s, s_c, tri, h0, h1, mat):
+    lo = [strap_point(base, nrm, s, s_c + a, b, h0)[0] for a, b in tri]
+    hi = [strap_point(base, nrm, s, s_c + a, b, h1)[0] for a, b in tri]
+    o = len(part.V)
+    part.V = np.vstack([part.V, lo, hi])
+    faces = [[o + 3, o + 4, o + 5], [o + 2, o + 1, o]] + [[o + i, o + (i + 1) % 3, o + 3 + (i + 1) % 3, o + 3 + i]
+                                                          for i in range(3)]
+    for f in faces:
+        part.F.append(f)
+        part.M.append(mat)
+        part.UV.append([(0.5, 0.5)] * len(f))
+    _orient_last(part, len(faces), np.mean(lo + hi, axis=0))
+
+
+def _orient_last(part, nf, centre):
+    """Turn the last nf faces of a convex solid outwards (away from its centre)."""
+    for k in range(len(part.F) - nf, len(part.F)):
+        f = part.F[k]
+        P = part.V[f]
+        nrm_ = np.cross(P[1] - P[0], P[2] - P[0])
+        if nrm_ @ (P.mean(0) - centre) < 0:
+            part.F[k] = f[::-1]
+
+
+def selvedges(base, nrm, h0, h1):
+    """The strap's woven edges and its ends (goggle_strap): vertices in four rows, outer bottom edge, outer top edge,
+    inner top edge, inner bottom edge (one per station, as helmet.py's strap, so each outer row pair is the strap's
+    width apart); faces outwards."""
+    lo, hi = base + nrm * h0, base + nrm * h1
+    rows = [hi[:, 0], hi[:, -1], lo[:, -1], lo[:, 0]]
+    n = len(base)
+    part = H.Part("goggle_strap")
+    part.V = np.vstack(rows)
+    W = hi[:, -1] - hi[:, 0]
+    T = np.gradient(hi[:, len(STRAP_ACROSS) // 2], axis=0)
+
+    def add(f, out):
+        P = part.V[f]
+        if np.cross(P[1] - P[0], P[2] - P[0]) @ out < 0:
+            f = f[::-1]
+        part.F.append(list(f))
+        part.M.append("goggle_strap_in")
+        part.UV.append([(0.5, 0.5)] * 4)
+    for i in range(n - 1):
+        add([0 * n + i, 0 * n + i + 1, 3 * n + i + 1, 3 * n + i], -W[i])          # bottom edge
+        add([1 * n + i, 1 * n + i + 1, 2 * n + i + 1, 2 * n + i], W[i])           # top edge
+    add([0, n, 2 * n, 3 * n], -T[0])                                              # the ends (in the outriggers)
+    add([n - 1, 2 * n - 1, 3 * n - 1, 4 * n - 1], T[-1])
+    return part
+
+
+def build_strap(Rt, prof, ends, surf=None):
+    """The strap on the shell, in the MB rest frame: goggle_strap_band (the printed fabric, its inner face, the
+    silicone band inside and the doubled run between the slides), goggle_strap (its woven edges and ends) and
+    goggle_slides (the two adjusters). ends: {side: (anchor, up, back)} of the outriggers' slots in the HELMET
+    frame."""
+    R, t = Rt
+    if surf is None:
+        Vo, Fo, _ = H.shell_outer(prof)
+        surf = Surface(Vo, Fo)
+    base, nrm, s, (kL, kR) = strap_layout(surf, ends)
+    band = H.Part("goggle_strap_band")
+    h_in = STRAP_CLEAR + SIL_H
+    uv = np.stack(np.meshgrid(s / s[-1], (STRAP_ACROSS - STRAP_ACROSS[0]) / STRAP_W, indexing="ij"), axis=-1)
+    _grid_faces(band, base + nrm * (h_in + STRAP_T), "goggle_strap", uv)
+    _grid_faces(band, base + nrm * h_in, "goggle_strap_in", None, flip=True)
+    strap = selvedges(base, nrm, h_in, h_in + STRAP_T)
+    jj = np.nonzero(np.abs(STRAP_ACROSS) <= SIL_W / 2 + 1e-9)[0]
+    _band(band, base[:, jj], nrm[:, jj], STRAP_CLEAR, h_in, "goggle_silicone", "goggle_silicone", ends=True)
+    # the strap's tail, folded back through the right slide (his right), runs doubled under it and DOUBLE_IN past its
+    # inner end (MY27 back view): a second layer over the first, the same print
+    slides = H.Part("goggle_slides")
+    sc = []
+    h_top = h_in + 2 * STRAP_T + SLIDE_T
+    for x_c, grip in ((SLIDE_X, False), (-SLIDE_X, True)):
+        p, s_c = slide_parts(base, nrm, s, x_c, grip, STRAP_CLEAR, h_top)
+        o = len(slides.V)
+        slides.V = np.vstack([slides.V, p.V])
+        slides.F += [[i + o for i in f] for f in p.F]
+        slides.M += p.M
+        slides.UV += p.UV
+        sc.append(s_c)
+    sR = max(sc)                                  # the right slide (x < 0) is the later one along s
+    i0, i1 = np.searchsorted(s, sR - SLIDE_L / 2 - DOUBLE_IN), np.searchsorted(s, sR + SLIDE_L / 2)
+    _band(band, base[i0:i1 + 1], nrm[i0:i1 + 1], h_in + STRAP_T + 0.0002, h_in + 2 * STRAP_T, "goggle_strap",
+          "goggle_strap_in", uv[i0:i1 + 1])
+    for P in (band, strap, slides):
+        P.V = P.V @ R.T + t
+        P.frame = "MB"
+    info = dict(length_mm=round(float(s[-1]) * 1000, 1), free_stations=(kL, kR),
+                slides_s_mm=[round(v * 1000, 1) for v in sc])
+    return [band, strap, slides], info, (base, nrm, s)
+
+
 def build_goggle(body, Rt, prof):
     """The goggle on his head (MB rest frame), riding the head bone: frame, double lens, bare tear-off posts,
     outriggers, nose guard, face foam and the strap; his eyes behind it."""
@@ -1440,10 +1856,9 @@ def build_goggle(body, Rt, prof):
     mount = shell_mount(prof)                         # on the helmet: outriggers drape over the shell
     parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(mount=mount),
              build_nose_guard(skin_G=skin_G), build_nose_ribs(skin_G=skin_G), foam]
-    ends = {sg: g2h(a[None])[0] @ R.T + t for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items()}
+    strap, sinfo, _ = build_strap(Rt, prof, strap_ends(mount))
     for P in parts:
         P.V = g2h(P.V) @ R.T + t
-    strap = H.build_strap(Rt, prof, ends)
     eyes, einfo = build_eyes(body)
     L = info["L"]
     ctr = g2h(L.point(0.0, 0.0, 0.0)[0][None])[0] @ R.T + t
@@ -1453,8 +1868,22 @@ def build_goggle(body, Rt, prof):
                     foam_mm=[round(float(np.linalg.norm(foam_back[0] - foam_back[1], axis=1).min()) * 1000, 1),
                              round(float(np.linalg.norm(foam_back[0] - foam_back[1], axis=1).max()) * 1000, 1)],
                     frame_width_mm=round(float(np.ptp(g2h(np.vstack(rings))[:, 0])) * 1000, 1),
-                    frame_height_mm=round(float(np.ptp(np.vstack(rings)[:, 2])) * 1000, 1), **einfo)
-    return parts + [strap] + eyes, info_out
+                    frame_height_mm=round(float(np.ptp(np.vstack(rings)[:, 2]) * _place(None)[3]) * 1000, 1),
+                    strap=sinfo, **einfo)
+    return parts + strap + eyes, info_out
+
+
+def strap_ends(mount):
+    """Each outrigger's strap slot in the HELMET frame: the anchor (OR_ANCHOR inside its back end, mid height and
+    thickness), the direction up its back end and the direction back along it."""
+    ends = {}
+    for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items():
+        nv = Go.shape[1]
+        mid = 0.5 * (Go + Gi)
+        up = g2h(Go[-1, -1][None])[0] - g2h(Go[-1, 0][None])[0]
+        back = g2h(mid[-1, nv // 2][None])[0] - g2h(mid[-4, nv // 2][None])[0]
+        ends[sg] = (g2h(a[None])[0], up / np.linalg.norm(up), back / np.linalg.norm(back))
+    return ends
 
 
 def free_parts(gp=None):
@@ -1564,6 +1993,11 @@ MATERIALS = {
 }
 for _k in ("goggle_strap", "goggle_strap_in"):
     MATERIALS[_k] = H.MATERIALS[_k]
+# round 8: the silicone band inside the strap (translucent grey rubber, never seen worn) and the adjuster slides,
+# moulded in the strap's colour at the back in every Leatt back photo (white on the Forge, light blue on the Neon
+# Yellow / Light Grey, navy on the MY27 kit): his Pinata Teal strap is teal-green there (strap_texture), satin
+MATERIALS["goggle_silicone"] = dict(rgb=[150, 150, 152], rough=0.5)
+MATERIALS["goggle_slide"] = dict(rgb=[40, 175, 150], rough=0.35)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@ nose comb behind it shows as in Leatt's photos. Each of the double lens's four f
 pass the VLT at normal incidence (a Principled transmission tints and refracts at every face and stops the lights'
 rays: a 150 grey tint left 0.3^4 of the light, and the comb did not show at all).
 
+Round 8: light "daylight" (head_closeups.py's sun and sky, the sun aimed by the camera's "sun": [phi, theta]) for
+his outdoor photos; a camera may carry "offset" (m, the point it looks round, default the origin) and "box" (photo
+px: only that part is rendered, at GOGGLE_VIEWS_SCALE); the helmet's clear coat (coat_rough, spec) as build_rider.
+
 light (round 6): "studio" (default) or a raking sun that shows every dent and wave in the frame as a dark or light
 streak (after the bike's rake.py: the studio lights off, the ambient at 12 %, a 0.5 deg sun, AgX Punchy):
 "rakeT" from above, "rakeB" from below, "rakeL" from his left, "rakeR" from his right, each 20 deg in front of the
@@ -97,6 +101,10 @@ def material(name, spec):
     p.inputs["Roughness"].default_value = spec.get("rough", 0.5)
     p.inputs["Metallic"].default_value = spec.get("metal", 0.0)
     p.inputs["Coat Weight"].default_value = spec.get("coat", 0.0)
+    if "coat_rough" in spec:                       # round 8: as build_rider.gear_material (the helmet's clear coat)
+        p.inputs["Coat Roughness"].default_value = spec["coat_rough"]
+    if "spec" in spec:
+        p.inputs["Specular IOR Level"].default_value = spec["spec"]
     p.inputs["Sheen Weight"].default_value = spec.get("sheen", 0.0)
     if "transmission" in spec:
         p.inputs["Transmission Weight"].default_value = spec["transmission"]
@@ -191,11 +199,11 @@ def rake(sc, which):
     vs.view_transform, vs.look, vs.exposure = "AgX", "AgX - Punchy", 0.0
 
 
-def camera(sc, name, x, W, H):
+def camera(sc, name, x, W, H, offset=(0.0, 0.0, 0.0)):
     az, el, roll, d, f, u0, v0 = x
     a, e = math.radians(az), math.radians(el)
     dirn = Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
-    C = dirn * d
+    C = Vector(offset) + dirn * d
     fwd = -dirn
     right = fwd.cross(Vector((0, 0, 1))).normalized()
     up = right.cross(fwd)
@@ -216,16 +224,83 @@ def camera(sc, name, x, W, H):
     sc.render.resolution_x, sc.render.resolution_y = int(W * SCALE), int(H * SCALE)
 
 
+def daylight(sc):
+    """Round 8, for his outdoor photos 07, 08 and 09: head_closeups.daylight's sun and sky (same values, its ledger
+    entry "Daylight for his photos"): a 0.53 deg sun lamp, Blender's multiple-scattering sky (its own disc off) over
+    a flat ground colour, AgX at +2.0 EV. The sun is aimed per camera by its "sun": [phi, theta] (day_sun)."""
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.exposure = DAY_EXPOSURE
+    for o in [o for o in sc.objects if o.type == "LIGHT"]:
+        bpy.data.objects.remove(o)
+    w = bpy.data.worlds.new("daylight")
+    sc.world = w
+    w.use_nodes = True
+    nt = w.node_tree
+    sky = nt.nodes.new("ShaderNodeTexSky")
+    sky.sky_type = "MULTIPLE_SCATTERING"
+    sky.sun_disc = False
+    tc, sep, up = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeSeparateXYZ"), nt.nodes.new("ShaderNodeMath")
+    up.operation = "GREATER_THAN"
+    up.inputs[1].default_value = 0.0
+    nt.links.new(tc.outputs["Generated"], sep.inputs[0])
+    nt.links.new(sep.outputs["Z"], up.inputs[0])
+    gnd, mix = nt.nodes.new("ShaderNodeRGB"), nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    nt.links.new(up.outputs[0], mix.inputs["Factor"])
+    nt.links.new(gnd.outputs[0], mix.inputs["A"])
+    nt.links.new(sky.outputs["Color"], mix.inputs["B"])
+    bg = nt.nodes["Background"]
+    nt.links.new(mix.outputs["Result"], bg.inputs["Color"])
+    bg.inputs["Strength"].default_value = DAY_SKY
+    L = bpy.data.lights.new("sun", "SUN")
+    L.energy = DAY_SUN_W
+    L.angle = math.radians(0.53)
+    sun = bpy.data.objects.new("sun", L)
+    sc.collection.objects.link(sun)
+    return dict(sky=sky, ground=gnd, sun=sun)
+
+
+DAY_SUN_W, DAY_SKY_E1, DAY_EXPOSURE = 4.0, 14.9, 2.0     # head_closeups.py
+DAY_SKY = 0.136 * DAY_SUN_W * math.cos(math.radians(15)) / DAY_SKY_E1
+DAY_GROUND = (0.41, 0.40, 0.36)
+
+
+def day_sun(day, cam, phi_theta):
+    """head_closeups.day_sun: the sun at (phi, theta) in the camera's frame (phi across the image, 90 = image up;
+    theta off the line back to the camera); the sky's sun follows and the ground is lit by both (Lambert)."""
+    phi, theta = phi_theta
+    M = cam.matrix_world.to_3x3()
+    right, up, back = M.col[0].normalized(), M.col[1].normalized(), M.col[2].normalized()
+    p, t = math.radians(phi), math.radians(theta)
+    d = (back * math.cos(t) + (right * math.cos(p) + up * math.sin(p)) * math.sin(t)).normalized()
+    day["sun"].rotation_euler = d.to_track_quat("Z", "Y").to_euler()
+    day["sky"].sun_elevation = math.asin(max(min(d.z, 1.0), -1.0))
+    day["sky"].sun_rotation = math.atan2(d.x, d.y)
+    e = (DAY_SUN_W * max(d.z, 0.0) + DAY_SKY_E1 * DAY_SKY) / math.pi
+    day["ground"].outputs[0].default_value = (*[a * e / max(DAY_SKY, 1e-6) for a in DAY_GROUND], 1.0)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     load(NPZ)
     studio(sc)
-    if LIGHT != "studio":
+    day = None
+    if LIGHT == "daylight":
+        day = daylight(sc)
+    elif LIGHT != "studio":
         rake(sc, LIGHT)
     for name in NAMES:
         s = SPEC[name]
-        camera(sc, name, s["x"], s["W"], s["H"])
+        camera(sc, name, s["x"], s["W"], s["H"], s.get("offset", (0.0, 0.0, 0.0)))
+        if day:
+            bpy.context.view_layer.update()
+            day_sun(day, sc.camera, s.get("sun", (90.0, 110.0)))
+        sc.render.use_border = sc.render.use_crop_to_border = "box" in s       # round 8: only the photo's box
+        if "box" in s:
+            x0, y0, x1, y1 = s["box"]
+            sc.render.border_min_x, sc.render.border_max_x = x0 / s["W"], x1 / s["W"]
+            sc.render.border_min_y, sc.render.border_max_y = 1 - y1 / s["H"], 1 - y0 / s["H"]
         sc.render.filepath = os.path.join(OUT, name + ("" if LIGHT == "studio" else "_" + LIGHT) + ".png")
         bpy.ops.render.render(write_still=True)
         print("RENDERED", sc.render.filepath)

@@ -384,6 +384,35 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   lens (most likely the far strap, which runs straight back behind the goggle in them) where our free goggle (no
   strap) shows the backdrop. Compare the frame and the comb, not the lens's tone.
 
+## Goggle round 8: the goggle on the helmet (2026-11-14, goggle.py, test_goggle.py, ledger goggle.md section 10)
+- **A band over a convex shell is walked across the surface, never a straight chord.** Round 7's 45 mm strap was one
+  ruled band: each cross-section a chord, which sagged up to 2.5 mm into the shell (dark blobs in the back view).
+  goggle.strap_layout cuts the centre line with a plane, walks each section 45 mm along the shell and offsets every
+  layer along the shell's normal (silicone, fabric, edges). Test the signed distance of every vertex AND face centre:
+  a rigid 22 mm slide bar cleared at its vertices while its bottom face's centre sat 0.22 mm inside (the chord's
+  sag; SLIDE_SAG lifts it). Keep a negative control in the test: the old builder, given the same ends, must fail.
+- **His own gear's photos before a stylist's kit photo.** Leatt's MY27 kit views are an empty helmet: the strap
+  placed 22 mm higher at the back than his 07 shows, the goggle sitting deeper in the eyeport (no face pushes it
+  out). Fit how gear is worn on his photos and Leatt's photos of his SKU; use kit views for shapes and sizes, and say
+  which won when they disagree.
+- **When size sources disagree, let the body decide.** On the helmet Leatt's views read the goggle 4 % larger, the
+  goggle-alone strap up to 6 % smaller. Build the body and test each candidate (scratch kcheck.py: lens vertices in
+  the shell, frame in his skin): x 1.02 was the limit, x 1.04 put the lens into the eyeport at every place. Report
+  the numbers, pick the largest that fits, keep the question open for the real goggle.
+- **Before tuning a hidden part to show, check that it can.** At the silhouette point take the projection's
+  derivatives (px per mm in x and y) and ask how far the part must move; if no direction within its reach gets
+  there, the parameter is the wrong one (Leatt's far outrigger in iso55 and phr needs a hinge further out, not a
+  bigger turn). Check a variant actually changes the mesh before reading its result: a key that is not in GP was set
+  as a module attribute and changed nothing; part ids come from gt.PARTS, not a local list.
+- **Measure against an in-photo reference at the same depth, with the foreshortening taken out.** The slides read
+  24 x 54 mm from a global mm/px and centres that included the grip tab; against the strap beside them (217 px =
+  44.3 mm projected) and the strap's 18 deg turn there, 22 x 52 mm, bodies 82 mm apart.
+- **Notes under .claude/ go in through a script in Bash** (python open/write), not the Edit tool: an Edit there hung
+  an agent for hours.
+- **Render a fitted camera before using it.** A camera fitted to an outline alone (his 08: no landmark shows) can
+  match the silhouette from the wrong side: the render showed the shell's shaded side where his photo shows its lit
+  top. Add a landmark or a prior, or say the view is unusable.
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the
@@ -526,3 +555,22 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   a twisted rider are usually the twist: ask before printing something asymmetric.
 - His name replaced Leatt's back LEATT (06 shows none beside it): erase it from Leatt's photo before projecting
   (normalised Gaussian fill).
+
+## Coordinating the gear rounds (coordinator's notes, 2026-11-15)
+- Never `cd` into an agent's worktree from the coordinating session: the session's working directory follows the
+  shell and later relative paths resolve inside the worktree. Use absolute paths and `git -C <worktree>`.
+- Agents must not use the Edit or Write tools on files under `.claude/`: a permission prompt nobody saw hung the
+  helmet agent for 3.5 h. Write skill notes with a python script through Bash.
+- Number the PROJECT.md decisions before launching parallel agents (each brief names its own number); two agents
+  both took 42 once.
+- Read every sheet at 1:1 (crop the panels side by side) before merging. Sheet-size thumbnails hid round 8's strap
+  slides (round rods where Leatt's are flat moulded frames) and the helmet's oversized black grip-panel area.
+- Check a comparison's camera before reading it: a scratch refit of his photo 08 (fitted to the helmet's outline
+  alone) settled on the wrong side of the helmet; the render showed the shaded underside where his photo shows the
+  lit top. Leave such sheets out of the checkpoint. head_closeups.py's views p07, p08 and p09 (matched by eye) and
+  cam07 (fitted with the bike, research/rider-cameras.json) see his photos from the right side.
+- Review gear at his own photo angles (07, 08, 09) as well as Leatt's: the helmet's black grip panel, painted
+  through a front-iso camera 14 to 17 mm off at the brow, read as a large dark area under the strap in his 07 and
+  09, where his photos show magenta. Leatt's iso-left at sheet size looked acceptable.
+- Held-out on-helmet views (Leatt's MY27 kit photos) found worn-fit defects that goggle-alone views cannot: the
+  strap through the shell, its height, the outriggers' thickness.

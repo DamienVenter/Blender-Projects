@@ -92,11 +92,11 @@ costs nothing): PLACE fixes it on the helmet. Round 3's single ISO camera (az -4
 | Double lens | outer 1.2 mm, gap 1.6 mm, inner 0.6 mm; its front 8.8 mm behind the frame's front face (round 4); its edge the lens window grown 3 mm under the frame, with the loops that growth makes at the window's sharp inward corners cut out (round 5: they had left see-through wedges at the nose arch's steps; test_lens_fills_the_window) | EST (Leatt: double lens); round 4 fit |
 | Mirror | metallic 0.94, purple base 90/30/125, thin film 430 nm IOR 1.33, rough 0.03 | Damien (purple, eyes hidden); lens swatch renders (deep purple square on, blue-pink at grazing) |
 | Tear-off posts | bare: 4.5 mm boss, 2.4 mm stud, 3.4 mm head (centre 3.9 mm off the lens front), at s 86.7 mm, z -1.2 mm on the lens (round 4: 87.5, -1.5) | round 5: refitted on round 5's lens with the cameras fixed (POST_R, POST_L landmarks in iso55, phy, phr: 0.5 to 1.0 mm; 0.2 to 1.8 mm at round 4's place); decision 7 (no tear-offs) |
-| Outriggers | start behind the frame's tall side faces (more than 12 mm behind the lens front, the pink face shows ahead), 30 mm long, 8 mm thick, turned out 24 deg towards the strap (round 4: 22), 59 mm high at the strap; black gloss (round 6: rough 0.05, no coat, section 8); white official LEATT at its own aspect, letter tops towards the strap | ISO (59 mm = 1.3 x the 45 mm strap beside it), the Pinata kit photo (right side); round 5 fit (GP or_*: or_turn 0.44, the far edge seen in iso55, phy, phw, the back view) |
+| Outriggers | start behind the frame's tall side faces (more than 12 mm behind the lens front, the pink face shows ahead), 30 mm long, 5 mm thick (round 8, section 10; rounds 1 to 7: 8), turned out 24 deg towards the strap (round 4: 22), 59 mm high at the strap; black gloss (round 6: rough 0.05, no coat, section 8); white official LEATT at its own aspect, letter tops towards the strap | ISO (59 mm = 1.3 x the 45 mm strap beside it), the Pinata kit photo (right side); round 5 fit (GP or_*: or_turn 0.44, the far edge seen in iso55, phy, phw, the back view) |
 | Nose guard | round 7: a closed black rubber shell 2.5 mm thick filling the arch from behind its top (z -37.5 mm) to -54.6 mm, 17 mm half-wide at the bottom, its sides sweeping back 3 mm; on him it gives way to his nose (section 9; rounds 4 to 6: a flap from half-way up the arch's legs) | phy, phr (bottom edge z -55.1 to -56.1, about 34 mm wide), the exploded view (smooth, no ribs); fitted on the silhouettes |
 | Foam | a 13 mm band inside the face opening, along the lens normal to his face, 0.5 mm off the skin, 1.5 to 30 mm, 14 mm where no skin is in reach; the frame's back beyond it stays bare (nose channel) | EST (triple-layer); clearance (march tolerance 2.5 mm, no skin vertex inside) |
 | Outriggers on the helmet | the free plate above (Leatt's ISO, goggle alone) starts inside the eyeport opening and its back 35 % would sink 22 to 41 mm into the shell; worn, the strap pulls it onto the shell: each row lifted outwards (x only, front edge fixed on the frame) to clear the shell by 1.5 mm behind the eyeport's edge, bending out at most 60 deg (55 left the top corner 2 mm inside); the strap's end sits 10 mm inside the outrigger's back end, mid height and mid thickness, so the strap leaves the outrigger and lies on the shell | Damien 2026-11-13 ("not properly connected to it's strap"), his 07 and 09, Leatt's MY27 kit views (strap from the outrigger straight onto the shell); goggle.outrigger_grids, test_outriggers_rest_on_the_shell_and_hold_the_strap |
-| Strap | helmet.py's (45 mm, path unchanged), its two white logos now Leatt's official slanted LEATT at 70 % of the strap height | Leatt features, his 07, reference/leatt-gear/leatt-wordmark-slanted_official_leatt-us_1200x300.png |
+| Strap | round 8: goggle.build_strap, laid on the shell (section 10; rounds 1 to 7 helmet.py's ruled band); 45 mm, its two white logos Leatt's official slanted LEATT at 70 % of the strap height | Leatt features, his 07, reference/leatt-gear/leatt-wordmark-slanted_official_leatt-us_1200x300.png |
 
 ## 5. Round 3 outline errors (final geometry)
 | View | Model to photo, median / p90 | Photo to model, median / p90 | Note |
@@ -611,6 +611,125 @@ Measured from Leatt's red frame pixels against the model frame's projection (scr
   centre 62 % down the helmet's image height against 54 %), and the shell pokes 1.5 to 1.9 mm through it near
   x +-45 mm, the same with round 6's goggle (scratch strapchk.py); Leatt's has its adjuster slides at the back,
   ours none. For the helmet agent.
+
+## 10. Round 8: the goggle on the helmet (decision 43)
+Fixed in the brief's order. Sources first his own gear: his photos 07, 08, 09 (2026-11-12) and Leatt's photos of his
+SKUs (the Pinata Teal goggle ISO 8026000150, our iso55; the Pinata Teal kit iso-right of his helmet and goggle);
+Leatt's MY27 Blue_Red kit views second (another goggle colourway and outrigger, on an empty helmet). The helmet's
+scale everywhere: the 45 mm strap in Leatt's MY27 side view (helmet.py, 0.2484 mm/px), confirmed by his bike's
+1483 mm wheelbase in his 07 (0.443 against 0.437 px/mm). Cameras: scratch cams8.json (round 7's four kit cameras,
+the Pinata iso-right and his 07, 08, 09, all in the round 7 GOGGLE frame).
+
+### Strap: on the shell, never through it
+Round 7's strap (helmet.build_strap) was one ruled band: each cross-section a straight chord 45 mm across, which
+sags into the convex shell. Measured over its whole underside (scratch clearmap.py, 19 points across every
+section) the shell came up to 2.5 mm through it, worst at the lower half 30 mm either side of the back centre (the
+two dark blobs in the back view). goggle.build_strap now lays it on the shell: the centre line where a plane cuts
+the shell (strap_layout), each cross-section walked across the surface (45 mm along the shell, not a chord), every
+layer offset along the shell's normal: the silicone band (5 mm wide, 0.6 mm, Leatt features: research doc section
+4; no photo shows the strap's inside) 0.7 mm off the shell, the 2 mm fabric on it (its inner face 1.3 mm off),
+woven selvedges, the doubled run under the right slide, the two slides. Clearance (signed distance of every vertex
+and face centre, HELMET frame): band 0.70 mm, edges 1.29, slides 1.86 at the vertices, every face centre over
+0.5 mm; round 7's -2.5 mm. test_round8_strap_lies_on_the_shell_with_clearance asks 0.5 mm everywhere and asserts
+that round 7's builder, given the same ends, fails it (min below -1 mm). Map: checkpoint 2026-11-13_goggle-r8, 09.
+
+### Strap: its height on the shell
+Fitted on his gear first (scratch strapfit2.py: the strap's upper and lower edges picked in the photo, cast through
+each fitted camera onto the shell, the model's edges at a plane z0 + tan(rise) y scored as rms mm): his 07 (near
+side-on, the strap visible from the outrigger to the back edge) and the Pinata iso-right. His 09's camera is not
+used: its fitted roll leaves the goggle 17 deg off his photo's. Plane chosen: centre z -13.5 mm at y -58 behind the
+outrigger, rising 3 deg towards the back (STRAP_PLANE); rms his 07 4.5 mm, Pinata 0.3; MY27 left 7.2, right 5.7,
+back 15.8. Centre heights on his left side (mm): y -80: -13.8, y 0: -10.2, y 60: -7.3, y 120: -4.2; the back
+centre z -2.8 at y 146 (round 7: -14.8, falling towards the back; MY27's back view about +19.6). So the back is
+12 mm higher than round 7's and still about 22 mm under MY27's: MY27's strap rises 6 to 10 deg (best fit) on an
+empty helmet with a stylist's placement; his 07 puts his own lower, and his 07 wins. The brief's "23 mm too low"
+was measured against MY27.
+
+### Strap: the adjuster slides
+Leatt's MY27 back view at its strap's scale (217 px across the strap, which projects 44.3 of its 45 mm there:
+0.204 mm/px). Each slide body 103 x 252 px; there the strap runs 18 deg out of the image plane (cos 0.952) and its
+width 0.986: 22 x 52 mm (SLIDE_L, SLIDE_H). Bodies' centres 402 px apart (x +-41 mm, SLIDE_X), inner ends 302 px
+(62 mm). The left slide (his left) a ladder with an embossed LEATT on its outer bar (the LEATT not modelled), the
+right one with a triangular grip tab and 3 x 3 dots on its outer end (40 px: 8 mm, TAB); the strap's tail doubled
+under the right slide and 30 px (6 mm, DOUBLE_IN) past its inner end. Bars 2.5 mm proud of the doubled strap; the
+straight 22 mm crossbars lifted 1.2 mm for the chord's sag over the shell's back (SLIDE_SAG; without it their
+bottom faces' centres sat 0.22 mm inside the shell). test_round8_strap_width_slides_and_silicone.
+
+### Outriggers
+Which one he has: a black plate with a white vertical LEATT, on both of Leatt's photos of his SKU (the Pinata Teal
+goggle ISO 8026000150, both sides; the Pinata kit iso-right, his right). His 07, 08 and 09 are too small to read it
+(the goggle about 45 px tall: 2.3 mm a pixel; his 07 shows a dark band behind the frame, his 09 a narrow dark band).
+MY27's grey angled outrigger (the kit photos) is another colourway's part and not his. Kept: the plate.
+- Thickness 8 to 5 mm (OR_T): the plate's back edge in the Pinata iso-right is 10 px at 4.5 px/mm, seen at 0.53
+  (the camera 32 deg off the face's normal): 4.2 mm. Worn, its outer face now stands 6.4 mm off the shell behind the eyeport (round
+  7: 9.4); the inner face rests 1.5 mm off it (OR_GAP).
+- Width in side view: round 7's plate read 23 mm wide in the MY27 views, Leatt's MY27 part 17 (another outrigger).
+  The plate is the same 30 mm long; round 7's strap started beyond it at mid height, round 8's starts in its slot
+  (strap_ends, 10 mm inside the back end), so the plate shows 18 mm (left view) and 19 mm (right) between the frame's
+  back edge and the strap at mid height (the built parts projected through the two kit cameras at 3.85 px/mm).
+- Still not Leatt's: in the Pinata iso-right ours shows its face about 1.6 times as wide as Leatt's plate (110
+  against 65 px): worn, ours bends out over the eyeport's edge onto the shell (round 3's mount, OR_BEND), so it faces
+  that camera more; that camera also carries the 17 mm front bias.
+- Free-goggle error table (scratch errtab.py, round 7 in brackets): the 5 mm plate moves only the model-to-photo
+  outline p90s, where the front and side views see the plate's edge: iso55 4.21 (4.26), phy 3.44 (3.32), phr 3.02
+  (3.01), phw 1.35 (1.30), expl 4.61 (4.59), ink 1.34 (1.14), frg 1.31 (1.11), chee 1.43 (1.32); medians within
+  0.02 mm, photo-to-model and creases unchanged, IoU within 0.001. Kept: the 4.2 mm is his own SKU's plate, worn; the
+  free photos' plates are swung to a different angle in every photo (section 9), and round 5 fitted the 8 mm
+  footprint with that angle.
+- The far one in iso55 and phr (goggle alone): Leatt's stands up to 44 px (iso55) and 42 to 51 px (phr) beyond the
+  far pillar over a quarter of the frame's height (scratch farvis2.py); ours shows none, at round 5's turn and at
+  every turn tried (or_turn 0.4 to 1.6) and with the plate swung open about its front edge up to 57 deg. Why: the
+  far silhouette is the frame's widest point (x 103.7, y 28.2 mm, GOGGLE frame), and the plate's front edge sits
+  7.4 mm inside it and 17 mm behind; seen from 45 to 51 deg off the front, a plate from there would have to point
+  forward of sideways to show. So Leatt's plate is hinged further out than ours (about at the frame's widest
+  point), as an outrigger that pivots on the frame would be. Not changed this round: moving the hinge moves the worn
+  plate and the strap's ends, which his 07 and the Pinata iso-right now fit; left for a later round with the
+  error table (insensitive to the outriggers: or_turn 0.6 to 0.8 and OR_T 5 mm move it 0.1 to 0.3 mm).
+
+### Position on the eyeport (not moved)
+The kit views read our frame 8 to 9 mm ahead of Leatt's (section 9). Checked: (1) the kit helmet is empty: with no
+face behind it the goggle sits deeper in the eyeport; on him his face holds it out. (2) Moving it back 0.5 mm
+(ty -0.1463, scratch kcheck.py) puts his nose bridge into the frame; it is already at its limit. (3) His 07 (near
+side-on) shows no clear offset at 2.3 mm a pixel. (4) The Pinata iso-right camera carries a known 17 mm front bias
+(helmet.py) and is not used for position. Fore-aft stays (ty -0.1468).
+
+### Scale
+| Source | Reads | Note |
+|---|---|---|
+| MY27 right view (az -96, 3.9 px/mm, on the helmet's scale) | Leatt's frame 3.9 mm taller than our 100 (top 1.0 mm above ours, bottom 4.9 below) | camera fitted to our shell; "about 106" in the brief was approximate |
+| MY27 left view | top 2.9 mm above Leatt's, bottom not readable | |
+| Pinata iso-right (his helmet and goggle, 4.5 px/mm) | 1 to 6 mm taller; width ratio 1.08 | camera's 17 mm front bias makes it read large |
+| Goggle-alone photos, Leatt's 45 mm strap beside the outrigger | ours 0 to 6 % too large (section 7) | strap measured at the outrigger's depth |
+| His photos 07, 08, 09 | cannot tell (2.3 mm a pixel, 4 % is 2 px) | |
+| His face and the eyeport (scratch kcheck.py, body built) | x 1.01 clear; x 1.02 clear with the goggle 0.5 mm higher; x 1.03 touches his skin; x 1.04 puts 8 to 28 lens vertices into the shell's eyeport edge at every place tried (ty -0.1478 to -0.1488, tz -4 to -5.5 mm) | the physical limit |
+The sources disagree (on the helmet +4 %, alone up to -6 %). Picked: x 1.02 about the lens front (PLACE's fourth
+number), 0.5 mm higher (tz -0.0035): the most our helmet and his face take, and half the on-helmet readings' gap.
+Frame 211.8 x 103.7 mm (round 7: 207.7 x 101.7); centre line, HELMET frame: top z 43.4 (41.9; Leatt's side views
++41 to +43.5), beak bottom -60.8 (-60.3; theirs -64.6 to -66), top lip y -153.1 (-153.0; theirs -149). The
+side-profile test's top lip bound goes from 4 to 4.5 mm for that 0.1 mm (the scale brings it forward). Question for
+Damien (open since round 5): his goggle's outer width and its height at the centre would pin it.
+
+### The comb in the white ISO (low priority)
+It reads dark grey through the Light Grey 58 % lens (the finger tops 66 to 75 of 255), but so does the white frame's
+own inner band and pillar behind the same lens (66 to 96), against 236 to 250 outside: a white part in the goggle's
+shade behind a 58 % lens. With the clear lens (phr, red) and the light Iriz (iso55, pink) the comb is frame-coloured.
+"Frame plastic in every colourway" stands.
+
+### Round 8 checks
+- Tests: all 82 rider tests pass (80 on main plus the two round 8 strap tests). Changed with reasons: the side
+  profile's top lip bound 4 to 4.5 mm (the scale, above); the outriggers' anchor test reads the faces at the
+  anchor's own row (the 5 mm plate bends out along its length more than its thickness).
+- Sheets (checkpoint 2026-11-13_goggle-r8): Leatt | round 7 | round 8 at 1:1 at the four MY27 kit cameras and the
+  Pinata iso-right, round 7 re-rendered with main's helmet texture (decision 42), studio light; his photos 07 and 09
+  in daylight, their box at 4x (the photo upsampled). His 08's camera in this round's scratch fit (cams8.json) is not
+  usable: fitted to the helmet's outline alone (no landmark shows), it settled on a view from the wrong side (the
+  render sees the shell's shaded side where his photo shows its lit top), so its sheet was left out of the
+  checkpoint (sheet number 07 is unused). head_closeups.py's camera for 08 (research/rider-cameras.json, fitted with
+  the bike) sees the right side and is the one to use. His 09's roll leaves the goggle 17 deg off. His 07 is the one
+  of his photos that measures the strap.
+- Blender 5.2.0 (Damien's) renders the worn goggle at the left kit camera and the free goggle at iso55 as 5.2.3
+  does: half resolution against 5.2.3's full resolution downsampled, mean absolute difference 0.73 and 0.37 of 255
+  (after a 3 px blur 0.46, p99 6: sampling noise at 48 samples).
 
 ## 3. Eyes
 | Number | Value | Source |

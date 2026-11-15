@@ -42,15 +42,16 @@ def test_side_profile_from_leatts_side_views():
     """Leatt's MY27 kit side views (left and right, cameras fitted to the shell), red frame back-projected onto the
     centre plane: top lip front at y -149 mm, top at z +41 to +43.5 mm, the beak's front at y -156 to -157 mm, its
     bottom (the tabs either side of the nose notch) at z -64.6 to -66 mm (helmet frame). The built frame within
-    4 to 5 mm of each, the beak's bottom within 6 mm: round 5's frame is 100 mm tall at the centre where these views
-    read about 106 (the goggle-alone photos fix its shape, not its size; a lower place puts the lens into the
-    shell's eyeport edge and his nose into the frame), so it sits at round 4's height with the top on the views'
-    (41.6 mm) and the bottom 5.4 mm high until Damien's own goggle pins the size (ledger goggle.md, "Scale")."""
+    4 to 5 mm of each, the beak's bottom within 6 mm: these views read the frame about 104 mm tall (round 5 to 7:
+    100), so it sits with the top on the views' and the bottom high. Round 8 (decision 43): x 1.02 and 0.5 mm higher,
+    the most his face and the eyeport allow (ledger goggle.md section 10); the scale brings the top lip 0.2 mm
+    forward, to 4.1 mm ahead of the views' (the kit helmet is empty: back from here his nose bridge meets the frame),
+    so the top lip's bound is 4.5 mm."""
     V, info = frame_in_helmet_frame()
     c = V[np.abs(V[:, 0]) < 0.004]
     top = c[c[:, 2] > 0.02]
     bot = V[(np.abs(V[:, 0]) < 0.03) & (V[:, 2] < -0.04)]
-    assert abs(top[:, 1].min() - (-0.149)) < 0.004
+    assert abs(top[:, 1].min() - (-0.149)) < 0.0045
     assert abs(top[:, 2].max() - 0.0425) < 0.004
     assert abs(bot[:, 1].min() - (-0.1565)) < 0.005
     assert abs(bot[:, 2].min() - (-0.065)) < 0.006
@@ -473,16 +474,76 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         gap = np.abs(Gi[..., 0]) - need
         assert gap[-4:][back].min() > G.OR_GAP - 1e-4                       # ... resting on it, not inside
         assert np.allclose(Gi[0], free[sg][1][0]) and np.allclose(Go[0], free[sg][0][0])   # front edge on the frame
-        # the anchor sits between the faces near the back end, at mid height
-        i = -2
-        lo, hi = sorted([abs(Gi[i, :, 0]).mean(), abs(Go[i, :, 0]).mean()])
-        assert lo < abs(anchor[0]) < hi
+        # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
+        # row; the 5 mm plate bends out along its length more than its thickness)
+        j = Gi.shape[1] // 2
+        i = int(np.argmin(np.linalg.norm(0.5 * (Gi + Go)[:, j] - anchor, axis=1)))
+        lo, hi = sorted([abs(Gi[i, j, 0]), abs(Go[i, j, 0])])
+        assert i >= Gi.shape[0] - 6 and lo < abs(anchor[0]) < hi
         assert Gi[:, 0, 2].max() < anchor[2] < Gi[:, -1, 2].min()
         assert np.linalg.norm(Gi[-1, Gi.shape[1] // 2] - anchor) < G.OR_ANCHOR + 0.004
         # the strap starts at this side's anchor (left side first in the strap's rows)
         if sg > 0:
             mid = first.mean(0)
             assert np.linalg.norm(mid[[0, 1]] - anchor[[0, 1]]) < 0.012
+
+
+STRAP_PARTS = ("goggle_strap_band", "goggle_strap", "goggle_slides")
+
+
+def strap_clearance(parts, Rt, surf):
+    """Signed distance (m, positive outside) from the shell's outer surface of every vertex and face centre of the
+    given parts (MB frame, Rt: HELMET -> MB)."""
+    R, t = Rt
+    out = []
+    for P in parts:
+        V = (np.asarray(P.V) - t) @ R
+        C = np.array([V[f].mean(0) for f in P.F])
+        out.append(surf.closest(np.vstack([V, C]))[2])
+    return np.concatenate(out)
+
+
+def test_round8_strap_lies_on_the_shell_with_clearance(built):
+    """Round 8 (decision 43): the strap lies on the shell, never through it. Round 7's strap was one ruled band whose
+    chord across its 45 mm sagged into the convex shell: the shell came 1.5 to 1.9 mm through it at x +-45 mm (two
+    dark blobs on the strap in the back view). Now every vertex and face centre of the strap (printed band, its
+    inner face, the silicone strip, the doubled run, the woven edges) and of the two adjuster slides is at least
+    0.5 mm outside the shell. The same measure on round 7's strap (helmet.build_strap) fails."""
+    Vo, Fo, prof = H.shell_outer()
+    surf = G.Surface(Vo, Fo)
+    P = built["parts"]
+    sd = strap_clearance([P[n] for n in STRAP_PARTS], built["Rt"], surf)
+    assert sd.min() > 0.0005, f"strap {sd.min() * 1000:.2f} mm off the shell"
+    if hasattr(H, "build_strap"):                     # round 7's strap, for the record: the shell through it
+        I = (np.eye(3), np.zeros(3))
+        r7 = H.build_strap(I, prof, {k: v[0] for k, v in G.strap_ends(G.shell_mount(prof)).items()})
+        assert strap_clearance([r7], I, surf).min() < -0.001
+
+
+def test_round8_strap_width_slides_and_silicone(built):
+    """The strap is 45 mm wide measured along the shell (Leatt features) and 2 mm thick; the silicone strip inside
+    is 5 mm wide (Leatt features) and rests on the shell; the two adjuster slides sit on the back, their inner ends
+    62 mm apart (Leatt's MY27 back view at its strap's scale, 0.204 mm/px), each 22 mm along the strap and 52 mm
+    across (103 x 252 px, foreshortening taken out), the right one (his right) with its grip tab on its outer end."""
+    Vo, Fo, prof = H.shell_outer()
+    surf = G.Surface(Vo, Fo)
+    base, nrm, s = G.strap_layout(surf, G.strap_ends(G.shell_mount(prof)))[:3]
+    seg = np.linalg.norm(np.diff(base, axis=1), axis=2).sum(1)              # across, station by station
+    assert abs(np.median(seg) - 0.045) < 0.0005
+    R, t = built["Rt"]
+    sl = (built["parts"]["goggle_slides"].V - t) @ R
+    reach = {}
+    for sg in (1, -1):
+        Q = sl[sg * sl[:, 0] > 0]
+        assert abs(np.abs(Q[:, 0]).min() - 0.0305) < 0.002                      # inner ends 61 to 62 mm apart
+        assert 0.050 < np.ptp(Q[:, 2]) < 0.058                                 # 52 mm across, round the shell
+        reach[sg] = np.abs(Q[:, 0]).max()
+    assert reach[-1] - reach[1] > 0.004                    # the right one's 8 mm tab, outwards (x, round the shell)
+    assert G.SIL_W == 0.005
+    band = built["parts"]["goggle_strap_band"]
+    sil = np.array([f for f, m in zip(band.F, band.M) if m == "goggle_silicone"])
+    Vs = (band.V[np.unique(sil)] - t) @ R
+    assert surf.closest(Vs)[2].min() > 0.0005 and surf.closest(Vs)[2].min() < 0.001
 
 
 def test_frame_width_and_wrap():
