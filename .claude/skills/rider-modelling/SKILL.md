@@ -682,7 +682,8 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   Python without numpy, and all six files fail to collect (exit 2).
 - A fitted camera can hide a wrong shape. The front-iso cameras' 14 to 17 mm error at the brow was the brow itself,
   20.6 mm too far forward (the brow badge triangulated from iso-left and iso-right agrees within 0.4 mm). When one
-  family of cameras disagrees, triangulate a landmark from two views before refitting a camera.
+  family of cameras disagrees, triangulate a landmark from two views before refitting a camera. (The 20.6 mm itself
+  turned out to be the cameras': see the correction below.)
 - An opening traced in a side photo can be the soft parts behind it: the eyeport's side edge was traced along the
   cheek pads' notch, 35 to 40 mm ahead of the shell's cut edge (Leatt's iso-left shows the cut edge). The black trim
   paint then covered shell that is really opening. Leatt's side studio photo is also not square (8 to 11 deg behind).
@@ -703,6 +704,10 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   yellow by the outrigger, ours magenta). Read the unaligned crop too; the strap's layout on the helmet is worn fit.
 - Say which way a part leans in the brief: round 11 leaned the comb's tongues back (depth), while Leatt's phr and
   iso55 show them fanned square to a strongly curved arch (image plane); ours stand nearly upright on a flatter arch.
+- Correction (helmet round 4): the brow's "20.6 mm too far forward" was itself an error of round 3's single-photo
+  cameras. Solved together (helmet_ba.py, 12 cameras), the front landmarks agree with the model within 1 to 5 mm, and
+  TF 172's 350 mm length is a bounding box at another height, not the same 20 mm. Pairwise triangulation through
+  separately fitted cameras can invent a shape error as easily as hide one; trust the joint solve.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
