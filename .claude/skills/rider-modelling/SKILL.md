@@ -764,6 +764,16 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   lobe spread wide) adds 37 to the magenta's green, 60 to 75 to the lime's blue and lifts its black from 30 to 90;
   and his phone's tone curve crushes darks to 12 to 25 where ours read 47 to 88. The look, the materials and the
   phone's curve each need their own fix.
+- Fit a look on pixel-aligned pairs of trusted surfaces only (scene look round 1, decision 54): his fitted cameras
+  render the photo's crop at 4x, box-averaged onto the photo's pixels; mask to the helmet's white shell and print and
+  the bike's red and blacks (materials measured in studio), never the jersey (its material is a suspect). Hold one
+  photo out. Mean dE of the class medians went 21.1 to 12.7 with the new look.
+- His phone exposes each shot (08 sits 0.6 to 0.9 EV over the look's EV, 07 0.2 to 1.0 under): judge a comparison
+  sheet at the photo's own exposure, read off a known white (the shell), not only at the global look's.
+- A constant tuned under an old view transform hides the transform's error: the bike's RED (208, 10, 22) was tuned
+  under AgX; under the fitted look it reads 218, 42, 38 against his 189, 47, 49. Re-derive such constants when the
+  look changes, and brief every copy together (kit_canvas.RED with build_bike.RED and test_kit).
+- Two rounds adding PROJECT.md decision rows conflict at the same spot: keep both, in numeric order, 4 cells each.
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
