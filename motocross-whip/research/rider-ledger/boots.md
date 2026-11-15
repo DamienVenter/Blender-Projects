@@ -121,3 +121,9 @@ mouldings (the levers sit on 2.5 mm painted base plates), the spine's white plat
   exposure.
 - Textures rebuilt by `boots.py` (shell whites 218, 222, 225; treads and normal maps unchanged). Wear unchanged.
 - Test: `test_gear_look.py::test_the_boots_white_is_his_scuffed_white` (fails on main: 1.10 of the shell).
+- Leatt's studio against ours (checkpoint `2026-11-15_materials-r1/05_boot_leatt02.jpg`: the right boot alone, rest
+  pose, Standard, the glove check's white studio, one exposure for main and this round): the lit white's hue Leatt
+  C 0.4 (232, 233, 233), main 1.8, this round 2.0, a clean white (dE under 2); this round's level 0.86 of main's.
+- His 07 (cam07, the boot in the bike's shade; our seated pose lifts it toward the sky): 213, 222, 228 -> 207, 215,
+  221 against his 176, 184, 181, dE 14.7 -> 12.3 (`look_fit.py gear`, decision 59's look). Not used to set the
+  white: the pose and the shade, not the paint.
