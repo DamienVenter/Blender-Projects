@@ -767,7 +767,7 @@ def test_outer_thigh_zebra_reaches_his_07_line(built, texels):
     0.19 m over the knee joint, in front of and behind the letters (the LEATT itself on our pant at 0.19). Main mapped
     the back photo's leg split to the crotch's height and its print rode up: behind the outseam (100 to 125 deg from
     the front) the zebra ended 0.29 to 0.31 m over the knee. Its lowest point there is now within 0.24 m (round 4:
-    0.21)."""
+    0.21 to 0.23)."""
     body, g = built
     a, pos, nrm, chm, tx = texels["pants"]
     Kn, H = body.j("lowerleg01.L"), body.j("upperleg01.L")

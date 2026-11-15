@@ -814,6 +814,38 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   camera onto the mesh, not by eye: "about 5 rows" was 4 (13.7 mm apart, a rectangular grid, also on Leatt's flat).
   The holes must be bigger than the real ones (r 1.8 mm against 1 to 1.5) to show the light 06 shows.
 
+## Jersey and pant round 4: shins, outer sides, his left sleeve (2026-11-15, kit.py, test_kit_rider.py, ledger kit.md, decision 58)
+- **Airbrushed fades need their own cut**: cut at 0.5 of the local span a stroke that fades into the ground keeps
+  only its strong part (blunt tops, the fade a blur above); in the fade rows cut at 0.2, let a smaller span count as
+  pattern (the purple's chroma falls to 0.10 over the black's 0.03 to 0.05) and give the stroke the photo's own fade
+  over 5 mm. What reads as a "diagonal" in a review can be a fade the trace dropped, not a wrong direction.
+- **Two photos of one garment share a frame**: Leatt's front and back on-model photos run 1460 and 1465 rows from
+  the waist top to the boot top. Map the back's landmark rows into the front's (its leg split at row 909 is not the
+  crotch: from behind the thighs touch under the seat); mapping it to the crotch's height rode the back's leg print
+  up 8 to 11 cm.
+- **Where two photos' prints meet on a seam, map each by x and height alone** so it runs on past the seam, and join
+  them along a least-cost line where they agree (a band in one and not the other costs), held to the seam where
+  nothing differs. A hard seam between photos is a step all down the side. Their blacks still differ by a few levels
+  (55 against 48 of 255 in a render): a black-level match is still to do.
+- **Phase a mirrored sleeve by its band starts**: compare the starts of the light bands along the arm (t from the
+  shoulder point to the cuff end), photo by photo, and move the print with a few knots (SLEEVE_PHASE), none at the
+  raglan part or the cuff. Tracing a sleeve's back from photos where its bands are light grey-teal fails: near_white
+  takes them for white and they come out as fragments.
+- **The unrolled raster maps the bent elbow's back twice** (his elbow 46 deg: forearm points behind the elbow's
+  plane get an along under L1). Anything drawn by the raster there comes out twice: draw lines per texel along an
+  axis rounded over the elbow (sleeve_bent, 8 cm radius) and keep traced whites off the forearm cloth behind the
+  elbow's plane.
+- **The render scene faces +X**: body (x, y, z) is (-y, x, z) in the render; cameras placed in body coordinates
+  miss.
+- **Check which way a model's arm is turned before reading angles round it**: Leatt NZ's back on-model sees the
+  left line at the arm's edge (the arm turned about 50 deg), so marks placed from it (the icon) were 80 deg off.
+  The back three-quarter flat sees the elbow at 1:1; its absolute angles depend on its camera, the layout relative
+  to the line holds.
+- **His 07's camera is fitted to the bike, not to his pose**: his arms reach to the bar further than the seated
+  pose's, so 07 checks the thigh (measured through the camera) but not the sleeve's bands at 1:1.
+- **The print atlas changes by up to 1 level on every build** (jersey_print_color.png): restore it with git checkout
+  before committing when nothing in it changed.
+
 ## Coordinating the gear rounds (coordinator's notes, 2026-11-15)
 - Never `cd` into an agent's worktree from the coordinating session: the session's working directory follows the
   shell and later relative paths resolve inside the worktree. Use absolute paths and `git -C <worktree>`.
