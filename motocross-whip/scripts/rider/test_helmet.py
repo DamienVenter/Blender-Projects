@@ -90,6 +90,68 @@ def test_shell_is_closed_and_symmetric(built):
     assert cKDTree(V).query(m)[0].max() < 1e-6
 
 
+def normal_turn_variation(V, F, region):
+    """Normal turn along each edge (|n_i - n_j| / |v_i - v_j|, 1/m) less the median over the edges round its two
+    vertices: a ridge or a scallop stands out, a fair surface stays near zero."""
+    N = H.normals(V, F)
+    E = np.unique(np.sort(np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1), axis=0)
+    E = E[region[E[:, 0]] & region[E[:, 1]]]
+    k = np.linalg.norm(N[E[:, 0]] - N[E[:, 1]], axis=1) / np.linalg.norm(V[E[:, 0]] - V[E[:, 1]], axis=1)
+    inc = {}
+    for e, (a, b) in enumerate(E):
+        inc.setdefault(a, []).append(e)
+        inc.setdefault(b, []).append(e)
+    med = np.array([np.median(k[inc[a] + inc[b]]) for a, b in E])
+    return E, k - med
+
+
+def test_shell_is_fair_at_the_crown_back():
+    """Round 2 (decision 44): main's crown back carried ridges 20 mm either side of the centre line (the width
+    field's distance to a 3 mm sampled rim) and slope steps at the width tables' knots, seen as banded, spiky
+    reflections in Leatt's back view (px 860 to 1060). Behind y = 30 mm and above z = -130 mm, 8 mm or more from
+    the free edges, no edge's normal turn may stand more than 120 /m above its neighbours' (main: 190 /m)."""
+    from scipy.spatial import cKDTree
+    V, F, _ = H.shell_outer()
+    E = np.sort(np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1)
+    u, c = np.unique(E, axis=0, return_counts=True)
+    free = cKDTree(V[np.unique(u[c == 1])]).query(V)[0] > 0.008
+    E, dk = normal_turn_variation(V, F, (V[:, 1] > 0.03) & (V[:, 2] > -0.13) & free)
+    assert len(E) > 5000
+    worst = V[E[np.argmax(dk)]].mean(0) * 1000
+    assert dk.max() < 120.0, f"normal turn {dk.max():.0f} /m above its neighbours at {np.round(worst)} mm"
+
+
+def port_edge_px(view, rows, port=None):
+    """The face port's rear edge on the near side through one of Leatt's cameras: the loop's rightmost crossing
+    of each image row (iso-left: the helmet's left side, its back to the right)."""
+    V, F, _ = H.shell_outer(H.Profile(port=port))
+    E = np.sort(np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1)
+    u, c = np.unique(E, axis=0, return_counts=True)
+    B = u[c == 1]
+    # the port's loop: free edges above the lower edge (z > -0.09 m at their mid points) and ahead of y = 0
+    m = V[B].mean(1)
+    B = B[(m[:, 2] > -0.09) & (m[:, 1] < 0.0) & (m[:, 0] > 0)]
+    q = H.cam_project(H.CAMS[view], V)[0]
+    out = []
+    for r in rows:
+        a, b = q[B[:, 0]], q[B[:, 1]]
+        hit = (a[:, 1] - r) * (b[:, 1] - r) <= 0
+        t = (r - a[hit, 1]) / (b[hit, 1] - a[hit, 1] + 1e-12)
+        out.append(float(np.max(a[hit, 0] + t * (b[hit, 0] - a[hit, 0]))))
+    return np.array(out)
+
+
+def test_face_port_edge_on_leatt_iso_left():
+    """Round 2 (decision 44): the shell's port edge (the rubber trim's inner edge) where Leatt's Pinata iso-left
+    photo shows it, picked on a 1:1 crop at rows 830 to 1040: x 1195, 1193, 1189, 1183 px. Main's edge followed
+    the side photo's notch (the cheek pads), about 40 mm ahead: 185 to 221 px left of the photo, and the print's
+    black trim and grip panel spread over the shell there. Round 2's "iso" port: -5 to +4 px. The build keeps
+    the "side" port (helmet.PORT) until the goggle moves back to meet this edge (decision 44)."""
+    rows = [830, 900, 970, 1040]
+    err = port_edge_px("isoleft", rows, port="iso") - np.array([1195.0, 1193.0, 1189.0, 1183.0])
+    assert np.all(np.abs(err) < 12.0), f"port edge off Leatt's iso-left by {np.round(err, 1)} px"
+
+
 def test_fit_on_his_head(built):
     """Even stand-off all round the skull (EPS and pads), brow ahead of the forehead, eyes in the face port."""
     g = built["info"]["gaps_mm"]

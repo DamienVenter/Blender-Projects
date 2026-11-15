@@ -631,3 +631,40 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Fine relief textures read as glitter: the woven strap's grain (taken from the MY27 jacquard) speckled the Pinata
   strap in his 07 at 4x. Take each product's grain from its own photo, and check at whip distance across two frames
   for shimmer (Cycles has no mip-maps).
+
+## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
+
+- **A side photo's notch is not the shell's edge.** In Royal_Left the face port's notch stops at the cheek pads
+  (u 750, with a dark fabric band to u 793); the shell's own edge (the rubber trim's inner edge) is 35 to 40 mm
+  further back, where Leatt's iso-left photo (no goggle) shows it. Cast picked edge points through the fitted camera
+  onto the width field (`raw_width`, defined past the cut) to get them in the helmet frame. A paint polygon drawn on
+  the photo's whole opening then lands on any shell that should not be there: that was the big flat black area.
+- **Side photos are not square.** Through the iso cameras the side screw and the grip panel corner land 18 to 24 mm
+  behind their Royal_Left places on both sides (the camera stands about 10 deg behind the side; the back LEATT's
+  first letters show round the back). Do not take near-side features' y from a side view without that correction.
+- **Check a camera with landmarks before blaming it.** A landmark-constrained camera (screw, panel corner, badge)
+  can fit every landmark and still be wrong: iso-left at az 52 asked for a front 143 to 160 mm wide where the back
+  view caps the shell at 130. Cross-check what a camera implies against the other views before adopting it.
+- **Triangulate centre features from two views.** The brow badge's rays from iso-left and iso-right meet within
+  0.4 mm (x -2 mm): the brow is 20.6 mm behind the model's. Moving it moves the head fit (fit_on_head keeps the brow
+  32 mm ahead of the forehead), the helmet 12 mm forward on his head and the goggle off his face: a change that
+  needs the goggle re-placed is stopped and reported, not made.
+- **Fair by construction for width fields.** Distances to a rim sampled every 3 mm scallop by up to 0.6 mm at 2 mm
+  from it, and x ~ sqrt(d) there turns that into ridges 20 mm either side of the centre line; tables read with
+  straight lines step the slope at every knot (bands in reflections); smoothing that averages over the query points
+  depends on how they are spaced. Use C2 smoothing splines for traced rims, distances to the segments of a 0.25 mm
+  polyline, and smooth on a fixed grid (over the uncut domain) read back by a bicubic spline. For a sparse table,
+  fit the spline to the straight-line table sampled every 1 mm, never through its knots alone: through Q_Y's knots
+  it rang 9 % low in a 260 mm flat run (the chin bar 6 mm narrow). Departures measured only at the knots hid it;
+  measure them between knots, and compare the mesh with main's at a few points. Test it on the mesh as rendered: the
+  normal turn along each edge against its neighbours' median (`test_shell_is_fair_at_the_crown_back`, 120 /m;
+  main 190).
+- **The port edge carries the goggle.** Leatt's iso-right photo has the goggle's outriggers over the port's trim.
+  Round 2's port (helmet.PORT "iso", right for the iso-left photo) left them 21 to 23 mm ahead of the edge: the
+  strap bridged the opening (its silicone side showed in every view with the goggle) and three goggle tests failed.
+  Before moving any shell edge the goggle sits on, measure the outriggers against it in the helmet frame and run
+  test_goggle; if the goggle has to move, keep the old edge in the build and report it.
+- **A lower port edge meets the cheeks.** Moving the port's lower rear corner down 10 to 15 mm put four cheek
+  vertices inside the solid at T_MIN 18 mm; the cheek pads fill that corner (T_MIN_PORT "iso" 14 mm).
+- **Cache on the object, not by id().** A dict keyed by id(prof) can hand a new Profile the field of a dead one
+  (ids are reused); helmet.smoothed_width keeps its spline on the profile.

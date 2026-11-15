@@ -66,6 +66,31 @@ FACE_PORT = [                    # chin bar top, the port's side edge (inner edg
     (566, 1135), (592, 1116), (621, 1104), (652, 1096), (683, 1090), (708, 1071), (726, 1045), (735, 1015),
     (740, 983), (742, 951), (744, 919), (746, 887), (750, 860), (746, 842), (731, 835), (704, 819), (676, 806),
     (649, 788), (625, 768), (597, 752), (569, 738), (548, 724), (539, 703)]
+# Round 2: in the side photo the port's notch is bounded by the cheek pads, which fill the opening ahead of the
+# shell's edge; the shell's own edge (the rubber trim's inner edge) shows in Leatt's Pinata iso-left photo (no
+# goggle). Its rear part, cast through that camera onto the width field (px -> helmet frame y, z in m): chin bar
+# top (980, 1150) to (1150, 1120), side edge (1175, 1090) to (1196, 800), brow edge (1160, 795) to (920, 772).
+# FACE_PORT keeps its centre parts (chin bar top up to (536, 1146), brow edge from (676, 806)).
+PORT_REAR = [(-0.1265, -0.0587), (-0.1160, -0.0624), (-0.1054, -0.0658), (-0.0946, -0.0678), (-0.0836, -0.0689),
+             (-0.0723, -0.0682), (-0.0628, -0.0654), (-0.0578, -0.0593), (-0.0555, -0.0483), (-0.0530, -0.0328),
+             (-0.0505, -0.0174), (-0.0483, -0.0019), (-0.0470, 0.0047), (-0.0546, 0.0069), (-0.0659, 0.0097),
+             (-0.0764, 0.0124), (-0.0866, 0.0152), (-0.0965, 0.0185)]
+PORT_KEEP = (8, 24)                # FACE_PORT points kept: [:8] (chin bar top) and [24:] (brow edge)
+# The port the build uses. "side": FACE_PORT as traced (main's shell, the one goggle.py places the goggle on).
+# "iso": round 2's edge above, which matches Leatt's iso-left photo (-5 to +4 px against 185 to 221 px) but leaves
+# the goggle's outriggers 21 to 23 mm ahead of the edge (Leatt's iso-right photo has them over the trim): the strap
+# then bridges the opening and three goggle tests fail. The goggle and the brow (20.6 mm too far forward, both iso
+# photos) must move back together first: decision 44, open for Damien and the goggle agent.
+PORT = "side"
+
+
+def port_outline(kind=None):
+    """The face port's edge in the helmet frame (y, z): FACE_PORT, or ("iso") its centre parts round the iso-left
+    rear part."""
+    P = px2h(FACE_PORT)
+    if (kind or PORT) == "side":
+        return P
+    return np.vstack([P[:PORT_KEEP[0]], PORT_REAR, P[PORT_KEEP[1]:]])
 
 
 def px2h(P):
@@ -91,24 +116,55 @@ def smooth_open(P, k=2):
     return P
 
 
+RIM_FINE = 0.00025                 # m, rim sampling for the width field's distances (fair surface, see below)
+RIM_LAM = (3e-8, 5e-9)             # smoothing spline weights, crown and chin rims (largest departures 0.43, 0.25 mm)
+
+
+def fair_curve(P, lam):
+    """A C2 curve through traced points (smoothing splines in x and y over the chord length): a polyline through
+    the 1 px tracing has a corner at every point, and the width field's distance to the rim carried those corners
+    into the shell as ridges near the centre line (helmet round 2)."""
+    from scipy.interpolate import make_smoothing_spline
+    P = np.asarray(P, float)
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+    sy, sz = make_smoothing_spline(s, P[:, 0], lam=lam), make_smoothing_spline(s, P[:, 1], lam=lam)
+    t = np.linspace(0, s[-1], int(s[-1] / 0.0002) + 2)
+    C = np.c_[sy(t), sz(t)]
+    C[0], C[-1] = P[0], P[-1]                      # the ends stay where the free edges meet them
+    return C
+
+
 class Profile:
     """The side outline in the helmet frame: two rims (crown and back; chin front) and the free edges."""
 
-    def __init__(self, step=0.003):
+    def __init__(self, step=0.003, port=None):
+        self.port_kind = port or PORT
         crown = np.vstack([CROWN_UNDER_VISOR, CROWN_BACK])
-        self.rim_crown = resample_open(smooth_open(px2h(crown), 3), step)
+        # the width field measures distances to the rims sampled every 0.25 mm: with the 3 mm outline samples the
+        # nearest-sample distance scalloped by up to 0.6 mm at 2 mm from the rim (x ~ sqrt(d) there), which stood
+        # as ridges 20 mm either side of the centre line on main's crown back (normal turn 229 /m)
+        crown_c = fair_curve(px2h(crown), RIM_LAM[0])
+        chin_c = fair_curve(px2h(CHIN_FRONT), RIM_LAM[1])
+        self.rim_crown = resample_open(crown_c, step)
         self.lower = resample_open(smooth_open(px2h(LOWER_EDGE), 2), step)
-        self.rim_chin = resample_open(smooth_open(px2h(CHIN_FRONT), 2), step)
-        self.port = resample_open(smooth_open(px2h(FACE_PORT), 2), step)
+        self.rim_chin = resample_open(chin_c, step)
+        self.fine_crown = resample_open(crown_c, RIM_FINE)
+        self.fine_chin = resample_open(chin_c, RIM_FINE)
+        self.ftree_crown = cKDTree(self.fine_crown)
+        self.ftree_chin = cKDTree(self.fine_chin)
+        self.port = resample_open(smooth_open(port_outline(self.port_kind), 2), step)
         # closed domain outline, counter-clockwise in (y, z)? order: brow -> crown -> back -> lower -> chin -> port
         self.outline = np.vstack([self.rim_crown, self.lower[1:], self.rim_chin[1:], self.port[1:-1]])
         self.tree_crown = cKDTree(self.rim_crown)
         self.tree_chin = cKDTree(self.rim_chin)
+        # the same without the port cut (closed by the chord across the face): the smoothing's domain, so the
+        # surface does not depend on where the port is cut and is not pulled in beside its edge
+        self.outline_uncut = np.vstack([self.rim_crown, self.lower[1:], self.rim_chin[1:]])
         o = self.outline
         self.area = 0.5 * np.sum(o[:, 0] * np.roll(o[:, 1], -1) - np.roll(o[:, 0], -1) * o[:, 1])
 
-    def inside(self, P):
-        o = self.outline
+    def inside(self, P, uncut=False):
+        o = self.outline_uncut if uncut else self.outline
         x, y = P[:, 0], P[:, 1]
         res = np.zeros(len(P), bool)
         j = len(o) - 1
@@ -145,33 +201,93 @@ SMOOTH_SIGMA = 0.010               # m, Gaussian smoothing of the width field aw
 
 def rim_shape(prof):
     """Roundness length and power at each crown rim sample (brow in front, crown and back behind)."""
-    y = prof.rim_crown[:, 0]
+    y = prof.fine_crown[:, 0]
     k = np.clip((y - Y_BROW[0]) / (Y_BROW[1] - Y_BROW[0]), 0, 1)
-    k = k * k * (3 - 2 * k)
+    k = k * k * k * (k * (6 * k - 15) + 10)
     return L_BROW + (L_CROWN - L_BROW) * k, P_BROW + (P_CROWN - P_BROW) * k
+
+
+def rim_dist(tree, C, P):
+    """Distance from points to a finely sampled rim polyline (to its segments, not its samples) and the index of
+    the nearest sample."""
+    d, i = tree.query(P)
+    best = d.copy()
+    for j0 in (i - 1, i):
+        j = np.clip(j0, 0, len(C) - 2)
+        A, AB = C[j], C[j + 1] - C[j]
+        t = np.clip(np.sum((P - A) * AB, 1) / np.sum(AB * AB, 1), 0, 1)
+        best = np.minimum(best, np.linalg.norm(P - (A + AB * t[:, None]), axis=1))
+    return best, i
+
+
+# W_Z and Q_Y were read with straight lines between their knots: the width's slope jumped at every knot (z every
+# 40 mm, y at 0.00 to 0.16), which banded the reflections on the back. A C2 smoothing spline over the straight-line
+# table sampled every 1 mm rounds each knot and keeps the straight runs (largest departure 0.30 mm of width for
+# W_Z, 0.35 mm for Q_Y). A spline through the knots alone rang in Q_Y's long flat run (y -0.30 to -0.04): 9 % low
+# at y -0.10, the chin bar's rear corner 6 mm narrow.
+TABLE_LAM = (1e-7, 1e-7)
+
+
+def _table(T, lam):
+    from scipy.interpolate import make_smoothing_spline
+    v = np.arange(T[0, 0], T[-1, 0] + 1e-9, 0.001)
+    sp = make_smoothing_spline(v, np.interp(v, T[:, 0], T[:, 1]), lam=lam)
+    lo, hi = T[0, 0], T[-1, 0]
+    return lambda x: sp(np.clip(x, lo, hi))
+
+
+_W_OF_Z = _table(W_Z, TABLE_LAM[0])
+_Q_OF_Y = _table(Q_Y, TABLE_LAM[1])
+
+
+def raw_width(prof, Y, Z):
+    """The width field before smoothing: back view width x plan factor x the two rims' roundness."""
+    P = np.c_[Y, Z]
+    dc, ic = rim_dist(prof.ftree_crown, prof.fine_crown, P)
+    dh = rim_dist(prof.ftree_chin, prof.fine_chin, P)[0]
+    Lc, Pc = rim_shape(prof)
+    w = _W_OF_Z(Z) * _Q_OF_Y(Y)
+    return w * falloff(dc / Lc[ic], Pc[ic]) * falloff(dh / L_CHIN, P_CHIN), np.minimum(dc, dh)
+
+
+SMOOTH_H = 0.002                    # m, grid of the smoothed field
+
+
+def smoothed_width(prof):
+    """The width field smoothed on a fixed 2 mm grid (Gaussian, normalised over the domain) and read back by a
+    bicubic spline: the same at any point whatever points ask (main averaged over the query points themselves,
+    so the graded rings near the rims weighted the average unevenly). Kept on the profile."""
+    from scipy import ndimage
+    from scipy.interpolate import RectBivariateSpline
+    if getattr(prof, "_smooth", None) is None:
+        lo, hi = prof.outline.min(0) - 0.03, prof.outline.max(0) + 0.03
+        gy = np.arange(lo[0], hi[0] + SMOOTH_H, SMOOTH_H)
+        gz = np.arange(lo[1], hi[1] + SMOOTH_H, SMOOTH_H)
+        YY, ZZ = np.meshgrid(gy, gz, indexing="ij")
+        P = np.c_[YY.ravel(), ZZ.ravel()]
+        X = raw_width(prof, P[:, 0], P[:, 1])[0].reshape(YY.shape)
+        # the uncut domain: normalised over the cut one, the Gaussian pulled the chin bar's rear corner 6 mm in
+        # beside the port (the field widens towards the edge)
+        M = prof.inside(P, uncut=True).reshape(YY.shape).astype(float)
+        s = SMOOTH_SIGMA / SMOOTH_H
+        num = ndimage.gaussian_filter(X * M, s, mode="constant")
+        den = ndimage.gaussian_filter(M, s, mode="constant")
+        Xs = np.where(den > 1e-3, num / np.maximum(den, 1e-3), X)
+        prof._smooth = RectBivariateSpline(gy, gz, Xs, kx=3, ky=3)
+    return prof._smooth
 
 
 def half_width(prof, Y, Z, smooth=True):
     """Half width x of the outer surface over the profile domain (both halves are +-x)."""
-    P = np.c_[Y, Z]
-    dc, ic = prof.tree_crown.query(P)
-    dh = prof.tree_chin.query(P)[0]
-    Lc, Pc = rim_shape(prof)
-    w = np.interp(Z, W_Z[:, 0], W_Z[:, 1]) * np.interp(Y, Q_Y[:, 0], Q_Y[:, 1])
-    X = w * falloff(dc / Lc[ic], Pc[ic]) * falloff(dh / L_CHIN, P_CHIN)
+    Y, Z = np.asarray(Y, float), np.asarray(Z, float)
+    X, d = raw_width(prof, Y, Z)
     if not smooth:
         return X
-    # the nearest-rim distance has creases where the nearest rim point jumps: average them out away from the rims
-    d = np.minimum(dc, dh)
-    tree = cKDTree(P)
-    far = np.nonzero(d > 0.008)[0]
-    Xs = X.copy()
-    for i, nb in zip(far, tree.query_ball_point(P[far], 2.5 * SMOOTH_SIGMA)):
-        nb = np.asarray(nb)
-        wts = np.exp(-np.sum((P[nb] - P[i]) ** 2, 1) / (2 * SMOOTH_SIGMA ** 2))
-        Xs[i] = np.sum(wts * X[nb]) / np.sum(wts)
+    # the nearest-rim distance has creases where the nearest rim point jumps: smoothed away from the rims, blended
+    # in over 8 to 28 mm with a C2 step
+    Xs = smoothed_width(prof).ev(Y, Z)
     k = np.clip((d - 0.008) / 0.020, 0, 1)
-    return X + (Xs - X) * k * k * (3 - 2 * k)
+    return X + (Xs - X) * k * k * k * (k * (6 * k - 15) + 10)
 
 
 _SHELL_HW = {}
@@ -379,6 +495,8 @@ def size_for(circ):
 # ---------------------------------------------------------------- his head and the fit
 GAP = 0.002                        # m between his skin and the comfort liner's surface (pads touch the head)
 T_MIN, T_MAX = 0.018, 0.040        # m, shell + EPS + pads at their thinnest (chin bar) and fullest (crown)
+T_MIN_PORT = {"side": 0.018, "iso": 0.014}  # 14 mm with the iso port: its lower rear corner reaches 10 to 15 mm
+                                   # lower, over his cheeks (the cheek pads fill it); 18 mm put 4 cheek vertices inside
 EYE_TO_BROW = 0.040                # m, face port's top edge above his eye centres (goggle centred on them)
 FORE_MIN = 0.032                   # m, the brow (outer) at least this far ahead of his forehead
 
@@ -461,8 +579,9 @@ def shell_solid(Vo, Fo, skin_H):
     n = len(Vo)
     N = normals(Vo, Fo)
     d = cKDTree(skin_H).query(Vo)[0]
-    t = np.clip(d - GAP, T_MIN, T_MAX)
-    t = np.minimum(smooth_field(Fo, n, t, 12), np.maximum(d - GAP, T_MIN))
+    t_min = T_MIN_PORT.get(PORT, T_MIN)
+    t = np.clip(d - GAP, t_min, T_MAX)
+    t = np.minimum(smooth_field(Fo, n, t, 12), np.maximum(d - GAP, t_min))
     Vi = Vo - N * t[:, None]
     strips = []
     for loop in boundary_loops(Fo):

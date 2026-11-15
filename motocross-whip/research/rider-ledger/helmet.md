@@ -142,3 +142,84 @@ is the **goggle strap's** print; the helmet's side there carries the iridescent 
 ## 4. Goggle
 Rebuilt on 2026-11-13 (round 2): `scripts/rider/goggle.py`, ledger `goggle.md` (frame, purple mirror lens, his eyes,
 and the brow badge, which the projection had doubled and is now repainted by script).
+
+## 5. Round 2 (2026-11-15, decision 44): the face port's real edge, the brow, a fair shell
+
+Damien: the eyeport trim and grip panel read as one big flat black area, the brow sat 14 to 17 mm off in the
+front-iso views, the crown back showed ridges. Checkpoint `renders/checkpoints/2026-11-15_helmet-r2/`.
+
+### The big black area: the face port's side edge (found, fix held back)
+| Number | Value | Source |
+|---|---|---|
+| Main's port side edge | y -88 mm (Royal_Left u 742 to 750) | FACE_PORT, traced at Royal_Left's notch. That notch is bounded by the cheek pads (u 750, a dark fabric band to u 793), not by the shell |
+| The shell's own edge (rubber trim's inner edge) | iso-left photo x 1195, 1193, 1189, 1183 px at rows 830, 900, 970, 1040 | Leatt Pinata iso-left (no goggle), picked on a 1:1 crop |
+| Main against that edge | 185 to 221 px left (ahead), 35 to 40 mm on the shell | test_face_port_edge_on_leatt_iso_left on main's shell |
+| Why it was black | helmet_art's FORCE polygon (the photo's trim and grip panel) covers the photo's opening; main's shell stands inside that opening, so it was painted flat black | helmet_art.FORCE["isoleft"] |
+| Round 2 port ("iso") | rear part cast through the iso-left camera onto the width field: chin bar top (980, 1150) to (1150, 1120), side edge (1175, 1090) to (1196, 800), brow edge (1160, 795) to (920, 772) px; edge at y -47 to -58 mm | helmet.PORT_REAR; -5 to +4 px against the photo |
+| Trim ridge, panel | trim about 6 mm wide; grip panel's rear edge y -15 to -36 mm | iso-left casts |
+| T_MIN with the iso port | 14 mm (18 put 4 cheek vertices inside the solid: its lower rear corner reaches 10 to 15 mm lower) | test_no_skin_inside_the_shell |
+| Goggle against the iso edge | outriggers' rear 21 to 23 mm ahead of the edge (z -40 to 0 mm); main's edge is under them by 17 mm | helmet frame, outriggers from goggle.py round 8 |
+| Leatt iso-right photo (with goggle) | the outriggers sit over the trim; the strap runs back over the grip panel | 1:1 crop |
+| Result with the iso port | the strap bridges the opening (its silicone side shows in every goggle view, 14 free stations instead of 8); test_goggle fails three: the outriggers' backs no longer lie over the shell (Damien 2026-11-13), the strap 41.2 mm inside the shell's surface where it crosses the opening, its clearance 0.48 mm (< 0.5) | iso build, sheets 06 and 07 |
+
+So the port edge cannot move without the goggle: **held back**, `helmet.PORT = "side"` builds main's port;
+`PORT = "iso"` builds round 2's (tested at the outline level). The goggle has to sit about 22 mm further back on
+the shell, which is the brow question below. Side check: through both iso cameras the side screw and the grip
+panel's top rear corner land 18 to 24 mm behind their Royal_Left places (screw y -19.3 iso-left, -15.7 iso-right,
+-39.7 Royal_Left; panel corner -8.5 against -26.6): Royal_Left's camera stands 8 to 11 deg behind the side (the
+back LEATT's first letters show in it), so its near-side features read about 20 mm forward. The notch's fabric
+band end (u 793, y -76 mm) then lands near -57 mm, where the iso photo has the edge: both photos agree.
+
+### The brow (found, not moved)
+| Number | Value | Source |
+|---|---|---|
+| Badge rays from iso-left and iso-right | meet within 0.4 mm at (-2.1, -118.7, 80.7) mm | helmet.CAMS, badge centre picked in both photos |
+| Model's brow at that height | y -139.3 mm: 20.6 mm too far forward | Profile |
+| Badge error through each camera | iso-left 81.3 px (dx -81.3, dy 13.7), iso-right 86.6 px (dx 86.6, dy 18.3): about 20 and 21 mm. Before = after (not moved) | renders against photos |
+| Moving it (brow 20.6 mm back) | fit_on_head keeps the brow 32 mm (FORE_MIN) ahead of his forehead: the helmet slid 12.5 mm forward on his head, back gap 51 to 38 mm, the ring of gaps spread 0.6 to 12 mm; the goggle (placed on the helmet) went 66.4 mm ahead of his eyes (53.9), foam 14 mm off his face (5) | trial build, reverted |
+
+Moving the brow and the port edge together is one change for the helmet, the head fit and the goggle: open
+question for Damien and the goggle agent (decision 44).
+
+### A fair shell (done)
+Main's crown back had ridges 20 mm either side of the centre line (back photo px 860 to 1060). Causes and fixes:
+| Cause | Fix |
+|---|---|
+| Distances to rims sampled every 3 mm scalloped up to 0.6 mm at 2 mm from the rim; x ~ sqrt(d) there turns that into ridges | rims faired by C2 smoothing splines (crown 0.43 mm, chin 0.25 mm from the trace), distances to the segments of a 0.25 mm polyline |
+| W_Z and Q_Y read with straight lines: the slope jumps at every knot (bands in the reflections) | C2 smoothing spline over each straight-line table sampled every 1 mm (0.30 and 0.35 mm of width at most). A spline through the knots alone rang 9 % low in Q_Y's flat run (the chin bar 6 mm narrow): caught by the skin test, fixed |
+| The Gaussian smoothing averaged over the query points (graded rings near the rims weighted it) | smoothed once on a fixed 2 mm grid over the uncut domain (the port does not change the surface), read back by a bicubic spline |
+
+| Number | Main | Round 2 | Source |
+|---|---|---|---|
+| Normal turn above its neighbours, crown back (max) | 189.8 /m | 96.2 /m | test_shell_is_fair_at_the_crown_back (limit 120) |
+| Same, 99th percentile | 27.6 /m | 21.9 /m | fair check |
+| Largest left | | at the rear spoiler's S-bend (y 109, z 94, x +-50 mm): a real shape | |
+| Fit gaps top / back / left / right / fore | 50.9 / 51.1 / 51.4 / 51.4 / 38.1 mm | 51.8 / 51.4 / 51.3 / 51.3 / 38.1 mm | fit_on_head |
+
+### Not done this round
+- Moulded detail as geometry (grip panel triangles, rolled trim, chin vent mesh, brow and crown vents, rear
+  exhausts, moulded LEATT on the chin cap, the brow trim's Leatt tag): not started.
+- Rear lower corner (about x 80, y 66, z -110 mm): Leatt's back photo has a white moulded piece at each rear lower
+  corner (a dark mesh slot in it) with a magenta strip ahead of it; iso-left shows the magenta reaching that white
+  edge. The model has no such piece and its texels there take the back photo's black band, so iso-left shows a
+  black patch where the photo has magenta. Needs the piece (geometry or print) and one forced field for both views.
+- The FORCE trim and panel polygon is unchanged (it is right once the port is).
+- The top view's centre stem (between the 360 Turbine disc and the chevron, top photo x 949 to 984, y 466 to
+  600) is a purple and white ladder on the fairer shell (main: white; the photo: purple). The back view sees it
+  edge-on over the rear spoiler's S-bend, and its forced stem polygon catches alternate texel rows. A forced
+  purple field in the top view only swapped the colours (tried, reverted): the fitted colour fields there need a
+  look.
+
+### Daylight colour check against his photos 07 and 09 (report only)
+| Patch | His photo (sRGB) | Render, main's materials (sRGB) |
+|---|---|---|
+| White shell, lit (07 crown) | 242, 246, 249 | 223, 226, 230 (8 % darker) |
+| White shell, lit (09 crown) | 240, 242, 248 | 205, 207, 210 (15 % darker) |
+| Magenta print (07 side) | 207, 34, 138 (saturation 0.84) | 174, 88, 112 (0.49) |
+| Magenta print (09 side, shade) | 148, 27, 96 (0.82) | 192, 94, 126 (0.51) |
+
+The render's magenta is about half as saturated as his photos' and leans red; the white is 8 to 15 % darker. The
+ink is fully saturated (166.7, 0, 102.2), so AgX's highlight desaturation and the clear coat's sky reflection take
+it: to look at with the lighting (AgX look or exposure), not in the print. Medians of the brightest quarter of the
+low-saturation pixels (white) and of hue 300 to 350 deg, saturation over 0.45 (magenta), in boxes on the photos'
+own pixels and the 16-sample close-ups.
