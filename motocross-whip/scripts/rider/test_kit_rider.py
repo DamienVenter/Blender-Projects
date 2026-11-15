@@ -740,7 +740,7 @@ def test_shin_strokes_run_up_into_their_fades(built, texels):
     panel's seam (Leatt US's on-model photos). Cut at 0.5 the trace kept their magenta only: blunt tops, the purple a
     blur over the ground. Of the texels the mapping puts on the photo's strokes in the fade rows (chroma over 0.10),
     over 0.9 read as stroke (chroma over 0.08), and over 0.97 of those on its black (under 0.05) as ground (main:
-    front 0.82 and 0.99, back 0.70 and 1.00; round 4: 0.99 and 0.98, 0.94 and 0.99)."""
+    front 0.82 and 0.99, back 0.70 and 1.00; round 4: 0.99 and 0.98, 0.97 and 0.99)."""
     body, g = built
     for view, (r0, r1) in (("front", (1330, 1540)), ("back", (1270, 1400))):
         tex, ph, u, v = _pant_photo_texels(g, texels, view)
@@ -752,3 +752,112 @@ def test_shin_strokes_run_up_into_their_fades(built, texels):
         st, gr = inr & (cp > 0.10), inr & (cp < 0.05)
         stroke, ground = (ct[st] > 0.08).mean(), (ct[gr] <= 0.08).mean()
         assert st.sum() > 3000 and stroke > 0.9 and ground > 0.97, (view, round(stroke, 3), round(ground, 3))
+
+
+def test_outer_thigh_zebra_reaches_his_07_line(built, texels):
+    """Item 2: his 07 (left side, riding) sees the zebra on his outer left thigh end at the thigh LEATT's middle,
+    0.19 m over the knee joint, in front of and behind the letters (the LEATT itself on our pant at 0.19). Main mapped
+    the back photo's leg split to the crotch's height and its print rode up: behind the outseam (100 to 125 deg from
+    the front) the zebra ended 0.29 to 0.31 m over the knee. Its lowest point there is now within 0.24 m (round 4:
+    0.21)."""
+    body, g = built
+    a, pos, nrm, chm, tx = texels["pants"]
+    Kn, H = body.j("lowerleg01.L"), body.j("upperleg01.L")
+    ax = (H - Kn) / np.linalg.norm(H - Kn)
+    sel = (chm >= 0) & (pos[..., 0] > 0.03)
+    P, A = pos[sel], a[sel]
+    r = P - Kn
+    along = r @ ax
+    rad = r - np.outer(along, ax)
+    fr = np.array([0, -1.0, 0]) - ax * (-ax[1])
+    fr /= np.linalg.norm(fr)
+    out = np.cross(ax, fr)
+    out = out if out[0] > 0 else -out
+    ang = np.degrees(np.arctan2(rad @ out, rad @ fr))          # 0 front, 90 outer, 180 back
+    zeb = (A.max(1) - A.min(1) > 0.3) & (A[:, 1] > A[:, 0])  # lime or teal
+    lows = []
+    for a0 in (100, 105, 110, 115, 120, 125):
+        m = (np.abs(ang - a0) < 4) & (along > 0) & (along < 0.45) & zeb
+        lows.append(along[m].min())
+    assert max(lows) < 0.24, np.round(lows, 3)
+
+
+def _pant_islands(g, size):
+    """The pant's UV islands (faces joined where a shared edge has the same UVs; the cuffs' and the waist's turned
+    edges are left out, they join them), drawn into the texture: per texel its island (-1 none) and the four big
+    ones by name (Lf, Lb, Rf, Rb), with each face's island."""
+    from PIL import Image, ImageDraw
+    V = g["pants__V"].astype(float)
+    Q = g["pants__F"].reshape(-1, 4)
+    UV = g["pants__UV"].reshape(-1, 4, 2)
+    cz = V[Q].mean(1)[:, 2]
+    keep = np.nonzero((cz > K.PANT_CUFF_Z + 0.03) & (cz < K.WAIST_FRONT - 0.06))[0]
+    par = {f: f for f in keep}
+
+    def find(i):
+        while par[i] != i:
+            par[i] = par[par[i]]
+            i = par[i]
+        return i
+    edge = {}
+    for f in keep:
+        for k in range(4):
+            a, b, ua, ub = Q[f, k], Q[f, (k + 1) % 4], UV[f, k], UV[f, (k + 1) % 4]
+            if a > b:
+                a, b, ua, ub = b, a, ub, ua
+            if (a, b) in edge:
+                h, va, vb = edge[(a, b)]
+                if np.abs(ua - va).max() < 1e-6 and np.abs(ub - vb).max() < 1e-6:
+                    par[find(f)] = find(h)
+            else:
+                edge[(a, b)] = (f, ua, ub)
+    isl = np.full(len(Q), -1)
+    for f in keep:
+        isl[f] = find(f)
+    ids, cnt = np.unique(isl[keep], return_counts=True)
+    N = K.vnormals(V, Q)
+    names = {}
+    for i in ids[np.argsort(-cnt)[:4]]:
+        m = isl == i
+        names[("L" if V[Q[m]].mean((0, 1))[0] > 0 else "R") + ("f" if N[Q[m]].mean((0, 1))[1] < 0 else "b")] = i
+    img = Image.new("I", (size, size), -1)
+    dr = ImageDraw.Draw(img)
+    for f in keep:
+        dr.polygon([(u * size, (1 - v) * size) for u, v in UV[f]], fill=int(isl[f]))
+    return np.asarray(img), names, isl
+
+
+def test_outseam_has_no_step(built, texels):
+    """Item 2: the front and back halves took their own photo's print up to the outseam, out of phase: a step all
+    down the outer side (sheet 07's side view). Along each outseam (every 2 mm, from 17 cm under the knee joint to
+    1.03 m), the texture within 4 mm each side of it (median, display) agrees across it (max channel difference
+    under 0.25) at over 0.85 of the points (main: left 0.80, right 0.64; round 4: 0.94 and 0.89)."""
+    from scipy.spatial import cKDTree
+    body, g = built
+    a, pos, nrm, chm, tx = texels["pants"]
+    tid, names, isl = _pant_islands(g, a.shape[0])
+    V = g["pants__V"].astype(float)
+    Q = g["pants__F"].reshape(-1, 4)
+    res = []
+    for s, sg in (("L", 1), ("R", -1)):
+        f_, b_ = names[s + "f"], names[s + "b"]
+        vf = set(Q[isl == f_].ravel()) & set(Q[isl == b_].ravel())
+        E = {tuple(sorted((q[k], q[(k + 1) % 4]))) for q in Q[isl == f_] for k in range(4)}
+        E = [e for e in E if e[0] in vf and e[1] in vf]
+        pts = []
+        for i, j in E:
+            n = max(1, int(np.ceil(np.linalg.norm(V[i] - V[j]) / 0.002)))
+            pts.append(V[i] + np.linspace(0, 1, n, endpoint=False)[:, None] * (V[j] - V[i]))
+        S = np.concatenate(pts)
+        kz = body.j(f"lowerleg01.{s}")[2]
+        S = S[(S[:, 0] * sg > 0.10) & (S[:, 2] > kz - 0.17) & (S[:, 2] < 1.03)]
+        med = []
+        for c in (f_, b_):
+            m = tid == c
+            tree, col = cKDTree(pos[m]), a[m]
+            med.append(np.array([np.median(col[k], 0) if len(k) else np.full(3, np.nan)
+                                 for k in tree.query_ball_point(S, 0.004)]))
+        d = np.abs(med[0] - med[1]).max(1)
+        ok = ~np.isnan(d)
+        res.append((s, int(ok.sum()), round((d[ok] < 0.25).mean(), 3)))
+    assert all(n > 250 and f > 0.85 for _, n, f in res), res

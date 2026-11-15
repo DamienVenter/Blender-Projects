@@ -1232,7 +1232,15 @@ def sleeve_photo_uv(body, P, s, view, photo_s=None):
 # the side line: Leatt's front view then saw it edge-on, it sees 60 px of it); the back photo does not see it
 THIGH_LOGO = (0.19, 28.0, 0.26)
 PF_ROWS = ((205, WAIST_FRONT), (None, 0.862), (1670, PANT_CUFF_Z + 0.005))   # crotch row: from alpha
-PB_ROWS = ((190, WAIST_BACK), (None, 0.862), (1650, PANT_CUFF_Z + 0.005))
+# Round 4: the back photo's middle row is where its legs part (the first open row, 909), not its crotch: from
+# behind, the thighs touch under the seat. Mapped to the crotch's height (main) it pushed the back's leg print up:
+# the back of the knee's mesh panel (row 1240) to z 0.64, 11 cm over his knee joint; the shins' fade tops (1275) to
+# 0.61, the front's (1300) at 0.56; the outer thigh's lime (ending at 1010) to 0.79, the front's (1050) at 0.70 and
+# his 07's at the thigh LEATT's middle, 0.19 m over the knee joint (0.72). The two photos share one frame: 1460 and
+# 1465 rows from the waist top to the boot top, the back's 15 to 20 rows higher (190 and 1650 to 205 and 1670). In
+# the front's rows the back's split (909 + 17.5) is at z 0.768; its legs then run 0.55 mm a row, the front's 0.55
+PB_SPLIT_Z = 0.768
+PB_ROWS = ((190, WAIST_BACK), (None, PB_SPLIT_Z), (1650, PANT_CUFF_Z + 0.005))   # split row: from alpha
 
 
 # Round 3b: the photos' silhouette runs, row by row, jittered by a few px (the alpha's edge, the gloves beside the
@@ -1244,6 +1252,28 @@ PB_ROWS = ((190, WAIST_BACK), (None, 0.862), (1650, PANT_CUFF_Z + 0.005))
 # photos; the bands meet themselves in a chevron on the line, as the print's own chevrons)
 PANT_MIRROR = np.radians(60.0)
 PANT_RUN_SMOOTH = 15     # rows
+# Round 4: over the hips the mirror took its angle across the whole pant (one round section 44 cm wide), under the
+# legs' split across each leg (22 cm): at the split its source on the outer side jumped from 11 to 5.5 cm inside the
+# edge, a step across the outer thigh (main, sheet 07's side view). The angle now comes from each side's own section
+# (the leg; over the hips the half pant, which the leg's section is at the split), and the two regimes' photo
+# positions are blended over PANT_SPLIT_BLEND each way of the split
+PANT_SPLIT_BLEND = 0.02  # m
+# Round 4: the outseam. The pant's front and back halves took their own photo's print up to the seam, and the two
+# photos' bands met there out of phase: a step all down the outer side (sheet 07's side view; main: 0.80 and 0.64 of
+# the points along the left and right outseams agree across it, every 2 mm from 0.36 to 1.03 m). Each photo's print
+# is mapped from a point's x and height alone, so either runs on past the seam continuously (folding where x turns,
+# as at the photo's own edge). Round each outer side the two now meet along the least-cost line between
+# PANT_SEAM_SPAN from the front (the leg's own angle, pant_charts'): its cost per cell is where one print has a band
+# and the other not (a band: brightest display channel over 0.3 to 0.5; the black ink is 0.07, the fills' greys
+# under 0.3), and half where both have bands of other colours (over 0.25 of a channel); plus PANT_SEAM_PRIOR per
+# degree off the seam (where both agree it stays on the seam) and PANT_SEAM_TURN per step aside; anti-aliased over
+# PANT_SEAM_SOFT. Each photo's white elements go only where its print does: the front's own thigh LEATT (taken out
+# for the official one, painted black) punched black holes into the back's print run on over the front half
+PANT_SEAM_SPAN = np.radians((50.0, 150.0))
+PANT_SEAM_CELL = (0.002, np.radians(1.0))     # m of height, angle
+PANT_SEAM_PRIOR = 0.004
+PANT_SEAM_TURN = 0.02
+PANT_SEAM_SOFT = np.radians(0.6)
 
 
 def pant_runs(alpha, view, crotch_y):
@@ -1305,25 +1335,77 @@ def pant_photo_uv(pants, P, view, alpha, sil3d, mirror=True):
     vi = np.clip(v.astype(int), 0, alpha.shape[0] - 1)
     runs = pant_runs(alpha, view, cy)
     zq, xq = P[:, 2], P[:, 0]
+    w = smoothstep(rows[1][1] - PANT_SPLIT_BLEND, rows[1][1] + PANT_SPLIT_BLEND, zq)    # 1: the whole pant's rows
     for s in "LR":
         mm = (xq > 0) if s == "L" else (xq <= 0)
-        whole = vi < cy
-        key = np.where(whole, "all", s)
-        span = np.where(whole[:, None], runs["all"][vi], runs[s][vi])
-        ok = mm & ~np.isnan(span[:, 0])
-        if not ok.any():
-            continue
         sa, sl = sil3d["all"], sil3d[s]
-        xl = np.where(whole, np.interp(zq, sa[0], sa[1]), np.interp(zq, sl[0], sl[1]))
-        xr = np.where(whole, np.interp(zq, sa[0], sa[2]), np.interp(zq, sl[0], sl[2]))
-        t = (xq - xl) / np.maximum(xr - xl, 1e-6)
-        if mirror:                                           # the outer sides (both, over the hips)
-            t = np.where(key == "all", side_mirror(t, True, True),
-                         side_mirror(t, s == "L", s == "R"))
-        if view == "back":
-            t = 1 - t
-        u[ok] = (span[:, 0] + t * (span[:, 1] - span[:, 0]))[ok]
+        xm = xq
+        if mirror:                       # the outer side, round the side's own section (the leg; the half pant)
+            a0, a1 = np.interp(zq, sl[0], sl[1]), np.interp(zq, sl[0], sl[2])
+            ts = side_mirror((xq - a0) / np.maximum(a1 - a0, 1e-6), s == "L", s == "R")
+            xm = a0 + ts * (a1 - a0)
+        us = []
+        for whole in (True, False):                          # each regime, its rows clamped to its side of the split
+            row = np.minimum(vi, cy - 1) if whole else np.maximum(vi, cy)
+            span = runs["all"][row] if whole else runs[s][row]
+            sec = sa if whole else sl
+            xl, xr = np.interp(zq, sec[0], sec[1]), np.interp(zq, sec[0], sec[2])
+            t = (xm - xl) / np.maximum(xr - xl, 1e-6)
+            if view == "back":
+                t = 1 - t
+            us.append(span[:, 0] + t * (span[:, 1] - span[:, 0]))
+        uw, ul = np.where(np.isnan(us[0]), us[1], us[0]), np.where(np.isnan(us[1]), us[0], us[1])
+        uu = np.where(vi < cy, uw, ul) if PANT_SPLIT_BLEND <= 0 else uw * w + ul * (1 - w)
+        ok = mm & ~np.isnan(uu)
+        u[ok] = uu[ok]
     return u, v
+
+
+def pant_seam_path(cost, z, al):
+    """The line round an outer side where the two photos' prints meet (PANT_SEAM_*): per row of height, its angle.
+    cost, z, al: per texel (the prints' difference, its height, its angle from the front). Returns (rows' z, angle)."""
+    dz, da = PANT_SEAM_CELL
+    zr = np.arange(z.min(), z.max() + dz, dz)
+    ar = np.arange(PANT_SEAM_SPAN[0], PANT_SEAM_SPAN[1] + 1e-9, da)
+    iz = np.clip(((z - zr[0]) / dz).astype(int), 0, len(zr) - 1)
+    ia = np.round((al - ar[0]) / da).astype(int)
+    ok = (ia >= 0) & (ia < len(ar))
+    S, N = np.zeros((len(zr), len(ar))), np.zeros((len(zr), len(ar)))
+    np.add.at(S, (iz[ok], ia[ok]), cost[ok])
+    np.add.at(N, (iz[ok], ia[ok]), 1)
+    C = np.where(N > 0, S / np.maximum(N, 1), 0.5) + PANT_SEAM_PRIOR * np.abs(np.degrees(ar) - 90)[None, :]
+    D = C[0].copy()
+    back = np.zeros(C.shape, int)
+    cols = np.arange(len(ar))
+    for i in range(1, len(zr)):                     # each row from the one below: straight on, or one cell aside
+        cand = np.stack([D, np.r_[np.inf, D[:-1]] + PANT_SEAM_TURN, np.r_[D[1:], np.inf] + PANT_SEAM_TURN])
+        k = cand.argmin(0)
+        back[i] = k
+        D = cand[k, cols] + C[i]
+    j = int(D.argmin())
+    path = np.zeros(len(zr), int)
+    for i in range(len(zr) - 1, -1, -1):
+        path[i] = j
+        j = j - 1 if back[i, j] == 1 else j + 1 if back[i, j] == 2 else j
+    return zr + dz / 2, ar[path]
+
+
+def pant_seam_weight(pants, P, ch, zf, zb):
+    """Per texel, how much of the back photo's print it takes: its own half's photo, except round the outer sides,
+    where the two meet along pant_seam_path. zf, zb: the two prints there (linear)."""
+    wb = np.isin(ch, (1, 3)).astype(float)
+    df, db = to_srgb(zf), to_srgb(zb)
+    bf, bb = smoothstep(0.3, 0.5, df.max(-1)), smoothstep(0.3, 0.5, db.max(-1))
+    cost = np.abs(bf - bb) + 0.5 * bf * bb * np.clip(np.abs(df - db).max(-1) / 0.25, 0, 1)
+    for s, sg in (("L", 1), ("R", -1)):
+        env = pants["lenv"][s]
+        _, _, th, _ = env.local(P)
+        al = th * np.sign(env.e2[0]) * sg              # round the outer side from the front (0) to the back (pi)
+        m = (P[:, 0] * sg > 0) & (al > 0)
+        zr, ap = pant_seam_path(cost[m], P[m, 2], al[m])
+        a = np.interp(P[m, 2], zr, ap)
+        wb[m] = smoothstep(a - PANT_SEAM_SOFT, a + PANT_SEAM_SOFT, al[m])
+    return wb
 
 
 def pant_silhouette(V, crotch_z, Q):
@@ -3047,14 +3129,22 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     sil = pant_silhouette(V, crotch, Q)
     white = to_lin(np.array(INK_WHITE) / 255)
     gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
-    # the clean flat print (decision 52), traced on each photo itself (round 3b, FP_PANT_PHOTO)
-    for cs, view, ph, rows, hid in (((0, 2), "front", pf, PF_ROWS, PF_HIDDEN), ((1, 3), "back", pb, PB_ROWS, ())):
-        m = np.isin(chm, cs)
-        zebra, wa = pant_photo_art(ph, rows, gain, white, hid, PANT_FADE_ROWS[view])
-        u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
-        un, _ = pant_photo_uv(pants, pos[m], view, ph.alpha, sil, mirror=False)   # white elements: never mirrored
-        a = np.clip(wa(un, v)[:, :1], 0, 1)
-        img[m] = to_srgb(zebra(u, v) * (1 - a) + white * a)
+    # the clean flat print (decision 52), traced on each photo itself (round 3b, FP_PANT_PHOTO); both photos' prints
+    # everywhere, each half taking its own photo's but round the outer sides, where they meet along the line where
+    # they agree (round 4: PANT_SEAM_SPAN)
+    P, ch = pos[mask], chm[mask]
+    zeb, wa = {}, {}
+    for view, ph, rows, hid in (("front", pf, PF_ROWS, PF_HIDDEN), ("back", pb, PB_ROWS, ())):
+        art, wa[view] = pant_photo_art(ph, rows, gain, white, hid, PANT_FADE_ROWS[view])
+        zeb[view] = art(*pant_photo_uv(pants, P, view, ph.alpha, sil))
+    wb = pant_seam_weight(pants, P, ch, zeb["front"], zeb["back"])[:, None]
+    col = zeb["front"] * (1 - wb) + zeb["back"] * wb
+    for cs, view, ph in (((0, 2), "front", pf), ((1, 3), "back", pb)):
+        m = np.isin(ch, cs)
+        un, v = pant_photo_uv(pants, P[m], view, ph.alpha, sil, mirror=False)   # white elements: never mirrored
+        a = np.clip(wa[view](un, v)[:, :1], 0, 1) * (wb[m] if view == "back" else 1 - wb[m])   # where its print is
+        col[m] = col[m] * (1 - a) + white * a
+    img[mask] = to_srgb(col)
     # the big LEATT on the outer left thigh, printed flat from a view square to it (PHOTO: Leatt front on-model,
     # front three-quarter and back flat): reading up from the knee, letter tops to the front. The photo's own,
     # stretched over the side, is taken out first (its white and a 2 mm rim to the black ink: the print fills it)
