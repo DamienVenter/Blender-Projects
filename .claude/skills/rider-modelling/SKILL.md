@@ -967,6 +967,23 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - When one agent loosens another's test (helmet phase 2 raised the goggle plate's turn bound 20 to 22 deg), accept it
   only if the test's real checks still hold (gap, rest, place), then hand the bound back to its owner to set from a
   measured value with a source.
+- A background agent can hang on one tool call with nothing running behind it (helmet round 5's first start froze 3 h
+  16 min after `git lfs pull; git log; sed`): the harness still says "running". Check the agent's transcript
+  (~/.claude/projects/<project>/subagents/agent-<id>.jsonl): if its mtime stands still and `ps` shows no child
+  process, stop the agent (TaskStop) and resume it with SendMessage (it continues from its transcript). Briefs now ask
+  for `timeout` in front of every long command.
+- An agent's branch can sit on an older main than the one it fetched: `git diff --stat <main> <agent tip>` then lists
+  the base's differences too (goggle round 13 showed the bike's textures). List its commits with
+  `git log <main>..<agent tip>`, compare its own files with `git diff --stat <agent tip> HEAD -- <its files>` after the
+  merge (empty means identical), and check the trial merge's log was run on exactly main plus those commits.
+- In a loop of cherry-picks, stop at the first conflict and resolve it (resolve_rows.py, git add, cherry-pick
+  --continue) before picking the next: the next pick fails with "unmerged files" and leaves nothing applied.
+- The rider suite rebuilds the kit textures into textures/rider, and the jersey print comes out a few texels
+  different from the committed file (2 texels, 1 level, after round 4): an agent must restore textures that are not
+  its own before committing. The build should be bit-reproducible (handed to the kit's owner, decision 59 phase B).
+- Our rider stands on the pegs in the riding view while his 07 shows him seated (thigh level, knee at the tank): an
+  overlay of the legs in 07 is not a test until the pose task (#14); compare the kit there by 3D measures (the zebra's
+  end over the knee joint, jersey round 4).
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
