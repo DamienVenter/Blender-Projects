@@ -128,7 +128,10 @@ def principled(name, rgb=None, metal=0.0, rough=0.5, image=None, coat=0.0, aniso
     return m
 
 
-RED = (208, 10, 22)             # photo mean of the lit plastics is (240, 50, 60): tuned in the studio views
+# the plastic's red, one value with kit_canvas.RED and kit_sidepanel.PLASTIC_RED (test_kit): fitted to his photo 07
+# under the scene look at the photo's own exposure (decision 55, research/scene-look.md "The bike's red": median and
+# lit median of 13268 photo px, dE 10.4 / 10.4 -> 5.0 / 6.6); was (208, 10, 22), tuned in the studio views
+RED = (205, 41, 62)
 MATS = {
     "livery_L": dict(image="side_L.png", rough=0.34, coat=0.08),
     "livery_R": dict(image="side_R.png", rough=0.34, coat=0.08),

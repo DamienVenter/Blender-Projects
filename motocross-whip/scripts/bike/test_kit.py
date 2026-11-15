@@ -200,6 +200,24 @@ def test_barpad_lettering_on_the_faces_emblem_on_top():
     assert caps.mean() == 0 and (a[:B, :, 0] > 180).mean() > 0.95     # red end caps (his pad is red all over)
 
 
+def test_the_plastic_red_is_one_value_his_photos():
+    """build_bike.RED (the plain plastic), kit_canvas.RED and kit_sidepanel.PLASTIC_RED (the same plastic in the kit
+    textures) are one value, fitted to his photo 07 under the scene look (decision 55, research/scene-look.md "The
+    bike's red"), and the kit textures were rebuilt with it: their plain plastic is that red, none of the old one is
+    left (a seam between the textured and the plain plastic otherwise)."""
+    import ast
+    import kit_sidepanel
+    tree = ast.parse(open(os.path.join(HERE, "build_bike.py")).read())
+    bike = [ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "RED" for t in n.targets)]
+    assert bike == [kit_canvas.RED] and kit_sidepanel.PLASTIC_RED == kit_canvas.RED
+    assert kit_canvas.RED == (205, 41, 62)
+    for f in ("side_L", "side_R", "fender", "front_fender", "plate", "seat", "top"):
+        a = np.asarray(Image.open(os.path.join(KIT, f + ".png")).convert("RGB"))
+        assert (a == kit_canvas.RED).all(-1).sum() > 100000, f
+        assert not (a == (208, 10, 22)).all(-1).any(), f
+
+
 # ---- the side panels, drawn by script (kit_sidepanel.py, decision 37) ---------------------------------------------
 
 @pytest.fixture(scope="module")

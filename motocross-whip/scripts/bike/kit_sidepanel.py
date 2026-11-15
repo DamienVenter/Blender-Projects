@@ -61,7 +61,8 @@ SPECK_AREA = 0.32                    # of the zone's area (photo 03: 0.32 over O
 INK = 0.45                           # red ink over the flake lets the flake through (photo 02: LEATT, splatter)
 RED = (198, 22, 30)
 # the red zone is the same pebbled flake vinyl printed red (photo 03: gaps (135, 33, 44), specks (139, 44, 56); 07:
-# (218, 55, 60) and (226, 62, 66)): light red worms on the red, the zone's mean kept at RED
+# (218, 55, 60) and (226, 62, 66)): light red worms on the red, the zone's mean kept at RED. Checked against photo 07
+# under decision 55's look at the photo's exposure (research/scene-look.md, "The kit's printed colours"): kept
 RED_GAP = (190, 18, 27)
 RED_SPECK = (216, 40, 47)
 # material map (kit_canvas "mat"; glTF's metallic-roughness convention: G roughness, B metallic). The kit's plastics
@@ -77,7 +78,7 @@ MAT_SPECK = (0.30, 1.0)              # aluminium flake (rough 0.25..0.35 per fla
 # Rayleigh-distributed with 12 deg per axis (median 14 deg, 9 in 10 under 26 deg), random azimuth; metal-flake
 # coatings hold their flakes within about 20 deg of the film. A check: a close photo of the panel in sun.
 FLAKE_TILT = 12.0                    # deg
-PLASTIC_RED = (208, 10, 22)          # kit_canvas.RED: the plastic itself, round the intake opening
+PLASTIC_RED = (205, 41, 62)          # kit_canvas.RED: the plastic itself, round the intake opening (decision 55)
 LEATT_RED = (233, 0, 41)
 
 # the panel in left art px (template of bike v6, side_panels: tools in the ledger)
