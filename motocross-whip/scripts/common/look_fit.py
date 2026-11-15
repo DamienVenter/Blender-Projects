@@ -28,6 +28,8 @@ python3 look_fit.py darks OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json
     his phone's lift of the darks and 07's tint (scene_look.DARK_LIFT, PHOTO_TINT) fitted on the neutral blacks
     outside the gear (the helmet's black print in p07 and p08, the tyres in cam07), the gear's darks held out
     (dark_fit; decision 59)
+python3 look_fit.py boot_white OUT.json
+    the boots' white against the helmet's white shell in each photo of his that sees them (BOOT_BOXES; decision 59)
 python3 look_fit.py sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
     photo | decision 46's look | the scene look, for the checkpoints (sheet)
 
@@ -885,6 +887,45 @@ def dark_fit(sets):
     return out
 
 
+# ---------------------------------------------------------------- the boots' white (decision 59)
+# Every photo of his that sees the boots: the boot's white against the helmet's white shell in the same photo (the
+# same sun, the same exposure). Boxes (x0, y0, x1, y1, full-resolution pixels) round each boot and the helmet.
+BOOT_BOXES = {"05": ("damien-bike-2026-11-10/05_damien-seated-left-side.jpg",
+                     [(368, 864, 448, 1040), (272, 1024, 392, 1144)], (248, 360, 408, 512)),
+              "06": ("damien-bike-2026-11-12/06_whip-from-below_rear-left.jpg", [(560, 820, 740, 1000)],
+                     (200, 460, 310, 590)),
+              "08": ("damien-bike-2026-11-12/08_whip-from-below_right-side.jpg", [(560, 200, 800, 380)],
+                     (1100, 210, 1300, 400)),
+              "09": ("damien-bike-2026-11-12/09_whip-from-below_left-front.jpg", [(620, 590, 830, 730)],
+                     (1120, 290, 1270, 470))}
+
+
+def boot_white():
+    """Per photo: the white pixels (saturation under 0.25, value over 0.45) in the boxes, the lit side (the top
+    luminance quartile, glints over the 98th percentile out), its median (8-bit) and the boot / helmet ratio of the
+    lit sides' linear medians, per channel and in luminance."""
+    ref = os.path.join(ROOT, "reference")
+    out = {}
+
+    def lit(im, boxes):
+        a = np.concatenate([np.asarray(im.crop(b)).reshape(-1, 3) for b in boxes]).astype(float) / 255.0
+        mx = a.max(1)
+        a = a[((mx - a.min(1)) / np.maximum(mx, 1e-6) < 0.25) & (mx > 0.45)]
+        Y = srgb_to_lin(a) @ np.array(scene_look.LUMA)
+        return a[(Y >= np.percentile(Y, 75)) & (Y <= np.percentile(Y, 98))]
+    for k, (f, boots, helm) in BOOT_BOXES.items():
+        im = Image.open(os.path.join(ref, f)).convert("RGB")
+        b, h = lit(im, boots), lit(im, [helm])
+        rb, rh = srgb_to_lin(np.median(b, 0)), srgb_to_lin(np.median(h, 0))
+        out[k] = dict(boot=(np.median(b, 0) * 255).round().astype(int).tolist(), n_boot=len(b),
+                      helmet=(np.median(h, 0) * 255).round().astype(int).tolist(), n_helmet=len(h),
+                      ratio=(rb / rh).round(3).tolist(),
+                      ratio_Y=round(float(rb @ np.array(scene_look.LUMA) / (rh @ np.array(scene_look.LUMA))), 3))
+        print("%s boot lit %-16s helmet lit %-16s boot / helmet %s, luminance %.3f" % (
+            k, out[k]["boot"], out[k]["helmet"], out[k]["ratio"], out[k]["ratio_Y"]))
+    return out
+
+
 def sheet(view, exr_path, out, panel_scale=2, ev=0.0, region=None, vertical=False):
     """A before / after sheet: his photo (Lanczos up to the panel scale) | decision 46's look | the scene look
     ("daylight" at ev), both renders from the view's linear EXR (box-averaged to panel_scale x the photo's pixels,
@@ -955,6 +996,8 @@ if __name__ == "__main__":
             v, p = spec.split("=")
             res += gear(v, p, a[i + 1], tint="--no-tint" not in a)
         json.dump(res, open(a[1], "w"), indent=1)
+    elif a[0] == "boot_white":                   # boot_white OUT.json
+        json.dump(boot_white(), open(a[1], "w"), indent=1)
     elif a[0] == "darks":                        # darks OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json
         i = a.index("--index")
         json.dump(dark_fit(dark_sets(a[2:i], a[i + 1])), open(a[1], "w"), indent=1)

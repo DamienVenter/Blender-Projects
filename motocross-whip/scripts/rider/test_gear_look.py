@@ -112,6 +112,9 @@ def test_the_boots_white_is_his_scuffed_white():
     from PIL import Image
     lum = lambda c: float(S.eotf(np.asarray(c, float) / 255.0) @ np.asarray(S.LUMA))          # noqa: E731
     assert 0.90 < lum(boots.WHITE) / lum(helmet_art.WHITE) < 0.96
+    r08 = F.boot_white()["08"]["ratio"]                       # look_fit.py boot_white: his 08, both lit
+    want = S.oetf(S.eotf(np.asarray(helmet_art.WHITE, float) / 255.0) * np.asarray(r08)) * 255.0
+    assert np.all(np.abs(np.asarray(boots.WHITE) - want) <= 1.0), (boots.WHITE, want)
     assert list(boots.MATERIALS["boot_white"]["rgb"]) == [int(v) for v in boots.WHITE]
     for f in ("boot_out_R.jpg", "boot_out_R_worn.jpg", "boot_back_L.jpg"):
         a = np.asarray(Image.open(os.path.join(boots.TEXDIR, f)).convert("RGB")).reshape(-1, 3).astype(float)

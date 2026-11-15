@@ -130,3 +130,18 @@ Checks: renders of both gloves from Leatt's four angles beside Leatt's photos; c
 LEATT and "2.5" read right on both gloves; test `test_prints_read_right_on_both_gloves`. His photos 08 and 09: the
 white band with LEATT runs along the little-finger side of the fist, along the grip, in the model too; the fist
 itself does not match while the pose puts the grip through the palm (section 1).
+
+## 4. Materials round 1 (decision 59, 2026-11-15): kept
+
+- glove_fabric (rough 0.7, sheen 0.1, the texture's blacks 30, 30, 33) and glove_elastic stay.
+- Leatt's studio (Standard; `gloves.py check` back_R against the my26 back-hand shot): the back's dark against its
+  own white LEATT print, each under its 90th luminance percentile: Leatt 31, 38, 48 and 222, 227, 236, dark / white
+  0.025 (linear luminance); ours 62, 62, 63 and 240, 240, 239, 0.055. Ours is twice as light against its white,
+  the same gap as the kit's black against Leatt's flats (kit.md round 3: 21 against our 45): Leatt's black point,
+  not the glove (his photos want the dark lighter, not darker). The my27 shots read the black neutral (34, 34, 35
+  and 39, 39, 40); the my26 shot is cool all over (its white print too). No navy dye.
+- His photos at decision 59's daylight look (his phone's lift of the darks and 07's tint, research/scene-look.md
+  "The darks"): cam07 32, 37, 50 against ours 28, 32, 45, dE 2.3 (main's look 14.2); p09 30, 39, 50 against 23, 24,
+  24, dE 10.7 (15.5): 09's shade light is bluer than the rig's (his white shade linear B/G 1.17, ours 1.03).
+- Sheen and roughness: the body's numbers cannot tell the grey layer from the albedo (look_fit.gear_fit, its test);
+  Leatt's shots show no sheen highlight on the back (the dark's spread there is the printed weave). Kept.

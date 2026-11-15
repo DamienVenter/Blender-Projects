@@ -16,16 +16,23 @@ Round 2b (the coordinator's review of round 2's red at 1:1): the red is fitted o
 with his hue (G = B) and Honda's studio views within main's error, and the studio for Honda's views reflects dark as
 theirs does ("Round 2b" and "Honda's studio", under "The bike's red").
 
+Materials round 1, phase A (decision 59): the darks' navy cast is his phone, not the dyes: the daylight look now
+lifts the darks as his phone does (all three photos) with 07's own blue tint on top; the boots are his scuffed
+white; the gloves stay; round 2's sky numbers re-measured on main's refitted cameras; the gear's measurement is a
+command (`look_fit.py gear`, `look_fit.py darks`). "The gear, materials round 1", below.
+
 ## The look
 
 | step | what | value (round 2; round 1) | source |
 |---|---|---|---|
 | 1 | gains (white balance, exposure) | log2: EV -0.847, R +0.107, G 0, B -0.165 (round 1: EV 0.102, R +0.234, B -0.302) | WB: the white shell, below; EV and the curve: the fit, below |
 | 2 | tone curve on max(R, G, B), the three channels scaled by T(M)/M (hue and channel ratios kept) | T(u) = m u^P / (1 + u^P), P 2.21 (round 1: 2.59), m so that T(8) = 1 | the fit |
-| 3 | view | Standard (the sRGB curve, clipped) | |
+| 3 | "daylight" only: the lift of the darks, on the display values d (sRGB-encoded) by the pixel's value | d + o (1 - max d)^2 per channel, o = DARK_LIFT 0.0668 (17 levels at black; a white moves under a level) | `look_fit.py darks`, "The darks" below (decision 59) |
+| 4 | view | Standard (the sRGB curve, clipped) | |
 | "scene" kind | studio-lit views (build_bike, build_rider, rake, head_closeups' studio) | neutral gains 2^(EV + 1.514) (round 1: EV + 0.832) | 0.18 linear at 69, where decision 46's AgX - Punchy -0.6 put it (look_apply.py, Blender 5.2.3) |
 | "studio" kind | Leatt's and Honda's studio comparisons | Standard at the caller's exposure | decisions 44 and 46, unchanged |
 | PHOTO_EV | a view of one of his photos (head_closeups p07, p08, p09, cam07) | daylight at EV + 07 -0.045, 08 -0.147, 09 -0.649 | "Each photo's exposure", below (round 2) |
+| PHOTO_TINT | the same views: a photo's own tint of its darks, added to o (`scene_look.photo_tint(view)`) | 07: -0.0044, +0.0123, +0.0706 (08, 09: none) | "The darks" below (decision 59) |
 
 Steps 1 and 2 are a compositor node group ("scene_look": math nodes) set on `scene.compositing_node_group`; the
 view's curve mapping cannot do step 2: it works per channel, and its film-like mode still sends the smallest channel
@@ -37,7 +44,7 @@ Grey ramps (G channel, 8-bit; Blender 5.2.3 through look_apply.py, equal to `dis
   the darks (the coordinator's measures, LOOK1 brief: darks 12 to 29 in his photos against 47 to 88 in ours).
 - "daylight", linear 0.062, 0.123, 0.244, 0.486, 0.966, 1.92, 3.82, 7.59: 2, 10, 30, 68, 128, 194, 232, 244 (round
   1: 4, 20, 55, 120, 193, 228, 236, 237; R reaches 255: a render-neutral grey reads warm, as the phone balances the
-  rig's blue sky light away).
+  rig's blue sky light away). With the lift (decision 59): 19, 25, 43, 77, 132, 195, 232, 244.
 
 ## The daylight rig (round 2, `day_rig.py`)
 
@@ -470,6 +477,134 @@ Round 1's readings (decision 54's sky), kept for the record:
   in a sheen; the dye may be navy rather than black.
 - **Boots**: L* 94 against 75 at photo 07's exposure: the boot white (236, 239, 242, coat 0.15) is brighter than his
   boots read in that shot.
+
+## The gear, materials round 1 (decision 59, phase A)
+
+Renders: main 039e0a0's rider (helmet and kit npz rebuilt from main, body, pose, gloves as round 1), his views p07,
+p08, p09 and cam07 linear at 64 samples on main's refitted cameras (helmet phase 2, his-photo-cameras.json rms 2.2,
+5.8, 8.0 px). Measured with `look_fit.py gear` (the colour gates and regions of round 2, the render now gated
+without the photo's tint) and `look_fit.py darks`.
+
+### The darks
+
+Is the navy his phone or the light? Neutral blacks first: the helmet's black print (gloss over black, neutral in
+Leatt's studio) and the tyres' rubber, against the white shell's shade (the light itself).
+
+| photo | black print (pairs) | tyres | white shell, shade (the light) | reading |
+|---|---|---|---|---|
+| 07 | 35, 37, 56; linear B/G 2.1, in every reflection bin, also where it mirrors the warm street (43, 56, 72) | 27, 31, 39 (cam07, 41576 px); B/G 1.5 | 212, 224, 238; B/G 1.12; the cobbles in the bike's shadow 1.33 | bluer than its own light: **his phone** |
+| 08 | 40, 43, 48; B/G 1.16 | neutral (his 08, the wheels' rings) | 193, 212, 220; B/G 1.10 | **the light** |
+| 09 | no pairs at its camera's rms | | 185, 193, 205; B/G 1.17 | helmet blacks and gloves B - R about +7 to +20, as its shade: **the light** |
+
+Leatt's studio shows all of them neutral (the helmet's black print; the glove black 34, 34, 35 and 39, 39, 40 in
+the my27 shots; the my26 shot is cool all over, its white print 222, 227, 236 too). So no dye is navy.
+
+The second finding is bigger: in all three photos the **matte darks read 10 to 20 levels over ours** (jersey, pant,
+gloves, tyres: his 25 to 37, ours 5 to 22) while his white shell's lit and shade sides match ours. The same blacks
+read darker in Leatt's studio photos than ours under Standard (the kit's black: flat 21, ours 45, kit.md round 3;
+the glove below): so not the albedos. It is the phone's toe: a lift of the darks. And the rig's fill is not it: a
+darker ground (DAY_RIG ground 0.2 and 0.1, p07 p08 p09 re-rendered) takes the black print to 10 to 15 (his 35 to
+40) and 07's shade to dE 15.7 and 27.1 (7.6 now); it does make 08's and 09's shade bluer and closer (8.0 to 3.7,
+11.4 to 2.2 at the lit side's exposure), a lead for the rig, not a fix for the darks.
+
+The fix, in the look (`scene_look.DARK_LIFT`, `PHOTO_TINT`): the display values lifted by the pixel's value,
+d + o (1 - max d)^2 per channel (max: a saturated colour's weak channels and the whites are left alone), one
+neutral o for all his photos and 07's tint on top, fitted (`look_fit.py darks`, least squares on the CIELAB
+medians) on the neutral blacks outside the gear: the black print in 07 and 08 (pairs) and the tyres in cam07. The
+gear's darks are held out. Fit: lift 0.0668 (17.0 levels), 07's tint -0.0044, +0.0123, +0.0706.
+
+| view | class | his | main (no lift) | dE | this round | dE |
+|---|---|---|---|---|---|---|
+| p07 | black print (fitted) | 35, 37, 56 | 34, 33, 31 | 15.1 | 46, 48, 57 | 8.7 |
+| p08 | black print (fitted) | 40, 43, 48 | 31, 30, 28 | 8.2 | 44, 43, 41 | 5.2 |
+| cam07 | tyres (fitted) | 27, 31, 39 | 5, 5, 5 | 11.9 | 20, 24, 39 | 6.1 |
+| p07 | jersey dark | 22, 31, 38 | 22, 21, 21 | 7.9 | 35, 38, 50 | 6.2 |
+| p08 | jersey dark | 31, 26, 35 | 20, 20, 21 | 7.1 | 34, 34, 36 | 6.5 |
+| p09 | jersey dark | 25, 25, 34 | 11, 12, 12 | 8.7 | 27, 27, 28 | 6.1 |
+| p09 | gloves | 30, 39, 50 | 7, 8, 8 | 15.5 | 23, 24, 24 | 10.7 |
+| cam07 | jersey dark | 28, 37, 49 | 16, 16, 16 | 13.3 | 29, 33, 47 | 2.7 |
+| cam07 | pant dark | 29, 35, 49 | 16, 16, 19 | 12.4 | 30, 33, 49 | 1.6 |
+| cam07 | gloves | 32, 37, 50 | 14, 14, 14 | 14.2 | 28, 32, 45 | 2.3 |
+| | **mean** | | fitted 11.7, held out 11.3 | | fitted 6.7, **held out 5.2** | |
+
+07's tint fitted on the black print alone (0.0027, 0.0205, 0.1309, the first try) matched the print (dE 0.0) and
+made the matte darks navy (cam07 tyres 5, 10, 37: dE 15.2; held out 13.8): the print is bluer than the matte darks
+in his 07 (linear B/G 2.1 against 1.5 to 1.7). Fitting the tint on the print's colour alone and the lift on the
+lightness: held out 11.4. The joint fit above is the one shipped.
+
+What else moves (numpy, at each photo's exposure, 07 with its tint): the look's pixel pairs, white, magenta and black
+per photo, mean dE 13.7 to 12.0 (the whites within 0.1; 07's magenta 42.7 to 41.9); the sky 9.8 to 10.0 (08) and
+4.3 to 4.9 (09); the bike's red on his 07 (`look_fit.py bike`, cam07, the plastic's body): 247, 50, 53 at both,
+dE 23.9 / 18.4 unchanged; a mid grey (display 128) gains 4 levels, a dark red's weak channels (the red at a quarter
+of its light) 8. The "scene" kind (the studio-lit views) keeps decision 54's curve: whether it takes the lift too
+is the coordinator's call (it changes every studio-lit render). head_closeups' day_sun does not pass 07's tint yet
+(`scene_look.apply(..., tint=scene_look.photo_tint(name))`, one argument in a view script): the lift is in every
+daylight render already; the checkpoints take the tint through look_fit.
+
+What remains in the darks: 09's shade light is bluer than our rig's (his white shade B/G 1.17, ours 1.03), so 09's
+gloves read 23, 24, 24 against 30, 39, 50 (dE 10.7): the rig's sky and ground (the darker ground lead above).
+
+### Gloves (gloves.py glove_fabric: rough 0.7, sheen 0.1; texture blacks 30, 30, 33)
+
+- Leatt's studio, the back of the hand against its own white LEATT print (each its body, under the 90th luminance
+  percentile; `gloves.py check` back_R under Standard against the my26 back-hand shot): Leatt dark 31, 38, 48, white
+  222, 227, 236, dark / white 0.025 (linear luminance); ours 62, 62, 63 and 240, 240, 239, 0.055. Ours is twice as
+  light against its white: the same gap as the kit's black against Leatt's flats (21 against 45, kept in round 3):
+  Leatt's black point, not the glove (his photos need the black lighter still). The my27 shots read the black
+  neutral (34, 34, 35 and 39, 39, 40 against a 236 grey sweep), ours neutral: no navy dye.
+- His photos, this round's look: cam07 32, 37, 50 against ours 28, 32, 45 (dE 2.3, main 14.2); p09 30, 39, 50
+  against 23, 24, 24 (10.7, main 15.5: 09's shade light, above).
+- Sheen and roughness: the body's numbers cannot tell the grey layer's scale from the albedo (`gear_fit`: a test
+  class made with k 0.6 fits as closely at k 2.3 with a third of the albedo); Leatt's shots show no sheen
+  highlight on the back (the weave's print spreads the dark, q90 / q50 2.2 against our 1.2, a pattern, not gloss).
+- So the gloves stay as they are: their dark reads right in his 07 at this round's look, neutral as in Leatt's
+  studio, and its studio gap is Leatt's processing, as the kit's.
+
+### The boots' white (boots.py WHITE and boot_white)
+
+Every photo of his that sees the boots, the boot's white against the helmet's white shell in the same photo (white
+pixels, saturation under 0.25 and value over 0.45, in boxes round each; the lit side: the top luminance quartile,
+glints over the 98th percentile out; `look_fit.py boot_white`, its BOOT_BOXES):
+
+| photo | boot lit | helmet lit | boot / helmet (linear) | what the boot faces |
+|---|---|---|---|---|
+| 05 (11-10, seated) | 173, 191, 203 | 202, 220, 238 | 0.72 | its sides upright, the helmet's top up |
+| 06 (from below) | 168, 168, 156 | 218, 217, 243 | 0.55 | mostly its underside; cream, dusty |
+| 08 (from below) | 221, 231, 232 | 228, 238, 243 | **0.93** (R 0.932, G 0.935, B 0.900) | both in sun |
+| 09 (from below) | 168, 162, 155 | 235, 238, 244 | 0.43 | its underside; cream, dusty |
+| 07 (cam07) | 176, 184, 181 (shade side) | | | the sun behind the bike |
+
+Only 08 sees both lit alike: the boot is 0.93 of the shell, a little warmer. On helmet_art.WHITE (226, 229, 235)
+that is **219, 222, 224** (L* 89): a scuffed off-white, as expected, not a grey. Main's 236, 239, 242 was 1.10 of the
+shell (the boot whiter than the helmet, where his are never). Leatt's studio (boot 01 to 05: a clean neutral white
+on a 236 grey sweep; its exposure is the studio's, so it fixes the hue, not the level) agrees on neutral. Applied to
+WHITE (the shell's paint, textures rebuilt by boots.py) and boot_white. The cam07 numbers: see the checkpoint
+README (decision 59).
+
+### Round 2's sky numbers on main's refitted cameras
+
+`remeasure` (scratch): the white shell's pixels eroded by ERODE, lit and shade quartiles of Combined_sun, at
+round 2's PHOTO_EV and at a refit by the same rule (our median G on the lit side meets his).
+
+| photo | white / lit px | his lit | ev refit (PHOTO_EV) | lit dE | shade dE | white dE | black dE | sky dE |
+|---|---|---|---|---|---|---|---|---|
+| 07 | 1346 / 337 | 242, 244, 245 | -0.365 (-0.045) | 2.0 (refit 1.7) | 6.1 (7.6) | 3.0 (3.4) | 15.1 (16.2) | |
+| 08 | 1912 / 478 | 229, 237, 242 | -0.150 (-0.147) | 1.4 | 8.0 | 5.0 | 8.2 | 9.8 |
+| 09 | 822 / 206 | 224, 221, 232 | -0.593 (-0.649) | 3.8 (3.6) | 10.7 (11.4) | 8.1 (7.3) | | 4.3 (5.5) |
+
+Round 2 on the old cameras: lit 3.3, 1.5, 6.3; shade 4.3, 6.1, 7.1; black 16.6, 5.9, 4.9 (09's black has no pairs
+now). Mean at PHOTO_EV: lit 2.4, shade 8.3. PHOTO_EV stays: 08 and 09 refit within 0.06 stops, and 07's lit
+quartile sits on the curve's shoulder (242 to 245), where a third of a stop moves G by 2 levels: the refit buys 0.3
+dE on the lit side and costs 1.5 in the shade. The shade's error is the rig's blue (above), not the exposure.
+(Before the lift; the lift moves the whites by under a level.)
+
+### Commands (decision 59)
+
+```
+python3 scripts/common/look_fit.py darks darks.json p07=head_p07.exr p08=head_p08.exr p09=head_p09.exr cam07=head_cam07.exr --index index.json
+python3 scripts/common/look_fit.py gear gear.json p07=head_p07.exr p08=head_p08.exr p09=head_p09.exr cam07=head_cam07.exr --index index.json [--no-tint]
+python3 scripts/common/look_fit.py boot_white boot_white.json
+```
 
 ## Checks
 

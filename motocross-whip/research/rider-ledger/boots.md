@@ -110,3 +110,14 @@ mouldings (the levers sit on 2.5 mm painted base plates), the spine's white plat
   skin inside the boot at rest and in five poses, hidden skin, gear file, mirror.
 - Check sheets (photo beside render, same angle): Leatt 02, 03, 04, 05, 06; his 07 (left boot) and 08 (right boot
   from below).
+
+## Materials round 1 (decision 59, 2026-11-15): his scuffed white
+
+- Shell white (boots.WHITE, the paint of the shell textures, and boot_white): 236, 239, 242 -> **219, 222, 224**.
+  His 08 sees the boot and the helmet's white shell both in sun: the boot's lit quartile at 0.932, 0.935, 0.900 of
+  the shell's (linear, per channel; `look_fit.py boot_white`, its BOOT_BOXES), on helmet_art.WHITE (226, 229, 235).
+  Main's white was 1.10 of the shell. His 05, 06 and 09 see less of the boot's lit side (0.72, 0.55, 0.43; 06 and 09
+  cream with dust: the wear layer's job). Leatt's studio (01 to 05): a clean neutral white, its level the studio's
+  exposure.
+- Textures rebuilt by `boots.py` (shell whites 218, 222, 225; treads and normal maps unchanged). Wear unchanged.
+- Test: `test_gear_look.py::test_the_boots_white_is_his_scuffed_white` (fails on main: 1.10 of the shell).

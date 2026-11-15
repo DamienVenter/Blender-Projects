@@ -332,3 +332,17 @@ daylight kind, Leatt's views in Standard -1.0. Blender 5.2.0: the elbow's back v
 | strap | black Hypalon rubber (18, 18, 19), roughness 0.62 | PHOTO Tech1 |
 | strap_tab | black textile, roughness 0.85, sheen 0.3 | PHOTO |
 | buckle | black moulded plastic, roughness 0.32, coat 0.15 | PHOTO Tech1 |
+
+### Materials round 1, phase A (decision 59, 2026-11-15): the darks
+
+- No navy dye for the jersey's and pant's black. His photos' navy is his phone in 07 (the tyres and the helmet's black
+  print, neutral in Leatt's studio, read as blue, bluer than the shade's light) and the shade's light in 08 and 09;
+  their lightness (10 to 20 levels over ours in all three photos, while the white shell matches) is his phone's
+  lift of the darks, now in the daylight look (scene_look.DARK_LIFT, PHOTO_TINT; research/scene-look.md "The
+  darks").
+- At it, the black as it is: cam07 jersey dark 28, 37, 49 against ours 29, 33, 47 (dE 2.7; main's look 13.3), pant
+  dark 29, 35, 49 against 30, 33, 49 (1.6; 12.4); p07, p08, p09 jersey dark dE 6.2, 6.5, 6.1 (7.9, 7.1, 8.7).
+- Leatt's flats under Standard: unchanged (the "studio" kind has no lift): the black's 45 against the flat's 21
+  stays round 3's error, Leatt's black point.
+- The inks and jersey_print / pant_print are phase B (after jersey round 4, on the coordinator's go). The gear's
+  numbers for it: `look_fit.py gear` (research/scene-look.md "Commands (decision 59)").
