@@ -150,7 +150,7 @@ def test_vents_are_moulded_away_from_the_front(built):
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
     assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
-    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH}
+    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE}
     Vo, Fo, _ = H.shell_outer()
     No = H.normals(Vo, Fo)
     j = cKDTree(Vo).query(V)[1]
@@ -350,9 +350,9 @@ def test_trim_rolls_into_the_port(body):
     """Phase 2 (decision 51): the port's rubber trim rolls into the opening. In Leatt's iso photos the trim's band at
     the port's side, from its crest to where it meets the liner, reads 9 to 14 mm wide (the coordinator's 1:1 review;
     Pinata iso-left at 2x: the roll turns at the crest and runs about 15 mm in). Through the solved iso-left camera
-    the strip's projected width at the port's side (|z| < 40 mm, x > 50 mm) has its median within 9 to 14 mm and
-    none under 4.5 mm (the brow's corner), and the roll keeps 1.5 mm off his skin. Main: 4.4 to 7.7 mm (a 4 mm round
-    strip), median 6.2."""
+    the roll's projected width at the port's side (|z| < 40 mm, x > 50 mm; crest to its seam with the pads, item 2)
+    has its median within 9 to 14 mm, and the rolled edge keeps 1.5 mm off his skin. Main: 4.4 to 7.7 mm (a 4 mm
+    round strip), median 6.2."""
     from scipy.spatial import cKDTree
     Vo, Fo, prof = H.shell_outer()
     R, tr, _ = H.fit_on_head(body, Vo, Fo, prof)
@@ -365,14 +365,83 @@ def test_trim_rolls_into_the_port(body):
             continue                                    # the rear slots' strips
         O = rings[0]
         for k in np.nonzero((O[:, 0] > 0.05) & (O[:, 1] > -0.08) & (np.abs(O[:, 2]) < 0.04))[0]:
-            q, d = H.cam_project(cam, np.array([r[k] for r in rings]))
+            q, d = H.cam_project(cam, np.array([r[k] for r in rings[:H.RIM_RINGS]]))
             w.append((q[:, 0].max() - q[:, 0].min()) / (cam["f"] / d.mean() / 1000))
         near = min(near, cKDTree(skin).query(np.vstack(rings))[0].min())
     w = np.array(w)
     assert len(w) >= 5
-    assert 9.0 <= np.median(w) <= 14.0 and w.min() > 4.5, \
+    assert 9.0 <= np.median(w) <= 14.0, \
         f"trim band {w.min():.1f} to {w.max():.1f} mm (median {np.median(w):.1f})"
     assert near > 0.0015, f"the trim's roll {1000 * near:.1f} mm off his skin"
+
+
+def test_grip_panels_moulded_beside_the_port(built):
+    """Phase 2 (decision 51): beside the port's rear edges, from the brow's corner to the chin bar's top, a moulded
+    grip panel on each side (Leatt's Pinata iso photos): its own dark grey (95 92 97, de-lit from the photo; neither
+    the trim's black nor the print), standing GRIP_H proud of the shell, 18 to 36 mm wide (the photo through the
+    solved iso-left camera: 20 to 35 mm), its top carrying the sandblast grain's UVs, and on it the triangle relief
+    moulded as ridges GRIP_RIDGE_H high over the whole panel (cells 7.3 mm). Main: no panel (the print's black and the trim)."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    top = [k for k, m in enumerate(P.M) if m == D.MAT_GRIP]
+    assert top and any(m == D.MAT_GRIP_EDGE for m in P.M)
+    Vt = V[np.unique(np.concatenate([P.F[k] for k in top]))]
+    for s in (1, -1):
+        S = Vt[Vt[:, 0] * s > 0]
+        assert len(S) > 100
+        for z in np.arange(-0.055, -0.0, 0.01):
+            row = S[np.abs(S[:, 2] - z) < 0.002]
+            assert len(row) and 0.018 < np.ptp(row[:, 1]) < 0.036, f"panel {1000 * np.ptp(row[:, 1]):.0f} mm at z {z}"
+    uv = np.array([u for k in top for u in P.UV[k]])
+    assert np.ptp(uv[:, 1]) > 2.0                        # the relief repeats along the panel
+    g = H.MATERIALS[D.MAT_GRIP]
+    assert g["rgb"] == [95, 92, 97] and os.path.exists(os.path.join(H.TEXDIR, g["normal"]))
+    Vo, Fo, _ = H.shell_outer()
+    Q, NQ = D.Shell(Vo, Fo).snap(Vt)
+    h = np.sum((Vt - Q) * NQ, 1)                          # the top's height over the shell
+    assert abs(np.median(h) - D.GRIP_H) < 0.0002 and h.min() > 0.0, f"panel top {1000 * np.median(h):.2f} mm proud"
+    rid = [k for k, m in enumerate(P.M) if m == D.MAT_GRIP_RIDGE]
+    Vr = V[np.unique(np.concatenate([P.F[k] for k in rid]))]
+    Q, NQ = D.Shell(Vo, Fo).snap(Vr)
+    hr = np.sum((Vr - Q) * NQ, 1)
+    top = hr[hr > D.GRIP_H + 0.5 * D.GRIP_RIDGE_H]
+    assert abs(np.median(top) - D.GRIP_H - D.GRIP_RIDGE_H) < 0.0002, f"ridges {1000 * np.median(top):.2f} mm proud"
+    for s in (1, -1):                                    # over the whole panel, each side
+        R = Vr[(Vr[:, 0] * s > 0) & (hr > D.GRIP_H + 0.5 * D.GRIP_RIDGE_H)]
+        assert len(R) > 400 and np.ptp(R[:, 1]) > 0.015 and np.ptp(R[:, 2]) > 0.05
+
+
+def test_pads_fill_the_port_to_the_side_notch(body):
+    """Phase 2 (decision 51): past the trim's roll (TRIM_DEPTH from the crest) the port's rolled edge is the comfort
+    liner's pad face (knit mesh, red stitching: helmet_pad). Leatt's Royal side photo shows the cheek pads filling the
+    port ahead of the shell's cut edge as far as its notch (FACE_PORT as traced): at every 5 mm of height from z -45
+    to 0 mm the pads' front on his left stands within 5 mm of the notch's line (main: the cut edge's trim alone, 12 to
+    24 mm behind it), the pads keep 1.5 mm off his skin, and the goggle's lens stays clear (test above)."""
+    from scipy.spatial import cKDTree
+    Vo, Fo, prof = H.shell_outer()
+    R, tr, _ = H.fit_on_head(body, Vo, Fo, prof)
+    skin = (body["V"][H.head_skin(body)] - tr) @ R
+    _, _, strips = H.shell_solid(Vo, Fo, skin)
+    port = [np.array(rings) for loop, rings in strips if rings[0][:, 1].max() < 0.0]
+    assert len(port) == 1
+    pts = port[0].reshape(-1, 3)
+    S = H.px2h(H.FACE_PORT[7:21])                         # the notch's chin bar top and rear edge (y, z)
+    notch = S[np.argsort(S[:, 1])]
+    for z in np.arange(-0.045, 0.001, 0.005):
+        sel = pts[(pts[:, 0] > 0.03) & (np.abs(pts[:, 2] - z) < 0.002)]
+        y_notch = np.interp(z, notch[:, 1], notch[:, 0])
+        front = sel[:, 1][sel[:, 1] > y_notch - 0.02].min()
+        assert abs(front - y_notch) < 0.005, f"pads' front {1000 * (front - y_notch):+.1f} mm off the notch at z {z}"
+    near = cKDTree(skin).query(pts)[0].min()
+    assert near > 0.0015, f"pads {1000 * near:.1f} mm off his skin"
+    # the pads' face is smooth round the port: its bow at mid depth changes by under 2.5 mm between neighbouring
+    # edge points (3.5 mm apart; the first version's per-ray reach jumped 10 to 15 mm at the notch's corners)
+    pad = port[0][H.RIM_RINGS - 1:]
+    bow = np.linalg.norm(pad[len(pad) // 2] - (pad[0] + pad[-1]) / 2, axis=1)
+    assert np.abs(np.diff(np.r_[bow, bow[:1]])).max() < 0.0025, f"pad bow steps {1000 * np.abs(np.diff(bow)).max():.1f} mm"
+    assert H.MATERIALS["helmet_pad"]["image"] == "helmet_pad_mesh.png"
+    assert "normal" in H.MATERIALS["helmet_roll"]
 
 
 def test_chin_bar_outline_on_the_royal_side_photo():

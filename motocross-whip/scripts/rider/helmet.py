@@ -695,15 +695,67 @@ def shell_solid(Vo, Fo, skin_H):
         tang /= np.linalg.norm(tang, axis=1)[:, None]
         out = np.cross(tang, N[loop])                      # in the surface, away from it (winding order)
         out /= np.linalg.norm(out, axis=1)[:, None]
-        # the wall's bow on the port's sides (out along y); the chin bar's top and the brow keep the lip only: there
-        # the goggle's lens sits close above the chin bar (a 10 mm bow all round put its lower corners in the trim)
-        side = (np.abs(out[:, 1]) / np.maximum(np.linalg.norm(out[:, 1:], axis=1), 1e-9)) ** 2
-        rings = []
-        for k, sv in enumerate(np.linspace(0, 1, RIM_RINGS)):
-            bulge = RIM_A * side * np.sin(np.pi * sv) + RIM_B * np.sin(np.pi * min(sv * 3, 1)) * (sv < 0.34)
-            rings.append(O + (I - O) * sv + out * bulge[:, None])
-        strips.append((loop, rings))
+        strips.append((loop, strip_rings(O, I, out, pads=O[:, 1].max() < 0.0)[0]))   # pads in the eye port
     return Vi, t, strips
+
+
+def pad_bow(B, out):
+    """How far the comfort liner's pads stand into the port, per port edge point: an offset (m, x 0) from B, the pad's
+    face at mid depth before its bow, to the side photo's notch, FACE_PORT as traced at Royal_Left, where the cheek
+    pads fill the opening 16 to 23 mm ahead of the cut edge (round 2; decision 47). Along out's side view part (the
+    in-surface direction away from the shell, its x dropped so the pads grow forward, not in at his face); where that
+    ray misses the notch (the port's upper rear corner, whose edge runs down and back: out points down), straight
+    forward. Zero where the notch and the cut edge are one line (the chin bar's and the brow's centre parts), at most
+    PAD_MAX. Smoothed along the loop, each component: a median over PAD_MEDIAN points (single rays slip past the
+    notch's corners), then a Gaussian of PAD_SMOOTH points."""
+    from scipy.ndimage import gaussian_filter1d, median_filter
+    S = px2h(FACE_PORT)
+    a, d = B[:, 1:], out[:, 1:]
+    d = d / np.maximum(np.linalg.norm(d, axis=1), 1e-9)[:, None]
+
+    def hit(p0, dv):
+        best = np.inf
+        for p, q in zip(S[:-1], S[1:]):
+            M = np.array([dv, p - q]).T
+            if abs(np.linalg.det(M)) < 1e-12:
+                continue
+            s_, w = np.linalg.solve(M, p - p0)
+            if s_ > 0 and 0 <= w <= 1:
+                best = min(best, s_)
+        return best if np.isfinite(best) else 0.0
+
+    off = np.zeros((len(B), 3))
+    for i in range(len(B)):
+        r = hit(a[i], d[i])
+        dv = d[i]
+        if r == 0.0:
+            dv = np.array([-1.0, 0.0])
+            r = hit(a[i], dv)
+        off[i, 1:] = dv * min(r, PAD_MAX)
+    off = median_filter(off, (PAD_MEDIAN, 1), mode="wrap")
+    return gaussian_filter1d(off, PAD_SMOOTH, axis=0, mode="wrap")
+
+
+def strip_rings(O, I, out, pads=True):
+    """The rolled edge from the crest O to the liner I: the rubber trim's roll over its first TRIM_DEPTH (a lip RIM_B
+    at the crest, the wall bowed RIM_A into the opening), then the pad's face, bowed into the opening (pad_bow; a
+    pillow: sin ** PAD_POW). The roll's bow is on the port's sides (out along y); the chin bar's top and the brow
+    keep the lip only: there the goggle's lens sits close above the chin bar (a 10 mm bow all round put its lower
+    corners in the trim). Returns the rings and the index of the trim's last ring."""
+    side = (np.abs(out[:, 1]) / np.maximum(np.linalg.norm(out[:, 1:], axis=1), 1e-9)) ** 2
+    D = np.linalg.norm(I - O, axis=1)
+    seam = np.clip(TRIM_DEPTH / np.maximum(D, 1e-6), 0.15, 0.7)
+    mid = seam + (1 - seam) * 0.5
+    bow = pad_bow(O + (I - O) * mid[:, None], out) if pads else np.zeros_like(O)
+    rings = []
+    for a in np.linspace(0, 1, RIM_RINGS):
+        sv = seam * a
+        bulge = RIM_A * side * np.sin(np.pi * a) + RIM_B * np.sin(np.pi * min(a * 3, 1)) * (a < 0.34)
+        rings.append(O + (I - O) * sv[:, None] + out * bulge[:, None])
+    for a in np.linspace(0, 1, PAD_RINGS)[1:]:
+        sv = seam + (1 - seam) * a
+        rings.append(O + (I - O) * sv[:, None] + bow * np.sin(np.pi * a) ** PAD_POW)
+    return rings, RIM_RINGS - 1
 
 
 RIM_R = 0.004                      # m, the rubber trim's lip beyond the cut edge (goggle.STRAP_EDGE's margin)
@@ -714,7 +766,16 @@ RIM_R = 0.004                      # m, the rubber trim's lip beyond the cut edg
 # corner), his skin still 2.1 mm off it (scratch trimw.py)
 RIM_A = 0.010                      # m, the trim's wall bowed into the opening at mid depth
 RIM_B = 0.003                      # m, its lip at the crest
-RIM_RINGS = 9                      # rings across the trim, crest to liner
+RIM_RINGS = 9                      # rings across the trim, crest to its seam with the pad
+# Phase 2, item 2: the strip is the trim's roll over its first TRIM_DEPTH, then the comfort liner's pad face (in the
+# port: the cheek pads, the brow pad), bowed into the opening as far as the side photo's notch (pad_reach). Leatt's
+# iso-left at 3x: the ribbed roll runs about 55 px from the crest (12.4 mm in projection), then the pads' mesh.
+TRIM_DEPTH = 0.014                 # m, crest to the roll's seam with the pad, along the strip's depth
+PAD_RINGS = 9                      # rings across the pad's face, seam to liner
+PAD_MAX = 0.040                    # m, the pads' bow into the port at most
+PAD_POW = 0.6                      # the pad's pillow: its bow over its depth, sin ** PAD_POW
+PAD_MEDIAN = 9                     # port edge points (3.5 mm apart): the reach's median, then
+PAD_SMOOTH = 5.0                   # its Gaussian's sigma (and the pads' direction's), in points: 18 mm
 
 
 # ---------------------------------------------------------------- visor
@@ -892,22 +953,32 @@ def build(body):
     uv_o = atlas_uvs(Vo, Fo)[0]
     shell.add(Vo, Fo, "helmet_paint", list(uv_o))
     o_in = shell.add(Vi, Fo[:, ::-1], "helmet_liner")
+    import helmet_detail
+    helmet_detail.textures(TEXDIR)                    # the grip's relief, the roll's ribs, the pads' mesh
     for loop, rings in strips:
         m = len(loop)
+        port = rings[0][:, 1].max() < 0.0              # the eye port: roll and pads; the lower edge: plain trim
         ids = [loop] + [shell.add(r, [], "helmet_trim") + np.arange(m) for r in rings[1:-1]] + [o_in + loop]
-        F = []
+        R3 = np.array(rings)
+        along = np.r_[0, np.cumsum(np.linalg.norm(np.diff(np.vstack([R3[0], R3[0, :1]]), axis=0), axis=1))]
+        across = np.r_[np.zeros((1, m)), np.cumsum(np.linalg.norm(np.diff(R3, axis=0), axis=2), axis=0)]
         for k in range(len(ids) - 1):
+            roll = k < RIM_RINGS - 1
+            mat = "helmet_roll" if roll else "helmet_pad"
+            tu, tv = (helmet_detail.ROLL_PITCH, helmet_detail.ROLL_PITCH) if roll else helmet_detail.PAD_TILE
+            v0 = np.zeros(m) if roll else across[RIM_RINGS - 1]
             for i in range(m):
                 j = (i + 1) % m
-                F.append([ids[k][i], ids[k + 1][i], ids[k + 1][j], ids[k][j]])
-        o = len(shell.V)
-        for f in F:
-            shell.F.append(f); shell.M.append("helmet_trim"); shell.UV.append(None)
+                shell.F.append([ids[k][i], ids[k + 1][i], ids[k + 1][j], ids[k][j]])
+                shell.M.append(mat if port else "helmet_trim")
+                shell.UV.append([(along[i] / tu, (across[k, i] - v0[i]) / tv),
+                                 (along[i] / tu, (across[k + 1, i] - v0[i]) / tv),
+                                 (along[i + 1] / tu, (across[k + 1, j] - v0[j]) / tv),
+                                 (along[i + 1] / tu, (across[k, j] - v0[j]) / tv)] if port else None)
     visor = Part("helmet_visor")
     thicken_grid(visor_surface(prof), VISOR_T, "helmet_paint", "visor_under", "visor_under", visor)
     parts = [shell, visor]
-    import helmet_detail                              # moulded vents away from the front (round 3, decision 46)
-    parts.append(helmet_detail.build(Vo, Fo))
+    parts.append(helmet_detail.build(Vo, Fo))         # moulded vents (round 3, decision 46), grip panels (51)
     if PAINT:                                         # the old projection of Leatt's photos (lighting baked in)
         Vt, Ft, Nt, UVt = visor.top
         info["paint"] = paint_atlas([(Vo, Fo, normals(Vo, Fo), uv_o), (Vt, Ft, Nt, UVt)],
@@ -1294,6 +1365,15 @@ MATERIALS = {
     # (Pinata back at 3x: the exhaust slot's mesh barely shows, the lower slot's dark grey on black)
     "helmet_vent_mesh": dict(rgb=[36, 37, 40], rough=0.4),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
+    # the eye port (phase 2, decision 51; helmet_detail's tables): the grip panels' moulded rubber, dark grey with its
+    # triangle relief (Pinata iso-left: the flat cells' mid grey 76 73 77 beside the white paint's 185 186 190, de-lit
+    # by the white ink 226 229 235 in linear light: 95 92 97), the trim's roll in black rubber ribbed across, the pads'
+    # knit mesh with its red stitching (an sRGB albedo map)
+    "helmet_grip": dict(rgb=[95, 92, 97], rough=0.75, normal="helmet_grip_relief.png", normal_strength=1.0),
+    "helmet_grip_edge": dict(rgb=[95, 92, 97], rough=0.75),
+    "helmet_grip_ridge": dict(rgb=[95, 92, 97], rough=0.6, normal="helmet_grip_relief.png", normal_strength=1.0),
+    "helmet_roll": dict(rgb=[18, 18, 20], rough=0.65, normal="helmet_roll_ribs.png", normal_strength=1.0),
+    "helmet_pad": dict(image="helmet_pad_mesh.png", rough=0.9, sheen=0.5),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
     "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),
     "goggle_strap_in": dict(rgb=[24, 24, 26], rough=0.8),
@@ -1329,6 +1409,8 @@ if __name__ == "__main__":
     strap_texture(os.path.join(TEXDIR, "goggle_strap.png"))
     G.outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
     G.eye_texture(os.path.join(TEXDIR, "goggle_eyes_brown.png"))
+    import helmet_detail
+    helmet_detail.textures(TEXDIR, force=True)
     parts, info, Rt = build(body)                     # the brow badge is part of the art (helmet_art)
     write_npz(sys.argv[2], parts, extras(body, parts, Rt))
     print(json.dumps(info), sum(len(P.V) for P in parts), "vertices")

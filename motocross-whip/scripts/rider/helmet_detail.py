@@ -1,7 +1,7 @@
 """Moulded detail away from the helmet's front, as geometry (helmet round 3, decision 46): the crown's two mesh vents
 (a raised white insert round a triangle lattice over the dark opening), the two rear exhaust slots' wire mesh and
-the rear lower white pieces round the lower rear vents. The front's detail (grip panels, the trim's roll, brow
-and chin vents, chin LEATT, brow tag) waits for phase B, because the front moves.
+the rear lower white pieces round the lower rear vents; and (joint front fit phase 2, decision 51) the eye port's
+grip panels with their triangle relief, and the textures of the port's trim roll and pads (helmet.strip_rings).
 
 Each outline is traced in one of Leatt's Pinata photos (px) and cast onto the shell through that photo's camera in
 helmet.PRINT_CAMS (round 4: the cameras solved with all of Leatt's photos, research/helmet-ba.json), the cameras the
@@ -376,9 +376,266 @@ def low_piece(shell, side=1.0):
     return mirror(out, side)
 
 
+# ------------------------------------------------------------- the eye port's grip panels (phase 2, decision 51)
+# Leatt's Pinata iso-left photo at 1:1 and 3x (px 1140 to 1320, 780 to 1060): beside the port's rear edge a moulded
+# dark grey rubber panel with a triangle relief runs from the brow's corner down to the chin bar's top, between the
+# port's cut edge (its crest, where the trim rolls in) and the paint. Read row by row through the solved iso-left
+# camera (0.226 mm/px at the port's side): its inner edge is the port's cut edge, its outer edge the paint's edge
+# (helmet_art.FORCE's port polygon, the same px). The panel stands GRIP_H proud of the shell: the paint's edge beside
+# it shows a lit line 2 to 3 px wide at 1:1 (0.5 to 0.7 mm). The relief is moulded ridges (grip_relief): an
+# equilateral triangle lattice with lines across the band and at 60 deg to it; its row period, 28 px down columns 1260
+# and 1280 (autocorrelation, r 0.33 to 0.39), is 6.3 mm: cells 7.3 mm a side. At 2x the ridges' lit tops are 3 to 4
+# px wide at 1:1 (0.7 to 0.9 mm) with a 2 px shadow beside them under the studio's high key light (0.5 mm high); some
+# lattice edges are left out, so triangles merge into rhombi and trapezoids, and some triangles are filled solid
+# (about 1 in 14 at 2x). Between the ridges the moulding is sandblasted: light flecks 1 px across at 2x (0.1 mm), the
+# panel's normal map (grip_texture). Its tone (helmet.MATERIALS): see helmet_grip. A first version drew the lattice
+# in the normal map only (lines 0.45 mm, 0.3 mm high): at 2x it read as thin dark grooves on a flat grey (p10 to p90
+# 74 to 87 against the photo's 17 to 104).
+GRIP_OUTER_PX = [(1350, 697), (1347, 735), (1331, 816), (1316, 897), (1300, 954), (1287, 1010), (1275, 1047),
+                 (1262, 1085), (1256, 1097)]
+GRIP_ROWS = (805.0, 1094.0)        # iso-left px rows, the port's side: above 805 its edge turns forward
+                                   # along the brow; 1094, the chin bar's top
+GRIP_H = 0.0006                    # m, the panel's top over the shell
+GRIP_CELL = 0.0073                 # m, the triangles' side
+GRIP_RIDGE_W = 0.0009             # m, the ridges' width
+GRIP_RIDGE_H = 0.0005              # m, their height over the panel's top
+GRIP_DROP = 0.12                   # the lattice's edges left out
+GRIP_FILL = 0.07                   # its triangles filled solid
+GRIP_GRAIN = (0.08, 0.015)         # mm: the sandblast grain's size (Gaussian sigma) and its height (rms)
+GRIP_TILE = (0.008, 0.008)         # m, the grain's tile (u across the band, v along it)
+GRIP_PX_MM = 16                    # texels per mm
+MAT_GRIP = "helmet_grip"
+MAT_GRIP_EDGE = "helmet_grip_edge"
+MAT_GRIP_RIDGE = "helmet_grip_ridge"
+
+
+def port_rows(shell, rows):
+    """The port's rear (cut) edge on his left through the iso-left camera: per image row the rightmost crossing of
+    the shell's free edges (above the lower edge, ahead of y = 0), as 3D points on the edge."""
+    V, F = shell.V, shell.F
+    E = np.sort(np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1)
+    u, c = np.unique(E, axis=0, return_counts=True)
+    B = u[c == 1]
+    m = V[B].mean(1)
+    B = B[(m[:, 2] > -0.09) & (m[:, 1] < 0.0) & (m[:, 0] > 0)]
+    q = H.cam_project(H.PRINT_CAMS["isoleft"], V)[0]
+    out = []
+    for r in rows:
+        a, b = q[B[:, 0]], q[B[:, 1]]
+        hit = np.nonzero((a[:, 1] - r) * (b[:, 1] - r) <= 0)[0]
+        t = (r - a[hit, 1]) / (b[hit, 1] - a[hit, 1] + 1e-12)
+        k = np.argmax(a[hit, 0] + t * (b[hit, 0] - a[hit, 0]))
+        e = B[hit[k]]
+        out.append(V[e[0]] + t[k] * (V[e[1]] - V[e[0]]))
+    return np.array(out)
+
+
+def grip_panel(shell, side=1.0):
+    """A grip panel on his left (side 1) or right: a raised band on the shell between the port's cut edge and the
+    paint's edge, its top in MAT_GRIP with UVs in GRIP_TILE units (the relief's normal map), its walls in
+    MAT_GRIP_EDGE. Returns pieces (V, F, mats, uv)."""
+    rows = np.arange(GRIP_ROWS[0], GRIP_ROWS[1] + 0.1, 5.0)
+    I = port_rows(shell, rows)
+    op = np.asarray(GRIP_OUTER_PX, float)
+    O, _ = shell.cast("isoleft", np.c_[np.interp(rows, op[:, 1], op[:, 0]), rows], side=1.0)
+    nt, ns = 8, len(rows)
+    G, NG = [], []
+    for t in np.linspace(0, 1, nt):
+        Q, NQ = shell.snap(I + (O - I) * t)
+        G.append(Q + NQ * GRIP_H)
+        NG.append(NQ)
+    G, NG = np.array(G), np.array(NG)                   # (nt, ns, 3): across, along
+    along = np.r_[0, np.cumsum(np.linalg.norm(np.diff(G[0], axis=0), axis=1))]
+    across = np.r_[np.zeros((1, ns)), np.cumsum(np.linalg.norm(np.diff(G, axis=0), axis=2), axis=0)]
+    V = G.reshape(-1, 3)
+    F, UV = [], []
+    for k in range(nt - 1):
+        for i in range(ns - 1):
+            f = [k * ns + i, k * ns + i + 1, (k + 1) * ns + i + 1, (k + 1) * ns + i]
+            F.append(f)
+            UV.append([(across[j // ns, j % ns] / GRIP_TILE[0], along[j % ns] / GRIP_TILE[1]) for j in f])
+    F = np.array(F)
+    a, b, c = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+    if np.sum(np.cross(b - a, c - a) * NG.reshape(-1, 3)[F[:, 0]]) < 0:
+        F = F[:, ::-1]
+        UV = [u[::-1] for u in UV]
+    pieces = [(V, [list(f) for f in F], [MAT_GRIP] * len(F), UV)]
+    pieces.append(grip_relief(G, NG, across, along))
+    # walls all round, down to SINK under the shell, each with its own vertices (crisp edges)
+    ring = ([(0, i) for i in range(ns)] + [(k, ns - 1) for k in range(1, nt)] +
+            [(nt - 1, i) for i in range(ns - 2, -1, -1)] + [(k, 0) for k in range(nt - 2, 0, -1)])
+    top = np.array([G[k, i] for k, i in ring])
+    bot = np.array([G[k, i] - NG[k, i] * (GRIP_H + SINK) for k, i in ring])
+    n = len(ring)
+    Vw = np.vstack([top, bot])
+    Fw = np.array([[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
+    out_dir = top - top.mean(0)
+    a, b, c = Vw[Fw[:, 0]], Vw[Fw[:, 1]], Vw[Fw[:, 2]]
+    if np.sum(np.cross(b - a, c - a) * out_dir) < 0:
+        Fw = Fw[:, ::-1]
+    pieces.append((Vw, [list(f) for f in Fw], [MAT_GRIP_EDGE] * len(Fw), [[(0.5, 0.5)] * 4] * len(Fw)))
+    if side < 0:
+        pieces = [(V_ * [-1, 1, 1], [f[::-1] for f in F_], m_, [u[::-1] for u in uv_]) for V_, F_, m_, uv_ in pieces]
+    return pieces
+
+
+def lattice(w, h, cell=GRIP_CELL, seed=51):
+    """The relief's equilateral triangle lattice over a band w x h (m; x across it from the port's edge, y along it
+    from its top): its edges (a, b) across the band and at +-60 deg, GRIP_DROP of them left out, and the triangles
+    filled solid (GRIP_FILL; their corners), seeded."""
+    rng = np.random.default_rng(seed)
+    hgt = cell * 3 ** 0.5 / 2
+    edges, filled = [], []
+    for r in range(-1, int(h / hgt) + 2):
+        for c in range(-1, int(w / cell) + 2):
+            p = np.array([c * cell + (cell / 2 if r % 2 else 0.0), r * hgt])
+            for q in (p + [cell, 0.0], p + [cell / 2, hgt], p + [-cell / 2, hgt]):
+                if rng.random() > GRIP_DROP:
+                    edges.append((p, q))
+            if rng.random() < GRIP_FILL:
+                filled.append(np.array([p, p + [cell, 0.0], p + [cell / 2, hgt]]))
+    return edges, filled
+
+
+def grip_relief(G, NG, across, along):
+    """The panel's triangle relief on its top G (nt across x ns along, normals NG; across, along: arc lengths, m):
+    ridges GRIP_RIDGE_W wide standing GRIP_RIDGE_H, and the filled triangles at their height, kept a ridge's width
+    inside the panel. One piece (V, F, mats, uv), in MAT_GRIP_RIDGE."""
+    nt, ns = G.shape[:2]
+    kk = np.arange(nt)
+    m = GRIP_RIDGE_W
+
+    def where(xy):
+        """Points (x, y) on the band to the panel's top: P, N and whether inside its margin."""
+        fi = np.interp(xy[:, 1], along, np.arange(ns))
+        i0 = np.clip(np.floor(fi).astype(int), 0, ns - 2)
+        w = (fi - i0)[:, None]
+        P, N = [], []
+        for i in (0, 1):
+            col = i0 + i
+            kf = np.array([np.interp(x, across[:, c], kk) for x, c in zip(xy[:, 0], col)])
+            k0 = np.clip(np.floor(kf).astype(int), 0, nt - 2)
+            t = (kf - k0)[:, None]
+            P.append(G[k0, col] * (1 - t) + G[k0 + 1, col] * t)
+            N.append(NG[k0, col] * (1 - t) + NG[k0 + 1, col] * t)
+        P = P[0] * (1 - w) + P[1] * w
+        N = N[0] * (1 - w) + N[1] * w
+        N /= np.linalg.norm(N, axis=1)[:, None]
+        width = np.interp(xy[:, 1], along, across[-1])
+        ok = (xy[:, 0] > m) & (xy[:, 0] < width - m) & (xy[:, 1] > m) & (xy[:, 1] < along[-1] - m)
+        return P, N, ok
+
+    edges, filled = lattice(across[-1].max(), along[-1])
+    Vs, Fs, UVs = [], [], []
+    nv = 0
+    for a, b in edges:
+        xy = a + np.linspace(0, 1, int(np.ceil(np.linalg.norm(b - a) / 0.001)) + 1)[:, None] * (b - a)
+        P, N, ok = where(xy)
+        idx = np.nonzero(ok)[0]
+        for run in np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1):
+            if len(run) < 2:
+                continue
+            V, F = bar(P[run], N[run], GRIP_RIDGE_W, GRIP_RIDGE_H)
+            uv = xy[run] / GRIP_TILE
+            Vs.append(V)
+            Fs += [[nv + j for j in f] for f in F]
+            UVs += [[tuple(uv[j % len(run)]) for j in f] for f in F]
+            nv += len(V)
+    for tri in filled:
+        P, N, ok = where(tri)
+        if not ok.all():
+            continue
+        top, bot = P + N * GRIP_RIDGE_H, P - N * SINK
+        V = np.vstack([top, bot])
+        F = [[0, 1, 2]] + [[i, (i + 1) % 3, 3 + (i + 1) % 3, 3 + i] for i in range(3)]
+        if np.cross(top[1] - top[0], top[2] - top[0]) @ N.mean(0) < 0:
+            F = [f[::-1] for f in F]
+        uv = tri / GRIP_TILE
+        Vs.append(V)
+        Fs += [[nv + j for j in f] for f in F]
+        UVs += [[tuple(uv[j % 3]) for j in f] for f in F]
+        nv += len(V)
+    return np.vstack(Vs), Fs, [MAT_GRIP_RIDGE] * len(Fs), UVs
+
+
+def normal_map(hf, height_mm, px_mm):
+    """Tangent-space normal map (OpenGL: green up the texture's v) of a height field hf (0..1 x height_mm)."""
+    z = hf * height_mm
+    gy, gx = np.gradient(z, 1.0 / px_mm)
+    gy = -gy                                            # image rows run down, v runs up
+    n = np.dstack([-gx, -gy, np.ones_like(z)])
+    n /= np.linalg.norm(n, axis=2)[..., None]
+    return np.clip((n * 0.5 + 0.5) * 255 + 0.5, 0, 255).astype(np.uint8)
+
+
+def grip_texture(path):
+    """The grip panels' sandblast grain as a tileable normal map (GRIP_TILE, GRIP_PX_MM), seeded."""
+    from PIL import Image
+    from scipy.ndimage import gaussian_filter
+    W, Hh = int(round(GRIP_TILE[0] * 1000 * GRIP_PX_MM)), int(round(GRIP_TILE[1] * 1000 * GRIP_PX_MM))
+    z = gaussian_filter(np.random.default_rng(51).standard_normal((Hh, W)), GRIP_GRAIN[0] * GRIP_PX_MM, mode="wrap")
+    Image.fromarray(normal_map(z / z.std(), GRIP_GRAIN[1], GRIP_PX_MM)).save(path, optimize=True)
+
+
+# The port's trim and the pads inside it (helmet.strip_rings): the trim's roll is black rubber ribbed across its
+# length, the ribs' pitch read down the roll in Pinata iso-left at 1:1 (columns 1190 and 1200, rows 800 to 1040:
+# autocorrelation peaks at 25 and 19 px, 5.6 and 4.3 mm; the stronger, r 0.41, taken); a rib 45 % of the pitch, 0.4
+# mm high (its lit crest 2 px). The pads' face is a dark knit mesh: hexagonal holes 1.6 mm apart (the liner beside
+# the trim at 2x, 6 to 7 px at about 0.24 mm/px), strands 50 48 52 over holes 10 10 11 (the photo's liner: holes 2 to
+# 15, lit strands to 91 84 87 with their sheen; de-lit as the grip's tone), and a red stitch line 2.5 mm in from the
+# seam with the roll (Pinata iso-left: red stitching along the pads' lower edges and round the chin bar inside).
+ROLL_PITCH = 0.0056
+ROLL_RIB_H = 0.0004
+PAD_MESH = 0.0016
+PAD_TILE = (6 * PAD_MESH, 36 * PAD_MESH * 3 ** 0.5)        # m: u along the port, v across from the seam
+PAD_STITCH = (0.0025, 0.0031, 0.0022, 0.0010)              # m: from, to (across), dash, gap (along)
+
+
+def roll_texture(path, px_mm=40):
+    """One rib of the trim's roll across a ROLL_PITCH tile (u along the port), as a normal map."""
+    from PIL import Image
+    n = int(round(ROLL_PITCH * 1000 * px_mm))
+    x = (np.arange(n) + 0.5) / n
+    h = np.clip(np.cos(np.pi * (x - 0.5) / 0.45), 0, 1) ** 2 * (np.abs(x - 0.5) < 0.225)
+    hf = np.tile(h, (n, 1))
+    Image.fromarray(normal_map(hf, ROLL_RIB_H * 1000, px_mm)).save(path, optimize=True)
+
+
+def pad_texture(path, px_mm=16):
+    """The pads' knit mesh (hexagonal holes) with the red stitch line, PAD_TILE (sRGB albedo)."""
+    from PIL import Image
+    W, Hh = int(round(PAD_TILE[0] * 1000 * px_mm)), int(round(PAD_TILE[1] * 1000 * px_mm))
+    u = (np.arange(W) + 0.5) / px_mm
+    v = (np.arange(Hh) + 0.5) / px_mm
+    U, V = np.meshgrid(u, v)
+    p = PAD_MESH * 1000
+    rh = p * 3 ** 0.5 / 2
+    r = np.round(V / rh)
+    du = U - (np.round((U - (r % 2) * p / 2) / p) * p + (r % 2) * p / 2)
+    d = np.hypot(du, V - r * rh)
+    hole = np.clip((0.55 * p / 2 - d) / 0.12 + 0.5, 0, 1)
+    strand, dark = np.array([50, 48, 52], float), np.array([10, 10, 11], float)
+    img = strand + (dark - strand) * hole[..., None]
+    a, b, dash, gap = [x * 1000 for x in PAD_STITCH]
+    on = (V >= a) & (V <= b) & ((U % (dash + gap)) < dash)
+    img[on] = [190, 32, 38]
+    Image.fromarray(img.astype(np.uint8)).save(path, optimize=True)
+
+
+def textures(texdir, force=False):
+    """The moulded front's textures (written when missing, or always with force)."""
+    import os
+    for name, fn in (("helmet_grip_relief.png", grip_texture), ("helmet_roll_ribs.png", roll_texture),
+                     ("helmet_pad_mesh.png", pad_texture)):
+        path = os.path.join(texdir, name)
+        if force or not os.path.exists(path):
+            fn(path)
+
+
 def build(Vo, Fo, part=None):
     """The detail as one Part (helmet frame): the crown vents in MAT_INSERT, the rear lower pieces in MAT, their
-    slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH."""
+    slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH, the grip panels in MAT_GRIP (top, UVs for the
+    relief) and MAT_GRIP_EDGE (walls)."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
@@ -388,6 +645,9 @@ def build(Vo, Fo, part=None):
         pieces += low_piece(shell, side)
     for V, F, mats in pieces:
         part.add(V, F, mats)
+    for side in (1.0, -1.0):                            # the grip panels, with their relief's UVs
+        for V, F, mats, uv in grip_panel(shell, side):
+            part.add(V, F, mats, uv)
     return part
 
 
