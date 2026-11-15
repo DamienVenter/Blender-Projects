@@ -174,6 +174,10 @@ Readings:
 - `display()` against Blender (look_apply.py, emission plane, one sample): max 1 level, mean 0.0004 levels over a
   768-swatch chart (greys 0.001 to 30, the red, magenta, white and black as rendered, random colours), daylight at 0,
   scene at +1.5, studio at -0.9.
+- In the scripts: head_closeups.py p09 daylight with the look (32 samples) against the 64-sample linear render put
+  through `display()`: 0.6 levels mean, white shell 228, 236, 243 against 228, 235, 243, black print the same.
+  Rendered again in **Blender 5.2.0**: identical to 5.2.3's in every pixel; the swatch chart through 5.2.0 within a
+  level for daylight, scene and studio.
 - Tests (`test_scene_look.py` in rider and bike): the swatch chart, the module's numbers (T(8) = 1, 0.18 at 69 under
   "scene", ratios kept, gains = EV + WB), and each script's look calls (AST: imports scene_look, calls
   scene_look.apply with the kinds in the named functions, no "AgX - Punchy" left there). On main: collection error

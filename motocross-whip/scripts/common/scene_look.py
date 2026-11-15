@@ -30,7 +30,8 @@ LUMA = (0.2126, 0.7152, 0.0722)      # Rec.709 luminance (Blender's scene linear
 
 # ---- the fitted look (look_fit.py fit, "final", all three photos; research/scene-look.md "The fit"), on
 # head_closeups' daylight rig (sun 4 x 2^3.4 W/m2). log2 of the gains: WB his phone's white balance read off the
-# white shell (red and blue against green), EV the exposure; ev in apply() adds to EV for another rig
+# white shell (red and blue against green), EV the exposure (the mean of the photos' own: 07 -0.21, 08 +0.64, 09
+# -0.43 stops off it, his phone exposing each shot); ev in apply() adds to EV for another rig
 EV = 0.102
 WB = (0.234, 0.0, -0.302)
 GAINS = tuple(2.0 ** (EV + w) for w in WB)
