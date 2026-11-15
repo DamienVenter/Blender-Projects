@@ -621,3 +621,111 @@ crop round his head at 4x its pixels.
 4. Later: the crown vent pod and a thinner rim, the rear slot's chamfered end, the rear lower slot's taper, the rear
    spoiler shelf, the lower centre panel.
 
+
+## 9. Joint front fit, phase 2 (2026-11-15, decision 51): the front's shape and its moulded details
+
+Every reading below is through the solved cameras (research/helmet-ba.json for the views, helmet.PRINT_CAMS for the
+casts) against Leatt's Pinata iso-left and iso-right, MY27 front-iso-left and Royal_Left photos, looked at 1:1 to 3x
+beside the render (scratch pair.py: photo | main | phase 2).
+
+### The front's shape (item 1; helmet.py)
+- Visor: the tip 15 px lower in Royal, fading to 0 at u 1000, and its arch's fall from the centre line to the side
+  edge (1 - cos) ** 0.7 (was 1.3: the wings stood high over the temples). Top line against Royal: mean -2.9 px, rms
+  3.8 (main -21.6, rms 22.3). The plan is unchanged (within 3.5 mm of the top photo).
+- Trim: the port's rolled edge bows 10 mm into the opening along the port's sides on a 3 mm lip; the chin bar's top
+  and the brow keep the lip (the goggle lens sits close there). Width through iso-left 4.9 to 13.0 mm, median 11.0
+  (main 4.4 to 7.7, median 6.2; Leatt's ribbed roll reads 9 to 14 mm). His skin 2.1 mm off.
+- Chin bar: its front moved 2.3 to 5.6 mm back and down along its normals (it stood 4 to 6 mm forward of Royal and
+  MY27 on both sides), its lower edge 1 to 2.5 mm up (u 510 to 865). Within 2 mm of Royal's outline (main up to
+  5.8 mm). Behind the ear the lower edge is held by the back views.
+
+### The black area (item 2; helmet_detail.grip_panel, helmet.py's trim and pads)
+- Grip panels: a moulded dark grey band each side between the port's cut edge and the paint, 20 to 35 mm wide,
+  0.6 mm proud, tone 95 92 97 (the photo's flat cells 76 73 77, de-lit). Its triangle relief is geometry: ridges
+  0.9 mm wide and 0.5 mm high, cells 7.3 mm (row period 28 px at 1:1), 12 % of the edges left out and 7 % of the
+  triangles filled, as the photo's, a sandblast grain (normal map) between them. At 2x the panel reads p10 to p90 56
+  to 90 (the photo 16 to 104; a normal map alone read 74 to 87).
+- Trim: the port strip is the black rubber roll over its first 14 mm, ribbed across (pitch 5.6 mm, normal map), then
+  the comfort liner's pad face (knit mesh 1.6 mm, a red stitch line) bowed into the port to the side photo's notch:
+  within -4 to +3 mm of it at z -45 to 0 mm (main 17 to 29 mm behind it), 1.7 mm off his skin, the goggle's lens
+  clear.
+
+### The chin (item 3; helmet.CHIN_NOSE, helmet_detail.mouthpiece and side_vents, helmet_art.mouth_ink)
+- MY27 front-iso-left and Pinata iso-right agree within 3 mm at the chin; Pinata iso-left stands 13 mm off there
+  and is not used for it.
+- The nose: the chin bar's blunt front (CHIN_NOSE) and its domain rings graded along the surface, 3.5 mm apart (the
+  old rings left 24 to 30 mm triangles, seen as lumps). Outline against Leatt's, median: MY27 -14.4 mm on main, now
+  +3.1; iso-right -15.6, now -4.2; iso-left -18.9, now -12.4 (its camera).
+- The mouthpiece: rim x +-50.4 mm, z -92.5 to -169.6 mm; opening +-37.8 mm, z -98.0 to -165.3 mm. A glossy black
+  frame (helmet_frame_black, 16 16 18: the photo's lower band 11 11 12 with glints to 66) 2 mm proud, the white paint
+  folding in at its rim, a triangle lattice of 7 mm cells over the whole opening on a dark floor, two rails framing
+  its centre column.
+- The side vents: a wire mesh in a white wall, its floor 4.1 mm from the chin_vent landmark.
+- The print round them is set in 3D (mouth_ink: black inside the rims, white round them, the chin cap's edge), in
+  the trace and again on the drawn texels: the chin bar's top lies in thin atlas slivers, and the draw's edge fill
+  hung the cap's black 7 mm low. Band round the rim: main 8 % not white, now 0 %; under the cap's edge main 24 %,
+  now 0 %. The print was retraced on phase 2's shell and his photos' cameras refitted to it (07 rms 2.19 px, NCC
+  0.457; 08 5.82, 0.730; 09 8.03, 0.400; the views turned 5.4, 0.6 and 1.25 deg).
+
+### The brow and the visor's rear lip (item 4; helmet_detail.brow_vents, ExactShell, helmet.thicken_grid)
+- Brow vents (iso-left traced at 2x and 3x with a grid, 0.21 to 0.23 mm a px there): two a side under the visor.
+  The centre one runs across the centre line: traced as its left half, mirrored into one closed loop and resampled
+  along its closing edges, so its lower edge runs straight (within 1.5 mm 12 mm to each side; the first build's own
+  centre segment cut a notch 16 mm wide and 7 mm deep). The side one slants down to the brow's corner. Rim 1.5 mm
+  wide and 1 mm proud, a dark floor, the rear slots' wire mesh. In the render camera at 1:1 both meshes end within a
+  few px of the photo's (centre 8 to 163 px into the crop, Leatt 0 to 140; side 218 to 338, Leatt 220 to 335).
+- The brow tag each side: the Leatt triangle in a light grey rim (helmet_tag_rim 168 171 176, metal 0.7: the photo's
+  silver lit to 184 188 194) round a dark centre, 1 mm proud. Read again at 3x beside the render (the first read
+  stood 20 to 25 px high). At 3x the photo's rim is about 10 px wide of the outline's 57 and its corners rounded
+  about 4 px: the centre is 0.55 of the outline, the corners rounded 4 px (round_corners keeps the read extents).
+  Its corners land 1 to 6 px (under 1.3 mm) from the photo's.
+- ExactShell: the brow's pieces snap to the closest point on the shell's triangles, mirror exact (each point
+  snapped as its image on his left). The nearest vertex's tangent plane, enough on the crown's even mesh, sank the
+  wires 1.7 mm under the shell where the brow folds into the trim's roll.
+- The visor's rear lip (round 4's review item A): the top's outline is drawn in by VISOR_LIP (0.6 mm) and a chamfer
+  runs from it to the edge face, each strip with its own vertices. Shared vertices and smooth shading had rounded the
+  edge into a soft bump (main); now a thin line with the thickness's dark band under it. Across the edge at photo row
+  370 the dark band reads 8 px wide (main 26 to 35; Leatt's line 1 to 3 px); the highlight on top barely reads in
+  the studio's light.
+  The visor grid's closed side (40 zero-length ring steps at its pole) gets no chamfer (its normal is undefined).
+
+### Tests (each fails on main)
+- `test_visor_top_line_on_the_royal_side_photo`: mean within 6 px, rms under 8 (main -21.6, 22.3).
+- `test_trim_rolls_into_the_port`: the roll's width through iso-left, median 9 to 14 mm (main 6.2), 1.5 mm or
+  more off his skin.
+- `test_chin_bar_outline_on_the_royal_side_photo`: the chin front and lower edge within 2 mm (main 5.8).
+- `test_grip_panels_moulded_beside_the_port`: the panel 18 to 36 mm wide, its top GRIP_H proud, the ridges as
+  geometry on it (main: none).
+- `test_pads_fill_the_port_to_the_side_notch`: within 5 mm of the notch, each point against the notch at its own
+  height (main 17 to 29 mm behind).
+- `test_chin_front_on_the_iso_photos`: medians within 4 mm in MY27 and 8 mm in iso-right (main -14.4 and -15.6).
+- `test_mouthpiece_and_side_vents`, `test_mouthpiece_print_white_round_its_rim` (main 8 % and 24 % not white).
+- `test_brow_vents_and_tag` (main: no tag), `test_visor_rear_lip_is_crisp` (main: 188 of the top's vertices shared
+  with the edge strip).
+- `test_vents_are_moulded_away_from_the_front` measures height to the closest point on the shell (`surface_height`:
+  the nearest vertex read 1.5 mm under the chin's pieces) and takes the new materials; his cameras' 09 colour floor
+  0.38 (0.40 since the retrace).
+
+### Still not right
+- The mouthpiece's frame is a flat band; Leatt's is a deep recessed tunnel. Its rails read about 5 mm wide in the
+  photos, ours 3 mm. The chin LEATT is not built.
+- The chin's far side: MY27 up to +7 mm, iso-right up to -6 mm (the two cameras disagree there). The bottom chin
+  corner shows crumpled shading.
+- The brow reads as a uniformly dark moulding: Leatt's has lit facets and a lit lower edge. The tag's rim is matte
+  grey beside Leatt's bright silver, and the photo's tag sits in a recess with a lit bevel round it.
+- The visor: its rear corner about 7 mm off; at 2x its lip line crosses Leatt's at photo row 390, 26 px inside it at
+  row 366 and 44 to 47 px outside lower down (6 to 10 mm: ours curves with the wing, Leatt's runs straight). The
+  lip's band is still wider and softer than Leatt's. Its underside renders dark in
+  Leatt's views (the light: its material is a light grey 214 217 222).
+- Camera disagreement: iso-left about 13 mm off at the chin and 8 to 10 mm at the brow (the side brow vent's traced
+  end, cast through PRINT_CAMS, lands about 35 px short in the BA view camera).
+- The crown side vents are still print only (item 5 not started); the eyeport_triangle landmark stands 9.4 mm outside
+  the shell; the lower edge behind the ear 2 to 3 mm high.
+
+### Round 5 plan (not started)
+1. The crown side vents as geometry (item 5 of this round's brief).
+2. Visor: the screws, the top windows (Leatt's back view), the moulded vents; reshape the rear corner and wing to the
+   solved top and Royal cameras so the lip runs straight.
+3. The mouthpiece as a recessed tunnel, its rails 5 mm, the chin LEATT; the brow's lit facets and the tag's recess.
+4. The crown vent pod and its thinner rim, the rear slot's chamfered end, the rear lower slot's taper, the rear
+   spoiler shelf, the lower centre panel.

@@ -917,3 +917,30 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Steep faces in a top-projected atlas island stretch 1 / |n_z| times: give them their own side island.
 - Grey white: before touching materials, render the spot flat (emission, Standard, 0 EV). If it reads the photo's
   value, the light is the cause (the studio's off-axis lights leave up-facing faces at about half the light).
+
+## Joint front fit, phase 2 (decision 51): lessons (helmet.py, helmet_detail.py, helmet_art.py, ledger helmet.md section 9)
+- Know which camera to trust where: Pinata iso-left stands 13 mm off at the chin and 8 to 10 mm at the brow; MY27
+  front-iso-left and Pinata iso-right agree within 3 mm at the chin. Fit the chin to those two. A pick cast through
+  helmet.PRINT_CAMS can land 30 px off in the BA view camera at the brow's corner: read small parts (the brow tag) at
+  3x beside the render through the view's own camera.
+- Snap to the closest point on the triangles (helmet_detail.ExactShell), not the nearest vertex's tangent plane,
+  where the shell folds (the brow into the trim's roll): the tangent plane sank the brow's wires 1.7 mm under the
+  shell. Measure heights the same way in tests (test_helmet.surface_height): the nearest vertex read 1.5 mm under the
+  chin's pieces. Keep it mirror exact: snap the point's image on his left and mirror back (the triangles' diagonals
+  are not mirrored).
+- A half outline mirrored into one loop across the centre line: resample it along its straight closing edges before
+  snapping, or the trace's own centre segment cuts a notch (16 mm wide, 7 mm deep in the brow vent).
+- Inks set in 3D (helmet_art.mouth_ink) live in the trace's force_labels: changing them needs `trace` (about 4 min),
+  then his_cameras.py (about 5 min: the print's element frames move; 09's colour NCC fell to 0.40). Apply them once
+  more on the drawn texels: thin atlas slivers plus the draw's island-edge fill dragged the chin cap's black 7 mm low.
+- A crisp moulded edge needs its own vertices per strip and a narrow chamfer: a shared edge strip with smooth shading
+  reads as a soft bump. The visor's lip: the top drawn in 0.6 mm, the chamfer catches the highlight line, the edge
+  face below is the dark band.
+- A grid closed to one point (the visor's pole) has zero-length ring steps: tangents there are zero and normals NaN.
+  Mask them before normalising.
+- Rounding a traced polygon's corners pulls its extents in (r / sin(half angle) - r at each corner): push each corner
+  out along its bisector first (helmet_detail.round_corners), so the outline still meets the read corners.
+- A test that compares the build with the same px it was built from proves nothing: test a property the photo shows
+  (a straight edge, a material, a height on the shell) instead.
+- Compare a part with a reference edge at each point's own height: the pads' front read 6 mm off on the notch's
+  slope with a band-wide window, and was within -4 to +3 mm point by point.
