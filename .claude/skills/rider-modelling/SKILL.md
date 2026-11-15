@@ -510,6 +510,12 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   away in the npz to see what is behind it; never delete it.
 - **A fix the worn fit blocks is reported, not forced**: the comb's lean moved the bridge 7 mm back, and on him his
   nose ridge has 3.2 mm where the stack needs 5.8; the worn build notches over his nose and the rest is decision 47's.
+- **Check against the latest main before reporting**: main moved during the round (helmet round 3). A trial
+  merge (git merge-tree, then the changed files laid over a scratch copy, LFS smudged by `git cat-file --filters`)
+  failed the worn overlap test: the new shell moved his nose 3.2 mm back and uncovered a comb/plate clash his nose
+  had hidden. A part whose shape switches between two rules (the comb's back held by the plate or free) must be
+  continuous across the switch, or the sheet's grid smears the jump into its neighbour; ease it (a cone dilation
+  of the difference) rather than move a neighbour that other fits hang on.
 
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe

@@ -1114,6 +1114,18 @@ renders/checkpoints/2026-11-15_goggle-r11/: 01 the nose slices (round 10, round 
 band in iso55 at 3x, 04b the slots at 6x, 05a and 05b the comb in phr and iso55. Item 6 (the Forge back-strap sheet)
 not done.
 Tests: all 96 rider tests pass (92 on main plus test_round11_goggle_parts_do_not_run_into_each_other, test_round11_strap_weave_is_a_short_twill, test_round11_strap_leatt_is_a_raised_layer, test_round11_chassis_tone_and_clip_tabs, each shown to fail on main). Blender 5.2.0 (Damien's) against 5.2.3: the final free goggle in iso55 (chassis band, clip tabs, comb, bridge), 16 samples, pixel identical (mean difference 0.00).
+Merge check (origin/main 1324e7c, helmet round 3, landed after this round's base d0abd62): the trial merge has no
+conflicts, and on it 98 of 99 rider tests passed; the overlap test failed worn: the comb and the bridge 0.35 and
+0.41 mm into each other at s -8.1 mm, z -31.2 to -31.7. Helmet round 3's shell moves the helmet 3.9 mm down his
+head and 1.5 deg (fit_on_head), so his nose skin lies 3.2 mm further back behind the lens and no longer cuts the
+comb's tongue beside the notch at |s| 8 mm. There the frame's ring samples either side of the notch's side (s 6.72
+and 9.58 mm) interpolate a corner of plate from 3.6 to 4.42 mm deep, up to 0.8 mm shallower than nominal, and the
+comb's back jumped at that plate's edge (held 4.31 mm, free 4.69). Fixed on the comb (rib_front), not the frame
+(moving the notch's ramp would take the bridge's back face 1.2 mm deeper towards his nose at s 6.7): held wherever
+the plate stands RIB_T_MIN (0.3 mm) less RIB_SINK behind its front, and the free back eased towards the held one by
+the plate's deficit less 0.3 mm a mm (RIB_EASE, a cone dilation on a 0.25 mm grid). The goggle alone's comb is
+unchanged (0 vertices moved); the worn one on this round's base moved 33 of 10,180 vertices by up to 0.10 mm.
+Worn overlaps: 0 with either skin. Tests: all 96 pass on the worktree, all 99 pass on the trial merge.
 
 ## 3. Eyes
 | Number | Value | Source |

@@ -1737,13 +1737,29 @@ def rib_clear(L, s, skin_G, depth):
     return out
 
 
+# Round 11, merged on helmet round 3 (its shell moves the goggle 3.9 mm down his face, his nose 3.2 mm further back
+# behind the lens): the comb's tongue at |s| 8 mm now stands whole beside the worn notch, and there the plate it is
+# moulded into lies up to 0.8 mm shallower than its nominal depth: the frame's ring samples either side of the notch's
+# side (s 6.72 and 9.58 mm) interpolate a corner of plate from the ramp's 3.6 mm to the nominal 4.42 mm. Where that
+# corner stood less than 0.3 mm behind the comb's back sinking point the back stayed RIB_T behind the front (0.3 mm
+# into the plate), and where it held, the back jumped by up to 0.38 mm at the plate's top edge, smeared 0.35 mm into
+# the plate by the comb's 1 mm sheet grid. So the comb is held wherever the plate stands RIB_T_MIN (less RIB_SINK)
+# behind its front, and the free back eases towards the held one near the plate: by the plate's deficit below its
+# nominal depth, less RIB_EASE[1] per unit distance from it (a cone dilation on a RIB_EASE[0] grid). Where the plate is
+# at its nominal depth (the goggle alone, and the worn bridge away from the notch) the deficit is nought: no change.
+RIB_T_MIN = 0.0003                             # the comb's least thickness where the plate holds it
+RIB_EASE = (0.00025, 0.30)                     # m grid; the ease's fall per unit distance from the held plate
+
+
 def rib_front(gp, bd=None):
     """Round 11: the comb's front and back depths behind the lens front (m, > 0) as functions of (s, z). The front
     is rib_depth (behind the inner lens, leaning back). In the lens window the back sinks RIB_SINK into the frame's
     plate behind the lens where that stands behind (bd: bridge_depth with plate), and lies RIB_T behind the front where
-    nothing does (the worn build's notch, the face opening); in the band under the window (the comb's root) RIB_T
-    behind the front, inside the band."""
+    nothing does (the worn build's notch, the face opening), eased towards the plate near its edge where the plate
+    lies shallower than its nominal depth (RIB_EASE); in the band under the window (the comb's root) RIB_T behind the
+    front, inside the band."""
     from matplotlib.path import Path
+    from scipy.interpolate import RegularGridInterpolator
     bd = bd or bridge_depth(gp, plate=True)
     win = Path(outlines(gp, teeth=False)[0])
 
@@ -1751,12 +1767,32 @@ def rib_front(gp, bd=None):
         s, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(z, float))
         return rib_depth(z)
 
-    def back(s, z):
-        s, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(z, float))
+    def held_back(s, z):
         f, b = front(s, z), bd(s, z)
         inw = win.contains_points(np.c_[s.ravel(), z.ravel()]).reshape(s.shape)
-        held = inw & np.isfinite(b) & (b > f + 0.5 * RIB_T - RIB_SINK)
-        return np.where(held, b + RIB_SINK, f + RIB_T)
+        return f, b, inw & np.isfinite(b) & (b > f + RIB_T_MIN - RIB_SINK)
+
+    h, k = RIB_EASE                                 # the deficit (nominal less held back), cone-dilated on a grid
+    sg = np.arange(-RIB_OUTER - 0.004, RIB_OUTER + 0.004 + 1e-9, h)
+    zg = np.arange(-0.042, -0.012 + 1e-9, h)
+    S, Z = np.meshgrid(sg, zg, indexing="ij")
+    f, b, held = held_back(S, Z)
+    dfc = np.where(held, np.maximum(f + RIB_T - (b + RIB_SINK), 0.0), 0.0)
+    r = int(np.ceil((RIB_T - RIB_T_MIN) / k / h))   # the largest deficit (the held test's) runs out there
+    pad = np.pad(dfc, r)
+    D = dfc.copy()
+    for i in range(-r, r + 1):
+        for j in range(-r, r + 1):
+            dist = math.hypot(i, j) * h
+            if 0 < dist <= r * h:
+                D = np.maximum(D, pad[r + i:r + i + len(sg), r + j:r + j + len(zg)] - k * dist)
+    ease = RegularGridInterpolator((sg, zg), D, bounds_error=False, fill_value=0.0)
+
+    def back(s, z):
+        s, z = np.broadcast_arrays(np.asarray(s, float), np.asarray(z, float))
+        f, b, held = held_back(s, z)
+        e = ease(np.c_[s.ravel(), z.ravel()]).reshape(s.shape)
+        return np.where(held, b + RIB_SINK, f + RIB_T - e)
     return front, back
 
 
