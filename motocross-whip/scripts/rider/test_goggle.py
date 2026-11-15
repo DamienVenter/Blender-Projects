@@ -126,7 +126,9 @@ def test_round5_offsets_teeth_and_nose_ribs():
     """Round 5 details: the outer edge and the lens edge bow off their control polygons by smooth normal offsets
     (round 6: cubic B-splines along each polygon's arc length, 12 to 30 coefficients a half, within 8 mm, near zero
     at the control points so the polygon carries the corners); the top band's lens edge steps down at the vent teeth
-    (Leatt's ISO renders: steps at |s| 43.6, 59 and 79.5 mm, up to 2 mm, the near side only seen, mirrored); the
+    (Leatt's ISO renders: steps at |s| 43.6, 59 and 79.5 mm, up to 2 mm, the near side only seen, mirrored; round
+    13, read through three views jointly: 48.5, 58.5, 61.5, the second tooth ramping to 3 mm at 71.5 and back to
+    the band by 77.5); the
     comb of ribs over the nose bridge (seen through the clear lenses, phr): symmetric, its finger tips 16 to 19 mm
     below the lens centre, inside the nose arch, in frame colour with its slots."""
     gp = G.GP
@@ -137,13 +139,13 @@ def test_round5_offsets_teeth_and_nose_ribs():
         Cb = G.fillet_closed(G.full_loop(gp[base]), per, G.loop_values(gp["fillet_" + base]))[0]
         dn = G.bspline_half(gp[key], G.loop_t(Cb, G.half_samples(gp, per)))
         assert np.abs(dn).max() < 0.008 and np.abs(dn[cum]).max() < 0.0005
-    assert [t[0] for t in gp["teeth"]] == [0.0436, 0.059] and gp["teeth"][-1][1] == 0.0795
+    assert [t[0] for t in gp["teeth"]] == [0.0485, 0.0585, 0.0615, 0.0715] and gp["teeth"][-1][1] == 0.0775
     Co, Cu = G.outlines(gp)[:2]
     drop = G.outlines(gp, teeth=False)[0][:, 1] - Co[:, 1]
     s = np.abs(Co[:, 0])
     top = Co[:, 1] > 0
-    assert np.abs(drop[top & ((s < 0.0436 - 0.001) | (s > 0.0795 + 0.001))]).max() < 1e-5   # steps ease 0.4 mm
-    assert -1e-9 <= drop.min() and drop.max() < 0.0025 and drop[top & (s > 0.07) & (s < 0.0795)].max() > 0.001
+    assert np.abs(drop[top & ((s < 0.0485 - 0.001) | (s > 0.0775 + 0.001))]).max() < 1e-5   # steps ease 0.4 mm
+    assert -1e-9 <= drop.min() and drop.max() < 0.0032 and drop[top & (s > 0.07) & (s < 0.0775)].max() > 0.001
     r = G.build_nose_ribs()
     assert abs(r.V[:, 0].min() + r.V[:, 0].max()) < 1e-6                   # symmetric
     tips = [z for z, _ in G.RIB_TOPS]                                       # the fingers' tops
@@ -1305,6 +1307,27 @@ def test_round12_face_foam_is_matte():
     sheen 0 96. Polyurethane foam is matte: no sheen, rough 0.9 or more, and dark (rgb under 50)."""
     foam = G.MATERIALS["goggle_foam"]
     assert foam.get("sheen", 0.0) <= 0.05 and foam.get("rough", 0.5) >= 0.9 and max(foam["rgb"]) < 50, foam
+
+
+def test_round13_vent_teeth_follow_the_joint_read():
+    """Round 13 item 4: the top band's lens edge at the vents, read through three views jointly (the white ISO and the
+    Pinata ISO through the iso55 camera, the yellow studio photo phy through its own; scratch saw13.py and
+    sawfit13b.py): each view's drop below the band's line by the edge's |s| at 1 mm (its line through its read at |s|
+    41 to 43 and 81 to 85, beyond the vents), the median of the three (the views scatter about it by rms 0.42 mm).
+    The model's drop follows it over 47 to 71 mm to rms 0.35 (round 13: 0.20; main's teeth 0.77). At 79 and 80 all
+    three read no drop (within 0.65 mm; main's teeth 1.5). Between 72 and 78 they disagree on where the second tooth's
+    end face meets the band (the white ISO 75, iso55 77, phy 78) and nothing more is asserted."""
+    read = np.array([-0.5, -0.1, 0.4, 0.4, 0.6, 0.7, 1.1, 1.2, 1.4, 1.5, 1.4, 0.9, 0.6, 1.1, 1.1, 2.0, 2.1, 2.3, 2.3,
+                     2.4, 2.6, 2.6, 2.7, 2.9, 2.9])
+    sg = np.arange(47.0, 72.0, 1.0)
+    Co = G.outlines(G.GP)[0]
+    drop = (G.outlines(G.GP, teeth=False)[0][:, 1] - Co[:, 1]) * 1000
+    s = np.abs(Co[:, 0]) * 1000
+    m = (Co[:, 1] > 0) & (Co[:, 0] < 0)
+    o = np.argsort(s[m])
+    d = np.interp(sg, s[m][o], drop[m][o])
+    assert np.sqrt(np.mean((d - read) ** 2)) < 0.35, np.sqrt(np.mean((d - read) ** 2))
+    assert np.interp([79.0, 80.0], s[m][o], drop[m][o]).max() < 0.5
 
 
 def test_round13_face_foam_has_no_grazing_gloss():

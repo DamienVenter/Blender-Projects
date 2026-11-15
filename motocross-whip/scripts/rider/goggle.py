@@ -262,7 +262,16 @@ GP = dict(
              0.00002, -0.00004, 0.00012, -0.00007, -0.00039, -0.00018, 0.00002, 0.00003, -0.00008, 0.00004,
              -0.00001, 0.00001, -0.00001],
     # the top band's teeth (tooth_drop): |s| in, |s| out, drop at each end (m)
-    teeth=[[0.04360, 0.05900, 0.0, 0.00033], [0.05900, 0.07950, 0.00196, 0.00151]],
+    # round 13 (decision 57, item 4): the teeth read through three views jointly (scratch saw13.py, sawfit13b.py: the
+    # white ISO and the Pinata ISO through the iso55 camera, the yellow studio photo phy through its own). Per view the
+    # frame colour's lowest row per column against our edge with no teeth and with a 1 mm drop, by the edge's |s|,
+    # less a line through its read beyond the vents (|s| 41 to 43 and 81 to 85); the median of the three, fitted with
+    # linear ramps between the steps (residual rms 0.10 mm; the views scatter about the median by rms 0.42). They
+    # agree on steps down at 48.5 and 61.5 (phy 60) and up at 58.5, and on no drop at 79 to 80 (round 6's 1.5 mm step
+    # at 79.5 was not there). The second tooth's fall back to the band (its slanted end face) ends where they disagree:
+    # the white ISO by 75, iso55 77, phy 78; built to the median, 77.5. Below 47 they disagree (0.4 to 1.8 mm).
+    teeth=[[0.04850, 0.05850, 0.00027, 0.00182], [0.05850, 0.06150, 0.00051, 0.00136],
+           [0.06150, 0.07150, 0.00196, 0.00298], [0.07150, 0.07750, 0.00298, 0.0]],
     # outriggers (outrigger_frames): fitted with the shape (round 5, kept; round 7 checked the far one in phr: ledger)
     # round 10 (item 2): the plate tapers. Its edges are lines from Leatt's near plate in iso55 and phr (back-projected
     # onto it at 1:1, scratch plcmp.py): top 28.5 mm at the hinge to 23.8 at the back, bottom -38.9 to -31.3, the back
@@ -497,7 +506,8 @@ def tooth_drop(gp, C):
     out from the stepped centre the top band's lower edge steps down twice more, each tooth sloping lower outwards,
     and at the last tooth's outer end it steps straight back up (|s| 43.6, 59 and 79.5 mm, back-projected on the
     front face). Round 6: the profile is eased over about 2 TOOTH_EASE at its steps and corners (a Gaussian of
-    TOOTH_EASE / 2) instead of jumping between two samples."""
+    TOOTH_EASE / 2) instead of jumping between two samples. Round 13: read through three views jointly (GP "teeth"):
+    steps at 48.5, 58.5 (up) and 61.5, the last tooth's end face sloping back to the band by 77.5."""
     teeth = gp.get("teeth", [])
     if not teeth:
         return np.zeros(len(C))
