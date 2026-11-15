@@ -106,17 +106,18 @@ def test_velocity55_shape_from_leatts_photos():
     ng = G.build_nose_guard()
     assert ng.V[:, 2].min() > Cu[:, 1].min() - 0.002                         # the guard stays inside the legs
     assert abs(G.post_sz()[0] - 0.0867) < 0.0005
-    # outriggers hinged on the frame's widest point (round 9; before, behind the side faces), OR_LEN long, running
-    # back and out from there (free, Leatt's goggle ISO: 55 deg)
+    # outriggers hinged by the frame's widest point (round 9; before, behind the side faces; round 12: OR_HINGE_IN
+    # inboard of it, behind the side face), OR_LEN long, running back and out from there (free, Leatt's goggle ISO:
+    # 55 deg from the widest point, 62 from the hinge inboard)
     R_ = np.vstack(rings)
     for sg, (box, end, n) in G.outrigger_frames().items():
         hinge = box[[0, 1]].mean(0)                                         # the outer face's front edge
         near = R_[np.abs(R_[:, 2] - hinge[2]) < 0.004]
-        assert abs(sg * hinge[0] - (sg * near[:, 0]).max()) < 1e-4          # on the frame's widest point
+        assert abs((sg * near[:, 0]).max() - sg * hinge[0] - G.OR_HINGE_IN) < 1e-4   # OR_HINGE_IN inside that point
         assert 0.030 < hinge[1] - R_[:, 1].min() < 0.045                    # 30 to 45 mm behind the frame's front
         assert (sg * box[[4, 5], 0] < sg * hinge[0] - 0.002).all()          # its front end inside it (front photos)
         back = box[[2, 3]].mean(0)
-        assert abs(np.linalg.norm(back - hinge) - G.OR_LEN) < 0.002
+        assert abs(np.linalg.norm(back - hinge) - G.OR_HINGE_LEN) < 0.002   # round 12: OR_LEN less OR_HINGE_BACK
         turn = math.degrees(math.atan2(sg * (back[0] - hinge[0]), back[1] - hinge[1]))
         assert abs(turn - G.OR_FREE_TURN) < 0.5
 
@@ -948,13 +949,16 @@ def goggle_overlaps(parts, gp=None, h=0.0004):
     parts looked inside that are not closed solids. Returns a list of faults (empty: none)."""
     gp = gp or G.GP
     L = G.LensSurface(gp)
-    Co = G.outlines(gp)[0]                                            # the window's edge, the top band's teeth in
+    # the window's edge, the top band's teeth in: the frame's lens edge (round 12: its foot moved out on the pillars)
+    Co = G.frame_rings(gp)[1]["Co"]
+    back = getattr(G, "lens_back", lambda s, z: 0.0 * s)           # round 12: the lens's ends curl back
     comps, faults = {}, []
     for P in parts:
         key = P.name.replace("goggle_", "")
         for V, T, bad in solids(P):
             if key == "lens":
-                k = "lens_outer" if lens_coords(L, V[np.unique(T)])[2].mean() > -0.0015 else "lens_inner"
+                s_, z_, off = lens_coords(L, V[np.unique(T)])
+                k = "lens_outer" if (off + back(s_, z_)).mean() > -0.0015 else "lens_inner"
             else:
                 k = key
             comps.setdefault(k, []).append((V, T, bad))
@@ -1104,6 +1108,159 @@ def test_round11_chassis_tone_and_clip_tabs():
             assert ln - 0.0003 < np.ptp(top @ t) < ln + 0.0001, (sg, z0, np.ptp(top @ t))
             d = mouth.query(Q)[0]
             assert d.min() > 0.00015 and d.max() < G.CHASSIS_SLOT_D + 0.0005, (d.min(), d.max())
+
+
+def _hue_runs(row, mm_px, d0_px, step_mm=0.5, d_max=40.0, sign=1):
+    """Hue (deg) and saturation of a print row at distances from a column, every step_mm."""
+    import colorsys
+    out = []
+    for d in np.arange(0.0, d_max, step_mm):
+        x = int(round(d0_px + sign * d / mm_px))
+        c = np.median(row[:, x - 1:x + 2].reshape(-1, 3), 0) / 255.0
+        h, s_, v_ = colorsys.rgb_to_hsv(*c)
+        out.append((d, h * 360.0, s_))
+    return out
+
+
+def test_round12_strap_print_by_the_outrigger():
+    """Round 12 item 1: in Pinata iso-right the print's colour changes stood 15 / 55 / 105 px from the plate where
+    Leatt's stand 45 / 65 / 95 (the ISO's first 30 mm seen edge on: its yellow run a third as long, its red twice).
+    Leatt's iso-right strap by the outrigger, at 0.31 mm a px: along its middle yellow to 12.7 mm, orange to 17, red to
+    22.9, then magenta; along its lower fifth yellow to 16.7, orange to 23.9, red to 31.9. Read on the texture (both
+    ends) from where the strap leaves the outrigger: the yellow run ends 10.5 to 15 mm (middle) and 14 to 19.5 (lower
+    fifth), magenta starts 20 to 25.5 (middle) and 28 to 34 (lower fifth)."""
+    import goggle_strap_art as SA
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(H.TEXDIR, "goggle_strap_print.jpg")).convert("RGB"), float)
+    ny, nx = a.shape[:2]
+    mm_px = SA.STRAP_LEN_UV * 1000.0 / nx
+    a0 = SA.anchor_mm()
+
+    def ends(frac):                                       # frac across from the top edge
+        r = a[int(frac * ny) - 1:int(frac * ny) + 2]
+        return (_hue_runs(r, mm_px, a0 / mm_px), _hue_runs(r, mm_px, nx - 1 - a0 / mm_px, sign=-1))
+
+    def yellow_end(runs):
+        return next(d for d, h, s_ in runs if d > 2.0 and not (40.0 <= h < 70.0 and s_ > 0.3))
+
+    def magenta_start(runs):
+        return next(d for d, h, s_ in runs if 295.0 <= h < 345.0 and s_ > 0.3)
+
+    for frac, (y_lo, y_hi), (m_lo, m_hi) in ((0.5, (10.5, 15.0), (20.0, 25.5)), (0.8, (14.0, 19.5), (28.0, 34.0))):
+        for runs in ends(frac):
+            assert y_lo <= yellow_end(runs) <= y_hi, (frac, yellow_end(runs))
+            assert m_lo <= magenta_start(runs) <= m_hi, (frac, magenta_start(runs))
+
+
+def test_round12_strap_u_is_true_mm_from_each_end(built):
+    """Round 12 item 1: the print is laid in mm from each end whatever length the strap is built to (the helmet
+    agent refits its path; round 11's u = s / s_total stretched the print by the length's ratio): strap_u over the
+    first and last thirds gives the print's true mm, the difference taken up over the back's even middle third, and
+    rises all along. The built band's u by its left end is its arc length over STRAP_LEN_UV (to its height over the
+    shell's curve, 4 %)."""
+    import goggle_strap_art as SA
+    L = SA.STRAP_LEN_UV
+    for total in (0.60, 0.6436, 0.68):
+        s = np.linspace(0.0, total, 601)
+        u = SA.strap_u(s, total)
+        assert abs(u[0]) < 1e-12 and abs(u[-1] - 1.0) < 1e-12 and np.all(np.diff(u) > 0), total
+        a_, b_ = s <= total / 3, s >= 2 * total / 3
+        assert np.allclose(u[a_] * L, s[a_], atol=1e-9) and np.allclose((1 - u[b_]) * L, total - s[b_], atol=1e-9)
+    band = built["parts"]["goggle_strap_band"]
+    V = np.asarray(band.V)
+    pts = {}
+    for f, m, uv in zip(band.F, band.M, band.UV):
+        if m == "goggle_strap":
+            for i, (uu, vv) in zip(f, uv):
+                if abs(vv - 0.5) < 1e-6 and uu < 0.3:
+                    pts[round(uu, 9)] = V[i]
+    us = np.array(sorted(pts))
+    P = np.array([pts[k] for k in us])
+    arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
+    assert len(us) > 20
+    assert abs((us[-1] - us[0]) * L / arc[-1] - 1.0) < 0.04, ((us[-1] - us[0]) * L, arc[-1])
+
+
+def test_round12_plate_front_hides_behind_the_frame_side():
+    """Round 12 item 2: in Leatt's Pinata iso-right his plate shows 762 to 840 px and his frame's pink side 845 to 918;
+    ours showed 760 to 889, over the frame's side (whose back edge projects at 845, as his), and in iso55 (free) his
+    side face starts at 920 px, ours at 950. Placed as on his empty helmet (12.6 mm lower, 3.5 mm back) ours read wider
+    still: shape, not place. The plate's front now hides inside the frame's side face: its hinge (the outer face's
+    front edge) at least 1.5 mm inside the frame's outer side at the hinge's own height and depth, and the lens (whose
+    ends curl back into the frame's sides past the hinge, item 3) stays 0.3 mm inside the plate's inner face even with
+    the plate turned straight back (grown its full groove from the moved lens edge it ran 0.9 mm into the plate),
+    the plate shortened by the hinge's move back (its back end, the strap's exit, stays)."""
+    rings, _ = G.frame_rings()
+    R_ = np.vstack(rings)
+    lens = np.asarray(G.build_lens().V)
+    for sg, (box, end, n) in G.outrigger_frames(turn={1: 0.0, -1: 0.0}).items():
+        hinge = box[[0, 1]].mean(0)
+        ring = R_[(np.abs(R_[:, 2] - hinge[2]) < 0.004) & (np.abs(R_[:, 1] - hinge[1]) < 0.0015) & (sg * R_[:, 0] > 0)]
+        assert len(ring) >= 3
+        assert (sg * ring[:, 0]).max() - sg * hinge[0] > 0.0015, ((sg * ring[:, 0]).max(), sg * hinge[0])
+        t = box[2] - box[0]
+        t[2] = 0.0
+        t /= np.linalg.norm(t)
+        along, out = (lens - box[0]) @ t, (lens - box[0]) @ (n / np.linalg.norm(n))
+        by = (along > -0.001) & (np.abs(lens[:, 2] - hinge[2]) < 0.03)
+        assert by.sum() > 100 and out[by].max() < -G.OR_T - 0.0003, (by.sum(), out[by].max() + G.OR_T)
+        assert abs(G.OR_HINGE_LEN + G.OR_HINGE_BACK - G.OR_LEN) < 1e-9
+
+
+def test_round12_side_section_lens_curls_back_and_the_wall_stands_up():
+    """Round 12 item 3: Leatt's lens ends at x 1656 to 1658 px in iso55 (rows 820 to 1100) and 1597 to 1600 in phr,
+    the black band beyond it 46 px wide; ours ran to 1671 to 1674 and 1612 to 1614 (its last 20 mm, nearly edge on,
+    covered the band's first 17 px), and on the near side our pillar wall leaned out 32 to 37 deg off the lens normal
+    and showed as a black strip (983 to 994 px) where his frame colour runs to the lens (seen from iso55 a wall there
+    shows only when it leans out more than 17 deg). Now the lens's ends curl back 3 mm into the frame's sides and the
+    wall stands within 17 deg of the lens normal on the pillars. Its taller wall faced the studio key's mirror
+    direction on the lower far pillar (a white patch, L 228 against Leatt's 17), so the chassis is a matte moulding.
+    Over the pillar's height the lens turns away late (at s 60 to 77 mm within 80 deg of the iso55 view)."""
+    lens = np.asarray(G.build_lens().V)
+    for view, rows, lo, hi in (("iso55", (860, 1100), 1652.0, 1662.0), ("phr", (880, 1020), 1595.0, 1605.0)):
+        x = np.array(json.load(open(G.CAMERAS))[view]["x"])
+        q = G.photo_project(x, lens, 1920, 1920)[0]
+        for y0 in range(rows[0], rows[1], 40):
+            far = q[(q[:, 1] > y0) & (q[:, 1] < y0 + 40), 0].max()
+            assert lo < far < hi, (view, y0, far)
+    rings, info = G.frame_rings()
+    Co = info["Co"]
+    N = G.LensSurface(G.GP).point(Co[:, 0], Co[:, 1], 0.0)[1]
+    T = np.roll(rings[0], -1, 0) - np.roll(rings[0], 1, 0)
+    T /= np.linalg.norm(T, axis=1)[:, None]
+    D = rings[1] - rings[0]                                   # gap a, the wall up from the lens, across the edge
+    D -= T * np.sum(D * T, axis=1)[:, None]
+    lean = np.degrees(np.arccos(np.abs(np.sum(D * N, axis=1)) / np.linalg.norm(D, axis=1)))
+    pillar = (np.abs(Co[:, 0]) > 0.095) & (np.abs(Co[:, 1]) < 0.02)
+    assert pillar.sum() >= 20 and lean[pillar].max() < 17.0, lean[pillar].max()
+    assert G.MATERIALS["goggle_chassis"].get("spec", 0.5) == 0.0
+    # over the pillar's height the curl starts late, as Leatt's lens turns away only near its end: started at 60 mm
+    # there the lens at s 72 to 95 mm lay at 81 to 87 deg to the iso55 view, mirrored the black wall beside it and
+    # read dark from x 1645 px (Leatt's lens colour runs to 1657); along the lower band's edge it starts at 60 (fair)
+    az, el, roll, d = np.array(json.load(open(G.CAMERAS))["iso55"]["x"])[:4]
+    a, e = np.radians(az), np.radians(el)
+    cam = np.array([np.sin(a) * np.cos(e), -np.cos(a) * np.cos(e), np.sin(e)]) * d
+    L = G.LensSurface(G.GP)
+    s, z = np.meshgrid(np.linspace(0.060, 0.077, 18), np.linspace(-0.010, 0.010, 5))
+    s, z = s.ravel(), z.ravel()
+
+    def front(ds, dz):
+        return L.point(s + ds, z + dz, -G.lens_back(s + ds, z + dz))[0]
+    P = front(0.0, 0.0)
+    N = np.cross(front(1e-4, 0.0) - front(-1e-4, 0.0), front(0.0, 1e-4) - front(0.0, -1e-4))
+    V = cam - P
+    inc = np.degrees(np.arccos(np.abs(np.sum(N * V, 1)) / np.linalg.norm(N, axis=1) / np.linalg.norm(V, axis=1)))
+    assert inc.max() < 80.0, inc.max()
+    assert G.lens_back(0.075, -0.036) > 0.0006 and G.lens_back(0.099, 0.0) > 0.00299
+
+
+def test_round12_face_foam_is_matte():
+    """Round 12 item 4: the rim above the near tongues in phr (Leatt's 3 to 7 px, L 75 to 95 on its upper roll) is
+    mostly the face foam's top seen past the comb (the part buffer; the bridge shows only between the tongues). At
+    sheen 0.6 its roll glowed at that grazing view: rim L p50 138, the roll 150 to 200; sheen 0.2 rendered 120 and
+    sheen 0 96. Polyurethane foam is matte: no sheen, rough 0.9 or more, and dark (rgb under 50)."""
+    foam = G.MATERIALS["goggle_foam"]
+    assert foam.get("sheen", 0.0) <= 0.05 and foam.get("rough", 0.5) >= 0.9 and max(foam["rgb"]) < 50, foam
 
 
 def test_frame_width_and_wrap():

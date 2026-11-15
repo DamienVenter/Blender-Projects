@@ -1179,6 +1179,131 @@ through the solved camera (helmet.PRINT_CAMS) and in his photos through their fi
   (his 07, 09) it runs under the panel. Ours follows his photos, so the iso-right sheet differs behind the
   outrigger (the picks by the plate fit within 3.8 mm).
 
+## 15. Round 12: the strap's print along its length, the plate's hinge, the side section, the foam (decision 53)
+
+### The strap's print along its length (item 1; goggle_strap_art.pin_print, strap_u, anchor_mm; goggle.build_strap)
+- Leatt's Pinata kit iso-right (an empty helmet), px along x from the plate's back edge (770) along the strap
+  (scratch strapline.py): its upper fifth yellow to 35, orange to 47; its middle yellow to 41, orange to 55, red to
+  74, then magenta; its lower fifth 54, 77, 103 (the brief's profile: 45, 65, 95). Main through the same camera
+  (helmet.PRINT_CAMS), from its plate's back edge (762): upper 0 (orange at the plate), 45, 89; middle 13, 57, 109;
+  lower 22, 65, 107.
+- Two causes. The print by the outrigger came from the free goggle's ISO, which sees the strap's first 30 mm turning
+  away from the camera (its distances read from the strap's height per column): its yellow a third as long, its red
+  twice. And the print's u was s / s_total: every refit of the worn strap's length stretched it.
+- Built: pin_print samples Leatt's iso-right strap itself by the plate (five bands across, lit saturated samples
+  only, the outrigger's soft shadow edge held back to the plate), at 0.31 mm a px of x: the strap's own width (3.73 px
+  a mm across) times the built strap's along / across ratio through the same camera (4.04 / 4.44 px a mm, scratch
+  strapmap.py). Check: the LEATT's T end at 88 px reads 27.3 mm, the print's box 27.5. It blends into the ISO's
+  samples over 27 to 33 mm. strap_u lays the print in true mm from each end over the strap's first and last thirds
+  and takes up the length difference over the even middle third; anchor_mm reads goggle.OR_ANCHOR (the print's
+  distances start where the strap leaves the plate). The texture: along the middle yellow to 12.7 mm, orange to 17,
+  red to 22.9; along the lower fifth 16.7, 23.9, 31.9 (Leatt's, through 0.31 mm a px).
+- Now, worn, the same lines from our plate's back edge (762): upper 26, 49, 69; middle 44, 64, 90; lower 57, 80,
+  114. The yellow and orange runs within 3 to 9 px of Leatt's, the red's end 11 to 16 px long: the drift grows along
+  the strap, where Leatt's empty helmet has the strap rising over the chevron panel and ours runs under it (his
+  photos 07 and 09); the strap's path is the worn fit's.
+- Tests: test_round12_strap_print_by_the_outrigger (the colour changes in mm on the texture),
+  test_round12_strap_u_is_true_mm_from_each_end (strap_u for 600 to 680 mm straps and the built band's u against its
+  arc length within 4 %). Both fail on main.
+
+### The plate's width: shape, not place (item 2; OR_HINGE_IN, OR_HINGE_BACK, GP's or_* taper, OR_FREE_TURN)
+- Place: through the solved iso-right camera the pink frames overlay best with our goggle 12.6 mm lower and 3.5 mm
+  further back than on his face (the brief's 12 and 11 mm were by eye). Rendered so for comparison only (PLACE
+  unchanged), our plate read wider still: 745 to 870 px against Leatt's 762 to 840. So the plate's shape.
+- Shape: Leatt's frame side covers the plate's front. In iso55 (free) his pink side face starts at 920 px, ours at
+  950: our plate stood outboard of the side face, which curves in from x 103.8 mm at the hinge to 93 to 97 behind
+  it. Scanned (scratch orvis12.py, hingescan12.py; each plate turned so that its back edge stays): the hinge 3 mm
+  inboard hides the front to 920 / 934 / 952 px in iso55 (rows 880 / 980 / 1080) and 992 to 1018 in phr (Leatt about
+  1000); 6 mm to 918 to 944, more hides no more. 3 mm back: from the widest point the plate's 5 mm thickness crossed
+  the lens's edge by 0.6 mm. The plate is 3 mm shorter (its back end, the strap's exit, stays). The free turns that
+  keep the photos' back edges are now 64 deg (iso55, main 55) and 76.5 (phr, main 65); the taper refitted on the
+  same edges (plfit12.py): edge rms top / bottom iso55 0.60 / 1.59 mm (round 10 1.08 / 1.52), phr 0.32 / 1.02 (0.53 /
+  1.00); 64.7 by 50.5 mm (63.5 by 50.1).
+- Worn (Pinata iso-right, same camera): the plate's visible face 84 to 93 px wide (Leatt 70 to 76, main 107 to 113),
+  its front edge (where the pink side starts) at 861 to 871 px (Leatt 827 to 840, main 875 to 880). Its back edge
+  runs 768 to 787 px from row 860 to 980, leaning right going down, where Leatt's leans left (770 to 752) and main's
+  stood upright (766 to 769): the worn twist. The plate, hinged 3 mm further in, now turns out 0 to 18.75 deg to
+  rest on the shell (main 10.75; shell_mount, the worn fit's). The strap's end frame (strap_ends) now takes its up
+  direction across the plate at the anchor's column, not up the back edge: at 18.75 deg the back edge leaned 3.7 deg
+  more than the plate at the anchor and put the strap's top corner through the plate's outer face.
+- Test: test_round12_plate_front_hides_behind_the_frame_side (the hinge at least 1.5 mm inside the frame's outer
+  side, the lens 0.3 mm inside the plate's inner face with the plate straight back; fails on main).
+
+### The side section (item 3; SIDE_*, side_foot, lens_back, lens_region, post_frame, goggle_chassis)
+- Leatt's ISO (iso55) shows his lens's far end at x 1656 to 1658 px (rows 820 to 1100) and the black band from there
+  to 1703; ours ended at 1671 to 1674, so his band was 46 px to our 24 and our lens's last 20 mm, nearly edge on,
+  covered the rest. phr: his 1597 to 1600, ours 1612; phy: 1628, ours 1647. Through the cameras 1 mm back along the
+  lens normal moves the far end 5.3 px (iso55), 3.9 (phr), 4.6 (phy), and 1 mm along the lens surface 0.15 to 0.5:
+  all three views put his lens's end 3 to 4 mm behind ours. On the near side his frame colour runs to the lens (iso55
+  921 to 983 px, the lens from 984); ours showed a black wall 982 to 993 (seen from iso55 a wall on the near pillar
+  shows only when it leans out more than 17 deg; ours leaned 32 to 37).
+- Built: the lens's ends curl back 3 mm (lens_back, a smootherstep saturated at |s| 99 mm). Along the bands' edges it
+  starts at 60 mm: over 75 to 97 the lower band's lens edge rippled 45 um and turned 2.4 deg a sample
+  (test_round6_frame_is_fair's bounds 10 um and 1 deg; over 60 to 99, 7 um and 0.8 deg). Over the pillar's height
+  it starts at 75 (eased over z -30 to -15 and 12 to 25 mm): started at 60 there, the lens from s 72 to 95 mm lay at
+  81 to 87 deg to the iso55 view, mirrored the black wall beside it and read dark from 1645 px (scratch refl12.py,
+  lensend12.py: with the lens moved away the band behind it reads 13 from 1612 px, so the lens's tone there is its
+  reflection). On the pillars the wall's lean comes down to SIDE_BEVEL (1.2 mm), its foot moved out under the face
+  (the face's inner edge stays); the slots run up the taller wall (CHASSIS_SLOT_T 0.47 to 0.97). The tear-off posts
+  stand on the curled lens with their heads at the fitted landmarks (longer stems; moving the heads failed the
+  landmark test by 3.2 mm).
+- Grown their full groove from the moved edge, the lenses reached 1.85 mm further out and ran 0.9 mm into the plate's
+  inner face with the plate turned straight back: their hidden edges stay where they were (the groove less the
+  move, at least SIDE_GROOVE_MIN 0.6 mm). The plates clear the lens by 0.53 mm at 0 deg; no faults at 0, 18.75, 64
+  and 76.5 deg (goggle_overlaps).
+- The taller wall's normal (z 0.33 to 0.40 on the lower far pillar) faced the studio key's mirror direction: a white
+  patch, L 228 against Leatt's 17 (rough 0.35 spec 0.05 rendered 89, spec 0.02 69, spec 0 16). goggle_chassis is a
+  matte moulding (rgb 10, rough 0.5, spec 0). Band tones in iso55 (L p50 / p95; Leatt's white ISO face 19 / 37,
+  inner 21, patch 17, low 15, top 25): main face 20 / 21, inner 17 / 72, patch 43 / 85, low 47 / 127, top 15 / 72;
+  now 16 / 17, 17 / 17, 19 / 20, 20 / 21, 15 / 16.
+- Now: the lens's far end 1656 to 1659 px in iso55, 1601 to 1603 in phr, 1633 to 1634 in phy. Its colour runs to
+  1654 to 1657 in iso55 rows 870 to 1060 (Leatt 1657 to 1658; 1648 at rows 840 and 1090, where the curl eases to
+  the bands': a slight bow in its end at 1:1) and to 1590 to 1593 in phr (Leatt 1593 to 1596, main 1599 to 1602).
+  The pillar wall 6.9 mm tall leaning 9 to 10.5 deg (main 4.7 mm, 32 to 37); on the near side in iso55 the lens
+  starts at 982 to 984 px, as Leatt's (main's black wall 982 to 994 gone).
+- Fit (errtab12.py, against the round's base): iso55 outline median 0.89 to 0.75 mm, p90 4.12 to 4.13; phy p90 3.44
+  to 3.72, phr 3.89 to 4.32 (the medians the same); the front views (phw, iso45, ink, ind, frg, chee) and every IoU
+  unchanged. Not built: a face 1.3 mm prouder for his far silhouette (1703 px against our 1692 to 1696 in iso55)
+  moved the front views' outline p90 0.8 to 1.1 mm the wrong way (phw 5.75 to 6.58): the far silhouette stays 7 to
+  11 px short.
+- Test: test_round12_side_section_lens_curls_back_and_the_wall_stands_up (the lens's far end per 40 px row in iso55
+  and phr, the pillar wall within 17 deg of the lens normal, the chassis matte, the pillar's lens within 80 deg of
+  the iso55 view to s 77 mm: 78.4 now, 85.1 with the curl from 60; fails on main).
+
+### The comb's rim and the vent sawtooth (item 4; goggle_foam)
+- The rim above the near tongues in phr (scratch rim12.py, per column above the tongues' top): Leatt width p50 7.5
+  px (p10 to p90 1 to 13.5), L median 87, its peak p50 100; main 5.0, 141, 178. The part buffer shows it is mostly
+  the face foam's top seen past the comb (the bridge only between the tongues): at sheen 0.6 its upper roll glowed at
+  that grazing view (sheen 0.2 rendered 120). Now the foam has no sheen: width p50 7.0, L median 97, peak p50 160
+  (its top edge still catches the top light). Test: test_round12_face_foam_is_matte (fails on main).
+- The vent sawtooth (scratch saw12.py, the white ISO's top band near side, 4.7 to 5.8 px a mm of drop): Leatt's
+  window edge drops about 1.5 mm below the band's line from s 82.5 to 78 mm, ramps from 1.35 to 3.8 mm over s 77 to
+  71.4, rises slowly to 2.8 at s 62.4, steps up 0.9 mm at s 62.2 (flat at 1.8 to 1.9 to s 59.1), ramps to 2.3 at
+  57.6, eases to 1.5 at 49.3 and steps up 0.8 mm at s 49 to 0.6. Our teeth: 0 to 0.33 mm over s 43.6 to 59 and 1.96
+  to 1.51 over 59 to 79.5; rms difference 1.31 mm. Not built: the s mapping through that oblique view is
+  approximate, it disagrees with round 5 and 6's back-projected teeth, and the window's edge carries the lens, the
+  comb and the fitted views.
+
+### The phr layout and the strap's teal dots (items 5 and 6; reported, not built)
+- In every front photo (phr, phy, ind, wiso, phw, ink, chee, frg) the piece standing beyond the frame on the far
+  side has the plates' colour, not the frame's: purple on the purple goggle, black on the black-plated ones. It is a
+  C bracket joined to the frame's top and bottom with a gap between where the strap or the foam shows, two
+  rectangular windows at the chassis slots' heights with the strap seen through them, and a clear post on its outer
+  edge at mid height; the white ISO shows it as the black band beyond the white frame, and the back views show the
+  plate wrapping round the frame's end. So it is the outrigger's front, the strap carrier wrapping the lens post,
+  not the frame; our far plate (64 and 76.5 deg) shows its printed outer face there instead.
+- Not modelled: it needs a new outrigger shape round the frame's end and the strap threaded through its windows,
+  and the strap's path is the worn fit's. Item 6 is the same piece: the teal dots in Leatt's slots are the strap seen
+  through its windows; our strap is anchored inside the plate's back end and never passes behind the slots.
+- Item 7 (the Forge back-strap sheet) not done.
+
+### Checkpoint and checks
+renders/checkpoints/2026-11-15_goggle-r12/ (README there): 01 the strap at 1:1 (unaligned), 02a shape or place, 02b
+the worn plate, 03a to 03d the side section (far band 3x, near side 3x, phr 3x, iso55 at 1:1), 04a and 04c the rim in
+phr, 04b the vent sawtooth at 4x, 05 the far piece in three colourways. Blender 5.2.0 renders the free iso55 pixel
+identical to 5.2.3 (mean 0.000, max 0). The new tests (5) fail on main; the whole rider suite on the final tree, on
+origin/main 30bab2d (main had not moved): 114 passed, exit 0.
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|

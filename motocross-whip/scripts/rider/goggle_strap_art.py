@@ -39,7 +39,6 @@ STRAP_LEN_UV = 0.644       # m: the built strap's centre line (round 8: 618.8 mm
                            # out (about 0.5 % longer)
 TEX_W, TEX_H = 4096, 384   # texels: 6.6 per mm along, 8.5 across
 W_MM = 45.0
-ANCHOR_MM = 10.0           # the strap's end lies this far inside the outrigger's back end (goggle.OR_ANCHOR)
 PRINT_SIGMA_MM = 4.0
 LEATT_H = 0.67             # the ISO's letters: 177 of the strap's 265 px
 
@@ -145,20 +144,90 @@ def iso_print(step=2, bands=5):
     return d[keep], cols[keep], d_leatt, dict(K=K, leatt_px=(int(xa), int(xb)), h_px=(float(h[0]), float(h[-1])))
 
 
+# Round 12 (decision 53, item 1): the print by the outrigger from Leatt's Pinata kit iso-right (the strap worn on the
+# helmet, its right side), where the ISO's columns ran short: the ISO sees the free strap's first 30 mm turning away
+# from the camera, and its distances there come from the strap's height per column. Along the iso-right strap's middle
+# (scratch strapline.py, px along x from the plate's back edge at 770): yellow to 41, orange to 55, red to 74, then
+# magenta; along its lower fifth 54, 77, 103 and its upper fifth 35 (yellow), 47; main's render through the same camera
+# (helmet.PRINT_CAMS) 13, 57, 109 and 22, 65, 106: the yellow a third as long, the red twice. The strap's top edge there
+# runs from y 820 at x 770 rising 0.33 px a px to the left, 168 px across (45 mm: its bottom edge at 985 by the plate).
+# Its scale along: the strap's own width (3.73 px a mm across) times the built strap's along / across ratio through the
+# same camera (4.04 / 4.44 px a mm, scratch strapmap.py) and its rise: 0.31 mm a px of x, near constant over the first
+# 50 mm (the built strap's projection: 4.04 to 4.14 px a mm). Check: the LEATT's T end at 88 px reads 27.3 mm, the
+# print's box 27.5 (the ISO's own). Past PIN_BLEND the ISO's print (the LEATT and behind it).
+PIN = os.path.join(HERE, "..", "..", "reference", "leatt-gear", "helmet",
+                   "helmet85-kit_pinatateal_iso-right-with-goggle_leatt-us_1026000250_1920.png")
+PIN_X_EDGE = 770            # px: the strap leaves the plate's back edge
+PIN_TOP = (820.0, 0.33)     # the strap's top edge: y at PIN_X_EDGE, its rise (px a px) to the left
+PIN_W_PX = 168.0            # the strap's height (px) by the plate
+PIN_MM_PX = 0.31            # mm along the strap a px of x
+PIN_BLEND = (27.0, 33.0)    # mm: the photo's samples (its lower fifths red to 30), then the ISO's (magenta past 33)
+PIN_V_MIN = 0.45            # lit samples only (value)
+PIN_SHADOW_MM = 7.0         # the outrigger's shadow on the photo's strap ends here
+PIN_SIGMA_MM = 1.0          # the photo's tie-dye is soft already; this only evens its weave
+
+
+def pin_print(step=2, bands=5, d_max=34.0):
+    """Leatt's Pinata iso-right strap by the plate: distance d (mm from the plate's back edge) per sampled column
+    and the colour per band across (top band first; nan where the band is all LEATT)."""
+    from PIL import Image
+    a = np.asarray(Image.open(PIN).convert("RGB")).astype(float)
+    xs = np.arange(PIN_X_EDGE, PIN_X_EDGE - int(d_max / PIN_MM_PX) - 1, -step)
+    d = (PIN_X_EDGE - xs) * PIN_MM_PX
+    cols = np.full((len(xs), bands, 3), np.nan)
+    for k, x in enumerate(xs):
+        y0 = PIN_TOP[0] - PIN_TOP[1] * (PIN_X_EDGE - x)
+        for b in range(bands):
+            f0, f1 = (b + 0.12) / bands, (b + 0.88) / bands
+            seg = a[int(y0 + f0 * PIN_W_PX):int(y0 + f1 * PIN_W_PX), x - 2:x + 3].reshape(-1, 3)
+            sat = np.ptp(seg, 1)
+            # saturated, not the white letters, and lit: by the plate (d < 5 mm, the lower half) the strap lies in the
+            # outrigger's shadow (v 0.1 to 0.3, its yellow olive there); the render shades it itself
+            seg = seg[(sat > 40) & ~((seg.min(1) > 200) & (sat < 40)) & (seg.max(1) > PIN_V_MIN * 255)]
+            if len(seg) >= 6:
+                cols[k, b] = np.median(seg, 0)
+    # the shadow's soft edge (v 0.5 rising to 0.9 over the first 7 mm, its yellow tinted lime by the dark): each band
+    # holds its first lit sample (value 0.9 of the band's at PIN_SHADOW_MM) back to the plate
+    k7 = int(np.searchsorted(d, PIN_SHADOW_MM))
+    for b in range(bands):
+        lit = np.nonzero(np.nan_to_num(cols[:k7 + 1, b].max(1)) >= 0.9 * cols[k7, b].max())[0]
+        cols[:lit[0], b] = cols[lit[0], b]
+    return d, cols
+
+
 def print_field(dg):
     """The print's colour at distances dg (mm from where the strap leaves the outrigger) for the five bands (top
-    first): the ISO's samples filled across the LEATT along each band, smoothed, held past the ISO's view."""
+    first): by the outrigger Leatt's iso-right (pin_print), then the ISO's samples filled across the LEATT along each
+    band, smoothed, held past the ISO's view."""
     d, cols, d_leatt, info = iso_print()
+    dp, cp = pin_print(bands=cols.shape[1])
     out = np.zeros((len(dg), cols.shape[1], 3))
-    for b in range(cols.shape[1]):
-        ok = np.isfinite(cols[:, b, 0])
-        for c in range(3):
-            out[:, b, c] = np.interp(dg, d[ok], cols[ok, b, c])
+    near = np.zeros_like(out)
     step = dg[1] - dg[0]
-    for b in range(out.shape[1]):
+    for b in range(cols.shape[1]):
+        ok, okp = np.isfinite(cols[:, b, 0]), np.isfinite(cp[:, b, 0])
         for c in range(3):
-            out[:, b, c] = _gauss(out[:, b, c], PRINT_SIGMA_MM / step)
-    return out, d_leatt, info
+            out[:, b, c] = _gauss(np.interp(dg, d[ok], cols[ok, b, c]), PRINT_SIGMA_MM / step)
+            near[:, b, c] = _gauss(np.interp(dg, dp[okp], cp[okp, b, c]), PIN_SIGMA_MM / step)
+    w = np.clip((PIN_BLEND[1] - dg) / (PIN_BLEND[1] - PIN_BLEND[0]), 0, 1)
+    w = (w * w * (3 - 2 * w))[:, None, None]
+    return near * w + out * (1 - w), d_leatt, info
+
+
+def strap_u(s, total):
+    """The print's u (0 at the left end, 1 at the right) at s (m along a built strap total m long): true mm of the
+    print (STRAP_LEN_UV) from each end over the strap's first and last thirds (by the outriggers, where the print
+    changes), the difference in length taken up smoothly over the middle third (the back's even teal-green): the
+    print lands where Leatt's is whatever length the strap is built to."""
+    s = np.asarray(s, float)
+    t = np.clip((s / total - 1.0 / 3.0) * 3.0, 0.0, 1.0)
+    return s / STRAP_LEN_UV + (1.0 - total / STRAP_LEN_UV) * t * t * (3 - 2 * t)
+
+
+def anchor_mm():
+    """The strap's end inside the outrigger's back end (goggle.OR_ANCHOR), mm: the print's distances start there."""
+    import goggle as G
+    return G.OR_ANCHOR * 1000.0
 
 
 def _gauss_wrap(a, sig):
@@ -333,15 +402,16 @@ def leatt_boxes():
     """The two white LEATTs on the strap, each (x0, y0, letter height) in mm on the print (x along from the left end
     u 0, over STRAP_LEN_UV; y down from the top edge): letters LEATT_H of the strap, centred across, reading from
     outside on each side (the L away from the goggle on the right side, towards it on the left); the first letter's
-    start ANCHOR_MM plus the ISO's d_leatt[0] from the strap's end (iso_print)."""
+    start anchor_mm() plus the ISO's d_leatt[0] from the strap's end (iso_print)."""
     if not _LEATT_BOXES:
         d_leatt = iso_print()[2]
         L = STRAP_LEN_UV * 1000.0
         lh = LEATT_H * W_MM
         lw = lh * _wordmark_aspect()
         y0 = (W_MM - lh) / 2
-        _LEATT_BOXES.extend([(L - (d_leatt[0] + ANCHOR_MM) - lw, y0, lh),       # right side: the TT nearest the goggle
-                             (d_leatt[0] + ANCHOR_MM, y0, lh)])                 # left side: the L nearest the goggle
+        a = anchor_mm()
+        _LEATT_BOXES.extend([(L - (d_leatt[0] + a) - lw, y0, lh),               # right side: the TT nearest the goggle
+                             (d_leatt[0] + a, y0, lh)])                         # left side: the L nearest the goggle
     return list(_LEATT_BOXES)
 
 
@@ -358,7 +428,7 @@ def strap_textures(outdir, colour="goggle_strap_print.jpg", normal="goggle_strap
     mm_x, mm_y = L / nx, W_MM / ny
     u = (np.arange(nx) + 0.5) / nx
     d_end = np.minimum(u, 1 - u) * L                                    # mm from the nearer strap end
-    dg = np.clip(d_end - ANCHOR_MM, 0, None)                            # from where it leaves the outrigger
+    dg = np.clip(d_end - anchor_mm(), 0, None)                          # from where it leaves the outrigger
     v = 1 - (np.arange(ny) + 0.5) / ny                                  # rows top down: v 1 at the top edge
     Y = (1 - v) * W_MM                                                  # mm from the top edge
     if body is None:

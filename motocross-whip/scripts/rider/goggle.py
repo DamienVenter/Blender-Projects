@@ -270,12 +270,18 @@ GP = dict(
     # to 0.23) and phw (where a steeper one stands above Leatt's). Its front corners cut back to round 9's (26.6,
     # -37.0 mm: OR_FRONT_CUT), where the frame hides them in the front photos, its back corners chamfered (OR_CHAMFER).
     # Round 9: or_back_h 0.0587, or_top_in 0.0032, or_bot_in 0.0035, or_back_dz 0.0006 (a 63.5 by 58.7 mm plate).
+    # Round 12 (item 2): with the hinge OR_HINGE_IN inboard and OR_HINGE_BACK back (the plate 27 mm long), the taper
+    # refitted on the same edges (scratch plfit12.py: Leatt's near plate back-projected onto the plate's own plane,
+    # turned 6.25 deg in iso55 and 6.0 in phr so its back edge stays; phr weighted 1.5, as the two views disagree on
+    # the bottom edge by 2.6 mm): edge rms top / bottom iso55 0.60 / 1.59 mm (round 10 1.08 / 1.52), phr 0.32 / 1.02
+    # (0.53 / 1.00). Round 10: or_back_h 0.0551, or_top_in 0.0013, or_bot_in 0.0016, or_back_dz 0.00145 (63.5 by
+    # 50.1 mm); now 64.7 by 50.5.
     or_len=0.03040,
-    or_back_h=0.05510,
+    or_back_h=0.05554,
     or_turn=0.44010,
-    or_top_in=0.00130,
-    or_bot_in=0.00160,
-    or_back_dz=0.00145,
+    or_top_in=0.00050,
+    or_bot_in=0.00128,
+    or_back_dz=0.00140,
     or_front=0.00220,
     # round 7: the nose guard (build_nose_guard, NG_KEYS), fitted with the shape on the photos' silhouettes; the sweep
     # then set on the finished frame (10.2 to 3 mm: swept back 10 mm its far side left the backdrop showing inside the
@@ -566,7 +572,13 @@ def frame_rings(gp=None, per=None, notch=False):
     # face. Before, they ran past the outer edge and the face folded back: a pinch at the apex in the 1:1 crops
     k = np.minimum(1.0, 0.85 * (W - bv) / np.maximum(rim + ch, 1e-9))
     rim, ch = rim * k, ch * k
+    # round 12: the side section (SIDE_*): on the pillars the wall stands nearly upright from the lens's curled-back
+    # end to the front face, its foot moved out under the face (c0 stays)
+    foot, bv_side = side_foot(gp, Co, Cu, tu)
+    Co_fit, Co = Co, Co + foot
+    bv, back = bv_side, lens_back(Co[:, 0], Co[:, 1])
     Ci, dl, dm, dn = nose_back(Co, Ci, d, notch)                    # round 11: the bridge behind the comb
+    dm = dm + lens_back(Ci[:, 0], Ci[:, 1])           # round 12: the plate behind the lens stays behind the curled lens
 
     def ring(C, off):
         return L.point(C[:, 0], C[:, 1], off)[0]
@@ -577,9 +589,9 @@ def frame_rings(gp=None, per=None, notch=False):
     # so the crease does not draw a dark line across a face Leatt's shows plain (the 1:1 crop of the arch)
     run = np.linalg.norm(Cu - c0 - U * rim[:, None], axis=1)
     drop = ch * np.minimum(1.0, bd / np.maximum(run, 1e-6))
-    fw = r / np.hypot(bv, lip)                                      # round 7: b on the (leaning) inner wall, r short
-    rings = [ring(Co, 0.0003),                                      # a: against the lens front (in the groove)
-             ring(c0 - U * (bv * fw)[:, None], lip * (1 - fw)),     # b: the inner wall up from the lens (bevel)
+    fw = r / np.hypot(bv, lip + back)                               # round 7: b on the (leaning) inner wall, r short
+    rings = [ring(Co, 0.0003 - back),                               # a: against the lens front (in the groove)
+             ring(c0 - U * (bv * fw)[:, None], lip - (lip + back) * fw),  # b: the inner wall up from the lens (bevel)
              ring(c0 + U * r, lip),                                 # c: front rim, inner edge
              ring(c0 + U * rim[:, None], lip),                      # d: front rim, outer edge
              ring(c0 + U * (rim + ch)[:, None], lip - drop),        # e: the crease's land
@@ -593,8 +605,8 @@ def frame_rings(gp=None, per=None, notch=False):
     rings += [ring(Cu + nu * (gp["taper"] - st), -d),               # k: outer wall back
               ring(Ci, -dl),                                        # l: back face inner edge (foam seat)
               ring(Ci, -dm),                                        # m: inner wall at the plate behind the lens
-              ring(Co, -dn)]                                        # n: behind the lens's visible edge
-    return rings, dict(Co=Co, Cu=Cu, Ci=Ci, depth=d, L=L, seg=seg, frac=frac, t=tu)
+              ring(Co, -dn - back)]                                 # n: behind the lens's visible edge
+    return rings, dict(Co=Co, Co_fit=Co_fit, Cu=Cu, Ci=Ci, depth=d, L=L, seg=seg, frac=frac, t=tu, back=back)
 
 
 # top vents: slots in the vent row behind the top band, s ranges on each side (Leatt exploded view and ISO: three
@@ -611,7 +623,7 @@ VENTS_S = [(0.008, 0.024), (0.030, 0.046), (0.052, 0.068)]
 # CHASSIS_SLOT_T of the way across the gap (a thin chassis frame left either side), its floor near black.
 CHASSIS_S = 0.085
 CHASSIS_SLOTS = [(0.0065, 0.0194), (-0.0285, -0.0159)]
-CHASSIS_SLOT_T = (0.12, 0.92)
+CHASSIS_SLOT_T = (0.47, 0.97)   # round 12: up the taller side wall (SIDE_*): x 1671 to 1694 px in iso55 (round 10 0.12, 0.92)
 CHASSIS_SLOT_D = 0.0015
 CHASSIS_RINGS = (0, 1, 12, 13, 14)
 # Round 11 (decision 49, item 4): the strap clip's tab inside each slot. Leatt's white ISO at 6x (column x 1680): a grey
@@ -621,6 +633,74 @@ CHASSIS_RINGS = (0, 1, 12, 13, 14)
 # shows the same tabs (L 24 to 36), lit over their whole length. Their depth does not show: 0.5 mm below the mouth
 # the slot's end hid all but 5 to 6 px of them in iso55 (and their end wall caught the top light, L 50 to 127), so the
 # top is 0.2 mm below the mouth.
+# Round 12 (decision 53, item 3): the side section. Leatt's ISO (iso55) shows his lens's far end at x 1656 to 1658 px
+# (rows 820 to 1100) and the band from there to 1703; ours ended at 1667 to 1673 and the band (gap a) ran to 1696,
+# so his band was 46 px to our 24 and our lens's last 20 mm, nearly edge on there, covered the rest. The same in phr
+# (his lens to 1597 to 1600, ours 1612) and phy (1628, ours 1647). Through the cameras a point 1 mm further back along
+# the lens normal moves 5.3 px (iso55), 3.9 (phr) and 4.6 (phy) there, and 1 mm along the lens surface 0.15 to 0.5:
+# all three views put his lens's end 3 to 4 mm behind ours, a moulded lens curling back into the frame's sides, with
+# the wall from it to the front face 7 to 8 mm tall. On the near side his frame colour runs to the lens (iso55 face
+# 921 to 983 px, the lens from 984; ours 920 to 981, then our black wall 982 to 993): his wall does not lean out
+# (seen from iso55 a wall on the near pillar shows only when it leans out more than 17 deg; ours leaned 32 to 37).
+# Built: the lens's ends curl back to SIDE_LENS_BACK behind the lens surface (lens_back; saturated before the
+# pillar, so its straight run lies at one depth: from 85 to 99.5 mm the far end stayed at 1662 to 1667 px), from |s|
+# 60 mm along the bands' edges (over 75 to 97 the lower band's lens edge rippled 45 um and turned 2.4 deg a sample,
+# test_round6_frame_is_fair's bounds 10 um and 1 deg) and from 75 mm over the pillar's height (from 60 there the lens
+# at s 72 to 95 mm lay at 81 to 87 deg to the iso55 view and mirrored the black wall beside it: dark from 1645 px),
+# the posts at |s| 86.7 mm standing on the curled lens (post_frame), and on the pillars (SIDE_S) the wall's lean
+# SIDE_BEVEL at most, its foot moved out under the face (the face's inner edge c0 stays), the lenses' hidden edges
+# where they were (lens_region). Now: the lens's far end 1656 to 1659 px in iso55, 1601 to 1603 in phr, 1633 to 1634
+# in phy (main 1671 to 1674, 1612 to 1614, 1647); its colour runs to 1654 to 1657 in iso55 rows 870 to 1060 (Leatt
+# 1657 to 1658; 1648 at rows 840 and 1090, where the curl eases to the bands') and to 1590 to 1593 in phr (Leatt 1593
+# to 1596); the pillar wall 6.9 mm tall, leaning 9 to 10.5 deg (main 4.7 mm, 32 to 37), no wall px on the near side
+# in iso55 (main 9 to 12: its lens from 982 to 984 px, as Leatt's). A face 1.3 mm prouder there for his far
+# silhouette (1703 px against our 1692 to 1696 in iso55) moved the front views' outline p90 0.8 to 1.1 mm the wrong
+# way (phw 5.75 to 6.58 mm): not built, the far silhouette stays 7 to 11 px short.
+SIDE_S = (0.085, 0.0995)
+SIDE_LENS_S = (0.060, 0.099)
+SIDE_LENS_BACK = 0.0030
+SIDE_LENS_MID = 0.075
+SIDE_LENS_Z = ((-0.030, -0.015), (0.012, 0.025))    # m: the pillar's height (start of the late curl), eased from
+                                                    # the bands' edges (lower z -32 to -40.5, upper 30)
+SIDE_BEVEL = 0.0012
+SIDE_GROOVE_MIN = 0.0006
+
+
+def side_w(s):
+    """Round 12: 0 to 1 over the lens's |s| SIDE_S (smootherstep): where the side section applies."""
+    x = np.clip((np.abs(s) - SIDE_S[0]) / (SIDE_S[1] - SIDE_S[0]), 0.0, 1.0)
+    return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+
+
+def side_foot(gp, Co, Cu, tu):
+    """Round 12: on the pillars (SIDE_S) the wall's lean comes down to SIDE_BEVEL with its foot, the lens edge, moved
+    out under the face: the move per lens edge sample (s, z) and the bevel left. frame_rings and lens_region (the
+    lenses run their groove depth under the frame from the moved edge) share it."""
+    W = np.linalg.norm(Cu - Co, axis=1)
+    U = (Cu - Co) / np.maximum(W, 1e-9)[:, None]
+    bv = np.minimum(xs_at(dict(bevel=gp.get("bevel", 0.0)), "bevel", tu), 0.5 * W)
+    bv_side = bv + (np.minimum(bv, SIDE_BEVEL) - bv) * side_w(Co[:, 0])
+    return U * (bv - bv_side)[:, None], bv_side
+
+
+def _smoother(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+
+
+def lens_back(s, z):
+    """Round 12: how far the lens lies behind the lens surface at (s, z): its ends curl back, SIDE_LENS_BACK from
+    |s| SIDE_LENS_S[1] on (smootherstep: the pillar's straight run all at one depth). The curl starts at
+    SIDE_LENS_S[0] along the bands' edges (the lower band's edge stays fair: over 75 to 97 mm it rippled 45 um), and
+    at SIDE_LENS_MID over the pillar's height (SIDE_LENS_Z), so the lens turns away late, as Leatt's: started at 60
+    mm there, the lens from s 72 to 95 mm lay at 81 to 87 deg to the iso55 view, mirrored the black wall beside it and
+    read dark from x 1645 px (Leatt's lens colour runs to 1654, ours from 75 mm to 1651)."""
+    zl, zh = SIDE_LENS_Z
+    w = _smoother((np.asarray(z) - zl[0]) / (zl[1] - zl[0])) * _smoother((zh[1] - np.asarray(z)) / (zh[1] - zh[0]))
+    a = SIDE_LENS_S[0] + (SIDE_LENS_MID - SIDE_LENS_S[0]) * w
+    return SIDE_LENS_BACK * _smoother((np.abs(s) - a) / (SIDE_LENS_S[1] - a))
+
+
 CHASSIS_CLIP_LEN = (0.0030, 0.0024)          # m along the lens edge, per slot (CHASSIS_SLOTS' order)
 CHASSIS_CLIP_W = 0.68
 CHASSIS_CLIP_H = 0.0013                      # m up from the slot's floor (CHASSIS_SLOT_D deep)
@@ -813,7 +893,7 @@ def photo_landmarks(gp=None):
     foot_l, foot_r = rings[RING_EDGE][i_ear], rings[RING_EDGE][len(rings[RING_EDGE]) - i_ear]
     return dict(ICON=L.point(0.0, z_top + TAB_H - 0.002, lip_at(gp, 0.0) - band0)[0],     # on the tab (round 7)
                 NOTCH=L.point(0.0, z_notch, lip_at(gp, 1.0) - band1)[0],
-                POST_R=L.point(-s_post, z_post, POST_HEAD)[0], POST_L=L.point(s_post, z_post, POST_HEAD)[0],
+                POST_R=_post_head(L, -s_post, z_post), POST_L=_post_head(L, s_post, z_post),
                 EAR_R=ear_r, EAR_L=ear_l, FOOT_R=foot_r, FOOT_L=foot_l)
 
 
@@ -885,9 +965,15 @@ def lens_region(gp, grow):
     """Lens outline in (s, z): the opening grown by grow (under the frame's lip). Round 5: the fitted lens window
     has sharp inward corners (the nose arch's steps, the top band's step) where the grown outline crossed itself and
     left see-through wedges in the lens; those loops are cut out."""
-    Co = outlines(gp, teeth=False)[0]
-    g = np.asarray(grow, float)
-    return despike(untangle(Co + outward2d(Co) * (g[:, None] if g.ndim else g)))   # round 11: grow per sample too
+    Co, Cu = outlines(gp, teeth=False)[:2]
+    # round 12: from the frame's lens edge, moved out on the pillars, its hidden edge where it was (at least
+    # SIDE_GROOVE_MIN under the frame): grown the full groove from the moved edge it reached 1.85 mm further out, into
+    # the plate's inner face (0.9 mm, the plate turned straight back)
+    foot = side_foot(gp, Co, Cu, outline_t(gp))[0]
+    g = np.broadcast_to(np.asarray(grow, float), (len(Co),))
+    g = np.maximum(g - np.linalg.norm(foot, axis=1), np.minimum(g, SIDE_GROOVE_MIN))
+    Co = Co + foot
+    return despike(untangle(Co + outward2d(Co) * g[:, None]))   # round 11: grow per sample too
 
 
 def despike(P, max_turn=150.0):
@@ -903,14 +989,23 @@ def despike(P, max_turn=150.0):
         P = np.delete(P, bad[:1], 0)
 
 
-def sheet(L, poly, off, h=0.004):
-    """Triangulated region of the lens surface inside poly ((s, z) loop) at offset off: vertices, triangles
-    (anticlockwise seen from the front), and the boundary vertex count (the first len(poly))."""
-    from scipy.spatial import Delaunay
-    lo, hi = poly.min(0), poly.max(0)
+def _tri_grid(lo, hi, h):
     gs, gz = np.meshgrid(np.arange(lo[0], hi[0], h), np.arange(lo[1], hi[1], h * 0.866))
     gs = gs + (np.arange(gs.shape[0])[:, None] % 2) * h / 2
-    pts = np.c_[gs.ravel(), gz.ravel()]
+    return np.c_[gs.ravel(), gz.ravel()]
+
+
+def sheet(L, poly, off, h=0.004, fine=None):
+    """Triangulated region of the lens surface inside poly ((s, z) loop) at offset off: vertices, triangles
+    (anticlockwise seen from the front), and the boundary vertex count (the first len(poly)). fine (s0, hf): a grid
+    hf apart where |s| > s0 (round 12: the lens's curled-back ends)."""
+    from scipy.spatial import Delaunay
+    lo, hi = poly.min(0), poly.max(0)
+    pts = _tri_grid(lo, hi, h)
+    if fine is not None:
+        pf = _tri_grid(lo, hi, fine[1])
+        pts = np.vstack([pts[np.abs(pts[:, 0]) < fine[0] - 0.5 * h], pf[np.abs(pf[:, 0]) >= fine[0]]])
+        h = fine[1]                                     # the outline clearance below: the fine spacing's
     o = H.Profile.__new__(H.Profile)
     o.outline = poly
     # round 11: grid points kept 0.4 h off the outline's edges, not only its points, and a triangle on three outline
@@ -968,11 +1063,11 @@ def sheet(L, poly, off, h=0.004):
     return V, T, len(poly)
 
 
-def closed_sheet(part, L, poly, off_front, off_back, mat_front, mat_back, mat_edge, h=0.004):
+def closed_sheet(part, L, poly, off_front, off_back, mat_front, mat_back, mat_edge, h=0.004, fine=None):
     """A lens sheet as a closed solid: front, back (the same triangulation further back) and the edge strip. h: the
-    inner grid's spacing."""
-    Vf, T, nb = sheet(L, poly, off_front, h)
-    Vb = sheet(L, poly, off_back, h)[0]
+    inner grid's spacing (fine: see sheet)."""
+    Vf, T, nb = sheet(L, poly, off_front, h, fine)
+    Vb = sheet(L, poly, off_back, h, fine)[0]
     of = part.add(Vf, [list(t) for t in T], mat_front, [[(0.0, 0.0)] * 3 for _ in T])
     ob = part.add(Vb, [list(t[::-1]) for t in T], mat_back, [[(0.0, 0.0)] * 3 for _ in T])
     for i in range(nb):
@@ -988,10 +1083,15 @@ def build_lens(gp=None):
     L = LensSurface(gp)
     lens = H.Part("goggle_lens")
     poly = lens_region(gp, LENS_GROOVE)
-    closed_sheet(lens, L, poly, 0.0, -LENS_T, "goggle_lens_mirror", "goggle_lens_clear", "goggle_lens_clear")
+    fine = (SIDE_LENS_S[0] - 0.004, 0.0015)             # round 12: the curled-back ends, 1.5 mm apart
+
+    def at(d):
+        return lambda P: d - lens_back(P[:, 0], P[:, 1])
+    closed_sheet(lens, L, poly, at(0.0), at(-LENS_T), "goggle_lens_mirror", "goggle_lens_clear",
+                 "goggle_lens_clear", fine=fine)
     poly_in = lens_region(gp, inner_grow(gp))
-    closed_sheet(lens, L, poly_in, -(LENS_T + LENS_GAP), -(LENS_T + LENS_GAP + LENS_IN_T),
-                 "goggle_lens_clear", "goggle_lens_clear", "goggle_lens_clear")
+    closed_sheet(lens, L, poly_in, at(-(LENS_T + LENS_GAP)), at(-(LENS_T + LENS_GAP + LENS_IN_T)),
+                 "goggle_lens_clear", "goggle_lens_clear", "goggle_lens_clear", fine=fine)
     return lens
 
 
@@ -1007,6 +1107,28 @@ def post_sz(gp=None):
     return (p[0], p[1]) if p is not None else (POST_S, POST_Z)
 
 
+def _post_head(L, s0, zp):
+    """The stud's head centre: POST_HEAD off the lens surface (the landmark fitted in every goggle-alone photo; round
+    12 keeps it there while the lens under it curls back: the stud stands longer from its base)."""
+    P, N = L.point(s0, zp, 0.0)
+    return P + N * POST_HEAD
+
+
+def post_frame(L, s0, zp):
+    """The tear-off post's base on the lens at (s0, zp): point, normal, along s, up. Round 12: on the lens as built
+    (lens_back: its ends curl back)."""
+    def pt(s, z):
+        return L.point(s, z, -lens_back(s, z))[0]
+    P0 = pt(s0, zp)
+    t = pt(s0 + 0.0005, zp) - pt(s0 - 0.0005, zp)
+    t /= np.linalg.norm(t)
+    up = pt(s0, zp + 0.0005) - pt(s0, zp - 0.0005)
+    N0 = np.cross(t, up)
+    N0 *= np.sign(N0 @ L.point(s0, zp, 0.0)[1]) / np.linalg.norm(N0)
+    up = np.cross(N0, t)
+    return P0, N0, t, up / np.linalg.norm(up)
+
+
 def build_posts(gp=None):
     """Bare tear-off posts (Damien runs no tear-offs): a square boss on the lens and a round stud with a head."""
     gp = gp or GP
@@ -1014,12 +1136,7 @@ def build_posts(gp=None):
     posts = H.Part("goggle_posts")
     sp, zp = post_sz(gp)
     for sg in (1, -1):
-        s0 = sg * sp
-        P0, N0 = L.point(s0, zp, 0.0)
-        P1, _ = L.point(s0 + 0.001, zp, 0.0)
-        t = (P1 - P0) / np.linalg.norm(P1 - P0)
-        up = np.cross(N0, t)
-        up /= np.linalg.norm(up)
+        P0, N0, t, up = post_frame(L, sg * sp, zp)
         # square boss 4.5 x 4.5 x 1.5 mm
         box = []
         for h, (a, b) in ((0, (-1, -1)), (0, (1, -1)), (0, (1, 1)), (0, (-1, 1)),
@@ -1027,11 +1144,19 @@ def build_posts(gp=None):
             box.append(P0 + t * a * 0.00225 + up * b * 0.00225 + N0 * (0.0015 * h - 0.0002))
         quads = [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
         posts.add(np.array(box), quads, "goggle_post", [[(0.0, 0.0)] * 4] * 6)
-        # stud 2.4 mm across, 2.5 mm long, head 3.4 mm
+        # stud 2.4 mm across, 2.5 mm long, head 3.4 mm. Round 12: from the base on the curled lens to the head at its
+        # landmark (_post_head), the stem longer by the curl there
+        ax = _post_head(L, sg * sp, zp) - P0
+        ext = np.linalg.norm(ax) - POST_HEAD
+        N0 = ax / np.linalg.norm(ax)
+        t = t - N0 * (t @ N0)
+        t /= np.linalg.norm(t)
+        up = np.cross(N0, t)
         k = 12
         ang = np.linspace(0, 2 * np.pi, k, endpoint=False)
         rings = []
         for rr, hh in ((0.0012, 0.0013), (0.0012, 0.0033), (0.0017, 0.0036), (0.0017, 0.0042), (0.0008, 0.0045)):
+            hh += ext if hh > 0.002 else 0.0
             rings.append(P0 + N0 * hh + rr * (np.cos(ang)[:, None] * t + np.sin(ang)[:, None] * up))
         ids = [posts.add(r, [], "goggle_post") + np.arange(k) for r in rings]
         for a_, b_ in zip(ids[:-1], ids[1:]):
@@ -1039,7 +1164,7 @@ def build_posts(gp=None):
                 j = (i + 1) % k
                 posts.F.append([a_[i], a_[j], b_[j], b_[i]]); posts.M.append("goggle_post")
                 posts.UV.append([(0.0, 0.0)] * 4)
-        tip = posts.add((P0 + N0 * 0.0046)[None], [], "goggle_post")
+        tip = posts.add((P0 + N0 * (0.0046 + ext))[None], [], "goggle_post")
         for i in range(k):
             j = (i + 1) % k
             posts.F.append([ids[-1][i], ids[-1][j], tip]); posts.M.append("goggle_post"); posts.UV.append([(0.0, 0.0)] * 3)
@@ -1062,11 +1187,28 @@ OR_TURN = 0.4                      # the outrigger turns out from the side face'
 # ISO), it swings freely: each Leatt photo lays the strap its own way, so each free view has its own turn (the error
 # table fits it per photo and side: ledger section 11); worn, the strap pulls it in until it rests on the shell.
 OR_HINGE = True
-OR_HINGE_LEN = OR_LEN              # m, hinge to the back end. 46 mm (to round 8's back end) showed the plate 197 px
+# Round 12 (decision 53, item 2): the hinge OR_HINGE_IN inboard of that point and OR_HINGE_BACK behind it, inside the
+# frame's side face, the plate shortened by as much (its back end, the strap's exit, stays). Leatt's frame side
+# covers the plate's front: in iso55 (free) his pink side face starts at 920 px and ours at 950 (the plate outboard of
+# the side face, which curves in from x 103.8 mm at the hinge to 93 to 97 behind it); in the Pinata iso-right (worn)
+# his plate shows 762 to 840 px and his pink side 845 to 918, ours 760 to 889 over the frame's side (whose back edge
+# projects at 845, as his). A comparison render with the goggle placed as on his empty helmet (12.6 mm lower, 3.5 mm
+# back: the pink frames' best overlay) showed our plate wider still (745 to 870): shape, not place. Scanned (scratch
+# orvis12.py, hingescan12.py; each plate turned so that its back edge stays where it is): inboard 3 mm hides the front
+# to 920 / 934 / 952 px in iso55 (rows 880 / 980 / 1080) and 992 to 1018 in phr (Leatt about 1000), 6 mm to 918 to
+# 944, more hides no more; the far plates stand as far beyond the frame as before (iso55 6 to 10 px, phr 36 to 40)
+# at 64 and 76.5 deg. 3 mm back: from the widest point the plate's 5 mm crossed the lens's edge (x 97.1 mm at y 28.8,
+# back to y 30.7) by 0.6 mm. Worn, the plate turns out 0 to 18.75 deg to rest on the shell (round 11: 10.75; 4 mm
+# inboard needs 20.75).
+OR_HINGE_IN = 0.003
+OR_HINGE_BACK = 0.003
+OR_HINGE_LEN = OR_LEN - OR_HINGE_BACK   # m, hinge to the back end. 46 mm (to round 8's back end) showed the plate 197 px
                                    # wide between strap and frame in the Pinata iso-right (Leatt 69, round 8 157); 30
                                    # mm shows 115, and the strap fits his 07 at 4.2 mm rms (round 8 4.5)
-OR_FREE_TURN = 55.0                # deg out from straight back, free, or {side: deg}: the far plate of the Pinata
-                                   # goggle ISO (iso55, his SKU; IoU 0.972 against 0.968 at 0 to 40 deg); phr's is 65
+OR_FREE_TURN = 64.0                # deg out from straight back, free, or {side: deg}: the far plate of the Pinata
+                                   # goggle ISO (iso55, his SKU; IoU 0.972 against 0.968 at 0 to 40 deg); phr's is 65.
+                                   # Round 12: 55 and 65 from the widest point; from the hinge OR_HINGE_IN inboard and
+                                   # OR_HINGE_BACK back the same back edges need 64 and 76.5 (hingescan12.py)
 
 
 def outrigger_frames(gp=None, turn=None):
@@ -1130,12 +1272,14 @@ def hinged_frames(gp, zt, zb, zc, zbk, o_back_h, turn_deg, length=None):
     (a number, or {side: deg})."""
     length = length or gp.get("or_hinge_len", OR_HINGE_LEN)
     hinges = hinge_points(gp, zc)
+    h_in = gp.get("or_hinge_in", OR_HINGE_IN)
+    h_back = gp.get("or_hinge_back", OR_HINGE_BACK)
     out = {}
     for sg in (1, -1):
         a = math.radians(turn_deg[sg] if isinstance(turn_deg, dict) else turn_deg)
         t = np.array([sg * math.sin(a), math.cos(a), 0.0])
         n = np.array([sg * math.cos(a), -math.sin(a), 0.0])       # outwards, square to the plate
-        Hp = np.array([hinges[sg][0], hinges[sg][1], zc])
+        Hp = np.array([hinges[sg][0] - sg * h_in, hinges[sg][1] + h_back, zc])
         P0 = Hp                                                     # the outer face's front edge
         C = np.array([P0 + [0, 0, zt - zc], P0 + [0, 0, zb - zc],
                       P0 + t * length + [0, 0, zbk - zc - o_back_h / 2], P0 + t * length + [0, 0, zbk - zc + o_back_h / 2]])
@@ -2626,17 +2770,19 @@ def build_strap(Rt, prof, ends, surf=None):
     band = H.Part("goggle_strap_band")
     h_in = STRAP_CLEAR + SIL_H
     W0 = STRAP_ACROSS[0]
+    import goggle_strap_art as SA
 
     def uv_of(S_, B_):
-        return np.stack([S_ / s[-1], (B_ - W0) / STRAP_W], axis=-1)
+        # round 12: the print's u in true mm from each end (goggle_strap_art.strap_u), whatever length it is built to
+        return np.stack([SA.strap_u(S_, s[-1]), (B_ - W0) / STRAP_W], axis=-1)
     uv = uv_of(*np.meshgrid(s, STRAP_ACROSS, indexing="ij"))
     lo, hi = base + nrm * h_in, base + nrm * (h_in + STRAP_T)
     _grid_faces(band, hi, "goggle_strap", uv)
     # round 11: the raised LEATTs, where the print has them (goggle_strap_art.leatt_boxes: mm on the print's u)
-    import goggle_strap_art as SA
     Lp = SA.STRAP_LEN_UV * 1000.0
-    logo_boxes = [(x0 / Lp * s[-1], W0 + (1.0 - y0 / SA.W_MM) * STRAP_W, lh / 1000.0)
-                  for x0, y0, lh in SA.leatt_boxes()]
+    sg = np.linspace(0.0, s[-1], 2001)
+    logo_boxes = [(float(np.interp(x0 / Lp, SA.strap_u(sg, s[-1]), sg)), W0 + (1.0 - y0 / SA.W_MM) * STRAP_W,
+                   lh / 1000.0) for x0, y0, lh in SA.leatt_boxes()]
     strap_logo(band, base, nrm, s, h_in + STRAP_T, logo_boxes)
     _grid_faces(band, lo, "goggle_strap_in", None, flip=True)
     strap = selvedges(lo, hi, uv, "goggle_strap_rim")
@@ -2703,7 +2849,11 @@ def strap_ends(mount):
     for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items():
         nv = Go.shape[1]
         mid = 0.5 * (Go + Gi)
-        up = g2h(Go[-1, -1][None])[0] - g2h(Go[-1, 0][None])[0]
+        # round 12: up the plate where the anchor is (the twisted plate's cross-section there), not up its back edge:
+        # with the hinge inside the frame the worn twist reaches 18.75 deg at the top row, and the back edge then leans
+        # 3.7 deg more than the plate at the anchor, which put the strap's top corner through the plate's outer face
+        i = int(np.argmin(np.linalg.norm(mid[:, nv // 2] - a, axis=1)))
+        up = g2h(Go[i, -1][None])[0] - g2h(Go[i, 0][None])[0]
         back = g2h(mid[-1, nv // 2][None])[0] - g2h(mid[-4, nv // 2][None])[0]
         ends[sg] = (g2h(a[None])[0], up / np.linalg.norm(up), back / np.linalg.norm(back))
     return ends
@@ -2809,14 +2959,20 @@ MATERIALS = {
     "goggle_logo": dict(rgb=[236, 236, 238], rough=0.4),                   # printed white (MY27 kit views)
     "goggle_vent": dict(rgb=[16, 16, 18], rough=0.95),                      # foam-backed slots
     # round 10: the black inner moulding. Round 11: its face read 37 in iso55 (band x 1676..1692, y 960..1000, L p50)
-    # against Leatt's white ISO 19 (23 above the slots, 10 below); spec 0.15 renders 29, 0.05 26, and this 20.4
-    "goggle_chassis": dict(rgb=[8, 8, 9], rough=0.05, spec=0.1),
+    # against Leatt's white ISO 19 (23 above the slots, 10 below); spec 0.15 renders 29, 0.05 26, 0.1 at rgb 8 20.4.
+    # Round 12: the side section's taller wall (SIDE_*) turns its normal up through the studio key's mirror direction
+    # on the lower far pillar (normal z 0.33 to 0.40 at y 1036 to 1068 px in iso55): at spec 0.1 a white patch, L 228
+    # (Leatt's 17); rough 0.35 spec 0.05 renders 89, spec 0.02 69, spec 0 16: a matte moulding, rgb 10 for the tone
+    "goggle_chassis": dict(rgb=[10, 10, 10], rough=0.5, spec=0.0),
     "goggle_slot": dict(rgb=[3, 3, 4], rough=0.9, spec=0.0),                # round 10: inside the clip slots
     # round 11: the clip's tab in a slot (CHASSIS_CLIP_*): Leatt's white ISO 33 to 35 (top slot), 32 (bottom); at 30/30/32
     # spec 0.2 ours read 54 to 65 and 81 to 87, at this 37 and 58 (the bottom tab faces the studio's top light)
     "goggle_clip": dict(rgb=[14, 14, 15], rough=0.6, spec=0.1),
                                                                             # (the plates' black and gloss)
-    "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.6),
+    # round 12 (item 4): the rim above the near tongues in phr is mostly the face foam's top seen past the comb (part
+    # buffer; the bridge only between the tongues): at sheen 0.6 its upper roll glowed at grazing view, the rim L p50
+    # 138 (Leatt 87), its roll 150 to 200; sheen 0.2 renders 120, sheen 0 96 (polyurethane foam is matte)
+    "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.0),
     # round 11: the bridge round the comb (grey in phr and the exploded view's slotted surface): a moulding, satin, no
     # foam sheen
     "goggle_bridge": dict(rgb=[40, 40, 44], rough=0.6),

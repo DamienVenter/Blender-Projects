@@ -517,6 +517,42 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   continuous across the switch, or the sheet's grid smears the jump into its neighbour; ease it (a cone dilation
   of the difference) rather than move a neighbour that other fits hang on.
 
+## Goggle round 12: strap print in mm, plate hinge, side section, matte mouldings (2026-11-15, goggle.py, goggle_strap_art.py, ledger goggle.md section 15, decision 53)
+- **Lay a print in mm from each end, not as a fraction of the length**: u = s / s_total stretched the print by the
+  built strap's length ratio, so every worn refit moved the colour changes. strap_u keeps true mm over the first and
+  last thirds (where the print changes) and takes up the length difference over the even middle third.
+- **Sample a print by a part from the view that sees it best**: the goggle ISO saw the strap's first 30 mm turning
+  away (its distances came from the strap's height per column); Leatt's kit iso-right sees it flat. Find the view's mm
+  per px from the strap's own width and the built strap's projection, check it on a known length (the T end).
+- **Shape or place: render the part placed as the photo's empty helmet has it** (comparison only, PLACE untouched):
+  12.6 mm lower and 3.5 mm back our plate read wider still (745 to 870 px against 762 to 840), so the plate's shape
+  was at fault. A hinge moved inboard needs a larger free turn to keep the photo's back edge (55 to 64, 65 to 76.5).
+- **Read a hidden end through several cameras at once**: 1 mm along the lens normal moves the far end 3.9 to 5.3 px,
+  1 mm along the surface 0.15 to 0.5; all three views agreeing put Leatt's lens end 3 to 4 mm further back (a moulded
+  curl), not further in.
+- **A curl needs room to stay fair**: curling the lens back over 75 to 97 mm rippled the lower band's edge 45 um and
+  turned it 2.4 deg a sample (bounds 10 um, 1 deg); a smootherstep over 60 to 99 mm gives 7 um and 0.8 deg.
+- **A see-through part seen at grazing incidence shows its reflection, not what is behind it**: the lens curled
+  back from 60 mm lay at 81 to 87 deg to the iso55 view over s 72 to 95, mirrored the black wall beside it and read
+  dark 12 px early. Trace the incidence (scratch refl12.py) before blaming a material; start the curl late where the
+  view sees it (75 mm over the pillar's height, eased to 60 along the bands' edges for fairness), and test the
+  incidence (under 80 deg).
+- **Keep fitted landmarks where they were when their base moves**: the posts' stud heads are fitted in every photo;
+  when the lens under them curled back, a longer stem kept the head on its landmark (moving it failed the landmark
+  test by 3.2 mm).
+- **Everything grown from an edge must follow the edge when it moves**: the lenses grow their groove from the frame's
+  lens edge; when the foot moved out 1.85 mm on the pillars, the lens grown its full groove from it ran 0.9 mm into
+  the plate's inner face (the plate turned straight back). Keep the hidden edge where it was (the groove less the
+  move, at least 0.6 mm), and check the plates at every turn they can take (0, worn 18.75, free 64 and 76.5).
+- **A taller upright face can mirror the key light**: the chassis wall, stood up on the pillars, faced the studio
+  key's mirror direction on the lower far pillar: a white patch L 228 against Leatt's 17. Mouldings read matte (spec 0).
+- **Classify a wrong tone by the part buffer before changing a material**: the light rim above the comb's tongues was
+  the face foam's top (sheen 0.6 glowing at grazing view), not the bridge round them. Foam is matte (sheen 0).
+- **A piece standing beyond the silhouette in only some views is often a moving part**: Leatt's black piece beyond
+  the frame in phr (two windows, a post on its edge) has the plates' colour in every colourway: the outrigger's front
+  wrapping the lens post, the strap seen through its windows (the teal dots in the slots). Modelling it needs the
+  strap threaded through it, which is the worn fit's (reported, not forced).
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the
