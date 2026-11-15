@@ -1098,11 +1098,39 @@ def art_sampler(o, sel, y0, x0):
     return sample
 
 
-def pant_photo_art(ph, rows, gain, white):
+# Leatt US's front pant photo (round 3c, fix 2): the Waistlock (strap, buckle and tab, modelled in 3D) and the
+# jersey hanging over the waistband's top in the middle (down to its hem's white threads) hide the pant. Rounds 3b
+# and main excluded a box round them (470..1010, 140..330) and took each texel there from the nearest traced pixel:
+# teal blocks stepping down the waistband beside the buckle (sheet 05); round 3 a grey rectangle. Their outlines
+# (photo px, PHOTO) are traced as the rest with the print plain there (the black ground: what the photo does not
+# see is not traced), so the stripes the photo sees end cleanly at the outline; beside the buckle the waistband is
+# plain black in the photo itself
+PF_HIDDEN = (
+    [(578, 168), (640, 186), (672, 200), (686, 214), (760, 236), (868, 262), (890, 252), (1008, 256), (1014, 366),
+     (992, 370), (893, 342), (862, 322), (642, 288), (562, 274), (552, 240), (556, 190)],             # the Waistlock
+    [(650, 100), (668, 200), (700, 214), (760, 232), (840, 248), (900, 251), (1000, 249), (1040, 249), (1115, 242),
+     (1145, 239), (1250, 204), (1300, 170), (1340, 128), (1365, 100)])                             # the jersey over it
+
+
+def polygons_mask(shape, polys, grow=4):
+    """Pixels inside any of the polygons (x, y px), grown by `grow` px (their edges' shadows and threads)."""
+    from matplotlib.path import Path as MPath
+    from scipy import ndimage
+    H, W = shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    pts = np.stack([xx.ravel() + 0.5, yy.ravel() + 0.5], 1)
+    m = np.zeros(H * W, bool)
+    for p in polys:
+        m |= MPath(p).contains_points(pts)
+    return ndimage.binary_dilation(m.reshape(H, W), iterations=grow)
+
+
+def pant_photo_art(ph, rows, gain, white, hidden=()):
     """A pant photo traced in its own pixels (pixel size from its rows: waist top to boot top): samplers (u, v) ->
     the zebra's linear colour on the flat's inks (FP_PANT_PHOTO, without the white elements) and the white
     elements' coverage (traced at FP_PANT's 0.8 mm: the stamps' letters and their 1.2 mm lines; at the zebra's
-    2 mm the letters came out blobby and the lines were lost, their light smeared into the black ground)."""
+    2 mm the letters came out blobby and the lines were lost, their light smeared into the black ground). hidden:
+    outlines of what covers the pant in the photo (PF_HIDDEN): plain ground there."""
     from scipy import ndimage
     sel = ~ph.bad
     ys, xs = np.nonzero(sel)
@@ -1110,9 +1138,17 @@ def pant_photo_art(ph, rows, gain, white):
     texel = (rows[0][1] - rows[2][1]) / (rows[2][0] - rows[0][0])
     col = np.clip(to_lin(ph.a[sl]) * gain, 0, 1)
     q = sel[sl].astype(float)
-    _, _, aw = flat_layers(col, q, sel[sl], texel, white, sel[sl], **FP_PANT)
+    plain = None
+    if len(hidden):
+        plain = polygons_mask(ph.bad.shape, hidden)[sl] & sel[sl]
+        # the photo's own black there, as seen ground: as unseen texels their ground came from the few boundary
+        # texels in reach (the stripes' anti-aliased tips: teal blotches along the outline)
+        d = ph.a[sl]
+        blk = sel[sl] & ~plain & (d.max(-1) < 0.2) & (d.max(-1) - d.min(-1) < 0.05)
+        col[plain] = np.median(col[blk], 0)
+    _, _, aw = flat_layers(col, q, sel[sl], texel, white, sel[sl], cover=plain, **FP_PANT)
     near = ndimage.binary_dilation(aw > 0.02, iterations=max(1, int(round(0.0015 / texel))))
-    o, _, _ = flat_layers(col, q * ~near, sel[sl], texel, white, sel[sl], whites=False,
+    o, _, _ = flat_layers(col, q * ~near, sel[sl], texel, white, sel[sl], whites=False, plain=plain, cover=plain,
                           **dict(FP_PANT_PHOTO, qfloor=0.0))
     return (art_sampler(o, sel[sl], ys.min(), xs.min()),
             art_sampler(np.repeat(aw[..., None], 3, -1), sel[sl], ys.min(), xs.min()))
@@ -1383,6 +1419,12 @@ FP_BACK = {"ground": 0.02, "near_white": 0.5}
 # the cut is at 0.2, where the fade is near the black, and the stripe's colour is the photo's own fade over 5 mm
 FP_FADE = {"cut": 0.2, "field": 0.005, "box": (0.17, 1.285, 1.345), "soft": 0.008}   # soft: m, the box's edges
 #                                                                             blend over this (no step in the cut)
+# The trunk's lower sides (round 3c, fix 2): in the NZ front photo the jersey blouses over the pant's Waistlock and
+# its stripes zigzag in the folds at 1 to 3 cm (photo rows 950 to 1130 beside the side seams); traced at 0.4 mm they
+# came out as steps beside his right hip (sheet 05, main to 3b). There the stripes' field is smoothed over 8 mm
+# (the bands are 12 to 25 mm wide; Leatt's flat shows them as smooth curves down to the hem): fully below z_lo,
+# blended in up to z_hi, from |x| x0 to x1 (the front's middle keeps the photo's own edges)
+FP_HEM = {"feature": 0.008, "z": (WAIST_FRONT + 0.08, WAIST_FRONT + 0.12), "x": (0.10, 0.13)}
 # the pant: the black zebra over teal, lime and magenta (chroma is stripe); Leatt US's on-model pant
 # photos show folds on the black and airbrushed fades: stripe specks under 1.5 cm2 dropped, the ground's colour
 # averaged over 3 mm (its fades run over 100 mm and more); their teal is paler than the jersey flat's (min channel
@@ -1625,13 +1667,15 @@ def aa_cut(f, t):
 
 def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=None, feature=None, ground=None,
                 near_white=0.3, light="green", qfloor=0.0, s_in=0.85, fade=None, rng=FP_RANGE, span=(0.25, 0.4),
-                fs_min=0.0, whites=True, plain=None):
+                fs_min=0.0, whites=True, plain=None, smooth=None, cover=None):
     """The flat print of one chart (arrays cropped to it): col the photos' colour (linear, on the reference's inks),
     q the view weight (0 unseen .. 1 square on), sel the chart's texels, texel its size in m, white the white ink,
     shapes where the photo's shapes count (elsewhere plain ground: what a photo does not see is not traced).
     plain: where the print is ground only (no stripes; the white elements stay, and the photo's stripes there do not
-    colour the ground). Returns the colour (linear; with the white elements laid over it unless whites is False) and
-    the stripe and white coverages."""
+    colour the ground). smooth: (weight, feature in m): the stripes' field smoothed over that feature where the
+    weight is 1 (the cloth's folds in the photo, FP_HEM). cover: where something covers the garment in the photo
+    (PF_HIDDEN; plain there): its colour does not blur into the stripes round it. Returns the colour (linear; with the
+    white elements laid over it unless whites is False) and the stripe and white coverages."""
     from scipy import ndimage
     w0 = sel.astype(float)
     d = to_srgb(col)
@@ -1645,8 +1689,14 @@ def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=No
     else:
         fs = d.max(-1) - d.min(-1)
     sf = (FP_FEATURE if feature is None else feature) / texel
-    fw = nc_blur(fw, w0, sf)[0]
-    fs = nc_blur(fs, w0, sf)[0]
+    wb0 = w0 if cover is None else w0 * ~cover
+    fw = nc_blur(fw, wb0, sf)[0]
+    fs_raw = fs
+    fs = nc_blur(fs, wb0, sf)[0]
+    if cover is not None:
+        fw, fs = np.where(cover, 0.0, fw), np.where(cover, 0.0, fs)
+    if smooth is not None and np.any(smooth[0] > 0):
+        fs = fs * (1 - smooth[0]) + nc_blur(fs_raw, w0, smooth[1] / texel)[0] * smooth[0]
     if shapes is not None:
         off = sel & ~shapes
         fw = np.where(off, np.minimum(fw, 0.0), fw)
@@ -1702,7 +1752,8 @@ def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=No
     return np.minimum(out, np.asarray(white)), a_s, aw            # no ink lighter than the white
 
 
-def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None, fade=None, plain=None):
+def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None, fade=None, plain=None,
+               smooth=None):
     """The flat print over the given charts: lin the photos' colours (linear, on the reference's inks), q the view
     weights, shapes where the photos' shapes count, plain where the print is ground only. Returns display values."""
     lin = lin * gain
@@ -1716,7 +1767,8 @@ def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None, 
         sl = (slice(y0, y1), slice(x0, x1))
         o, _, _ = flat_layers(np.clip(lin[sl], 0, 1), q[sl], m[sl], texel, white,
                               None if shapes is None else shapes[sl], fade=None if fade is None else fade[sl],
-                              plain=None if plain is None else plain[sl], **(opts or {}).get(c, {}))
+                              plain=None if plain is None else plain[sl],
+                              smooth=None if smooth is None else (smooth[0][sl], smooth[1]), **(opts or {}).get(c, {}))
         out[sl][m[sl]] = o[m[sl]]
     return to_srgb(out)
 
@@ -1925,9 +1977,14 @@ def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes, zlin=None, 
         qq = qq * (1 - wm) + qq[cym, cxm] * wm
         sh = np.where(wm > 0.5, sh[cym, cxm], sh)
         # over the raglan part plain ground (the magenta fading into the black, every photo): the trunk's views there
-        # carry the photo model's sleeve stripes past the seam (fragments, round 3b review)
-        sh &= GY > SLEEVE_MIRROR[1]
-        o, _, _ = flat_layers(col, qq, hit, texel, white, sh, whites=False, **FP_SLEEVE)
+        # carry the photo model's sleeve stripes past the seam (fragments, round 3b review). Plain, not unseen: the
+        # ground keeps those views' colour, the yoke's magenta over the shoulder fading into the sleeve's black at
+        # the shoulder point (Leatt US's front flat, the NZ on-model front and back). Round 3b took the shapes off
+        # there instead, and its ground was filled from the black sleeve below: the shoulders' tops and the upper
+        # back's corners read black, the yoke's magenta 0.52 to 0.56 of the front view's row at the shoulders where
+        # the flat's is 0.99 (round 3c review, sheets 05, 06, 11)
+        rag = GY <= SLEEVE_MIRROR[1]
+        o, _, _ = flat_layers(col, qq, hit, texel, white, sh, whites=False, plain=rag, **FP_SLEEVE)
         o = o * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
         o = np.where(hit[..., None], o, 0.0)
         # back onto the texels: each at its own place on the raster (the cut's edge stays within a texel)
@@ -2716,26 +2773,32 @@ def perforations(pos, mask, centres, r=0.0009, depth=0.0008):
     return h, dark
 
 
-# The lower back's perforations (round 3b; Damien not asked back yet, so an estimate): Leatt's NZ back three-quarter
-# flat at 1:1 shows a field of 4 staggered rows under the magenta fade, 27.7 px apart (12.4 mm at its 2237 px per m
-# down the garment, SIDE_ROWS), rows y 970 to 1053 (z 1.185 to 1.147), 13 holes a row over 293 px (foreshortened:
-# 24 px apart; 14.3 mm for an equilateral stagger, the photo then seeing the back at 41 deg); his 06 shows about
-# 5 rows there above the pant: one more row on top. Through the holes his 06 shows light dots: the brightest tenth
-# of their peaks (146, 165, 197) in daylight, the 1 to 2 px dots blurred into the black (a light base layer)
-LB_HOLES = {"z_top": 1.197, "rows": 5, "dz": 0.0124, "pitch": 0.0143, "half_width": 0.088,
-            "tone": (146, 165, 197)}
+# The lower back's perforations (round 3c, fix 3: his 06 leads; Damien not asked back yet, so still an estimate).
+# His 06 at 1:1, each strong dot mapped through the camera fitted on the 114 (cam06) onto the posed jersey and back
+# to the rest pose: a rectangular grid (not staggered), 4 rows 13.7 mm apart (z 1.154 to 1.195 at the middle; the
+# review's "about 5" counts 4 here), columns 19.4 mm apart, seen from x -0.136 to 0.116 (taken as +-0.136: 15 a
+# row). Leatt NZ's back three-quarter flat shows the same field: 4 rows 26.7 px apart (11.9 mm) in a rectangular
+# grid (the same x in each row), holes 5 to 7 px across (2 to 3 mm), dark there (nothing under them). Each 06 dot's
+# light over the black, summed over 3x3 px, is 1.17 px^2 of the 114's white (R 0.82, G 1.19, B 1.26: cooler than
+# the white; 2.9 mm a photo px there: about 10 mm^2 of white); round 3b's 1.8 mm dots in (146, 165, 197) give
+# 0.9 mm^2, faint specks. So the holes show a light base layer in the 06 dots' colour against the white (0.65, 0.94,
+# 1.0 of INK_WHITE, linear) over r 1.8 mm: bigger than the flat's holes, which 06 cannot resolve (its dots blur
+# over 3x3 px); the light through them is what it measures. The same measure on a daylight render of the 06 window
+# (kit.md, Round 3c; the window's camera is re-aimed, so each frame is measured on its own): 1.19 px^2 at r 1.9 mm
+# against the photo's 1.09, so r 1.8 mm (measured: 1.08)
+LB_HOLES = {"z_top": 1.195, "rows": 4, "dz": 0.0137, "pitch": 0.0194, "half_width": 0.136, "r": 0.0018,
+            "tone": (203, 238, 250)}
 
 
 def lower_back_holes(P, N):
-    """The lower back's hole centres (LB_HOLES): staggered rows on the back-facing cloth points P."""
-    back = (N[:, 1] > 0.5) & (np.abs(P[:, 0]) < LB_HOLES["half_width"] + 0.02)
+    """The lower back's hole centres (LB_HOLES): a rectangular grid on the back-facing cloth points P."""
+    back = (N[:, 1] > 0.3) & (np.abs(P[:, 0]) < LB_HOLES["half_width"] + 0.02)
     Q = P[back]
     tree = cKDTree(Q[:, [0, 2]])
     C = []
     for k in range(LB_HOLES["rows"]):
         z = LB_HOLES["z_top"] - k * LB_HOLES["dz"]
-        x0 = -LB_HOLES["half_width"] + (k % 2) * LB_HOLES["pitch"] / 2
-        for x in np.arange(x0, LB_HOLES["half_width"] + 1e-9, LB_HOLES["pitch"]):
+        for x in np.arange(-LB_HOLES["half_width"], LB_HOLES["half_width"] + 1e-9, LB_HOLES["pitch"]):
             d, i = tree.query([x, z])
             if d < 0.003:
                 C.append(Q[i])
@@ -2880,7 +2943,10 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     # the zebra at the back's flanks in the back views is the side panels', seen at a slant (round 3b: traced on the
     # back chart past the panels' seams, it came out as lime and teal fragments, sheets 01, 06 and 09)
     plain = (chm == 1) & ~side
-    img = flat_print(src, q, chm, (0, 1), texel, gain, white, shapes, opts={1: FP_BACK}, fade=fade, plain=plain)
+    hem = ((chm == 0) * smoothstep(FP_HEM["z"][1], FP_HEM["z"][0], z)
+           * smoothstep(FP_HEM["x"][0], FP_HEM["x"][1], np.abs(pos[..., 0])))
+    img = flat_print(src, q, chm, (0, 1), texel, gain, white, shapes, opts={1: FP_BACK}, fade=fade, plain=plain,
+                     smooth=(hem, FP_HEM["feature"]))
     marks = sleeve_marks(body, pos, nrm, chm)
     keep = lambda P: np.any([mk["keep"](P) for mk in marks], 0)   # noqa: E731
     for c, (ix, v) in sleeve_print(src, q, chm, pos, body, texel, gain, white, shapes, zimg, keep).items():
@@ -2915,13 +2981,15 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
         holes.append(hole_field(P, Nn, sel, 0.012, 40))
     lb = lower_back_holes(P, Nn)
     C = np.concatenate(holes + [lb])
-    hp, dark = perforations(pos, mask, C)
+    hp, dark = perforations(pos, mask, np.concatenate(holes))
     h += hp
     img *= dark[..., None]
+    hp, _ = perforations(pos, mask, lb, r=LB_HOLES["r"])
+    h += hp
     # what shows through the lower back's holes: a light base layer (his 06), not the dark of the others
     d, _ = cKDTree(lb).query(pos[mask])
     inside = np.zeros(pos.shape[:2])
-    inside[mask] = smoothstep(0.0009 * 1.3, 0.0009 * 0.7, d)
+    inside[mask] = smoothstep(LB_HOLES["r"] * 1.3, LB_HOLES["r"] * 0.7, d)
     img = img * (1 - inside[..., None]) + np.array(LB_HOLES["tone"]) / 255 * inside[..., None]   # display
     dark = np.where(inside > 0, 1.0, dark)
     # folds where riding bends the jersey: inner elbows, the belly over the bent hips, the shoulder blades reaching
@@ -2951,16 +3019,16 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     img = np.zeros(pos.shape)
     # Leatt US's photos, as the jersey's front flat: their lime and black are the flat's within 5 levels (ledger
     # "Round 3"), so no ink map
-    pf = Photo(PF_REF, exclude=[(470, 140, 1010, 330)])                # the Waistlock (modelled in 3D)
+    pf = Photo(PF_REF)                                    # the Waistlock and the jersey over it: PF_HIDDEN
     pb = Photo(PB_REF)
     crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
     sil = pant_silhouette(V, crotch, Q)
     white = to_lin(np.array(INK_WHITE) / 255)
     gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
     # the clean flat print (decision 52), traced on each photo itself (round 3b, FP_PANT_PHOTO)
-    for cs, view, ph, rows in (((0, 2), "front", pf, PF_ROWS), ((1, 3), "back", pb, PB_ROWS)):
+    for cs, view, ph, rows, hid in (((0, 2), "front", pf, PF_ROWS, PF_HIDDEN), ((1, 3), "back", pb, PB_ROWS, ())):
         m = np.isin(chm, cs)
-        zebra, wa = pant_photo_art(ph, rows, gain, white)
+        zebra, wa = pant_photo_art(ph, rows, gain, white, hid)
         u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
         un, _ = pant_photo_uv(pants, pos[m], view, ph.alpha, sil, mirror=False)   # white elements: never mirrored
         a = np.clip(wa(un, v)[:, :1], 0, 1)

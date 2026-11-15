@@ -253,6 +253,40 @@ The inks are round 3's, as the review kept them (sheet 08, the same boxes): at S
 - FIVE.FIVE's typeface: Inter SemiBold.
 - The daylight look (AgX - Punchy) desaturates the magenta: the scene's, checked by the coordinator, not changed.
 
+## Round 3c (decision 52, 2026-11-15): the 1:1 review of round 3b
+
+The coordinator's review of round 3b (JERSEY3c) kept the sleeve fronts with the flat's bands and no white fragments
+on the sleeves' backs or side panels, the forearm LEATTs and the elbow icon, FIVE.FIVE as letters, the chevron tops'
+gradient, the shins' clean strokes, the lower back's dot rows (an estimate) and the outer thigh's zebra; it found one
+regression and three smaller faults. Each fix has a test in test_kit_rider.py that fails on round 3b (56b403a) and
+on main and passes here (numbers below: main, round 3b, round 3c). Code: kit.py's "round 3c" comments. Checkpoint: a
+round 3c column in place of round 3b's in `renders/checkpoints/2026-11-15_jersey3/`.
+
+| Fix | How, numbers | Test: main, round 3b, round 3c | Source |
+|---|---|---|---|
+| 1. The yoke's magenta (regression) | Round 3b's cause: `sleeve_print` left the sleeves' raglan part (within 0.10 m of the shoulder point along the arm) out of the traced shapes, so it was "unseen" and its ground came from the black sleeve: the magenta stopped short of the raglan seams and its edge was a soft halo inside the trunk (the review's measure on sheet 05: 200 px across the chest's widest row against round 3's 354, main 248). The raglan part is now traced as plain ground (`plain`), its colour the views' own: the trunk's photos at the seam blended into Leatt US's front flat's sleeve top by 0.14 of the arm, where the flat carries the magenta over the shoulder and fades it into the sleeve's black. Where no photo sees the shoulder's top square on, that fade is the flat's (an estimate) | seen square on, the magenta's share of the garment's width at each 1 cm row, over 0.85: chest (z 1.48 to 1.54) 0.70 to 0.86, 0.45 to 0.56, 0.92 to 1.00 (round 3 0.94 to 1.00); upper back (1.55 to 1.59) 0.68 to 0.79, 0.53 to 0.64, 0.99 to 1.00. Leatt's flat 0.99 at the shoulders, the NZ front 0.97, the NZ back 0.92 | PHOTO Leatt US front flat, NZ front and back, back 3/4 flat; his 06 |
+| 2. The waistband and the hem beside the Waistlock | The pant: Leatt US's front photo was traced with a box round the Waistlock excluded (470 to 1010, 140 to 330 px) and each texel there took the nearest traced pixel: teal blocks stepping down the waistband (main and round 3b; round 3 a grey rectangle). Now the Waistlock's outline (strap, buckle, tab) and the jersey hanging over the waistband's top in the middle (down to its hem's white threads) are drawn in photo px (`PF_HIDDEN`) and traced with the rest, plain there in the photo's own black (median of its black pixels, taken as seen ground: as unseen texels their ground came from the stripes' anti-aliased tips, teal blotches along the outline), and kept out of the stripes' field (`cover`), so the stripes the photo sees end cleanly at the outline. Beside the buckle on his right hip the photo's waistband is plain black itself. The jersey: in the NZ front photo the jersey blouses over the Waistlock and its stripes zigzag in the folds at 1 to 3 cm beside the side seams (rows 950 to 1130), traced as steps above his right hip; there (`FP_HEM`: z under 1.17 m, blended out by 1.21, \|x\| from 0.10 to 0.13 m) the stripes' field is smoothed over 8 mm (bands 12 to 25 mm wide; Leatt's flat shows smooth curves down to the hem) | on the pant's stripe ink (chroma over 0.2) within 8 cm of its top, x -0.20 to -0.02: what an 8 mm closing and opening changes, under 0.10: 0.140, 0.126, 0.068, and the share of its outline along the texture's axes (the blocks' sides), under 0.10: 0.14, 0.15, 0.06. On the jersey's front 1 to 10 cm over the pant's top, x -0.22 to -0.10, the 3 mm measure (the shins'), under 0.045: 0.063, 0.052, 0.032 | PHOTO Leatt US front on-model pant, NZ front on-model jersey, front flat |
+| 3. The lower back's dots | Measured in his 06 at 1:1: each strong dot (top-hat over 0.10, peak over 0.28) mapped through the camera fitted on the 114 (cam06, 0.9 px) onto the posed jersey and back to the rest pose. A rectangular grid (not staggered): 4 rows 13.7 mm apart (z 1.154 to 1.195 at the middle, tilted about 5 deg by the pose's error), columns 19.4 mm apart in x (about 20 mm along the cloth), seen from x -0.136 to 0.116, taken as +-0.136 (15 a row, 60 holes). The review counted about 5 rows; the mapping and the autocorrelation of the dots give 4, and Leatt NZ's back three-quarter flat shows the same field as 4 rows 26.7 px apart (11.9 mm), the same x in every row (round 3b read it as staggered), holes 5 to 7 px across (2 to 3 mm), dark there. Contrast: each 06 dot's light over the black, summed over 3x3 px, is 1.17 px2 of the 114's white beside it (R 0.82, G 1.19, B 1.26: cooler than the white); at 2.9 mm a photo px, about 10 mm2 of white per dot. Round 3b's 0.9 mm holes in (146, 165, 197) give 1.7 mm2 in the texture: the faint specks. `LB_HOLES` now: z 1.195 down, 13.7 by 19.4 mm, r 1.8 mm, the base layer's tone (203, 238, 250) display (the 06 dots against the white, linear 0.65, 0.94, 1.0 of INK_WHITE). The same measure on a daylight render of the 06 window (its camera re-aimed, so each frame is measured on its own, the polygons registered by phase correlation): 1.19 px2 (R 0.92, G 1.30, B 1.36) at r 1.9 mm against the photo's 1.09 (0.82, 1.19, 1.26), so r 1.8 mm: 1.08 (0.84, 1.17, 1.23), 5.0 px between neighbours as in the photo. The holes are bigger than the flat's: 06 cannot resolve them (its dots blur over 3x3 px), and the light through them is what it measures | light dots in the tone (within 0.1) in each of the 4 rows over 0.8 of 15, on a rectangular grid (median offset from the top row's columns under a quarter pitch), each dot's light over 6 mm2 of white: none in the tone, none (round 3b's own tone: 1.7 mm2, staggered), 15 15 15 15 at 9.2 mm2 | his 06 (cam06, posed mesh), PHOTO NZ back 3/4 flat; estimate (Damien has not answered) |
+| 4. Shins on Leatt's diagonal | Open (the review allows it when 1 to 3 run long): Leatt US's back on-model sweeps the shins' magenta strokes on a diagonal with airbrushed upper ends; ours are clean but vertical. Not changed in this round | none | PHOTO Leatt US back on-model |
+
+The renders of his photos' windows (sheets 01 to 04, 09, 10) now go through decision 54's scene look, its
+"daylight" kind (head_closeups' sun and sky, the compositor's gains and max-RGB tone curve) instead of AgX - Punchy;
+main is rendered again the same way beside round 3c. The inks stay as the Standard-view measurement gives them (round
+3c's at Standard -1.6 are round 3's: magenta 209 53 127, lime 122 184 51, teal 94 157 148); in the daylight kind the
+front view's inks come out lighter than his photos' (teal 161 253 236 against his 09's 102 171 162, the magenta's
+green 0.07 of the white against 0.01): the jersey's material (gloss, sheen, the pink's lift, the navy darks) is a
+later round. Blender 5.2.0: the front view at Standard -1.0 within 1 of 255 of 5.2.3's (99.5 % of pixels
+identical), and the saved scene reopens with its jersey and pant images (2048 px).
+
+### Not seen, estimated (round 3c; adds to round 3b's list)
+
+- The yoke's fade onto the raglan part over the shoulder's top: Leatt's flat's, where no photo sees it square on.
+- The waistband under the Waistlock and under the jersey's overhang in Leatt US's front photo: plain black.
+- The jersey's lower sides above the hips: the NZ photo's stripes smoothed over 8 mm (its folds taken out).
+- The lower back's holes: 4 rows of 15 by his 06; their size (r 1.8 mm) and the base layer's tone (203, 238, 250)
+  matched to the light 06 measures, not seen directly.
+- The shins' strokes: vertical; Leatt's back photo sweeps them on a diagonal (open).
+
 ## Materials (component 4)
 
 | Material | Values | Source |

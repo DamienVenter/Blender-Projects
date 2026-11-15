@@ -792,6 +792,28 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   thigh's share with normals over 0.7: main beat the fix), narrow it to what the review saw (within 18 deg of the
   side, 30 to 42 cm above the knee).
 
+## Jersey and pant round 3c: the 1:1 review of 3b (2026-11-15, kit.py, test_kit_rider.py, ledger kit.md, decision 52)
+- **Leaving a part out of a trace is not the same as plain**: round 3b left the sleeves' raglan part out of the
+  sleeve trace ("unseen"), so its ground came from the black sleeve and the yoke's magenta stopped short of the
+  raglan seams (seen square on, 0.45 of the chest's width against Leatt's flat's 0.99). Trace it as plain ground in
+  the views' own colour. Every fix that narrows a mask: test the neighbours' widths too (a regression test per
+  shape the review kept).
+- **Never fill an excluded box with the nearest traced pixel**: the pant's waistband under a box round the Waistlock
+  came out as teal blocks stepping down the band (a distance-transform fill copies rows and columns). Outline what
+  covers the print in the photo's own px (the Waistlock's strap, buckle and tab; the jersey hanging over the band),
+  give it the photo's own black as SEEN ground (as unseen texels their ground came from the stripes' anti-aliased
+  tips: teal blotches), and keep it out of the stripes' blur weights (`cover`), so the stripes end at the outline.
+  A test for staircases: the share of the ink's outline running along the texture's axes (blocks: 0.15; clean 0.06).
+- **A photo's folds trace as steps**: where the NZ photo's jersey blouses over the Waistlock its stripes zigzag at 1
+  to 3 cm; smooth the stripes' field there over a feature larger than the folds (8 mm, bands 12 to 25 mm) and only
+  there (`smooth`, a weight mask).
+- **Measure small marks in the photo the review names, at 1:1, by the light they show**: his 06 cannot resolve the
+  lower back's holes (each blurs over 3x3 px); measure each dot's light over the local background, summed, as a
+  share of the white beside it (px2 of white), and match a render of the same window measured the same way (the
+  window's camera is re-aimed: register each frame on its own). Count rows by mapping the dots through the fitted
+  camera onto the mesh, not by eye: "about 5 rows" was 4 (13.7 mm apart, a rectangular grid, also on Leatt's flat).
+  The holes must be bigger than the real ones (r 1.8 mm against 1 to 1.5) to show the light 06 shows.
+
 ## Coordinating the gear rounds (coordinator's notes, 2026-11-15)
 - Never `cd` into an agent's worktree from the coordinating session: the session's working directory follows the
   shell and later relative paths resolve inside the worktree. Use absolute paths and `git -C <worktree>`.

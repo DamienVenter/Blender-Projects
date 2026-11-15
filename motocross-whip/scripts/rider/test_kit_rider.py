@@ -576,24 +576,108 @@ def test_pant_outer_thighs_and_smooth_shins(built, texels):
 
 
 def test_lower_back_holes_show_the_base_layer(built, texels):
-    """Fix 4: the lower back's perforations (LB_HOLES: Leatt NZ's back three-quarter flat and his 06, an estimate):
-    staggered rows of light dots in the base layer's tone (within 0.1) under the magenta fade, each row holding over
-    0.6 of LB_HOLES' count for its pitch (round 3 and main: none in that tone; round 3b's first build wrote the tone
-    through to_lin, (73, 95, 142): none either)."""
+    """Fixes 4 (round 3b) and 3 (round 3c): the lower back's perforations (LB_HOLES, an estimate; his 06 leads):
+    light dots in the base layer's tone (within 0.1) in LB_HOLES' rows, each row holding over 0.8 of its columns, in
+    a rectangular grid (his 06 and Leatt NZ's back three-quarter flat: the same x in every row; round 3b staggered
+    them by half a pitch), and each dot's light over the black, summed, over 6 mm2 of the white ink (his 06 about
+    10 mm2; round 3b 1.7, faint specks; round 3c 9.2). Round 3 and main: none in the tone."""
     from scipy import ndimage
     body, g = built
     a, pos, nrm, chm, tx = texels["jersey"]
     hb = K.LB_HOLES
-    reg = ((chm >= 0) & (nrm[..., 1] > 0.5) & (np.abs(pos[..., 0]) < hb["half_width"] + 0.01)
+    reg = ((chm >= 0) & (nrm[..., 1] > 0.3) & (np.abs(pos[..., 0]) < hb["half_width"] + 0.01)
            & (pos[..., 2] > hb["z_top"] - (hb["rows"] - 0.5) * hb["dz"]) & (pos[..., 2] < hb["z_top"] + hb["dz"] / 2))
     tone = np.asarray(hb["tone"]) / 255
     dots = reg & (np.abs(a - tone).max(-1) < 0.1)
     lab, n = ndimage.label(dots, np.ones((3, 3)))
-    cz = np.array(ndimage.mean(pos[..., 2], lab, range(1, n + 1))) if n else np.zeros(0)
+    idx = range(1, n + 1)
+    cz = np.array(ndimage.mean(pos[..., 2], lab, idx)) if n else np.zeros(0)
+    cx = np.array(ndimage.mean(pos[..., 0], lab, idx)) if n else np.zeros(0)
     rows = np.round((hb["z_top"] - cz) / hb["dz"])
-    per_row = np.bincount(rows[(rows >= 0) & (rows < hb["rows"])].astype(int), minlength=hb["rows"])
-    want = 2 * hb["half_width"] / hb["pitch"]
-    assert (per_row > 0.6 * want).all() and n < 1.3 * want * hb["rows"], (n, per_row, round(want, 1))
+    ok = (rows >= 0) & (rows < hb["rows"])
+    per_row = np.bincount(rows[ok].astype(int), minlength=hb["rows"])
+    cols = 2 * hb["half_width"] / hb["pitch"] + 1
+    assert (per_row > 0.8 * cols).all() and n < 1.2 * cols * hb["rows"], (n, per_row, round(cols, 1))
+    # a rectangular grid: every dot within a quarter pitch of a column of the top row
+    top = np.sort(cx[ok & (rows == 0)])
+    off = np.abs(cx[ok][:, None] - top[None]).min(1)
+    assert np.median(off) < hb["pitch"] / 4, round(float(np.median(off)) * 1000, 1)
+    # the light: (linear) over the black round the dots, as a share of the white ink's, summed over each dot's rim
+    lin = K.to_lin(a)
+    blk = np.median(lin[reg & ~ndimage.binary_dilation(dots, iterations=4)], 0)
+    wht = K.to_lin(np.array(K.INK_WHITE) / 255)
+    e = np.clip(((lin - blk) / (wht - blk)).mean(-1), 0, None)
+    labd = np.where(reg, ndimage.grey_dilation(lab, size=(5, 5)), 0)
+    per = np.array(ndimage.sum(e, labd, idx)) * tx ** 2 * 1e6           # mm2 of white
+    assert np.median(per) > 6.0, round(float(np.median(per)), 2)
+
+
+def _seen_square(a, pos, nrm, chm, side, z0, z1, dz=0.01, bx=0.005):
+    """The jersey seen square from the front (or the back), orthographic: per 5 mm column at each 1 cm row from z0
+    to z1 the front-most (back-most) texel. Per row, the share of the garment's width in magenta (white over it
+    counted)."""
+    sg = -1 if side == "front" else 1
+    sel = (chm >= 0) & (nrm[..., 1] * sg > 0)
+    P, C = pos[sel], a[sel]
+    out = []
+    for z in np.arange(z0, z1 + 1e-9, dz):
+        k = np.abs(P[:, 2] - z) < dz / 2
+        b = np.floor(P[k, 0] / bx).astype(int)
+        order = np.lexsort((-P[k, 1] * sg, b))
+        _, first = np.unique(b[order], return_index=True)
+        c = C[k][order][first]
+        out.append((K.ink_class("magenta", c) | K.ink_class("white", c)).mean())
+    return np.array(out)
+
+
+def test_yoke_magenta_reaches_the_raglan_seams(built, texels):
+    """Round 3c, fix 1: Leatt's flat, the NZ front and back photos and his 06 carry the yoke's magenta across the
+    top to the raglan seams. Seen square on, its share of the garment's width at each 1 cm row (white over it
+    counted): Leatt's flat 0.99 at the shoulders, the NZ front 0.97, the NZ back 0.92. Over 0.85 at the chest (z 1.48
+    to 1.54) and the upper back (1.55 to 1.59): round 3b 0.45 to 0.56 and 0.53 to 0.64 (the sleeves' raglan part was
+    traced as unseen, its ground taken from the black sleeve), main 0.70 to 0.86 and 0.68 to 0.79, round 3c 0.92 to
+    1.00 and 0.99 to 1.00."""
+    a, pos, nrm, chm, tx = texels["jersey"]
+    f = _seen_square(a, pos, nrm, chm, "front", 1.48, 1.54)
+    b = _seen_square(a, pos, nrm, chm, "back", 1.55, 1.59)
+    assert f.min() > 0.85 and b.min() > 0.85, (np.round(f, 2).tolist(), np.round(b, 2).tolist())
+
+
+def test_waistband_and_hem_beside_the_waistlock_are_clean(built, texels):
+    """Round 3c, fix 2 (sheet 05 at 3x, his right hip beside the buckle): rounds 3b and main took each pant texel
+    under a box round the Waistlock from the nearest traced pixel (teal blocks stepping down the waistband), and the
+    jersey's lower side above it traced the NZ photo's folds as steps. On the stripe ink (chroma over 0.2): on the
+    pant's front within 8 cm of its top (x -0.20 to -0.02) what an 8 mm closing and opening changes under 0.10 and
+    the share of its outline running along the texture's axes (the blocks' sides) under 0.10 (main 0.140 and 0.14,
+    round 3b 0.126 and 0.15, round 3c 0.068 and 0.06); on the jersey's front 1 to 10 cm over the pant's top (x -0.22
+    to -0.10) what a 3 mm closing and opening changes under 0.045 (main 0.063, round 3b 0.052, round 3c 0.032)."""
+    from scipy import ndimage
+    body, g = built
+
+    def rough(m, tx, rm):
+        r = max(1, int(round(rm / tx)))
+        sm = ndimage.binary_opening(ndimage.binary_closing(m, iterations=r), iterations=r)
+        return (m ^ sm).sum() / max(m.sum(), 1)
+    a, pos, nrm, chm, tx = texels["pants"]
+    on = chm >= 0
+    _, wtop = K.pant_region(body)
+    wt = np.zeros(pos.shape[:2])
+    wt[on] = wtop(pos[on])
+    reg = on & (nrm[..., 1] < -0.3) & (pos[..., 0] > -0.20) & (pos[..., 0] < -0.02) & (pos[..., 2] > wt - 0.08)
+    m = reg & ((a.max(-1) - a.min(-1)) > 0.2)
+    f = ndimage.gaussian_filter(m.astype(float), 1.0)
+    gy, gx = np.gradient(f)
+    edge = reg & (np.hypot(gx, gy) > 0.15) & ndimage.binary_erosion(reg, iterations=3)
+    ang = np.degrees(np.arctan2(np.abs(gy[edge]), np.abs(gx[edge])))
+    axis = ((ang < 4) | (ang > 86)).mean()
+    rp = rough(m, tx, 0.008)
+    assert m.sum() > 3000 and edge.sum() > 500 and rp < 0.10 and axis < 0.10, (m.sum(), round(rp, 3), round(axis, 2))
+    a, pos, nrm, chm, tx = texels["jersey"]
+    reg = ((chm == 0) & (pos[..., 0] > -0.22) & (pos[..., 0] < -0.10) & (pos[..., 2] > K.WAIST_FRONT + 0.01)
+           & (pos[..., 2] < K.WAIST_FRONT + 0.10))
+    m = reg & ((a.max(-1) - a.min(-1)) > 0.2)
+    rj = rough(m, tx, 0.003)
+    assert m.sum() > 3000 and rj < 0.045, (m.sum(), round(rj, 3))
 
 
 def test_chevron_fade_is_a_clean_gradient(built, texels):
