@@ -64,3 +64,5 @@ samples, the photo's crop at 4x. Ledger: research/rider-ledger/goggle.md section
   test_round5_offsets_teeth_and_nose_ribs (the new steps), the worn rest's turn bound 20.25 +- 0.5 deg (measured on
   phase 2's shell, the search's 0.25 deg step).
 - The whole rider suite in one run on the final tree (21023ae): 151 passed in 22 min 21 s, exit code 0.
+- Trial merge with origin/main 73e41ef (decision 58; PROJECT.md's rows in the order 55, 57, 58): the whole rider
+  suite in one run, 169 passed in 21 min 7 s, exit code 0.
