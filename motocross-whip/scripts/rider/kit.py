@@ -1058,6 +1058,66 @@ def side_photo_uv(P):
     return xf + a * (xb - xf), v
 
 
+# The side panels' zebra (round 3b): traced with the trunk's charts their lime and teal bands came out as
+# fragments and white specks (the cut's 3 cm window on a strip 70 to 118 px wide, and the front chart's near-white
+# guard on the grey-teal tops). They are traced on the back three-quarter flat itself, inside the panel's outline
+# (SIDE_EDGES, 4 px over), with the sleeves' options (FP_FLAT_SLEEVE) at its pixel (rows: 0.47 m over 850 px),
+# and laid over the trunk's print as they are (the panel is its own piece, cut at its seams)
+SIDE_TEXEL = (1.35 - HEM_Z) / 850     # m per px down the side panel in the back three-quarter flat (SIDE_ROWS)
+
+
+def side_panel_art(ps, inks, gain, white):
+    """The side panel's zebra traced on the back three-quarter flat (photo space): a sampler (u, v) -> linear
+    colour on the front flat's inks, times gain (flat_layers' output, as flat_print's)."""
+    from scipy import ndimage
+    H, W = ps.bad.shape
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    xf = np.interp(yy, SIDE_EDGES[0], SIDE_EDGES[1])
+    xb = np.interp(yy, SIDE_EDGES[0], SIDE_EDGES[2])
+    inside = ((yy >= SIDE_EDGES[0][0] - 10) & (yy <= SIDE_EDGES[0][-1] + 10) & (xx >= xf - 4) & (xx <= xb + 4)
+              & ~ps.bad)
+    ys, xs = np.nonzero(inside)
+    y0, x0 = ys.min(), xs.min()
+    sl = (slice(y0, ys.max() + 1), slice(x0, xs.max() + 1))
+    sel = inside[sl]
+    col = np.clip((to_lin(ps.a[sl]) @ inks[:3] + inks[3]) * gain, 0, 1)
+    o, _, _ = flat_layers(col, sel.astype(float), sel, SIDE_TEXEL, white, sel, **FP_FLAT_SLEEVE)
+    return art_sampler(o, sel, y0, x0)
+
+
+def art_sampler(o, sel, y0, x0):
+    """Bilinear lookup (u, v photo px) into artwork traced on a photo's crop (rows from y0, columns from x0); outside
+    its outline `sel` the nearest traced pixel."""
+    from scipy import ndimage
+    _, (iy, ix) = ndimage.distance_transform_edt(~sel, return_indices=True)
+    o = o[iy, ix]
+
+    def sample(u, v):
+        return np.stack([ndimage.map_coordinates(o[..., k], [v - y0, u - x0], order=1, mode="nearest")
+                         for k in range(3)], -1)
+    return sample
+
+
+def pant_photo_art(ph, rows, gain, white):
+    """A pant photo traced in its own pixels (pixel size from its rows: waist top to boot top): samplers (u, v) ->
+    the zebra's linear colour on the flat's inks (FP_PANT_PHOTO, without the white elements) and the white
+    elements' coverage (traced at FP_PANT's 0.8 mm: the stamps' letters and their 1.2 mm lines; at the zebra's
+    2 mm the letters came out blobby and the lines were lost, their light smeared into the black ground)."""
+    from scipy import ndimage
+    sel = ~ph.bad
+    ys, xs = np.nonzero(sel)
+    sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+    texel = (rows[0][1] - rows[2][1]) / (rows[2][0] - rows[0][0])
+    col = np.clip(to_lin(ph.a[sl]) * gain, 0, 1)
+    q = sel[sl].astype(float)
+    _, _, aw = flat_layers(col, q, sel[sl], texel, white, sel[sl], **FP_PANT)
+    near = ndimage.binary_dilation(aw > 0.02, iterations=max(1, int(round(0.0015 / texel))))
+    o, _, _ = flat_layers(col, q * ~near, sel[sl], texel, white, sel[sl], whites=False,
+                          **dict(FP_PANT_PHOTO, qfloor=0.0))
+    return (art_sampler(o, sel[sl], ys.min(), xs.min()),
+            art_sampler(np.repeat(aw[..., None], 3, -1), sel[sl], ys.min(), xs.min()))
+
+
 # the trunk between the arms in Leatt's on-model photos (PHOTO: the gap or the seam between arm and side panel, rows
 # under the shoulders): what maps outside is the model's arm, not his side
 J_TORSO = {"front": (550.0, 1050.0, 420.0), "back": (490.0, 1070.0, 380.0)}   # x from, x to, from row
@@ -1091,9 +1151,10 @@ def arm_facing(body, s, P):
     return cos, fr
 
 
-def sleeve_photo_uv(body, P, s, view):
+def sleeve_photo_uv(body, P, s, view, photo_s=None):
     """A sleeve point in one of the photos: along the arm (shoulder point to cuff, upper arm then forearm) and
-    across it (outward from the arm's line, the photo's arm seen square on)."""
+    across it (outward from the arm's line, the photo's arm seen square on). photo_s: the photo's other sleeve
+    instead (outward to outward: the point's mirror image across his middle)."""
     S, E, W, f, o = arm_frame(body, s)
     L1, L2 = np.linalg.norm(E - S), np.linalg.norm(W - E)
     d1, d2 = (E - S) / L1, (W - E) / L2
@@ -1109,7 +1170,7 @@ def sleeve_photo_uv(body, P, s, view):
     lat = lat / np.maximum(rad, 1e-6)                                   # -1 .. 1 across the arm seen square on
     tab = J_ARM_TAB.get(view, J_ARM_HALF)
     half = np.interp(t, tab[0], tab[1])
-    (u0, v0), (u1, v1) = J_ARMS[(view, s)]
+    (u0, v0), (u1, v1) = J_ARMS[(view, photo_s or s)]
     A, B = np.array([u0, v0], float), np.array([u1, v1], float)
     dd = (B - A) / np.linalg.norm(B - A)
     out_px = np.array([dd[1], -dd[0]])                              # across the photo's arm, away from the body
@@ -1131,7 +1192,64 @@ PF_ROWS = ((205, WAIST_FRONT), (None, 0.862), (1670, PANT_CUFF_Z + 0.005))   # c
 PB_ROWS = ((190, WAIST_BACK), (None, 0.862), (1650, PANT_CUFF_Z + 0.005))
 
 
-def pant_photo_uv(pants, P, view, alpha, sil3d):
+# Round 3b: the photos' silhouette runs, row by row, jittered by a few px (the alpha's edge, the gloves beside the
+# thighs): every vertical stripe came out jagged (the shins' magenta read as jagged marks). The runs' ends are
+# smoothed down the photo (a 15 row median, then 15 rows' mean), each regime (the whole pant, the two legs) apart.
+# And the photos see a leg's outer side at a slant: past PANT_MIRROR from the front its last pixels were stretched
+# round the side (or left plain, round 3). There the print is the photo's own seen from PANT_MIRROR back toward the
+# front, mirrored (an estimate: Leatt's zebra wraps round the thigh to the knee, his 07 and Leatt's three-quarter
+# photos; the bands meet themselves in a chevron on the line, as the print's own chevrons)
+PANT_MIRROR = np.radians(60.0)
+PANT_RUN_SMOOTH = 15     # rows
+
+
+def pant_runs(alpha, view, crotch_y):
+    """Per photo row, the pant's run (above the crotch: the whole pant) or each leg's (below): {key: (a, b)} arrays
+    over the rows, nan where none, smoothed down the photo (PANT_RUN_SMOOTH)."""
+    from scipy import ndimage
+    H, W = alpha.shape
+    cx = W / 2
+    out = {k: np.full((H, 2), np.nan) for k in ("all", "L", "R")}
+    for y in range(H):
+        xs = np.nonzero(alpha[y])[0]
+        if len(xs) < 10:
+            continue
+        runs = [(q[0], q[-1]) for q in np.split(xs, np.nonzero(np.diff(xs) > 3)[0] + 1) if len(q) > 40]
+        near = [q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500]
+        if y < crotch_y:                                     # the whole pant: its runs near the middle, merged
+            if near:
+                out["all"][y] = (min(q[0] for q in near), max(q[1] for q in near))
+        elif len(near) >= 2:
+            near = sorted(near, key=lambda q: q[0])
+            # front: his right leg on the image's left; back: his left leg on the image's left
+            a, b = ("R", "L") if view == "front" else ("L", "R")
+            out[a][y], out[b][y] = near[0], near[-1]
+    for k, (y0, y1) in (("all", (0, crotch_y)), ("L", (crotch_y, H)), ("R", (crotch_y, H))):
+        r = out[k][y0:y1]
+        ok = ~np.isnan(r[:, 0])
+        if ok.sum() < 2:
+            continue
+        idx = np.arange(len(r))
+        for j in range(2):
+            f = np.interp(idx, idx[ok], r[ok, j])
+            f = ndimage.uniform_filter1d(ndimage.median_filter(f, PANT_RUN_SMOOTH, mode="nearest"),
+                                         PANT_RUN_SMOOTH, mode="nearest")
+            r[:, j] = np.where((idx >= idx[ok][0]) & (idx <= idx[ok][-1]), f, np.nan)   # gaps inside filled
+    return out
+
+
+def side_mirror(t, hi, lo, th0=PANT_MIRROR):
+    """Across a leg seen square on (t: 0 .. 1), past th0 from the front toward the high and/or low side: the
+    point's mirror image about th0 (in the angle round the leg, sin = 2 t - 1)."""
+    th = np.arcsin(np.clip(2 * t - 1, -1, 1))
+    if hi:
+        th = np.where(th > th0, 2 * th0 - th, th)
+    if lo:
+        th = np.where(th < -th0, -2 * th0 - th, th)
+    return (np.sin(th) + 1) / 2
+
+
+def pant_photo_uv(pants, P, view, alpha, sil3d, mirror=True):
     rows = list(PF_ROWS if view == "front" else PB_ROWS)
     r0 = np.nonzero(alpha[400])[0]
     cx0 = int(np.median(r0))
@@ -1142,63 +1260,47 @@ def pant_photo_uv(pants, P, view, alpha, sil3d):
     v = np.interp(-P[:, 2], -zs, ys)
     u = np.zeros(len(P))
     vi = np.clip(v.astype(int), 0, alpha.shape[0] - 1)
-    crotch_y = cy
-    for y in np.unique(vi):
-        m = vi == y
-        r = alpha[y]
-        xs = np.nonzero(r)[0]
-        if len(xs) < 10:
+    runs = pant_runs(alpha, view, cy)
+    zq, xq = P[:, 2], P[:, 0]
+    for s in "LR":
+        mm = (xq > 0) if s == "L" else (xq <= 0)
+        whole = vi < cy
+        key = np.where(whole, "all", s)
+        span = np.where(whole[:, None], runs["all"][vi], runs[s][vi])
+        ok = mm & ~np.isnan(span[:, 0])
+        if not ok.any():
             continue
-        runs = [(q[0], q[-1]) for q in np.split(xs, np.nonzero(np.diff(xs) > 3)[0] + 1) if len(q) > 40]
-        if not runs:
-            continue
-        cx = alpha.shape[1] / 2
-        if y < crotch_y:                                     # the whole pant: its runs near the middle, merged
-            near = [q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500]
-            if not near:
-                continue
-            run = (min(q[0] for q in near), max(q[1] for q in near))
-            spans = {"L": run, "R": run}
-        else:
-            legs = sorted([q for q in runs if q[1] - q[0] > 120 and abs((q[0] + q[1]) / 2 - cx) < 500],
-                          key=lambda q: q[0])
-            if len(legs) < 2:
-                continue
-            left_img, right_img = legs[0], legs[-1]
-            # front: his right leg on the image's left; back: his left leg on the image's left
-            spans = {"R": left_img, "L": right_img} if view == "front" else {"L": left_img, "R": right_img}
-        zq = P[m, 2]
-        xq = P[m, 0]
-        for s in "LR":
-            mm = (xq > 0) if s == "L" else (xq <= 0)
-            if not mm.any():
-                continue
-            xl = np.interp(zq[mm], sil3d[s][0], sil3d[s][1])
-            xr = np.interp(zq[mm], sil3d[s][0], sil3d[s][2])
-            if y < crotch_y:
-                xl = np.interp(zq[mm], sil3d["all"][0], sil3d["all"][1])
-                xr = np.interp(zq[mm], sil3d["all"][0], sil3d["all"][2])
-            t = (xq[mm] - xl) / np.maximum(xr - xl, 1e-6)
-            if view == "back":
-                t = 1 - t
-            a, b = spans[s]
-            idx = np.nonzero(m)[0][mm]
-            u[idx] = a + t * (b - a)
+        sa, sl = sil3d["all"], sil3d[s]
+        xl = np.where(whole, np.interp(zq, sa[0], sa[1]), np.interp(zq, sl[0], sl[1]))
+        xr = np.where(whole, np.interp(zq, sa[0], sa[2]), np.interp(zq, sl[0], sl[2]))
+        t = (xq - xl) / np.maximum(xr - xl, 1e-6)
+        if mirror:                                           # the outer sides (both, over the hips)
+            t = np.where(key == "all", side_mirror(t, True, True),
+                         side_mirror(t, s == "L", s == "R"))
+        if view == "back":
+            t = 1 - t
+        u[ok] = (span[:, 0] + t * (span[:, 1] - span[:, 0]))[ok]
     return u, v
 
 
-def pant_silhouette(V, crotch_z):
-    """His pant's front-view silhouette per height: (z, x_left, x_right) per leg below the crotch and whole above."""
+def pant_silhouette(V, crotch_z, Q):
+    """His pant's front-view silhouette per height: (z, x_left, x_right) per leg below the crotch and whole above,
+    from the mesh's cross-section at each height (its edges crossing it: continuous in height; round 3b, the
+    vertices within 6 mm of each height jumped by up to 70 mm between heights 5 mm apart, and every stripe mapped
+    through it came out serrated)."""
     zs = np.arange(PANT_CUFF_Z, WAIST_BACK + 0.005, 0.005)
+    E, _ = edges_of(Q)
+    a, b = V[E[:, 0]], V[E[:, 1]]
     out = {}
-    for key, sel in (("L", V[:, 0] > 0), ("R", V[:, 0] <= 0), ("all", np.ones(len(V), bool))):
+    for key in ("L", "R", "all"):
         lo, hi = [], []
         for z in zs:
-            m = sel & (np.abs(V[:, 2] - z) < 0.006)
-            if key != "all" and z < crotch_z:
-                pass
-            lo.append(V[m, 0].min() if m.any() else np.nan)
-            hi.append(V[m, 0].max() if m.any() else np.nan)
+            c = (np.minimum(a[:, 2], b[:, 2]) <= z) & (np.maximum(a[:, 2], b[:, 2]) > z)
+            t = (z - a[c, 2]) / (b[c, 2] - a[c, 2])
+            x = a[c, 0] + t * (b[c, 0] - a[c, 0])
+            x = x[x > 0] if key == "L" else x[x <= 0] if key == "R" else x
+            lo.append(x.min() if len(x) else np.nan)
+            hi.append(x.max() if len(x) else np.nan)
         lo, hi = np.array(lo), np.array(hi)
         ok = ~np.isnan(lo)
         out[key] = (zs[ok], lo[ok], hi[ok])
@@ -1247,16 +1349,55 @@ FP_SPECK = 4e-5          # m2: stripe islands and gaps smaller than this are noi
 # a field over 0.6 mm kept the photos' fold shading as grey blotches 2 to 5 cm across: over 20 mm (Leatt's airbrush
 # fades run over 50 to 300 mm). The back panel likewise (its magenta fades at every edge, NZ back photo); the
 # front keeps 0.6 mm for the yoke's cut edge over the chest
-FP_SLEEVE = {"white_min": 2e-5, "speck": 1.5e-4, "ground": 0.02}
-FP_BACK = {"ground": 0.02}
+# The sleeves' upper bands and the side panels' are grey-teal (display about 0.39, 0.47, 0.49: min channel less
+# 0.6 chroma 0.33): over the default 0.3 they counted as a white element's edge and were dropped, leaving the
+# sleeves near black (round 3, reviewed); only over 0.5 there (the white cut is 0.55)
+FP_SLEEVE = {"white_min": 2e-4, "speck": 1.5e-4, "ground": 0.02, "near_white": 0.95, "span": (0.05, 0.1),
+             "fs_min": 0.10, "rng": 0.015}
+# the sleeves' white elements: his left sleeve's line (510 mm2 on the raster); the elbow icon and the forearm LEATTs
+# are printed from the official files (sleeve_marks), so the traced whites are the line's alone: pieces under
+# 200 mm2 dropped (round 3b review: white specks, 24 to 91 mm2, among them the line's jog at the elbow, which the
+# photos see at a slant and traced as fragments: not drawn)
+# The sleeves' zebra (round 3b): traced on the raster the upper arm's bands came out as fragments (they fade from
+# grey into the black toward the shoulder, under 0.25 of contrast, so the cut fell on the photos' noise; and a
+# 3 cm window took its light level from the next band or the trunk's lime). It is traced first on Leatt US's front
+# flat itself, inside each sleeve's outline (J_ARMS), where the sleeve is seen square on: an 11 px median takes out
+# the perforations (dots 4 to 5 px, 15 px apart), a 3 mm field and a 1.5 cm window follow the fade, a contrast of
+# 0.05 to 0.1 is pattern and under 0.10 of green light is the black; the white elements are left to the raster
+# (all views). The raster then cuts that clean artwork again with the same options (FP_SLEEVE: near_white 0.95,
+# the white elements themselves still guard their edges)
+FLAT_TEXEL = 0.275 / 395  # m per px of Leatt US's front flat (its chest LEATT: 395 px for his 0.275 m, FRONT)
+FLAT_MEDIAN = 11          # px
+# Which of the flat's sleeves each of his sleeves takes its zebra from. The flat lays his left sleeve turned in,
+# over the trunk's side (its outline takes in the lime side panel and the yoke) and sees its upper arm at a slant:
+# traced there its grey bands came out as blobs. His right sleeve lies square on, its bands whole from the shoulder
+# to the cuff; his left takes it mirrored (an estimate: the bands' colours run the same down both sleeves in the
+# flat and the back photos, grey, teal, lime; their exact shapes on his left sleeve differ)
+SLEEVE_ZEBRA_FROM = {"L": "R", "R": "R"}
+FP_FLAT_SLEEVE = {"white_min": 1.0, "speck": 1.5e-4, "ground": 0.02, "near_white": 0.6, "span": (0.05, 0.1),
+                  "feature": 0.003, "fs_min": 0.10, "rng": 0.015}
+FP_BACK = {"ground": 0.02, "near_white": 0.5}
+# The top chevrons' arms under FIVE.FIVE fade from lime into the black band (Leatt's airbrush; front flat and NZ
+# front photo): cut at 0.5 their ends were ragged (round 3). In this box (|x|, z from, z to; m, the front, from the
+# texture's centre column: the yoke ends at z 1.35, the band 1.30 to 1.345, the top chevron's point 1.27 to 1.30)
+# the cut is at 0.2, where the fade is near the black, and the stripe's colour is the photo's own fade over 5 mm
+FP_FADE = {"cut": 0.2, "field": 0.005, "box": (0.17, 1.285, 1.345), "soft": 0.008}   # soft: m, the box's edges
+#                                                                             blend over this (no step in the cut)
 # the pant: the black zebra over teal, lime and magenta (chroma is stripe); Leatt US's on-model pant
 # photos show folds on the black and airbrushed fades: stripe specks under 1.5 cm2 dropped, the ground's colour
 # averaged over 3 mm (its fades run over 100 mm and more); their teal is paler than the jersey flat's (min channel
 # less 0.6 chroma up to 0.40, PHOTO), so only over 0.5 counts as a white element's edge
 # and its shins' stripes are seen at 60 to 80 deg and fade to purple: their colour from themselves (weights at
 # least 0.1, from 0.6 of the way into the stripe), not from the thighs' lime 10 cm up
+# Round 3b: traced on his pant's texels the outer thighs (past 83 deg from the photos) were plain black, though his
+# 07 and Leatt's photos show the zebra wrapping round them to the knee, and the shins' magenta, seen at 60 to 80
+# deg and fading to purple, came out as jagged vertical marks. Each photo is traced first in its own pixels (0.5 mm,
+# where the legs are seen square on; the options below with a 2 mm field, which follows the shins' sweeping
+# stripes) and the texels take that artwork as it is: to the outseam, the photo's edge stretched round the side
+# (an estimate where the photo sees the side at a slant)
 FP_PANT = {"speck": 1.5e-4, "feature": 0.0008, "ground": 0.003, "near_white": 0.5, "light": "chroma",
            "qfloor": 0.1, "s_in": 0.6}
+FP_PANT_PHOTO = dict(FP_PANT, feature=0.002)
 
 
 def to_lin(c):
@@ -1483,11 +1624,14 @@ def aa_cut(f, t):
 
 
 def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=None, feature=None, ground=None,
-                near_white=0.3, light="green", qfloor=0.0, s_in=0.85):
+                near_white=0.3, light="green", qfloor=0.0, s_in=0.85, fade=None, rng=FP_RANGE, span=(0.25, 0.4),
+                fs_min=0.0, whites=True, plain=None):
     """The flat print of one chart (arrays cropped to it): col the photos' colour (linear, on the reference's inks),
     q the view weight (0 unseen .. 1 square on), sel the chart's texels, texel its size in m, white the white ink,
     shapes where the photo's shapes count (elsewhere plain ground: what a photo does not see is not traced).
-    Returns the colour (linear) and the stripe and white coverages."""
+    plain: where the print is ground only (no stripes; the white elements stay, and the photo's stripes there do not
+    colour the ground). Returns the colour (linear; with the white elements laid over it unless whites is False) and
+    the stripe and white coverages."""
     from scipy import ndimage
     w0 = sel.astype(float)
     d = to_srgb(col)
@@ -1513,37 +1657,54 @@ def flat_layers(col, q, sel, texel, white, shapes=None, white_min=None, speck=No
     aw = aa_cut(fw, FP_WHITE_CUT) * sel
     # the stripes, cut half-way between the local dark and light levels; never next to the white elements (their
     # blended edges would read as stripe)
-    near_w = ndimage.binary_dilation(fw > near_white, iterations=max(1, int(round(0.0015 / texel))))
-    r = max(3, int(round(FP_RANGE / texel)))
+    near_w = ndimage.binary_dilation((fw > near_white) | (aw > 0.5), iterations=max(1, int(round(0.0015 / texel))))
+    r = max(3, int(round(rng / texel)))
     okf = sel & ~near_w
     lo = ndimage.minimum_filter(np.where(okf, fs, 9.0), r)
     hi = ndimage.maximum_filter(np.where(okf, fs, -9.0), r)
     ok = okf & (lo < 5) & (hi > -5)
     lo = nc_blur(np.where(ok, lo, 0.0), ok.astype(float), r / 2)[0]
     hi = nc_blur(np.where(ok, hi, 0.0), ok.astype(float), r / 2)[0]
+    span_k = span
     span = hi - lo
     # no pattern round a texel (span under 0.25: a dark gradient's grey against the black; the back's flanks beside
     # the magenta panel, PHOTO back on-model): an absolute cut, so plain grounds stay plain and solid cuffs solid
-    k = smoothstep(0.25, 0.4, span)
+    k = smoothstep(span_k[0], span_k[1], span)
     s = k * (fs - lo) / np.maximum(span, 1e-3) + (1 - k) * (fs - 0.12) / 0.3
     s = np.where(near_w, -1.0, s)
+    s = np.where(fs < fs_min, np.minimum(s, 0.0), s)                 # too dark to be a stripe (a fade's black end)
+    s0 = s                                                           # the ground's own cut, unshifted
+    if fade is not None:
+        # airbrushed ends (FP_FADE; fade: 0 to 1): cut low, where the fade is near the black, so the cut's edge
+        # does not show
+        s = s + (FP_STRIPE_CUT - FP_FADE["cut"]) * fade
     s = clean_cut(s, FP_STRIPE_CUT, sel, speck / texel ** 2, speck / texel ** 2)
     a_s = aa_cut(s, FP_STRIPE_CUT) * sel * (1 - aw)
+    if plain is not None:
+        a_s = a_s * ~plain
     # the inks' colour fields
     clean = (aw < 0.01) & sel & (True if shapes is None else shapes)
     qw = np.maximum(q ** 2, qfloor)
     ws = qw * ((s > s_in) & clean)
-    wb = qw * ((s < 0.15) & clean)
+    # the ground by the unshifted cut (round 3b: the fade's shifted cut left the band no ground, filled from the
+    # yoke: magenta blotches under FIVE.FIVE)
+    wb = qw * ((s0 < 0.15) & (s < FP_STRIPE_CUT) & clean)
     Cs = nc_fill(col, ws, [FP_STRIPE_FIELD / texel] + [f / texel for f in FP_FILL])
+    if fade is not None:
+        # and coloured by the photo's own fade (lime to black), smoothed: a clean gradient over the traced shape
+        wf_ = qw * ((s > FP_STRIPE_CUT) & clean & (fade > 0))
+        Cf = nc_fill(col, wf_, [FP_FADE["field"] / texel] + [f / texel for f in FP_FILL])
+        Cs = Cs * (1 - fade[..., None]) + Cf * fade[..., None]
     Cb = nc_fill(col, wb, [(FP_GROUND_FIELD if ground is None else ground) / texel] + [f / texel for f in FP_FILL])
     out = Cb * (1 - a_s)[..., None] + Cs * a_s[..., None]
-    out = out * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
+    if whites:
+        out = out * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
     return np.minimum(out, np.asarray(white)), a_s, aw            # no ink lighter than the white
 
 
-def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None):
+def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None, fade=None, plain=None):
     """The flat print over the given charts: lin the photos' colours (linear, on the reference's inks), q the view
-    weights, shapes where the photos' shapes count. Returns display values."""
+    weights, shapes where the photos' shapes count, plain where the print is ground only. Returns display values."""
     lin = lin * gain
     out = np.zeros_like(lin)
     for c in charts:
@@ -1554,9 +1715,41 @@ def flat_print(lin, q, chm, charts, texel, gain, white, shapes=None, opts=None):
         y0, y1, x0, x1 = max(ys.min() - 8, 0), ys.max() + 9, max(xs.min() - 8, 0), xs.max() + 9
         sl = (slice(y0, y1), slice(x0, x1))
         o, _, _ = flat_layers(np.clip(lin[sl], 0, 1), q[sl], m[sl], texel, white,
-                              None if shapes is None else shapes[sl], **(opts or {}).get(c, {}))
+                              None if shapes is None else shapes[sl], fade=None if fade is None else fade[sl],
+                              plain=None if plain is None else plain[sl], **(opts or {}).get(c, {}))
         out[sl][m[sl]] = o[m[sl]]
     return to_srgb(out)
+
+
+def flat_sleeve_art(gain, white):
+    """Each sleeve's zebra traced on Leatt US's front flat itself (FP_FLAT_SLEEVE): a Photo of the flat whose pixels
+    inside each sleeve's outline are the traced artwork (display), the white elements and the sleeve's lit edge
+    (over 0.6 white, dilated 2 mm) filled from the ground round them."""
+    from scipy import ndimage
+    pl = Photo(FLAT_REF, median=FLAT_MEDIAN)
+    a = pl.a.copy()
+    H, W = pl.bad.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    tab = J_ARM_TAB["flat"]
+    for s in sorted(set(SLEEVE_ZEBRA_FROM.values())):
+        (u0, v0), (u1, v1) = J_ARMS[("flat", s)]
+        A, B = np.array([u0, v0], float), np.array([u1, v1], float)
+        L = np.linalg.norm(B - A)
+        dd = (B - A) / L
+        t = ((xx - A[0]) * dd[0] + (yy - A[1]) * dd[1]) / L
+        lat = (xx - A[0]) * dd[1] - (yy - A[1]) * dd[0]
+        inside = (t > -0.05) & (t < 1.05) & (np.abs(lat) < np.interp(t, tab[0], tab[1]) * 1.05) & ~pl.bad
+        ys, xs = np.nonzero(inside)
+        sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
+        sel = inside[sl]
+        d = a[sl]
+        fw = d.min(-1) - 0.6 * (d.max(-1) - d.min(-1))
+        sh = ~ndimage.binary_dilation(fw > FP_FLAT_SLEEVE["near_white"], iterations=int(round(0.002 / FLAT_TEXEL)))
+        col = np.clip(to_lin(d) * gain, 0, 1)
+        o, _, _ = flat_layers(col, sel.astype(float), sel, FLAT_TEXEL, white, sh & sel, **FP_FLAT_SLEEVE)
+        a[sl] = np.where(sel[..., None], to_srgb(o / gain), a[sl])
+    pl.a = a
+    return pl
 
 
 def sleeve_unroll(body, s, P):
@@ -1581,16 +1774,95 @@ def sleeve_unroll(body, s, P):
 
 
 FP_SLEEVE_WRAP = 0.04    # m, the unrolled sleeve's raster runs on this far past its back line, both ways
+# Leatt's marks on the sleeves, printed from its official files (round 3b): the photos see them at a slant, and
+# traced from them they came out as a blob (his right forearm's LEATT) and specks (his left forearm's icon). Each:
+# sleeve, t along the arm (sleeve_photo_uv's: shoulder point 0, cuff end 1), the angle round the arm from its front
+# toward its outside (deg), width (m), art.
+# - R, LEATT: Leatt US's front flat, ink rows 1204 to 1409 on the sleeve's line from row 470 to 1640 (t 0.627 to
+#   0.802: centre 0.715; long 0.175 of his arm's 0.503 m, 88 mm), its centre 83 px outward of the line where the
+#   sleeve's half is 87 px (lat 0.95: 72 deg); reading down the arm, its letters' tops toward the front. Leatt NZ's
+#   back photo sees four of its letters at the right forearm's outer edge, 100 px (63 mm).
+# - L, icon: Leatt NZ's back photo, the triangle at (285, 910): t 0.56 on the line (427, 400) to (293, 1324), 67 px
+#   outward where the half is 72 px (lat 0.93: 68 deg from the back, 112 from the front); 35 px along the arm of the
+#   line's 934 (19 mm); apex up the arm, under the end of the sleeve's line (the front 3/4 and back photos).
+# - L, LEATT: the right's place mirrored (an estimate: Leatt draws the sleeves as mirror images, and no view sees
+#   this one square: Leatt NZ's back three-quarter flat sees it near the sleeve's outer edge, the front three-quarter
+#   photo on the forearm's outer front). Reading up the arm, its letters' tops toward the front (both photos: the
+#   letters run toward the elbow), so it reads from outside as the right's does. Traced, the photos put it in three
+#   places at once (a 1086 mm2 streak 44 deg from the front, 340 mm2 of letters at 109 deg; build 7 of round 3b).
+SLEEVE_MARKS = (("R", 0.715, 72.0, 0.088, "leatt"), ("L", 0.715, 72.0, 0.088, "leatt"),
+                ("L", 0.56, 112.0, 0.019, "icon"))
+SLEEVE_MARK_KEEP = 0.012        # m round each mark where the photos' traced whites are dropped
 
 
-def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes):
+def sleeve_marks(body, pos, nrm, chm):
+    """The sleeve marks (SLEEVE_MARKS) laid out: per mark its canvas (the official art, white), the texels it prints
+    on, and a test for the points round it where traced whites are dropped (a LEATT: all round the arm over its
+    span, as the photos' slanted views of it land anywhere round the forearm; the icon: round the icon)."""
+    out = []
+    for s, t, ang, w, kind in SLEEVE_MARKS:
+        S, E, W, f, o = arm_frame(body, s)
+        L1, L2 = np.linalg.norm(E - S), np.linalg.norm(W - E)
+        al = t * (L1 + L2)
+        A, d = (S + (E - S) * al / L1, (E - S) / L1) if al < L1 else (E + (W - E) * (al - L1) / L2, (W - E) / L2)
+        fd = f - d * np.dot(f, d)
+        fd /= np.linalg.norm(fd)
+        od = o - d * np.dot(o, d) - fd * np.dot(o, fd)
+        od /= np.linalg.norm(od)
+        th = np.radians(ang)
+        n = np.cos(th) * fd + np.sin(th) * od                       # out of the arm, at the mark
+        base = 2 if s == "L" else 4
+        m = (chm == base) | (chm == base + 1)
+        P = pos[m]
+        ring = P[np.abs((P - A) @ d) < 0.004]
+        rr = (ring - A) - np.outer((ring - A) @ d, d)
+        C = ring[np.argmax((rr @ n) / np.linalg.norm(rr, axis=1))]  # the cloth's point in that direction
+        if kind == "leatt":
+            art = official_wordmark()
+            a = d if s == "R" else -d                               # down the right arm, up the left
+            b = np.sin(th) * fd - np.cos(th) * od                   # tops to the front
+        else:
+            art = leatt_icon()
+            b = -d                                                  # apex up the arm
+            a = np.cross(b, n)
+        assert np.dot(np.cross(a, b), n) > 0.99                     # seen from outside, not mirrored
+        h = w * art.shape[0] / art.shape[1]
+        cv = Canvas(C, a, b, w + 0.01, h + 0.01, ppm=4000)
+        cv.stamp(art, 0.0, 0.0, w, color=INK_WHITE)
+
+        def near(Q, C=C, a=a, b=b, n=n, w=w, h=h, k=SLEEVE_MARK_KEEP):
+            q = Q - C
+            return (np.abs(q @ a) < w / 2 + k) & (np.abs(q @ b) < h / 2 + k) & (q @ n > -0.02)
+        zone = m & near(pos, k=0.004) & ((nrm @ n) > 0.2)
+        if kind == "leatt":
+            def keep(Q, A=A, d=d, w=w, sg=1 if s == "L" else -1, k=SLEEVE_MARK_KEEP):
+                q = Q - A
+                al = q @ d
+                rad = np.linalg.norm(q - np.outer(al, d), axis=1)
+                return (np.abs(al) < w / 2 + k) & (rad < 0.10) & (Q[:, 0] * sg > 0.1)
+        else:
+            keep = near
+        out.append(dict(s=s, kind=kind, C=C, n=n, a=a, b=b, w=w, h=h, canvas=cv, zone=zone, near=near, keep=keep))
+    return out
+
+
+SLEEVE_WHITE_Q = 0.02          # the sleeves' white elements only where a photo saw the texel (view weight over this)
+SLEEVE_MIRROR = (0.04, 0.10)   # m along the arm from the shoulder point: the back half mirrors the front from here
+                               # (above it, the raglan part's magenta fade, from the trunk's own back view)
+
+
+def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes, zlin=None, keep_out=None):
     """The flat print of both halves of each sleeve at once (decision 52, round 3): per chart, the halves' stripes
     were cut and coloured apart and stepped along the sleeve's top and underarm lines (59 and 35 of 255 at the
     median). The sleeve is unrolled about its arm onto one raster (round = angle times the sleeve's median radius
     at that distance along, wrapped past the back line), traced and cut there by flat_layers, and read back.
+    zlin: the zebra's source (the traced flat, flat_sleeve_art), the white elements from `lin` (every view) except
+    where keep_out(points) holds (Leatt's marks, printed from the official files: sleeve_marks).
     Returns {chart: display colours of its texels}."""
     from scipy import ndimage
     out = {}
+    zlin = lin if zlin is None else zlin
+    ink_black = photo_inks(FLAT_REF)["black"] * gain
     for s, base in (("L", 2), ("R", 4)):
         m = (chm == base) | (chm == base + 1)
         P = pos[m]
@@ -1623,7 +1895,40 @@ def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes):
         col = np.clip(lin[src][idx] * gain, 0, 1) * hit[..., None]
         qq = q[src][idx] * hit
         sh = shapes[src][idx] & hit
-        o, _, _ = flat_layers(col, qq, hit, texel, white, sh, **FP_SLEEVE)
+        # the white elements (his left sleeve's line and forearm LEATT, the icons) from every view, where one sees
+        # them (round 3b: where none does, the photos' fill streaks read as white bars, 190 to 1730 mm2)
+        _, _, aw = flat_layers(col, qq, hit, texel, white, sh & (qq > SLEEVE_WHITE_Q), **FP_SLEEVE)
+        if keep_out is not None:
+            aw = aw * ~(keep_out(pos[m][idx].reshape(-1, 3)).reshape(aw.shape) & hit)
+        # and what is left under white_min goes (round 3b, sheet 11: the 95 mm2 end of the left LEATT's traced
+        # streak outside its band, 46 deg from the front; thin grey scratches on the top line over his left elbow,
+        # where the line runs on toward the icon, traced as the cut's faint fringe: ridges just under the cut, the
+        # texture's white measure peaking 0.33 to 0.53)
+        lab, n = ndimage.label(aw > 0.02, np.ones((3, 3)))
+        if n:
+            area = ndimage.sum(aw, lab, np.arange(1, n + 1)) * texel ** 2
+            aw = aw * ~np.isin(lab, np.nonzero(area < FP_SLEEVE["white_min"])[0] + 1)
+        # the zebra (round 3b): the traced flat (flat_sleeve_art; the back views see the sleeve's back at grazing
+        # angles and their bands' phase differs from the flat's, so their stripes came out as fragments). Below the
+        # raglan part the back half is the front half mirrored about the top and underarm lines (continuous there;
+        # Leatt's bands wrap round the arm: an estimate where the flat does not see, checked against the back photos)
+        col = np.clip(zlin[src][idx] * gain, 0, 1) * hit[..., None]
+        mi = np.abs(ga) > np.pi / 2
+        gm = np.where(ga > 0, np.pi - ga, -np.pi - ga)
+        cxm = np.clip(np.round((gm * rr + R) / texel).astype(int), 0, nx - 1)
+        cym = np.repeat(np.arange(ny)[:, None], nx, 1)
+        wm = mi * smoothstep(SLEEVE_MIRROR[0], SLEEVE_MIRROR[1], GY) * hit[cym, cxm]
+        cm_ = col[cym, cxm]
+        dm = to_srgb(cm_)
+        cm_ = np.where((dm.min(-1) - 0.6 * np.ptp(dm, -1) > 0.5)[..., None], ink_black, cm_)   # no mirrored whites
+        col = col * (1 - wm[..., None]) + cm_ * wm[..., None]
+        qq = qq * (1 - wm) + qq[cym, cxm] * wm
+        sh = np.where(wm > 0.5, sh[cym, cxm], sh)
+        # over the raglan part plain ground (the magenta fading into the black, every photo): the trunk's views there
+        # carry the photo model's sleeve stripes past the seam (fragments, round 3b review)
+        sh &= GY > SLEEVE_MIRROR[1]
+        o, _, _ = flat_layers(col, qq, hit, texel, white, sh, whites=False, **FP_SLEEVE)
+        o = o * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
         o = np.where(hit[..., None], o, 0.0)
         # back onto the texels: each at its own place on the raster (the cut's edge stays within a texel)
         cx, cy = (x + R) / texel, (y - gy[0]) / texel
@@ -1819,7 +2124,21 @@ FRONT = {"bikewise": (-0.091, 1.447, 0.095), "pirelli": (0.102, 1.446, 0.080), "
          # Leatt US's front flat sees it square on: 37 x 38 px (the favicon's aspect, 1.0) beside a 395 px LEATT,
          # 0.094 of the LEATT's 0.275 m on him: 25.8 mm; the geometric mean, 26.7 mm. Its stroke is 0.14 of its
          # width as the official favicon's 0.13 (distance transform), so the favicon is the printed art
-         "icon": (0.133, 1.423, 0.0267)}
+         "icon": (0.133, 1.423, 0.0267),
+         # Leatt's FIVE.FIVE under the yoke (round 3b: traced at 0.8 mm a texel its 2 mm strokes read as dots).
+         # PHOTO NZ front on-model: the letters' ink x 717 to 897, rows 626 to 637 (centre 807, 631; the yoke's edge
+         # at row 612 above it): (0.005, 1.343) in the photo's frame. Width from Leatt US's front flat, which sees it
+         # square on: ink 184 px beside the 395 px chest LEATT, 0.466 of its 0.275 m: 0.1281 m (cap height 11.5 px:
+         # 8.0 mm) (FIVEFIVE)
+         "fivefive": (0.005, 1.343, 0.1281)}
+# FIVE.FIVE's letters in Leatt US's front flat (PHOTO, 1920 px; light ink over 0.45 on the black band): each
+# glyph's ink centre (x, px), the ink's span and the cap height; the typeface is not resolved by the photo (11 px
+# capitals): Inter SemiBold stands in (an estimate: its F, V and E are 0.55, 0.73 and 0.6 of the cap height wide
+# as the photo's 6, 8 and 6.5 px, its stem 0.16 as the photo's 2 px)
+FIVEFIVE = {"text": "FIVE.FIVE", "x": (986.5, 1008.5, 1028.5, 1052.5, 1074.5, 1095.5, 1118.0, 1140.5, 1165.0),
+            "span": (984.0, 1168.0), "cap": 11.5,
+            "font": "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"}
+FIVEFIVE_PHOTO = (705, 617, 910, 645)   # px in the NZ front on-model photo: FIVE.FIVE's box, erased from the trace
 CONTOUR = 0.0016         # m, white contour round the USN and Cycleworx inks on the black jersey (PHOTO 08)
 PRINT_LIFT = 0.0001      # m, the print overlay over the cloth (0.3 mm left a contact-shadow line at its edges)
 PRINT_TEXEL = {"number": 0.25e-3, "name": 0.15e-3, "front": 0.10e-3}   # m per texel of the print atlas
@@ -1999,6 +2318,47 @@ def logo(name):
     return np.asarray(Image.open(os.path.join(SPONSORS, name)).convert("RGBA")).astype(np.float32) / 255
 
 
+def fivefive_art():
+    """FIVE.FIVE (FIVEFIVE): each glyph at its measured centre on a common baseline, white ink; premultiplied RGBA
+    cropped to the ink's span across (FRONT's width: the F's left to the E's right)."""
+    from PIL import Image, ImageDraw, ImageFont
+    cap = 160                                                  # art px of the cap height
+    k = cap / FIVEFIVE["cap"]                                  # art px per flat px
+    f = ImageFont.truetype(FIVEFIVE["font"], int(round(cap / 0.727)))   # Inter's cap height: 0.727 em
+    x0, x1 = FIVEFIVE["span"]
+    pad = int(cap * 0.3)
+    W, H = int(round((x1 - x0) * k)) + 2 * pad, cap + 2 * pad
+    m = np.zeros((H, W), np.float32)
+    for ch, xc in zip(FIVEFIVE["text"], FIVEFIVE["x"]):
+        g = Image.new("L", (2 * cap, 2 * cap), 0)
+        ImageDraw.Draw(g).text((cap // 2, cap + cap // 2), ch, font=f, fill=255, anchor="ls")
+        a = np.asarray(g).astype(np.float32) / 255
+        ys, xs = np.nonzero(a > 0.5)
+        cx = (xs.min() + xs.max()) / 2
+        dx = int(round(pad + (xc - x0) * k - cx))
+        dy = (pad + cap) - (cap + cap // 2)                     # the baseline at the cap's foot
+        ya, yb = max(0, -dy), min(a.shape[0], H - dy)
+        xa, xb = max(0, -dx), min(a.shape[1], W - dx)
+        m[ya + dy:yb + dy, xa + dx:xb + dx] = np.maximum(m[ya + dy:yb + dy, xa + dx:xb + dx], a[ya:yb, xa:xb])
+    rgba = np.dstack([np.array(INK_WHITE, np.float32) / 255 * m[..., None], m]).astype(np.float32)
+    xs = np.nonzero((m > 0.02).any(0))[0]
+    return rgba[:, xs.min():xs.max() + 1]
+
+
+def erase_light(photo, box, thr=0.45, dark=0.35, sigma=4):
+    """Fill the light marks (min channel over thr) in a box of a photo from the dark print round them."""
+    from scipy import ndimage
+    u0, v0, u1, v1 = box
+    a = photo.a
+    m = np.zeros(a.shape[:2], bool)
+    m[v0:v1, u0:u1] = a[v0:v1, u0:u1].min(2) > thr
+    m = ndimage.binary_dilation(m, iterations=3)
+    keep = (~m & (a.max(2) < dark)).astype(float)
+    num = np.stack([ndimage.gaussian_filter(a[..., k] * keep, sigma) for k in range(3)], 2)
+    den = ndimage.gaussian_filter(keep, sigma)[..., None]
+    a[m] = (num / np.maximum(den, 1e-6))[m]
+
+
 def front_arts():
     """The sponsors' official artwork (reference/sponsors) as printed on his jersey (PHOTO 09 and 08)."""
     from PIL import Image
@@ -2037,6 +2397,7 @@ def front_arts():
     # Leatt's icon: the official favicon's three pieces (the registered sign dropped), white ink
     m = leatt_icon()
     arts["icon"] = np.dstack([np.array(INK_WHITE, np.float32) / 255 * m[..., None], m]).astype(np.float32)
+    arts["fivefive"] = fivefive_art()
     out = {}
     for k, a in arts.items():
         x, z, w = FRONT[k]
@@ -2192,16 +2553,23 @@ def print_overlay(V, N, Q, chart, UV, scale, prints, margin=0.004):
     from scipy.sparse.csgraph import connected_components
     c = V[Q]
     texel = np.full(len(Q), np.inf)
-    for pr in prints:
+    owner, depth = np.full(len(Q), -1), np.full(len(Q), -np.inf)
+    for j, pr in enumerate(prints):
         s, t, ok = pr.st(c.reshape(-1, 3), N[Q].reshape(-1, 3))
         hit = (ok & pr.inside(s, t, margin)).reshape(-1, 4).any(1)
         texel = np.where(hit, np.minimum(texel, pr.texel), texel)
+        sc, tc, _ = pr.st(c.mean(1), N[Q].mean(1))
+        d = np.minimum(pr.art.w / 2 - np.abs(sc), pr.art.h / 2 - np.abs(tc))   # the face's centre inside its box
+        better = hit & (d > depth)
+        owner, depth = np.where(better, j, owner), np.where(better, d, depth)
     F = np.nonzero(np.isfinite(texel))[0]
-    # islands: faces of one chart joined by shared vertices
+    # islands: faces of one chart and one print (the one whose box the face's centre lies deepest in) joined by
+    # shared vertices (round 3b: one island per print, so each takes its own texel and the islands pack closer;
+    # FIVE.FIVE had joined the chest's USN and Cycleworx into one 0.30 m island: 0.192 mm a texel against 0.166)
     inc = sparse.coo_matrix((np.ones(4 * len(F)), (np.repeat(np.arange(len(F)), 4), Q[F].ravel())),
                             (len(F), len(V))).tocsr()
     adj = (inc @ inc.T).tocoo()
-    same = chart[F][adj.row] == chart[F][adj.col]
+    same = (chart[F][adj.row] == chart[F][adj.col]) & (owner[F][adj.row] == owner[F][adj.col])
     g = sparse.coo_matrix((np.ones(same.sum()), (adj.row[same], adj.col[same])), (len(F), len(F)))
     n_isl, lab = connected_components(g, directed=False)
     isl = []
@@ -2211,25 +2579,14 @@ def print_overlay(V, N, Q, chart, UV, scale, prints, margin=0.004):
         lo, hi = uv.min(0), uv.max(0)
         k = 1.0 / (scale * texel[f].min())               # atlas px per jersey-UV unit (scale: UV units per metre)
         isl.append([lo, hi, k, f])
-    # shelf packing into the atlas (shrink every island together until they fit)
-    pad, shrink = 6, 1.0
+    # skyline packing into the atlas (shrink every island together until they fit; round 3's shelves: 0.60 of
+    # PRINT_TEXEL where the skyline reaches 0.61)
+    shrink = 1.0
     while True:
-        order = sorted(range(n_isl), key=lambda i: -(isl[i][1][1] - isl[i][0][1]) * isl[i][2])
-        x = y = rowh = 0
-        org, ok = {}, True
-        for i in order:
-            lo, hi, k, _ = isl[i]
-            w, h = (hi - lo) * k * shrink + 2 * pad
-            if x + w > ATLAS_RES:
-                x, y, rowh = 0, y + rowh, 0
-            if y + h > ATLAS_RES or w > ATLAS_RES:
-                ok = False
-                break
-            org[i] = (x + pad, y + pad)
-            x, rowh = x + w, max(rowh, h)
-        if ok:
+        org = skyline_pack([(hi - lo) * k * shrink for lo, hi, k, _ in isl], ATLAS_RES, pad=6)
+        if org is not None:
             break
-        shrink *= 0.93
+        shrink *= 0.98
     fis = np.zeros(len(Q), int) - 1
     out_uv = np.zeros((len(F), 4, 2))
     islands = []
@@ -2242,6 +2599,40 @@ def print_overlay(V, N, Q, chart, UV, scale, prints, margin=0.004):
         lo, k, o = islands[fis[f]]
         out_uv[j] = ((UV[f] - lo) * k + o) / ATLAS_RES
     return F, out_uv, fis[F], islands, shrink
+
+
+def skyline_pack(sizes, res, pad):
+    """Rectangles (w, h in px) into a res square, tallest first, each at the lowest then leftmost place on the
+    skyline (the packed tops' outline) where it fits. Returns {index: (x, y) of its origin inside its pad} or None."""
+    order = sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0]))
+    sky = [[0, 0, res]]                                   # segments: x, top, width
+    org = {}
+    for i in order:
+        w, h = (int(np.ceil(v)) + 2 * pad for v in sizes[i])
+        best = None
+        for x, _, _ in sky:
+            if x + w <= res:
+                y = max(sy for sx, sy, sw in sky if sx < x + w and sx + sw > x)
+                if y + h <= res and (best is None or (y, x) < best):
+                    best = (y, x)
+        if best is None:
+            return None
+        y, x = best
+        org[i] = (x + pad, y + pad)
+        new = [[x, y + h, w]]
+        for sx, sy, sw in sky:
+            if sx < x:
+                new.append([sx, sy, min(sw, x - sx)])
+            if sx + sw > x + w:
+                new.append([max(sx, x + w), sy, sx + sw - max(sx, x + w)])
+        new.sort()
+        sky = [new[0]]
+        for seg in new[1:]:
+            if seg[1] == sky[-1][1] and sky[-1][0] + sky[-1][2] == seg[0]:
+                sky[-1][2] += seg[2]
+            else:
+                sky.append(seg)
+    return org
 
 
 def bilinear(img, u, v):
@@ -2325,6 +2716,32 @@ def perforations(pos, mask, centres, r=0.0009, depth=0.0008):
     return h, dark
 
 
+# The lower back's perforations (round 3b; Damien not asked back yet, so an estimate): Leatt's NZ back three-quarter
+# flat at 1:1 shows a field of 4 staggered rows under the magenta fade, 27.7 px apart (12.4 mm at its 2237 px per m
+# down the garment, SIDE_ROWS), rows y 970 to 1053 (z 1.185 to 1.147), 13 holes a row over 293 px (foreshortened:
+# 24 px apart; 14.3 mm for an equilateral stagger, the photo then seeing the back at 41 deg); his 06 shows about
+# 5 rows there above the pant: one more row on top. Through the holes his 06 shows light dots: the brightest tenth
+# of their peaks (146, 165, 197) in daylight, the 1 to 2 px dots blurred into the black (a light base layer)
+LB_HOLES = {"z_top": 1.197, "rows": 5, "dz": 0.0124, "pitch": 0.0143, "half_width": 0.088,
+            "tone": (146, 165, 197)}
+
+
+def lower_back_holes(P, N):
+    """The lower back's hole centres (LB_HOLES): staggered rows on the back-facing cloth points P."""
+    back = (N[:, 1] > 0.5) & (np.abs(P[:, 0]) < LB_HOLES["half_width"] + 0.02)
+    Q = P[back]
+    tree = cKDTree(Q[:, [0, 2]])
+    C = []
+    for k in range(LB_HOLES["rows"]):
+        z = LB_HOLES["z_top"] - k * LB_HOLES["dz"]
+        x0 = -LB_HOLES["half_width"] + (k % 2) * LB_HOLES["pitch"] / 2
+        for x in np.arange(x0, LB_HOLES["half_width"] + 1e-9, LB_HOLES["pitch"]):
+            d, i = tree.query([x, z])
+            if d < 0.003:
+                C.append(Q[i])
+    return np.array(C)
+
+
 def hole_field(P, N, sel, pitch, count, rng=None):
     """count hole centres on the cloth points P (rest pose) inside a selection, on a staggered grid of pitch."""
     Q = P[sel]
@@ -2391,9 +2808,13 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     pb = Photo(JB_REF, exclude=[(600, 0, 1000, 266), (900, 60, 1120, 330), (120, 1330, 420, 1600),
                                 (1180, 1330, 1460, 1600)], inks=back_map(nz))   # the back photo is brighter
     pl = Photo(FLAT_REF, median=3)                             # the flat itself: the sleeves' fronts
+    white = to_lin(np.array(INK_WHITE) / 255)
+    gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
+    plz = flat_sleeve_art(gain, white)                         # and its sleeves' zebra, traced (round 3b)
     ps = Photo(SIDE_REF, inks=nz)                              # the back three-quarter flat: the side panels
     if prints:
         erase_back_logo(pb)                                  # his name is printed there instead (Damien's additions)
+        erase_light(pf, FIVEFIVE_PHOTO)                      # printed sharper with the prints (round 3b)
     for c, view in ((0, "front"), (1, "back")):
         m = chm == c
         Pm = pos[m].copy()
@@ -2405,6 +2826,7 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     # the sleeves: the front half from Leatt US's front flat (the whole sleeve square on, evenly lit; the on-model
     # photos see the arms turned and shaded), the back half from the back on-model photo, the raglan part over the
     # shoulder from the trunk's views; blended over the sleeve's top and underarm lines
+    zimg = np.zeros(pos.shape)
     for s, base in (("L", 2), ("R", 4)):
         m = (chm == base) | (chm == base + 1)
         P = pos[m]
@@ -2419,6 +2841,10 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
         cf = pl.lin(uf, vf) * ws + pf.lin(uF, vF) * (1 - ws)
         cb = pbk.lin(ub, vb) * ws + pb.lin(uB, vB) * (1 - ws)
         img[m] = cf * wf[:, None] + cb * (1 - wf[:, None])
+        # the zebra's source: below the raglan part the traced flat all round (sleeve_print mirrors its back half)
+        wz = (1 - (1 - wf[:, None]) * (1 - ws))
+        uz, vz, _ = sleeve_photo_uv(body, P, s, "flat", photo_s=SLEEVE_ZEBRA_FROM[s])
+        zimg[m] = (plz.lin(uz, vz) * ws + pf.lin(uF, vF) * (1 - ws)) * wz + cb * (1 - wz)
         nf = (nrm[m] * fseg).sum(1)                          # the photos see the hanging arm square to its front
         ws = ws[:, 0]
         sf = pl.seen(uf, vf) * ws + pf.seen(uF, vF) * (1 - ws)
@@ -2443,14 +2869,27 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     q[side] = ps.seen(u, v)
     shapes[side] = True
     # the clean flat print (decision 52): shapes traced, inks on the front flat's
-    white = to_lin(np.array(INK_WHITE) / 255)
-    gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
     texel = 1.0 / (scale * TEX_RES)
     src = img
-    img = flat_print(src, q, chm, (0, 1), texel, gain, white, shapes, opts={1: FP_BACK})
-    for c, (ix, v) in sleeve_print(src, q, chm, pos, body, texel, gain, white, shapes).items():
+    bx, bz0, bz1 = FP_FADE["box"]
+    sw = FP_FADE["soft"]
+    z = pos[..., 2]
+    fade = ((chm == 0) * smoothstep(bx, bx - sw, np.abs(pos[..., 0])) * smoothstep(bz0 - sw / 2, bz0 + sw / 2, z)
+            * smoothstep(bz1 + sw / 2, bz1 - sw / 2, z))
+    # the back panel is plain, its magenta fading into the black (PHOTO back on-model, back three-quarter flat):
+    # the zebra at the back's flanks in the back views is the side panels', seen at a slant (round 3b: traced on the
+    # back chart past the panels' seams, it came out as lime and teal fragments, sheets 01, 06 and 09)
+    plain = (chm == 1) & ~side
+    img = flat_print(src, q, chm, (0, 1), texel, gain, white, shapes, opts={1: FP_BACK}, fade=fade, plain=plain)
+    marks = sleeve_marks(body, pos, nrm, chm)
+    keep = lambda P: np.any([mk["keep"](P) for mk in marks], 0)   # noqa: E731
+    for c, (ix, v) in sleeve_print(src, q, chm, pos, body, texel, gain, white, shapes, zimg, keep).items():
         img[ix] = v                                            # each sleeve's halves as one print
+    us, vs = side_photo_uv(pos[side])
+    img[side] = to_srgb(side_panel_art(ps, nz, gain, white)(us, vs))   # the side panels' own trace (round 3b)
     img = level_raglan(img, pos, chm, V, Q, chart)
+    for mk in marks:                                           # Leatt's sleeve marks, from the official files
+        img = mk["canvas"].apply(img, pos, mk["zone"])
     # Damien's additions (also printed sharper on the print overlay, which takes `base` round them)
     base = img.copy()
     img = lay_prints(img, pos, nrm, mask, prints, texel=1.0 / (scale * TEX_RES))
@@ -2474,13 +2913,17 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
         holes.append(hole_field(P, Nn, sel, 0.011, 50))
         sel = (P[:, 0] * sg > 0.12) & (np.abs(P[:, 1] - Y_SIDE) < 0.03) & (P[:, 2] > 1.12) & (P[:, 2] < 1.33)
         holes.append(hole_field(P, Nn, sel, 0.012, 40))
-    for zr in (1.155, 1.215):
-        sel = (Nn[:, 1] > 0.6) & (np.abs(P[:, 2] - zr) < 0.004) & (np.abs(P[:, 0]) < 0.14)
-        holes.append(hole_field(P, Nn, sel, 0.0095, 29))
-    C = np.concatenate(holes)
+    lb = lower_back_holes(P, Nn)
+    C = np.concatenate(holes + [lb])
     hp, dark = perforations(pos, mask, C)
     h += hp
     img *= dark[..., None]
+    # what shows through the lower back's holes: a light base layer (his 06), not the dark of the others
+    d, _ = cKDTree(lb).query(pos[mask])
+    inside = np.zeros(pos.shape[:2])
+    inside[mask] = smoothstep(0.0009 * 1.3, 0.0009 * 0.7, d)
+    img = img * (1 - inside[..., None]) + np.array(LB_HOLES["tone"]) / 255 * inside[..., None]   # display
+    dark = np.where(inside > 0, 1.0, dark)
     # folds where riding bends the jersey: inner elbows, the belly over the bent hips, the shoulder blades reaching
     spec = [((0, -0.135, 1.13), (1, 0, 0), (0, 0, 1), 0.07, 0.022, 0.0009)]
     for s, sg in (("L", 1), ("R", -1)):
@@ -2511,17 +2954,17 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     pf = Photo(PF_REF, exclude=[(470, 140, 1010, 330)])                # the Waistlock (modelled in 3D)
     pb = Photo(PB_REF)
     crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
-    sil = pant_silhouette(V, crotch)
-    q = np.zeros(pos.shape[:2])
-    for cs, view, ph in (((0, 2), "front", pf), ((1, 3), "back", pb)):
-        m = np.isin(chm, cs)
-        u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
-        img[m] = ph.lin(u, v)
-        q[m] = np.clip(nrm[m][:, 1] * (-1 if view == "front" else 1), 0, 1) * ph.seen(u, v)
-    # the clean flat print (decision 52); past 83 deg (the legs' outer sides) the photos' shapes are smears: plain
-    # ground there, its colour from further in
+    sil = pant_silhouette(V, crotch, Q)
     white = to_lin(np.array(INK_WHITE) / 255)
     gain = white.mean() / photo_inks(FLAT_REF)["white"].mean()
+    # the clean flat print (decision 52), traced on each photo itself (round 3b, FP_PANT_PHOTO)
+    for cs, view, ph, rows in (((0, 2), "front", pf, PF_ROWS), ((1, 3), "back", pb, PB_ROWS)):
+        m = np.isin(chm, cs)
+        zebra, wa = pant_photo_art(ph, rows, gain, white)
+        u, v = pant_photo_uv(pants, pos[m], view, ph.alpha, sil)
+        un, _ = pant_photo_uv(pants, pos[m], view, ph.alpha, sil, mirror=False)   # white elements: never mirrored
+        a = np.clip(wa(un, v)[:, :1], 0, 1)
+        img[m] = to_srgb(zebra(u, v) * (1 - a) + white * a)
     # the big LEATT on the outer left thigh, printed flat from a view square to it (PHOTO: Leatt front on-model,
     # front three-quarter and back flat): reading up from the knee, letter tops to the front. The photo's own,
     # stretched over the side, is taken out first (its white and a 2 mm rim to the black ink: the print fills it)
@@ -2535,14 +2978,11 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     side.stamp(official_wordmark(), 0.0, 0.0, THIGH_LOGO[2], rot=90, color=INK_WHITE)
     zone = mask & (pos[..., 0] > 0.02) & (((pos - C) @ d) > 0) & ((nrm @ d) > 0.2) & \
         (np.abs(pos[..., 2] - zc) < THIGH_LOGO[2] / 2 + 0.04)
-    c = to_srgb(img)
+    c = img
     whiteish = (c.min(-1) > 0.5) & (c.max(-1) - c.min(-1) < 0.25) & zone
     from scipy import ndimage
     whiteish = ndimage.binary_dilation(whiteish, iterations=max(1, int(round(0.002 * scale * TEX_RES)))) & zone
-    img[whiteish] = to_lin(np.array([18, 17, 20]) / 255)          # the pant's black (PHOTO, ledger "Round 3")
-    q[whiteish] = 1.0
-    img = flat_print(img, q, chm, range(4), 1.0 / (scale * TEX_RES), gain, white, mask & (q > 0.12),
-                     {c: FP_PANT for c in range(4)})
+    img[whiteish] = np.array([18, 17, 20]) / 255                  # the pant's black (PHOTO, ledger "Round 3")
     img = side.apply(img, pos, zone)
     iks = mask.copy()
     iks[mask] = iks_field(pants, body, pos[mask]) > 0
@@ -2784,7 +3224,8 @@ def main(body_path, out_path, tex=True):
     out.update(to_part("pants", pV, pQ, pM, pW, UV=corner_uvs(pQ, len(pants["Q"]), pUV, ppar)))
     out["tex_scale"] = np.array([jscale, pscale])                   # texture units per metre (jersey, pant)
     # Damien's additions, sharper: the print overlay rides the jersey (its vertices' own weights)
-    F, auv, fis, islands, _ = print_overlay(jersey["V"], jN, jersey["Q"], jc, jUV, jscale, prints)
+    F, auv, fis, islands, shrink = print_overlay(jersey["V"], jN, jersey["Q"], jc, jUV, jscale, prints)
+    print(f"print atlas: the front's prints at {PRINT_TEXEL['front'] / shrink * 1000:.3f} mm a texel")
     if tex:
         paint_print_atlas(jersey["V"], jN, jersey["Q"], F, auv, fis, islands, jscale, prints, jinfo["base"],
                           jinfo["dark"], jinfo["nm"], TEXDIR)

@@ -745,6 +745,53 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   the Standard view against the flat, as ratios to the white beside them (that takes out the exposure).
 - The worktree guard also refuses multi-line heredocs: write scripts with the Write tool and run them plainly.
 
+## Jersey and pant round 3b: the 1:1 review's six fixes (2026-11-15, kit.py, test_kit_rider.py, ledger kit.md, decision 52)
+- **A guard for one ink can eat another**: the white elements' edge guard (min channel less 0.6 chroma over 0.3)
+  took the sleeves' grey-teal upper bands (0.33) for white edges and dropped them: the sleeves read near black, a
+  regression from main. Check every threshold against every ink of the piece it runs on (the sleeves' now 0.95).
+- **Trace each piece where a photo sees it square on, in that photo's own pixels, then map the clean artwork onto
+  the texels**: the sleeve fronts on Leatt US's front flat (0.70 mm a px; an 11 px median takes out the
+  perforations), the side panels on the NZ back three-quarter flat, the pant in each on-model photo (0.5 mm).
+  Traced on the texture from slanted views, narrow strips (a side panel 70 to 118 px wide) gave fragments and
+  specks: the cut's 3 cm window takes its light level from the next piece.
+- **Where no photo sees a part square on, mirror the part that is seen, and say it is an estimate**: the sleeves'
+  backs are the fronts mirrored about the top and underarm lines (continuous across both), his left sleeve the
+  flat's right (the flat lays the left turned in), the pant's outer sides past 60 deg the photo's print from 60 deg
+  back toward the front (the bands meet in a chevron on the outseam). Stretching the photo's last pixels round a
+  side smears; clamping leaves it plain.
+- **Small marks seen at slants: print them from the official file and drop the traced whites round them**: traced,
+  the left forearm's LEATT landed in three places (a 1086 mm2 streak at 44 deg, letters at 109 deg). Drop the
+  photos' whites in a band all round the arm over the mark's span (12 mm beyond), not just round the stamp. Drop
+  small white pieces by area (the sleeves': under 200 mm2; the review's specks were 24 to 91).
+- **Filter by area after the last mask, not before it**: the traced whites were cleaned by area, then dropped in a
+  band round each stamped mark; the rest of a 1086 mm2 traced streak outside the band stayed as an 81 mm2 fragment.
+  The anti-aliased cut also leaves faint fringes where a ridge peaks just under it (thin grey scratches, the white
+  measure 0.33 to 0.53, invisible to a test that counts only white over 0.6). Label the final coverage (over 0.02)
+  and drop the pieces under the minimum area; test for unstamped white pieces under that area on the whole piece.
+- **Plain where the print is plain**: the back panel beside the side panels is magenta fading into black; the
+  photo model's stripes there (a fold of the side panel seen from behind) traced as lime and teal fragments. A
+  `plain` mask zeroes the stripes there and keeps the white elements.
+- **A silhouette from vertices near a height jumps**: the pant's outline from the vertices within 6 mm of each
+  height moved up to 70 mm between heights 5 mm apart, and every stripe mapped through it came out serrated. Cut
+  the mesh's edges at each height; smooth the photo's alpha runs down the rows too (15 row median, then mean).
+- **Know each image's space**: the holes' base-layer tone, a display value, went through to_lin into a display
+  image and came out (73, 95, 142) for (146, 165, 197): the test found no dots.
+- **Small text needs its own texels**: FIVE.FIVE's 8 mm capitals were 10 texels high at 0.8 mm and read as dots.
+  Set it on the print overlay with the logos (glyphs at their centres measured on the flat; a stand-in face when
+  11 px capitals do not resolve Leatt's), 0.164 mm a texel; skyline packing keeps the atlas at 0.162 mm with the
+  extra island (shelves would have shrunk it).
+- **An airbrushed end is a gradient, not a cut**: cut low (0.2, where the fade is near the black) inside a box over
+  the ends, colour the stripe by the photo's own fade smoothed over 5 mm, blend the box's edges over 8 mm, and keep
+  the ground on the unshifted cut (the shifted one left magenta blotches).
+- **A sharpness test must leave the print's own airbrush out**: Leatt's flat itself has 0.26 of the sleeve's lime
+  at mid brightness where its bands fade into the cuff; a whole-texture limit of 0.10 failed the right answer.
+  Measure the airbrushed zones apart (under 0.30) and the rest at 0.10.
+- **A test per review point, run on the old outputs**: a harness imports the new test file, points `texture` at
+  another build's textures and builds `built` from any kit npz, so each new test is shown failing on round 3 and
+  main and passing now; the docstring carries all three numbers. When a metric does not separate them (the outer
+  thigh's share with normals over 0.7: main beat the fix), narrow it to what the review saw (within 18 deg of the
+  side, 30 to 42 cm above the knee).
+
 ## Coordinating the gear rounds (coordinator's notes, 2026-11-15)
 - Never `cd` into an agent's worktree from the coordinating session: the session's working directory follows the
   shell and later relative paths resolve inside the worktree. Use absolute paths and `git -C <worktree>`.

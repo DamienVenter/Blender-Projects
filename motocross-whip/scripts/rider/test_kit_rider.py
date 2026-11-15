@@ -308,14 +308,30 @@ def test_back_yoke_is_the_fronts_magenta(built):
     assert front.sum() > 30 and back.sum() > 30 and np.abs(f - b).max() < 15, (f.round(), b.round())
 
 
-def test_print_is_cut_not_blurred(built):
-    """The stripes are traced and cut, anti-aliased over one texel: few lime texels at mid brightness (the airbrush
-    fades only), where the projected photos had a soft ramp at every edge (round 2: 0.16 jersey, 0.51 pant)."""
-    for name, most in (("jersey_color.png", 0.10), ("pants_color.png", 0.25)):
-        a = texture(name)
-        r, g, b = a[..., 0], a[..., 1], a[..., 2]
-        G = g[(r > 0.45 * g) & (b < 0.45 * g) & (r < 1.1 * g)]
-        assert ((G > 0.3) & (G < 0.7)).sum() / (G >= 0.7).sum() < most, name
+def test_print_is_cut_not_blurred(built, texels):
+    """The stripes are traced and cut, anti-aliased over one texel: few lime texels at mid brightness, where the
+    projected photos had a soft ramp at every edge (round 2: 0.16 jersey, 0.51 pant). Leatt's own airbrushed ends
+    are measured apart (round 3b): the sleeves' last 30 % (Leatt US's front flat fades the bands into the lime cuff
+    there: 0.26 over its right sleeve, 0.48 to 0.64 at 0.80 to 0.90 of its length) and the chevrons' tops under
+    FIVE.FIVE (fix 5), no softer than the flat's sleeve (under 0.30; round 3b 0.265). The rest of the jersey's charts
+    under 0.10 (round 3b 0.090; by this measure round 3 0.147, main 0.162), the pant under 0.25 (round 3b 0.058,
+    round 3 0.139, main 0.51)."""
+    body, g = built
+    a, pos, nrm, chm, tx = texels["jersey"]
+    bx, bz0, bz1 = K.FP_FADE["box"]
+    air = (chm == 0) & (np.abs(pos[..., 0]) < bx) & (pos[..., 2] > bz0) & (pos[..., 2] < bz1)
+    for s, base in (("L", 2), ("R", 4)):
+        m = (chm == base) | (chm == base + 1)
+        _, _, t = K.sleeve_photo_uv(body, pos[m], s, "flat", photo_s="R")
+        air[m] |= t > 0.7
+
+    def soft(x):
+        r, g_, b = x[:, 0], x[:, 1], x[:, 2]
+        G = g_[(r > 0.45 * g_) & (b < 0.45 * g_) & (r < 1.1 * g_)]
+        return ((G > 0.3) & (G < 0.7)).sum() / (G >= 0.7).sum()
+    on = chm >= 0
+    assert soft(a[on & ~air]) < 0.10 and soft(a[air]) < 0.30, (soft(a[on & ~air]), soft(a[air]))
+    assert soft(texels["pants"][0].reshape(-1, 3)) < 0.25
 
 
 def test_pant_rows_above_the_crotch_take_the_whole_pant(built):
@@ -324,7 +340,7 @@ def test_pant_rows_above_the_crotch_take_the_whole_pant(built):
     body, g = built
     V, faces = part(g, "pants")
     crotch = V[np.abs(V[:, 0]) < 0.01][:, 2].min()
-    sil = K.pant_silhouette(V, crotch)
+    sil = K.pant_silhouette(V, crotch, np.array([f for f in faces if len(f) == 4]))
     for ref, view, sel in ((K.PB_REF, "back", V[:, 1] > 0.02), (K.PF_REF, "front", V[:, 1] < -0.02)):
         ph = K.Photo(ref)
         P = V[sel & (V[:, 2] > 0.862) & (V[:, 2] < 1.0) & (np.abs(V[:, 0]) < 0.15)]
@@ -432,3 +448,190 @@ def test_materials_cover_every_part(built):
     assert {"jersey_print", "pant_print", "pant_iks", "strap", "buckle"} <= used
     for m in used:
         assert 0.0 <= spec[m].get("rough", 0.5) <= 1.0
+
+
+# ================================================================ round 3b (the review at 1:1, six fixes)
+def texel_maps(body, g):
+    """Every texel of the jersey's and the pant's colour textures: the texture, the rest-pose point and normal there,
+    its chart (-1 off the charts), and the texel's size in m."""
+    out = {}
+    for name, tex, k in (("jersey", "jersey_color.png", 0), ("pants", "pants_color.png", 1)):
+        a = texture(tex)
+        V = g[name + "__V"].astype(float)
+        Q = g[name + "__F"].reshape(-1, 4)
+        N = K.vnormals(V, Q)
+        ch = K.jersey_charts(body, V, Q) if name == "jersey" else np.zeros(len(Q), int)
+        pos, nrm, chm = K.raster(g[name + "__UV"].reshape(-1, 4, 2), V, N, Q, ch, a.shape[0])
+        out[name] = (a, pos[::-1], nrm[::-1], chm[::-1], 1 / (float(g["tex_scale"][k]) * a.shape[0]))
+    return out
+
+
+@pytest.fixture(scope="module")
+def texels(built):
+    return texel_maps(*built)
+
+
+def _sleeve(body, P, s):
+    """Along the arm (0 shoulder point .. 1 cuff end, sleeve_photo_uv's), the cosine to the arm's front, and whether
+    the point is on that sleeve."""
+    S, E, W, f, o = K.arm_frame(body, s)
+    d = (W - S) / np.linalg.norm(W - S)
+    r = np.linalg.norm((P - S) - np.outer((P - S) @ d, d), axis=1)
+    cosf, _ = K.arm_facing(body, s, P)
+    _, _, t = K.sleeve_photo_uv(body, P, s, "flat", photo_s="R")
+    return t, cosf, (P[:, 0] * (1 if s == "L" else -1) > 0.15) & (r < 0.10)
+
+
+def test_sleeve_fronts_carry_the_flats_bands(built, texels):
+    """Fix 1: each sleeve's front shows the front flat's zebra (grey-teal bands on the upper arm, teal, lime at the
+    cuff). Band or ground, texel by texel, against Leatt US's front flat (its right sleeve; the left is drawn as its
+    mirror image): the band texels' IoU over 0.75 on the upper arm and the forearm of both sleeves (round 3: his
+    left 0.27 and 0.37, near black; main 0.21 to 0.36; round 3b 0.85 to 0.88)."""
+    body, g = built
+    a, pos, nrm, chm, _ = texels["jersey"]
+    m = chm >= 0
+    fl = K.Photo(K.FLAT_REF)
+    band = lambda c: (c.max(1) > 0.28) & ~K.ink_class("white", c)   # noqa: E731
+    for s in "LR":
+        P = pos[m]
+        t, cosf, on = _sleeve(body, P, s)
+        u, v, _ = K.sleeve_photo_uv(body, P, s, "flat", photo_s="R")
+        sel = on & (cosf > 0.5) & (t > 0.25) & (t < 0.85) & (fl.seen(u, v) > 0.5)
+        br, bg = band(K.to_srgb(fl.lin(u[sel], v[sel]))), band(a[m][sel])
+        for seg, (lo, hi) in (("upper arm", (0.25, 0.5)), ("forearm", (0.5, 0.85))):
+            k = (t[sel] > lo) & (t[sel] < hi)
+            iou = (br[k] & bg[k]).sum() / max((br[k] | bg[k]).sum(), 1)
+            assert k.sum() > 2000 and iou > 0.75, (s, seg, int(k.sum()), round(float(iou), 2))
+
+
+def test_back_and_sleeve_backs_carry_no_fragments(built, texels):
+    """Fix 2: the back panel is plain, its magenta fading into the black (PHOTO back on-model, back three-quarter
+    flat): stripe ink on under 0.02 of its flanks beside the side panels (round 3: 0.22, lime and teal fragments;
+    main 0.21; round 3b 0.001). Each forearm's LEATT is Leatt's file at its place: the white over its span all round
+    the arm is the stamp's letters, IoU over 0.8 (round 3: 0.27 and 0.13, a blob on his right forearm, a streak and
+    letters at two places on his left; main 0.00 and 0.03; round 3b 0.99). No white specks under 20 mm2 on the
+    sleeves' backs (main 3 on his left), and no white piece under 200 mm2 anywhere on the sleeves but Leatt's
+    stamped marks (round 3: 25, his left 23 up to 75 mm2, his right 183 and 17 mm2; main 14, his left 9 up to
+    48 mm2, his right 5 up to 188 mm2; round 3b's build 9: on his left, an 81 mm2 end of the forearm LEATT's traced
+    streak and 14 specks of 1 to 2 mm2 over the elbow; round 3b: none)."""
+    body, g = built
+    a, pos, nrm, chm, tx = texels["jersey"]
+    m = chm >= 0
+    trunk = (chm == 0) | (chm == 1)
+    z = pos[..., 2]
+    flank = (trunk & (nrm[..., 1] > 0.3) & (pos[..., 1] > K.Y_SIDE + K.MESH_PANEL[0] + 0.005)
+             & (z > K.HEM_Z + 0.03) & (z < 1.30) & (np.abs(pos[..., 0]) > 0.06))
+    x = a[flank]
+    stripe = (x[:, 1] > 0.25) & (x[:, 1] > x[:, 0]) & ~K.ink_class("white", x)
+    assert flank.sum() > 20000 and stripe.mean() < 0.02, (int(flank.sum()), round(float(stripe.mean()), 3))
+    marks = K.sleeve_marks(body, pos, nrm, chm)
+    white = m & (a.min(-1) > 0.6)
+    for mk in [mk for mk in marks if mk["kind"] == "leatt"]:
+        stamp = mk["canvas"].apply(np.zeros(a.shape), pos, mk["zone"]).max(-1) > 0.5
+        band = m & mk["keep"](pos.reshape(-1, 3)).reshape(m.shape)
+        got = white & band
+        iou = (got & stamp).sum() / max((got | stamp).sum(), 1)
+        assert stamp.sum() * tx ** 2 > 5e-4 and iou > 0.8, (mk["s"], round(float(iou), 2))
+    for s in "LR":
+        P = pos[m]
+        t, cosf, on = _sleeve(body, P, s)
+        back = np.zeros(m.shape, bool)
+        back[m] = on & (cosf < -0.3) & (t > 0.15) & (t < 0.95)
+        from scipy import ndimage
+        lab, n = ndimage.label(back & white, np.ones((3, 3)))
+        sz = ndimage.sum(back & white, lab, range(1, n + 1)) * tx ** 2 * 1e6
+        assert (sz < 20).sum() == 0, (s, int((sz < 20).sum()))
+        sl = np.zeros(m.shape, bool)
+        sl[m] = on & (t > 0.15) & (t < 0.95)
+        stamped = np.any([mk["zone"] for mk in marks], 0)
+        lab, n = ndimage.label(sl & white, np.ones((3, 3)))
+        sz = ndimage.sum(sl & white, lab, range(1, n + 1)) * tx ** 2 * 1e6
+        st = ndimage.maximum(stamped, lab, range(1, n + 1)).astype(bool) if n else np.zeros(0, bool)
+        small = np.sort(sz[(sz < 200) & ~st])[::-1]
+        assert len(small) == 0, (s, len(small), np.round(small[:3], 1).tolist())
+
+
+def test_pant_outer_thighs_and_smooth_shins(built, texels):
+    """Fix 3: his 07 and Leatt's three-quarter photo show the zebra round the outer thigh, from the hip down to the
+    black knee panel: stripe ink on over 0.3 of the leg's side (within 18 deg of it) 30 to 42 cm above the knee
+    joint (round 3: 0.09 and 0.09, plain black past 83 deg; main 0.36 and 0.53; round 3b 0.43 and 0.53). And the
+    shins' magenta stripes are smooth sweeps (Leatt's photos), not jagged marks: what a 3 mm closing and opening
+    changes, under 0.11 of the magenta (round 3: 0.126 and 0.116; main 0.18 and 0.17; round 3b 0.099 and 0.053)."""
+    from scipy import ndimage
+    body, g = built
+    a, pos, nrm, chm, tx = texels["pants"]
+    m = chm >= 0
+    for s, sg in (("L", 1), ("R", -1)):
+        kn = body.j(f"lowerleg01.{s}")[2]
+        out = m & (pos[..., 0] * sg > 0.03) & (nrm[..., 0] * sg > 0.95)
+        sel = out & (pos[..., 2] > kn + 0.30) & (pos[..., 2] < kn + 0.42)
+        share = ((a[sel].max(1) > 0.275) & ~K.ink_class("white", a[sel])).mean()
+        assert sel.sum() > 5000 and share > 0.3, (s, round(float(share), 2))
+        shin = m & (pos[..., 0] * sg > 0) & (pos[..., 2] < kn - 0.06) & (pos[..., 2] > 0.30)
+        mg = shin & K.ink_class("magenta", a)
+        r = max(1, int(round(0.003 / tx)))
+        sm = ndimage.binary_opening(ndimage.binary_closing(mg, iterations=r), iterations=r)
+        rough = (mg ^ sm).sum() / max(mg.sum(), 1)
+        assert mg.sum() > 2000 and rough < 0.11, (s, round(float(rough), 3))
+
+
+def test_lower_back_holes_show_the_base_layer(built, texels):
+    """Fix 4: the lower back's perforations (LB_HOLES: Leatt NZ's back three-quarter flat and his 06, an estimate):
+    staggered rows of light dots in the base layer's tone (within 0.1) under the magenta fade, each row holding over
+    0.6 of LB_HOLES' count for its pitch (round 3 and main: none in that tone; round 3b's first build wrote the tone
+    through to_lin, (73, 95, 142): none either)."""
+    from scipy import ndimage
+    body, g = built
+    a, pos, nrm, chm, tx = texels["jersey"]
+    hb = K.LB_HOLES
+    reg = ((chm >= 0) & (nrm[..., 1] > 0.5) & (np.abs(pos[..., 0]) < hb["half_width"] + 0.01)
+           & (pos[..., 2] > hb["z_top"] - (hb["rows"] - 0.5) * hb["dz"]) & (pos[..., 2] < hb["z_top"] + hb["dz"] / 2))
+    tone = np.asarray(hb["tone"]) / 255
+    dots = reg & (np.abs(a - tone).max(-1) < 0.1)
+    lab, n = ndimage.label(dots, np.ones((3, 3)))
+    cz = np.array(ndimage.mean(pos[..., 2], lab, range(1, n + 1))) if n else np.zeros(0)
+    rows = np.round((hb["z_top"] - cz) / hb["dz"])
+    per_row = np.bincount(rows[(rows >= 0) & (rows < hb["rows"])].astype(int), minlength=hb["rows"])
+    want = 2 * hb["half_width"] / hb["pitch"]
+    assert (per_row > 0.6 * want).all() and n < 1.3 * want * hb["rows"], (n, per_row, round(want, 1))
+
+
+def test_chevron_fade_is_a_clean_gradient(built, texels):
+    """Fix 5: the top chevrons' tops under FIVE.FIVE fade into the black as a clean gradient over the traced shape
+    (as the yoke's magenta), not cut: of the band's green texels, over 0.4 at mid brightness (round 3: 0.28, a cut
+    edge; main 0.55, the projected photo; round 3b 0.53)."""
+    body, g = built
+    a, pos, nrm, chm, tx = texels["jersey"]
+    bx, bz0, bz1 = K.FP_FADE["box"]
+    band = ((chm == 0) & (nrm[..., 1] < -0.3) & (np.abs(pos[..., 0]) < bx - 0.02) & (pos[..., 2] > bz0)
+            & (pos[..., 2] < bz1))
+    x = a[band]
+    green = (x[:, 1] > 0.06) & (x[:, 1] > x[:, 0])
+    mid = green & (x[:, 1] < 0.45)
+    assert green.sum() > 2000 and mid.sum() / green.sum() > 0.4, round(float(mid.sum() / max(green.sum(), 1)), 2)
+
+
+def test_fivefive_has_its_own_sharp_print(built):
+    """Fix 6: FIVE.FIVE (8 mm capitals) read as dots at the jersey's 0.8 mm texel: it is set on the print overlay at
+    its measured place (FRONT) with the logos, at under 0.17 mm a texel (round 3b 0.164: 49 texels to a capital;
+    round 3 and main: traced into the jersey texture, no such print)."""
+    body, g = built
+    pr = json.loads(str(g["prints"]))
+    assert "fivefive" in pr, sorted(pr)
+    p = pr["fivefive"]
+    x, z, w = K.FRONT["fivefive"]
+    assert abs(p["P0"][0] - x) < 1e-6 and abs(p["P0"][2] - z) < 1e-6 and abs(p["w"] - w) < 1e-6, (p, (x, z, w))
+    V, faces = part(g, "jersey_print")
+    FS, UV = g["jersey_print__FS"], g["jersey_print__UV"].reshape(-1, 2)
+    st = np.r_[0, np.cumsum(FS)[:-1]]
+    tex = []
+    for f, s0, n in zip(faces, st, FS):
+        c = V[f].mean(0)
+        if abs(c[0] - x) < w / 2 and abs(c[2] - z) < 0.006 and c[1] < 0:
+            P, U = V[f], UV[s0:s0 + n]
+            a3 = (np.linalg.norm(np.cross(P[1] - P[0], P[2] - P[0]))
+                  + np.linalg.norm(np.cross(P[2] - P[0], P[-1] - P[0])))
+            c2 = lambda p, q: abs(p[0] * q[1] - p[1] * q[0])   # noqa: E731
+            a2 = c2(U[1] - U[0], U[2] - U[0]) + c2(U[2] - U[0], U[-1] - U[0])
+            tex.append(np.sqrt(a3 / max(a2, 1e-12)) / K.ATLAS_RES)
+    assert len(tex) >= 4 and np.median(tex) < 0.17e-3, (len(tex), np.median(tex) if tex else None)

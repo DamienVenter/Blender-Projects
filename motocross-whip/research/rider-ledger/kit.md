@@ -118,7 +118,8 @@ back photos.
 ## Round 3 (decision 52, 2026-11-15): a crisp print, true colours, his number and sponsors at 1:1
 
 Code: kit.py "graphics: the clean flat print (decision 52)", tests in test_kit_rider.py. Checkpoint
-`renders/checkpoints/2026-11-15_jersey3/`.
+`renders/checkpoints/2026-11-15_jersey3/`. Round 3b (below) replaced the sleeves' and side panels' zebra, the pant's
+trace, FIVE.FIVE, the chevrons' faded tops and the lower back's holes; the rows here are round 3's.
 
 ### The print, element by element
 
@@ -202,6 +203,55 @@ Offsets are round 3 minus the photo, along the photo's axes, at 3.69 (09) and 3.
   pant's outer sides are plain black.
 - AgX - Punchy (the daylight look) desaturates the magenta (render (189, 85, 151) against his 09's (217, 8, 111));
   the look is not the kit's.
+
+## Round 3b (decision 52, 2026-11-15): the 1:1 review's six fixes
+
+The coordinator's review of round 3 at 1:1 (JERSEY3b) kept the inks in the Standard view, the cut trunk print, the
+logos, the 114 and DAMIEN, and the fitted cameras; the sleeves had regressed and six things needed finishing. Each
+fix has a test in test_kit_rider.py that fails on round 3 (c543ac7) and on main and passes here (numbers below in
+that order). Code: kit.py's "round 3b" comments. Checkpoint: a round 3b column in the sheets of
+`renders/checkpoints/2026-11-15_jersey3/` and sheet 11, each sleeve all round at 1:1.
+
+| Fix | How, numbers | Test: round 3, main, round 3b | Source |
+|---|---|---|---|
+| 1. Sleeve fronts | Round 3's cause: the upper arm's grey-teal bands (display about 0.39, 0.47, 0.49: min channel less 0.6 chroma 0.33) were over the white elements' edge guard (0.3) and dropped, so the sleeves read near black. Each sleeve's zebra is now traced first on Leatt US's front flat itself, inside the sleeve's outline, where the sleeve is seen square on (0.70 mm a px: the chest LEATT's 395 px for 0.275 m; an 11 px median takes out the perforations, dots 4 to 5 px, 15 px apart; a 3 mm field and a 1.5 cm window follow the fade; contrast 0.05 to 0.1 is pattern, under 0.10 of green light is the black), then cut again on the sleeve's unrolled raster (edge guard 0.95). His left sleeve takes the flat's right one mirrored: the flat lays his left turned in, over the trunk's side, its upper arm at a slant (traced there the grey bands came out as blobs) | band texels against the flat, IoU on each sleeve's upper arm and forearm, over 0.75: 0.27 (his left upper arm), 0.21 to 0.36, 0.85 to 0.88 | PHOTO Leatt US front flat |
+| 2. Sleeve backs | Below the raglan part each sleeve's back half is its front half mirrored about the top and underarm lines, so the bands run on across both lines (the back views see the sleeves' backs at grazing angles, their bands' phase differs from the flat's, and traced they gave the review's fragments). Over the raglan part (4 to 10 cm from the shoulder point) plain ground, the magenta fading into the black (the trunk's views there carried the photo model's sleeve stripes past the seam). White elements only where a photo saw the texel (view weight over 0.02), pieces under 200 mm2 dropped (the specks were 24 to 91 mm2; his left sleeve's line is 510 mm2) | white specks under 20 mm2 on the sleeves' backs: 0, 3 (his left), 0 | PHOTO NZ back, back 3/4 flat |
+| 2. Sleeve marks | The forearm LEATTs and his left elbow icon printed from Leatt's official files (`SLEEVE_MARKS`): the right LEATT on the flat at ink rows 1204 to 1409 of the sleeve's line from row 470 to 1640 (t 0.715 along the arm, 88 mm long), 83 px outward where the half sleeve is 87 px (72 deg from the front toward the outside), letters' tops to the front; the icon from the NZ back photo (t 0.56, 112 deg, 19 mm, apex up the arm). The photos' traced whites are dropped all round the arm over each LEATT's span and 12 mm beyond (traced, the left LEATT landed in three places: a 1086 mm2 streak at 44 deg, 340 mm2 of letters at 109 deg), and what is left of the white coverage in pieces under 200 mm2 goes after that (build 9 had kept an 81 mm2 end of that streak outside the band and 14 specks of 1 to 2 mm2, thin grey scratches, on the top line over his left elbow) | the white over each LEATT's span against the stamp, IoU over 0.8: 0.27 and 0.13, 0.00 and 0.03, 0.99 and 0.99. Unstamped white pieces under 200 mm2 on the sleeves: 25, 14, none | PHOTO front flat, NZ back; us.leatt.com wordmark and favicon |
+| 2. Side panels and back | The side panels traced on Leatt NZ's back three-quarter flat itself, inside the panel's outline (`SIDE_EDGES`, 0.55 mm a px down the panel), with the sleeves' options, and laid over the trunk's print as their own piece (cut at its seams). The back panel outside them is ground only (`plain`: the stripes zeroed, the white elements kept): the photo model's stripes there were the lime and teal fragments | stripe ink on the back's flanks beside the panels (z hem + 3 cm to 1.30 m), under 0.02: 0.222, 0.21, 0.001 | PHOTO NZ back 3/4 flat, back on-model |
+| 3. Pant | Each Leatt on-model photo is traced in its own pixels (0.5 mm, where the legs are seen square on; a 2 mm field follows the shins' sweeping stripes; the white elements at 0.8 mm) and the texels take that artwork. The legs' outline comes from the mesh's cross-section at each height (round 3 took the vertices within 6 mm of a height: up to 70 mm jumps between heights 5 mm apart, and every stripe mapped through it came out serrated), the photo's runs smoothed down 15 rows (median, then mean). Past 60 deg from the front (`PANT_MIRROR`) the print is the photo's own seen from 60 deg back toward the front, mirrored: the bands meet themselves in a chevron on the outseam (round 3 left past 83 deg plain) | stripe ink within 18 deg of each leg's side, 30 to 42 cm above the knee joint, over 0.3: 0.09 and 0.09, 0.36 and 0.53, 0.43 and 0.53. The shins' magenta changed by a 3 mm closing and opening, under 0.11: 0.126 and 0.116, 0.18 and 0.17, 0.099 and 0.053 | PHOTO Leatt US on-model front and back; his 07 |
+| 4. Lower back holes | `LB_HOLES`: 5 staggered rows from z 1.197 down, 12.4 mm apart, 14.3 mm pitch, 0.176 m wide (63 holes of 1.8 mm), and what shows through them a light base layer, (146, 165, 197) display. Leatt NZ's back three-quarter flat at 1:1 shows 4 staggered rows under the magenta fade, 27.7 px apart (12.4 mm at its 2237 px per m down the garment), 13 holes a row over 293 px (24 px apart, foreshortened: 14.3 mm for an equilateral stagger); his 06 shows about 5 rows: one more on top. The tone: the brightest tenth of the dots' peaks in his 06 (daylight; the 1 to 2 px dots are blurred into the black). Round 3's two rows at z 1.155 and 1.215 are gone (the jersey's holes: 243; Leatt says 238) | dots in the tone (within 0.1), per row over 0.6 of 12.3: none, 8 in one row, 13 12 13 12 13 | PHOTO NZ back 3/4 flat, his 06; estimate (Damien has not answered) |
+| 5. Chevron fade | In a box over the top chevrons' tops under FIVE.FIVE (`FP_FADE`: \|x\| under 0.17 m, z 1.285 to 1.345) the stripe is cut at 0.2, where the fade is near the black, not 0.5, and coloured by the photo's own fade (lime to black) smoothed over 5 mm: a clean gradient over the traced shape. The box's edges blend over 8 mm; the band's ground follows the unshifted cut (the shifted one left the band no ground: magenta blotches under FIVE.FIVE) | of the band's green texels, the share at mid brightness, over 0.4: 0.28 (a cut edge), 0.55 (the projected photo), 0.53 | PHOTO front flat, NZ front |
+| 6. FIVE.FIVE | Set on the print overlay with Damien's additions (`FRONT["fivefive"]`, `FIVEFIVE`): each glyph at its ink centre measured on the front flat (184 px of ink beside the 395 px chest LEATT: 0.128 m wide; cap height 11.5 px: 8.0 mm), centred at (0.005, 1.343) from the NZ front photo (ink x 717 to 897, rows 626 to 637, under the yoke's edge at row 612); erased from the trace there (box 705, 617 to 910, 645 of that photo). The photo's 11 px capitals do not resolve Leatt's face: Inter SemiBold stands in (its F, V and E are 0.55, 0.73 and 0.6 of the cap height wide as the photo's 6, 8 and 6.5 px, its stem 0.16 as the photo's 2 px). The atlas is now packed by skyline: the front's prints at 0.162 mm a texel with the extra island | the overlay's faces over FIVE.FIVE, median texel under 0.17 mm: none (traced into the 0.8 mm texture: 10 texels to a capital), none, 0.164 mm (49 texels) | PHOTO front flat, NZ front; estimate (typeface) |
+
+The cut test (`test_print_is_cut_not_blurred`) now measures Leatt's own airbrushed ends apart: the sleeves' last
+30 %, where the flat fades the bands into the lime cuff (0.26 of its right sleeve's lime at mid brightness, 0.48 to
+0.64 at 0.80 to 0.90 of its length), and the fade box of fix 5. There under 0.30 (round 3b 0.265); the rest of the
+jersey under 0.10 (round 3 0.147, main 0.162, round 3b 0.090); the pant under 0.25 (0.139, 0.51, 0.058).
+
+### Colours (round 3b)
+
+The inks are round 3's, as the review kept them (sheet 08, the same boxes): at Standard -1.6 magenta 208, 53, 127
+(0.88, 0.050, 0.29), lime 122, 184, 51 (0.27, 0.68, 0.04), black 45, 45, 47 (0.037), the back's magenta at -1.0
+221, 56, 139 (0.89, 0.049, 0.30): within 1 of 255 of round 3's. Teal 97, 160, 151 (0.17, 0.50, 0.42), round 3's
+94, 156, 147. In daylight (AgX - Punchy -0.6) the magenta reads 189, 85, 150 (round 3 189, 85, 151; his 09
+217, 8, 111): the look's, which the coordinator checks; not changed here.
+
+### Not seen, estimated (round 3b; replaces round 3's list)
+
+- His left sleeve's zebra: the flat's right sleeve mirrored. The flat and the back photos run the same colours down
+  both sleeves (grey, teal, lime); the exact shapes on his left differ. His 07 sees his left sleeve riding (sheet 04).
+- Both sleeves' backs and underarms: their fronts mirrored about the top and underarm lines.
+- His left forearm LEATT: the right one's place mirrored (t 0.715, 72 deg); read up the arm, its tops to the front
+  (Leatt NZ's back three-quarter flat and front three-quarter photo see it at a slant).
+- The jog of his left sleeve's line at the elbow (Leatt's back three-quarter photo): not drawn; traced, it gave
+  fragments.
+- The pant's outer sides past 60 deg: the photos' print mirrored. There the zebra reaches about 20 cm above the knee
+  joint and the knee panel below it is black, as in Leatt's photos; the review reads his 07's zebra down to the knee.
+  The front and back halves meet on the outseam with a step in the bands' phase (each half is its own photo's print
+  mirrored; seen square on in sheet 07's side view, hardly in the riding view of sheet 04).
+- The lower back's holes: rows, pitch and the base layer's tone (Damien has not answered).
+- FIVE.FIVE's typeface: Inter SemiBold.
+- The daylight look (AgX - Punchy) desaturates the magenta: the scene's, checked by the coordinator, not changed.
 
 ## Materials (component 4)
 
