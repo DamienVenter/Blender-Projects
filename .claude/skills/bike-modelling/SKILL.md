@@ -45,6 +45,11 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
   median / lit); RED (187, 28, 49) matches (4.1 / 6.9; `look_fit.py bike`, research/scene-look.md). Not applied:
   `kit_canvas.RED` paints the same plastic in the kit textures (test_kit checks it): move both together, then
   recheck the honda views against Honda's photos.
+- Check a fitted paint colour's hue on its diffuse body, not its lit mean (coordinator, look round 2's review): a
+  "lit" quartile by luma takes in the clear coat's sky highlights, which run pink on red plastic under a blue sky.
+  Round 2's RED (205, 41, 62) fitted that way had B above G and read crimson at 1:1, and Honda's studio views turned
+  pink (27 to 40 dE). Gate: max channel red, saturation over 0.5, G and B each under 0.45 R. His 07 then reads
+  183, 51, 45 (lit 221, 87, 57): an orange-red, G at or above B. One red must read right in his photos AND Honda's.
 - Relative texture paths load as magenta: pass absolute paths to bpy.data.images.load.
 - Solid discs and sprockets hide the spokes: real ones are rings full of holes (`plate2d`).
 - Bar pad lettering must read from the front AND from the seat: pick the UV direction by the face normal.
