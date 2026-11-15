@@ -1,17 +1,19 @@
-"""Bundle adjustment of Leatt's Moto 8.5 photos (helmet round 3, decision 46): all eleven cameras and the shared 3D
-landmarks solved together with the shell's outlines, in the HELMET frame (metres, x to the wearer's left, y back, z up).
+"""Bundle adjustment of Leatt's Moto 8.5 photos (helmet round 3, decision 46; round 4, decision 50): all twelve cameras
+and the shared 3D landmarks solved together with the shell's outlines, in the HELMET frame (metres, x to the wearer's
+left, y back, z up).
 
-usage: python3 helmet_ba.py [OUT.json]      (default research/helmet-ba.json; about 3 minutes on one core)
+usage: python3 helmet_ba.py [OUT.json]      (default research/helmet-ba.json; about 4 minutes on one core)
 
-Photos (reference/leatt-gear): Pinata Teal iso-left, iso-right, back, top (helmet/, 1920 px) and Royal_Left (the
-side view the profile was traced from; not in the repo, only its traced profile and readings are used); V25 white
-iso-left and back (helmet/); MY27 kit front-iso-left, left, right, back (goggles/, the Velocity 5.5 on the 8.5). The
-same shell in all of them (Leatt makes the 8.5 in one shell size for M/L; the DOT label on the back reads M).
+Photos (reference/leatt-gear): Pinata Teal iso-left, iso-right, back, top (helmet/, 1920 px); V25 Royal left (the
+side view the profile was traced from) and back (helmet/); V25 white iso-left and back (helmet/); MY27 kit
+front-iso-left, left, right, back (goggles/, the Velocity 5.5 on the 8.5). The same shell in all of them (Leatt makes
+the 8.5 in one shell size for M/L; the DOT label on the back reads M).
 
-Gauge: Royal_Left is the helmet frame's own camera (helmet.px2h: y = (u - 1100) S, z = -(v - 900) S at x = 0,
-S = 0.2484 mm/px from the strap width): it looks along -x, principal point at the image centre, f = D / S, so only
-its distance D is free. The shell is mirror symmetric: a landmark pair (L on the wearer's left, R on his right) is one
-point (x, y, z) and its mirror (-x, y, z); a centre landmark is (0, y, z). That fixes all seven gauge freedoms.
+Gauge: the model shell. Its scale is Royal_Left's (helmet.px2h: y = (u - 1100) S, z = -(v - 900) S at x = 0,
+S = 0.2484 mm/px from the strap width) and every camera, Royal_Left included (round 4: it was held looking exactly
+along -x; free, it turns 1.6 to 2.6 deg), is placed on the shell by the outlines and the landmarks held on its
+surface. The shell is mirror symmetric: a landmark pair (L on the wearer's left, R on his right) is one point
+(x, y, z) and its mirror (-x, y, z); a centre landmark is (0, y, z).
 
 Cameras: pinhole, square pixels, no distortion (Leatt's product photos are long-lens studio shots), principal point
 fixed (image centre; MY27 at goggle round 8's), free rotation, centre and focal length. Initial values: helmet.CAMS
@@ -53,7 +55,8 @@ PHOTOS = {
     "pin_isoright": "helmet/" + H.PHOTOS["isoright"],
     "pin_back": "helmet/" + H.PHOTOS["back"],
     "pin_top": "helmet/" + H.PHOTOS["top"],
-    "royal_left": "helmet/Royal_Left (see helmet.px2h; the traced profile's photo)",
+    "royal_left": "helmet/helmet85_royal-v25_left_leatt-us_1025100220_1920.png",
+    "royal_back": "helmet/helmet85_royal-v25_back_leatt-us_1025100220_1920.png",
     "v25w_isoleft": "helmet/helmet85_white-v25_iso-left_leatt-us_1025100260.jpg",
     "v25w_back": "helmet/helmet85_white-v25_back_leatt-us_1025100260.jpg",
     "my27_isoleft": "goggles/velocity55-on-helmet85-kit-my27_bluered_1-front-iso-left_leatt-us_1027000180_1920.jpg",
@@ -99,16 +102,23 @@ PAIRS = {
         "R": {}},
     # rear exhaust slot in the back band (dark slot centroid)
     "rear_slot": {
-        "L": {"pin_back": (764.5, 748.2, 2.5), "v25w_back": (753.2, 704.9, 2.5), "my27_back": (802.5, 684.6, 4.0)},
-        "R": {"pin_back": (1153.4, 748.9, 2.5), "v25w_back": (1152.3, 710.7, 2.5), "my27_back": (1159.1, 674.5, 4.0)}},
-    # crown mesh vent (lattice centroid)
+        "L": {"pin_back": (764.5, 748.2, 2.5), "v25w_back": (753.2, 704.9, 2.5), "my27_back": (802.5, 684.6, 4.0),
+              "royal_back": (755.0, 714.0, 2.5)},
+        "R": {"pin_back": (1153.4, 748.9, 2.5), "v25w_back": (1152.3, 710.7, 2.5), "my27_back": (1159.1, 674.5, 4.0),
+              "royal_back": (1160.0, 712.0, 2.5)}},
+    # (the side views show a small mesh slot under the rear ledge, Royal_Left 1561, 556 and MY27 left: as the rear slot
+    # it sits 52 to 57 px (14 mm) above where the five back views put it; another opening, left out)
+    # crown mesh vent (lattice centroid). Round 4: the side views' readings are the centroid of the vent's outline
+    # (Royal_Left: the light-grey vent segmented on the navy shell; the others: the mean of its four corners read at
+    # 3x); round 3 had read its front end in four of them (MY27 left 76 px, Royal 27 px, iso-left 25 px ahead)
     "crown_vent": {
         "L": {"pin_top": (1208.4, 674.1, 3.0), "pin_back": (669.1, 573.0, 3.0), "v25w_back": (661.2, 533.7, 4.0),
-              "my27_back": (691.7, 506.0, 3.0), "royal_left": (1245.0, 448.0, 8.0), "my27_left": (1160.0, 352.0, 8.0),
-              "pin_isoleft": (1338.0, 322.0, 8.0), "v25w_isoleft": (1296.6, 347.4, 8.0)},
+              "my27_back": (691.7, 506.0, 3.0), "royal_left": (1272.4, 453.1, 4.0), "my27_left": (1236.0, 370.0, 4.0),
+              "pin_isoleft": (1363.0, 332.7, 4.0), "v25w_isoleft": (1302.7, 347.7, 4.0),
+              "royal_back": (658.0, 532.0, 3.0)},
         "R": {"pin_top": (721.0, 671.5, 3.0), "pin_back": (1244.5, 569.3, 3.0), "v25w_back": (1263.2, 541.0, 4.0),
-              "my27_back": (1260.2, 508.0, 3.0), "my27_right": (735.0, 343.0, 8.0),
-              "pin_isoright": (557.1, 301.8, 8.0)}},
+              "my27_back": (1260.2, 508.0, 3.0), "my27_right": (704.2, 352.3, 4.0),
+              "pin_isoright": (565.3, 307.5, 4.0), "royal_back": (1252.0, 528.0, 3.0)}},
     # upper side exhaust vent behind the visor (dark slot centroid)
     "side_vent": {
         "L": {"pin_isoleft": (1484.5, 452.2, 4.0), "royal_left": (1316.1, 568.0, 4.0),
@@ -118,9 +128,9 @@ PAIRS = {
     # lower rear vent (dark slot centroid)
     "low_vent": {
         "L": {"royal_left": (1445.5, 1227.6, 4.0), "v25w_isoleft": (1609.1, 1057.3, 4.0),
-              "v25w_back": (456.0, 1435.9, 4.0), "my27_back": (515.7, 1332.1, 4.0)},
+              "v25w_back": (456.0, 1435.9, 4.0), "my27_back": (515.7, 1332.1, 4.0), "royal_back": (472.0, 1465.0, 4.0)},
         "R": {"my27_right": (426.0, 1100.0, 8.0), "v25w_back": (1434.2, 1444.2, 4.0),
-              "my27_back": (1427.5, 1330.4, 4.0)}},
+              "my27_back": (1427.5, 1330.4, 4.0), "royal_back": (1455.0, 1460.0, 4.0)}},
     # the grey triangle badge on the shell beside the eye port, above the goggle strap (light triangle centroid)
     "eyeport_triangle": {
         "L": {"pin_isoleft": (1070.1, 724.1, 3.0), "royal_left": (718.2, 767.7, 2.0),
@@ -139,12 +149,20 @@ CENTRES = {
     # rear "360 Turbine" badge (blue blob centroid)
     # (V25 white's badge, v25w_back 999.4, 582.7, sits 58 px right of its DOT print, about 11 mm off the centre line:
     # a sticker placed differently on that kit; left out)
-    "rear_badge": {"pin_back": (960.1, 632.3, 2.0), "pin_top": (961.2, 426.9, 2.0), "my27_back": (983.6, 566.3, 2.0)},
+    "rear_badge": {"pin_back": (960.1, 632.3, 2.0), "pin_top": (961.2, 426.9, 2.0), "my27_back": (983.6, 566.3, 2.0),
+                   "royal_back": (963.0, 581.0, 2.0)},
     # the "O" of the DOT print on the back (dark ring centroid)
-    "dot_o": {"pin_back": (965.6, 1583.2, 1.5), "v25w_back": (940.9, 1563.0, 1.5), "my27_back": (978.6, 1467.0, 1.5)},
+    "dot_o": {"pin_back": (965.6, 1583.2, 1.5), "v25w_back": (940.9, 1563.0, 1.5), "my27_back": (978.6, 1467.0, 1.5),
+              "royal_back": (965.0, 1568.0, 2.0)},
     # brow badge plate (purple blob; MY27: white plate)
     "brow_badge": {"pin_isoleft": (632.9, 534.5, 3.0), "pin_isoright": (1276.0, 540.1, 3.0),
                    "my27_isoleft": (698.6, 498.5, 4.0)},
+    # the visor's tip on the centre line: its frontmost point in the side views and the top view (read at 2x). The
+    # only landmark at the top view's front: without it the solve stretched that view 185 px (45 mm) past Leatt's tip
+    # (round 4, first run). The visor's angle is adjustable and MY27's tip sits 20 to 28 px lower than Royal's: there
+    # only the offset along the length (u) counts
+    "visor_tip": {"royal_left": (216.0, 336.5, 2.0), "pin_top": (960.0, 1711.0, 2.0),
+                  "my27_left": (226.0, 425.0, 3.0, 0.0), "my27_right": (1748.5, 376.0, 3.0, 0.0)},
     # the visor's rear edge across the crown (a line: only the offset across it counts)
     "visor_rear_edge": {"pin_top": (960.0, 792.0, 3.0, 90.0), "pin_back": (960.0, 447.0, 3.0, 90.0)},
 }
@@ -152,7 +170,7 @@ CENTRES = {
 ART_VIEW = {"eyeport_triangle": "pin_isoleft", "chin_vent": "royal_left", "side_screw": "pin_isoleft", "release_tab": "pin_isoleft", "rear_slot": "pin_back",
             "crown_vent": "pin_top", "side_vent": "pin_isoleft", "low_vent": "royal_left",
             "rear_badge": "pin_back", "dot_o": "pin_back", "brow_badge": "pin_isoleft",
-            "visor_rear_edge": "pin_top"}
+            "visor_rear_edge": "pin_top", "visor_tip": "royal_left"}
 
 
 # ------------------------------------------------------------------------------------------------ cameras
@@ -169,7 +187,7 @@ def basis(az, el, roll):
 
 
 def old_camera(view):
-    """helmet.CAMS (the Pinata views the print was traced through) as a camera dict."""
+    """helmet.CAMS (the Pinata views each fitted alone to its own outline: the solve's start) as a camera dict."""
     C, Rm, f = H.cam_from(H.CAMS[view[4:]])
     return dict(R=Rm, C=C, f=f, cx=960.0, cy=960.0)
 
@@ -186,16 +204,20 @@ def initial_cameras():
                                  cy=960.0 + x[6])
     cams["v25w_isoleft"] = dict(cams["pin_isoleft"])
     cams["v25w_back"] = dict(cams["pin_back"])
-    cams["royal_left"] = dict(D=1.5)
+    cams["royal_left"] = royal(1.5)
+    # Royal_Back: straight behind, 10 deg up (the other back views solve to 8 to 11 deg), 1.6 m, 0.226 mm/px
+    dirn, Rm = basis(180.0, 10.0, 0.0)
+    cams["royal_back"] = dict(R=Rm, C=dirn * 1.6 + np.array([0.0, 0.02, 0.0]), f=7080.0, cx=960.0, cy=960.0)
     return cams
 
 
 VIEWS = ["royal_left", "pin_isoleft", "pin_isoright", "pin_back", "pin_top", "v25w_isoleft", "v25w_back",
-         "my27_isoleft", "my27_left", "my27_right", "my27_back"]
+         "my27_isoleft", "my27_left", "my27_right", "my27_back", "royal_back"]
 ROYAL_R = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [-1.0, 0.0, 0.0]])
 
 
 def royal(D):
+    """Royal_Left as the gauge camera (looking exactly along -x at distance D): the start of its solve."""
     return dict(R=ROYAL_R, C=np.array([D, (960 - H.U0) * H.S, -(960 - H.V0) * H.S]), f=D / H.S, cx=960.0, cy=960.0)
 
 
@@ -225,12 +247,16 @@ def observations():
 
 ROWS = observations()
 LMS = list(PAIRS) + list(CENTRES)
-FREE = [v for v in VIEWS if v != "royal_left"]
+FREE = list(VIEWS)
 
 # The silhouette Royal_Left traces is the shell's centre-plane profile behind the visor (helmet.CROWN_BACK, LOWER_EDGE;
 # the rearmost and topmost points of a symmetric shell are on its centre plane): print on the centre line lies on it.
-# These landmarks get a residual = their signed distance from that traced profile / PROFILE_SIGMA (the trace's +-3 px)
-PROFILE_LMS = ("rear_badge", "dot_o")
+# These landmarks get a residual = their signed distance from that traced profile / PROFILE_SIGMA (the trace's +-3 px).
+# Round 4: not the rear badge. Held on the profile it cost 63 to 77 px in the top view (round 3's 43 px rms); free, its
+# four readings agree within 4 px 7 to 16 mm inside the profile. The top view sees the disc almost round (axes 0.89)
+# and the back views at 0.6: it sits on a slope about 30 deg from level, ahead of the rear ledge, where the side
+# silhouette (the ledge and the crown vents' raised pods either side) stands behind and above the centre line.
+PROFILE_LMS = ("dot_o",)
 PROFILE_SIGMA = 0.00075
 _PROF = np.asarray(H.px2h(np.array(H.CROWN_BACK + H.LOWER_EDGE[1:], float)))
 
@@ -319,16 +345,16 @@ def raycast(V, F, C, d):
 # before phase B rebuilds the front, and with them in the solve the iso readings went 20 to 30 px off), the visor (its wings stand 8 to 12 mm outside Leatt's outline in the top and back
 # views: phase B), the shell's front (y < -0.10 m: brow, port and chin, rebuilt in phase B), the goggle and its strap
 # where a photo shows them (MY27 rows, Pinata iso-right's goggle polygon), the MY27 floor shadow (z < -0.11 m) and
-# Royal_Left (the gauge camera; its profile is the shell's by construction). The vertices are chosen at the current
-# cameras, three rounds. Tried first (2026-11-15): the side views' traced profile only, with the cameras from the
-# landmarks alone; the top and back cameras then put the shell's outline 11 to 18 mm off Leatt's (the landmarks of
-# the back group float in depth), so the outlines are in the solve.
+# (round 3) Royal_Left (then the gauge camera; round 4 frees it, its outline in: 1.7 to 2.4 px). The vertices are
+# chosen at the current cameras, three rounds. Tried first (2026-11-15): the side views' traced profile only, with
+# the cameras from the landmarks alone; the top and back cameras then put the shell's outline 11 to 18 mm off
+# Leatt's (the landmarks of the back group float in depth), so the outlines are in the solve.
 OUTLINE_SIGMA = 3.0        # px: the outline vertices' own spacing (3 to 5 mm) and the photo mask's edge
 OUTLINE_N = 40
 OUTLINE_ROUNDS = 3
 FRONT_Y = -0.10
 STRAP_ROWS = {"my27_left": (540, 880), "my27_right": (540, 880), "my27_back": (860, 1140)}
-OUTLINE_VIEWS = ["pin_back", "pin_top", "v25w_back", "my27_left", "my27_right", "my27_back"]
+OUTLINE_VIEWS = ["pin_back", "pin_top", "v25w_back", "my27_left", "my27_right", "my27_back", "royal_left", "royal_back"]
 
 
 class Outline:
@@ -368,6 +394,8 @@ class Outline:
         ok &= (V[idx, 1] > FRONT_Y) & (idx < self.n_shell)
         if view in STRAP_ROWS:
             ok &= ~((uv[idx, 1] > STRAP_ROWS[view][0]) & (uv[idx, 1] < STRAP_ROWS[view][1]))
+        if view == "royal_left":            # the crown ahead of y 30 mm: under Leatt's visor (it reaches y 21 mm)
+            ok &= V[idx, 1] > 0.03
         if view.startswith("my27"):
             ok &= V[idx, 2] > -0.11
         if view == "pin_isoright":
@@ -394,11 +422,12 @@ class Outline:
 # (a long-lens camera's outline barely changes with distance at fixed scale), and the back group's points settled 16 to
 # 29 mm inside the shell. The front's landmarks (brow badge, eye port, chin, release tab, side screw) stay free: the
 # front is rebuilt in phase B from them.
-SURFACE_LMS = ("rear_slot", "crown_vent", "side_vent", "low_vent", "rear_badge", "dot_o")
+# Round 4: not the rear badge (the traced profile, which the shell's centre line follows, is not its surface there:
+# PROFILE_LMS); measured free from its five views, it is reported against the shell.
+SURFACE_LMS = ("rear_slot", "crown_vent", "side_vent", "low_vent", "dot_o")
 SURFACE_SIGMA = 0.0015
 
 LOGF_SIGMA = 0.25          # prior on each camera's log focal length (and so its distance) about its start: 25 %
-LOGD_SIGMA = 0.30          # the same for Royal_Left's distance (start 1.5 m: the strap's perspective factor, helmet.py)
 ROBUST = 2.0               # soft-l1 loss scale in sigma units: a misread point or a stray outline cannot drag a camera
 
 
@@ -409,8 +438,6 @@ class Problem:
         for v in FREE:
             self.p_index[v] = k
             k += 7
-        self.p_index["royal_left"] = k
-        k += 1
         for n in LMS:
             self.p_index[n] = k
             k += 3 if n in PAIRS else 2
@@ -419,15 +446,12 @@ class Problem:
         for v in FREE:
             x[self.p_index[v] + 3:self.p_index[v] + 6] = cams0[v]["C"]
             x[self.p_index[v] + 6] = math.log(cams0[v]["f"])
-        x[self.p_index["royal_left"]] = math.log(cams0["royal_left"]["D"])
         for n in LMS:
             i = self.p_index[n]
             x[i:i + (3 if n in PAIRS else 2)] = pts0[n] if n in PAIRS else pts0[n][1:]
         self.x0 = x
 
     def cam(self, x, v):
-        if v == "royal_left":
-            return royal(math.exp(x[self.p_index[v]]))
         i = self.p_index[v]
         c0 = self.cams0[v]
         R = Rotation.from_rotvec(x[i:i + 3]).as_matrix() @ c0["R"]
@@ -474,9 +498,7 @@ class Problem:
         return np.sum((P - self.outline.Vs[j]) * self.outline.Ns[j], 1) / SURFACE_SIGMA
 
     def priors(self, x):
-        r = [(x[self.p_index[v] + 6] - self.x0[self.p_index[v] + 6]) / LOGF_SIGMA for v in FREE]
-        i = self.p_index["royal_left"]
-        return np.array(r + [(x[i] - self.x0[i]) / LOGD_SIGMA])
+        return np.array([(x[self.p_index[v] + 6] - self.x0[self.p_index[v] + 6]) / LOGF_SIGMA for v in FREE])
 
     def all(self, x):
         return np.concatenate([self.residuals(x), self.profile(x), self.outlines(x), self.surface(x), self.priors(x)])
@@ -527,7 +549,6 @@ def foreshorten(cams, pts, mesh, log=print):
 
 def solve(log=print):
     cams0 = initial_cameras()
-    cams0["royal_left"] = dict(cams0["royal_left"], **royal(cams0["royal_left"]["D"]))
     mesh = model_mesh()
     pts0 = initial_points(cams0, mesh)
     foreshorten(cams0, pts0, mesh)
@@ -550,8 +571,8 @@ def solve(log=print):
 
 
 def model_now(mesh, cams):
-    """Where the model's own feature sits: the ray of the art view's old camera (helmet.CAMS; Royal_Left the gauge
-    camera at the solved distance) through the photo point, cast onto the model now."""
+    """Where the model's own feature sits: the ray of the art view's solved camera (the print is traced through
+    them, helmet.PRINT_CAMS, round 4) through the photo point, cast onto the model now."""
     V, F = mesh[:2]
     out = {}
     for nm in LMS:
@@ -560,7 +581,7 @@ def model_now(mesh, cams):
         if o is None or len(o) > 3:
             out[nm] = None
             continue
-        c = cams["royal_left"] if av == "royal_left" else old_camera(av)
+        c = cams[av]
         out[nm] = raycast(V, F, c["C"], ray(c, o[0], o[1]))
     return out
 
@@ -612,6 +633,9 @@ def main():
           "unknowns %d, chi2 %.1f, reduced %.2f" % (m, len(pb.residuals(x)), len(ROWS), len(PROFILE_LMS),
                                                     sum(len(s) for s in sil), len(SURFACE_LMS), len(pb.priors(x)), n, chi2,
                                                     chi2 / dof))
+    fwd = pb.cam(x, "royal_left")["R"][2]
+    print("Royal_Left looks %.2f deg forward of -x (camera behind the side), %.2f deg up" % (
+        math.degrees(math.atan2(-fwd[1], -fwd[0])), math.degrees(math.asin(fwd[2]))))
     print("profile offsets mm", dict(zip(PROFILE_LMS, np.round(pb.profile(x) * PROFILE_SIGMA * 1000, 2))))
     print("surface offsets mm", dict(zip(SURFACE_LMS, np.round(pb.surface(x) * SURFACE_SIGMA * 1000, 2))))
     out = dict(frame="HELMET: metres, x to the wearer's left, y back, z up (helmet.py)",

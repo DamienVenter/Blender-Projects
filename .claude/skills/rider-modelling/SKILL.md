@@ -771,7 +771,53 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   solved cameras. Snap a frame's outer edge back onto the shell (a tangent offset sank 1 mm into the concave lower
   back). Do not paint what is built: the painted lattice doubled the built one wherever the casts differ.
 - **A recess on a closed shell.** A slot sunk into the shell reads as a lip rising to a rounded crest at the slot's
-  edge with a dark inner wall; a raised ring with a flat top reads as a bezel (tried on the rear slots).
+  edge with a dark inner wall; a raised ring with a flat top reads as a bezel (tried on the rear slots). Round 4:
+  under the clear coat any raised edge, even 0.2 mm proud, shows a bright line at 3x and a dark edge a black
+  outline; while the shell stays closed, draw the slot as the print's dark plus its wire mesh, nothing raised.
 - **Grazing features.** The rear lower vents are seen at a 0.13 to 0.43 cosine from every camera that sees them:
   sizes along them agree (59 and 60 mm), across them not (10 and 17 mm). Measure such features in two views and
   quote the spread; the print traced there is unreliable too.
+
+## Helmet round 4: crown, print, visor, vents, rear pieces (2026-11-15, helmet.py, helmet_art.py, helmet_ba.py, helmet_detail.py, ledger helmet.md section 7, decision 50)
+
+- **Free the gauge camera to test the profile.** Royal_Left held as the gauge hid that the old iso cameras were off:
+  freed, with its outline in the solve, it sits 1.4 to 2.3 deg off the side axis (not 8 to 11) and the profile fits at
+  2.5 px. Then read the worst landmarks again before blaming the shape: the 43 to 52 px were a badge held on a surface
+  it is not on and a vent read at its front end in some views and its centre in others. Read one feature point in
+  every view.
+- **Every camera needs a landmark at each end.** The top camera had landmarks only on the crown and stretched 45 mm
+  past the visor's tip; a `visor_tip` landmark held it (reduced chi-square 2.50 to 2.02).
+- **Photos can disagree with every rigid shell.** The top photo puts the crown 10 to 12 mm further forward than the
+  side photos. Measure the conflict in mm, record it, let the solve share it out; do not chase it with the shape, and
+  do not take a brief's offset measured through older cameras as given (the visor's "20 mm back" was not there in the
+  solved Royal and MY27 cameras, which keep the edge where it was).
+- **Compare silhouettes by numbers.** On a white background a white helmet's outline vanishes in crops: compare the
+  photo's mask edges row by row with the model's through the solved camera, in mm (the visor's plan: main 10 to 18 mm
+  wide near the tip, unseen in the crops).
+- **A raised part at a grazing angle shows its top.** The back camera sees the rear lower piece at a cosine of 0.42, so
+  a top 2 mm proud lands 8.3 px from its foot: place the foot so the top's projection lands on the photo's point
+  (iterate three times).
+- **Crisp moulded plates: separate vertices per band.** A plate whose top and walls share vertices shades as a tube
+  (averaged normals). Give the top, a 0.2 mm chamfer and the wall their own vertices; check the share of vertices
+  joining faces more than 20 deg apart (rear piece: main 69 %, now 3.6 %).
+- **Outlines with acute corners: fit lines, not morphology.** A morphological opening rounds and eats a
+  parallelogram's acute corners; fit the hull lines to the photo's outline and round the corners at a chosen radius
+  (`helmet_art.round_quad`), then grow the rim as an even offset.
+- **Crop every edge of a changed part at 1:1 in the view that shows it.** The visor's plan was fitted at its front
+  and sides; its rear edge, never traced in the top photo, ran straight across where Leatt's has a tongue and a corner
+  37.5 mm ahead of it (seen only in the checkpoint's 1:1 top crop). Trace the outline all round before calling a
+  part done.
+- **End a grid on an outline by remeshing a band.** Build the grid finer, find where its fine columns cross the
+  outline, and run each output column from its place on a fixed station to the outline's point at the same share of
+  its length (`helmet.visor_rear_edge`). Sliding each column to its own crossing shears the band into folded quads
+  where columns run along the outline.
+- **Symmetric art cast side by side through one camera shows the camera's error.** The visor's chevron columns,
+  each cast from its own side of the top photo, landed 5 mm from mirror places once the top camera was re-solved:
+  the mirror of one cast missed the other column by 14 px in the photo. Check the mirror gap of every per-side cast
+  (the test does), and when it grows, move each side half way to the other's mirror in the photo rather than
+  trusting one side.
+- **One view owns the print round a part.** A view that sees a white part edge-on draws its edge as a spike over the
+  next ink; give the view that sees it best the ownership inside a polygon (`helmet_art.BACK_ZONE`).
+- **Bounding-box lengths mix heights.** Our 369.7 mm length joined the chin's front (z -80) and the back's bulge (z
+  -35); per height it is at most 359.6. Compare a published length per level and against the EPS (287 against our
+  brow-to-back 288.8) before moving anything.

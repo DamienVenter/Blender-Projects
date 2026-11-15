@@ -137,7 +137,7 @@ def test_shell_outline_through_the_solved_cameras():
 
 def test_vents_are_moulded_away_from_the_front(built):
     """Round 3 (decision 46): main's crown vents were flat painted triangles; Leatt's top photo shows a raised white
-    insert round a triangle lattice over the dark opening. The rear exhaust slots carry a moulded surround and the
+    insert round a triangle lattice over the dark opening. The rear exhaust slots carry a wire mesh (round 4) and the
     lower rear vents a raised white piece drawn to a point (helmet_detail.py, from the photos' px through the print's
     cameras). The part is mirror symmetric and stands on the shell (no more than its height above it, no more than
     SINK under it); the crown rims stand 1.5 mm proud; each vent with its lattice (10 bars or more) lies inside its
@@ -150,7 +150,7 @@ def test_vents_are_moulded_away_from_the_front(built):
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
     assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
-    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK}
+    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH}
     Vo, Fo, _ = H.shell_outer()
     No = H.normals(Vo, Fo)
     j = cKDTree(Vo).query(V)[1]
@@ -162,7 +162,7 @@ def test_vents_are_moulded_away_from_the_front(built):
             ins[f] = True
     crown = ins & (V[:, 0] < 0)                         # the vent on his right, as in the top photo
     assert abs(h[crown].max() - D.CROWN_RIM_H) < 0.0002
-    uv = H.cam_project(H.CAMS["top"], V[crown])[0]
+    uv = H.cam_project(H.PRINT_CAMS["top"], V[crown])[0]
     q = np.asarray(A.CROWN_VENT["insert"], float)        # the insert's outline: four corners, traced by eye
     seg = [(q[i], q[(i + 1) % 4]) for i in range(4)]
     d = np.min([np.linalg.norm(uv - (a + np.clip((uv - a) @ (b - a) / ((b - a) @ (b - a)), 0, 1)[:, None] * (b - a)),
@@ -171,6 +171,86 @@ def test_vents_are_moulded_away_from_the_front(built):
     assert len(D.lattice_lines(A.CROWN_VENT)) >= 10
     low = ~ins & (V[:, 2] < -0.03)
     assert np.ptp(V[low & (V[:, 0] > 0), 2]) > 0.04      # the lower piece runs 40 mm or more down the shell
+
+def test_crown_vent_outline_and_lattice():
+    """Round 4 (decision 50): Leatt's crown vent (top photo at 3x) is a rounded parallelogram in a thin, even
+    surround, over a lattice of near-equilateral triangles. Main's insert and opening were two quads traced by eye:
+    the surround 6 to 12 px wide by side (1.5 to 3 mm), the opening's corners sharp, the lattice's cells 21 and 25 px
+    a side 108 deg apart. Now (top photo px, 0.248 mm/px at the vent): every side's surround 8 px within 1 px, the
+    opening's opposite sides within 8 deg of parallel, its corners rounded (no turn over 30 deg between outline
+    points 2 px apart), the cells' three sides within 3 % of one length and 120 deg apart within 3 deg."""
+    import helmet_art as A
+    import helmet_detail as D
+    v = A.CROWN_VENT
+    op, ins = (np.asarray(v[k], float) for k in ("opening", "insert"))
+    for i in range(4):
+        a, b = op[i], op[(i + 1) % 4]
+        t = (b - a) / np.linalg.norm(b - a)
+        gap = abs((0.5 * (ins[i] + ins[(i + 1) % 4]) - 0.5 * (a + b)) @ np.array([-t[1], t[0]]))
+        assert abs(gap - 8.0) < 1.0, f"side {i}: the surround {gap:.1f} px wide"
+    d = np.roll(op, -1, 0) - op
+    ang = np.degrees(np.arctan2(d[:, 1], d[:, 0]))
+    for i in (0, 1):
+        assert abs((ang[i] - ang[i + 2]) % 360 - 180) < 8.0, f"sides {i}, {i + 2} not parallel"
+    o = D.resample_loop(A.vent_outline("opening"), 2.0)
+    e = np.roll(o, -1, 0) - o
+    th = np.arctan2(e[:, 1], e[:, 0])
+    turn = np.degrees(np.abs((np.diff(np.r_[th, th[:1]]) + np.pi) % (2 * np.pi) - np.pi))
+    assert turn.max() < 30.0, f"a corner turns {turn.max():.0f} deg at once"
+    a, b = np.asarray(v["a"], float), np.asarray(v["b"], float)
+    sides = np.linalg.norm([a, b, a + b], axis=1)
+    assert np.ptp(sides) / sides.mean() < 0.03, f"cell sides {np.round(sides, 1)} px"
+    cell = np.degrees(np.arccos(a @ b / (sides[0] * sides[1])))
+    assert abs(cell - 120.0) < 3.0, f"cell sides {cell:.1f} deg apart"
+
+
+def test_rear_pieces_soft_slot_edge_flat_plate_point_and_mesh(built):
+    """Round 4 (decision 50), from Leatt's back photos at 2x to 4x (Pinata, V25 white, Royal). The rear exhaust
+    slot's edge rolls softly into the slot, with no rim: main stood a lip 1.0 mm proud that read as a bright rim (and
+    so did 0.4 and 0.2 mm, rendered at 3x); now nothing of the slot stands over the shell but its mesh, under 0.5 mm.
+    The rear lower piece is a flat plate with crisp edges, drawn to a point:
+    its top within 0.25 mm of 2 mm over the shell; its shading broken at its edges (each band its own vertices:
+    away from the point, under 10 % of its vertices join faces more than 20 deg apart; main's round loop 69 %); its
+    top's point through the back camera within 3 px of the photo's (481.5, 1594.5). Both slots carry a wire mesh
+    (main: none)."""
+    from scipy.spatial import cKDTree
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
+    Vo, Fo, _ = H.shell_outer()
+    No = H.normals(Vo, Fo)
+    j = cKDTree(Vo).query(V)[1]
+    h = np.sum((V - Vo[j]) * No[j], 1)                  # height above the shell
+    mats = list(P.M)
+    left = V[:, 0] > 0
+    slot = left & (V[:, 1] > 0.08) & (V[:, 2] > 0.03) & (V[:, 2] < 0.10)
+    low = left & (V[:, 2] < -0.03)
+
+    def faces(mat, region):
+        return [list(f) for f, m in zip(P.F, mats) if m == mat and region[list(f)].all()]
+    sv = np.unique(np.concatenate([list(f) for f in P.F]))
+    sv = sv[slot[sv]]
+    assert len(sv) > 100 and h[sv].max() < 0.0005, f"the slot's edge {1000 * h[sv].max():.2f} mm over the shell"
+    fl = faces(D.MAT, low)
+    pv = np.unique(np.concatenate(fl))
+    fn = np.array([np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]]) for f in fl])
+    fn /= np.linalg.norm(fn, axis=1)[:, None]
+    top = np.array([fn[i] @ No[j[f]].mean(0) > math.cos(math.radians(20)) for i, f in enumerate(fl)])
+    tv = np.unique(np.concatenate([fl[i] for i in np.nonzero(top)[0]]))
+    assert np.ptp(h[tv]) < 0.00025 and abs(h[tv].mean() - 0.002) < 0.00025, "the plate's top is not flat at 2 mm"
+    tip = pv[np.argmin(V[pv, 2])]
+    by_v = {}
+    for i, f in enumerate(fl):
+        for k in f:
+            by_v.setdefault(k, []).append(i)
+    spread = [np.degrees(np.arccos(np.clip((fn[fi] @ fn[fi].T).min(), -1, 1))) for k, fi in by_v.items()
+              if np.linalg.norm(V[k] - V[tip]) > 0.004]
+    assert np.mean(np.array(spread) > 20.0) < 0.10, "the plate's edges are shaded round"
+    uv = H.cam_project(H.PRINT_CAMS["back"], V[tip][None])[0][0]
+    assert np.linalg.norm(uv - [481.5, 1594.5]) < 3.0, f"the point at {np.round(uv, 1)} px in Leatt's back photo"
+    for region in (slot, low):
+        assert len(faces(D.MAT_MESH, region)) > 100, "no wire mesh in a slot"
+
 
 def shading_normals(V, F):
     """Vertex normals as Blender's smooth shading makes them: face normals weighted by the corner angles."""
@@ -461,6 +541,103 @@ def test_crown_vent_openings_drawn_dark(art):
     assert len(k) > 100
     dark = art["drawn"][0][r[k], c[k]].max(1) < 60
     assert dark.mean() > 0.97, f"{100 * (1 - dark.mean()):.0f} % of the opening painted light (bars)"
+
+def test_print_round_the_rear_lower_piece(art):
+    """Round 4 (decision 50): the print round the rear lower pieces is the back photo's (helmet_art.BACK_ZONE): main
+    took it from the iso-left view, which laid the white piece's edge out as a white spike over the black beside it
+    (back photo px 500 to 540, 1495 to 1520). Through the solved back camera, the drawn print matches the photo at
+    points picked on it at 2x: black right of the piece and under its point, white on its outer side."""
+    A = art["A"]
+    img = art["drawn"][0]
+    r, c, P, N, S = A.texels(SMALL)
+    sel = np.nonzero((S == 0) & (P[:, 0] > 0) & (P[:, 2] < -0.03))[0]
+    uv, vis, cos = A.view_lookup("back", P[sel], N[sel], P[sel])
+    ok = vis & (cos > 0.1)
+    for (x, y), ink in (((505, 1500), "black"), ((520, 1505), "black"), ((530, 1515), "black"),
+                        ((515, 1560), "black"), ((545, 1470), "black"), ((445, 1500), "white"),
+                        ((450, 1450), "white")):
+        k = sel[ok & (np.hypot(uv[:, 0] - x, uv[:, 1] - y) < 3.0)]
+        assert len(k) > 0, (x, y)
+        px = np.median(img[r[k], c[k]], 0)
+        assert (px.max() < 60) if ink == "black" else (px.min() > 190), f"({x}, {y}) should be {ink}: {px}"
+
+
+def test_visor_plan_on_the_top_photo():
+    """Round 4 (decision 50): the visor's outline in Leatt's top photo through the solved top camera
+    (research/helmet-ba.json), whose solve now holds the visor's tip on the centre line (helmet_ba.CENTRES,
+    visor_tip, read in Royal's side view, the top view and MY27's two sides; main's top camera, without a landmark at
+    the front, stretched 45 mm there). From 5 mm behind the tip back to y = -110 mm, both edges of each station's
+    top surface lie within 3.5 mm of the photo's outline (the mask's outermost pixel on that row). Main: 15 to 18 mm
+    too wide 8 mm behind the tip, 10 to 11 mm at 15 mm, 1.5 to 5.6 mm along its sides."""
+    import helmet_ba as BA
+    Vo, Fo, prof = H.shell_outer()
+    G = H.visor_surface(prof)
+    m = BA.photo_mask("pin_top")
+    cam = BA.solved_cameras()["pin_top"]
+    n = 0
+    for row in G:
+        if not -0.214 < row[0, 1] < -0.110:
+            continue
+        uv = BA.project(cam, row)
+        for j, sgn in ((np.argmin(uv[:, 0]), -1.0), (np.argmax(uv[:, 0]), 1.0)):
+            on = np.nonzero(m[int(np.clip(round(uv[j, 1]), 0, m.shape[0] - 1))])[0]
+            assert len(on), f"visor edge at y {1000 * row[j, 1]:.0f} mm beyond the photo's helmet (row {uv[j, 1]:.0f})"
+            edge = on.max() if sgn > 0 else on.min()
+            off = sgn * (uv[j, 0] - edge) * ((row[j] - cam["C"]) @ cam["R"][2]) / cam["f"]
+            assert abs(off) < 0.0035, f"visor edge {1000 * off:+.1f} mm off the photo's at y {1000 * row[j, 1]:.0f} mm"
+            n += 1
+    assert n >= 20
+    assert "pin_top" in BA.CENTRES["visor_tip"]
+
+
+# the visor's rear edge in Leatt's top photo (pin_top px, its lit line read on 3x crops, both sides): the tongue, the
+# steep and gentle runs forward along the crown, and the wing's edge back up (its corner, read less surely, left out)
+VISOR_REAR_TOP_PX = [
+    (940, 805), (900, 805), (870, 805), (850, 807), (840, 810), (833, 815), (825, 826), (815, 840), (805, 854),
+    (795, 868), (785, 881), (778, 890), (772, 895), (750, 902), (725, 910), (700, 918), (675, 926), (650, 935),
+    (625, 943), (600, 952), (588, 958), (575, 952), (562, 938), (550, 925), (537, 910), (525, 898), (512, 885),
+    (500, 872), (975, 808), (1010, 809), (1050, 810), (1075, 812), (1083, 815), (1095, 826), (1105, 840),
+    (1115, 855), (1125, 870), (1135, 885), (1142, 896), (1150, 900), (1175, 908), (1200, 916), (1225, 925),
+    (1250, 934), (1275, 942), (1300, 952), (1335, 965), (1350, 952), (1375, 930), (1400, 905), (1420, 885),
+    (1430, 873)]
+
+
+def test_visor_rear_edge_on_the_top_photo(built):
+    """Round 4 (decision 50): the visor's rear edge in plan is Leatt's: a tongue over the crown's centre, the edge
+    running forward along the crown to a corner 37.5 mm ahead of it, ahead of the vents, then back up the wing. Through
+    the solved top camera, with the tongue's end put on the photo's (the top photo puts the crown 10 to 12 mm ahead of
+    the side views, which place the tongue), every point read on the photo's edge lies within 8 px (1.9 mm) of the
+    model's, median under 3 px (main: 467 px, median 205; its rear row ran straight across and gathered into a point
+    at the centre). Over the vents' columns the edge stands at least 20 mm ahead of the vent inserts (a straight edge
+    at the tongue's end: 8.3 mm), and no quad of the visor's grid is folded (its tip row, one point, aside)."""
+    import helmet_ba as BA
+    import helmet_detail as D
+    Vo, Fo, prof = H.shell_outer()
+    G = H.visor_surface(prof)
+    E = G[-1]
+    uv = BA.project(BA.solved_cameras()["pin_top"], E)
+    c = len(E) // 2
+    t = np.linspace(0, len(E) - 1, 4000)
+    k = np.clip(np.floor(t).astype(int), 0, len(E) - 2)
+    poly = uv[k] + (uv[k + 1] - uv[k]) * (t - k)[:, None]
+    poly[:, 1] += 806.5 - uv[c, 1]                     # the tongue's end on the photo's (v 805 to 808)
+    d = np.array([np.min(np.linalg.norm(poly - p, axis=1)) for p in np.array(VISOR_REAR_TOP_PX, float)])
+    assert d.max() < 8.0 and np.median(d) < 3.0, f"rear edge {d.max():.1f} px off (median {np.median(d):.1f})"
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    ins = np.unique(np.concatenate([f for f, m in zip(P.F, P.M) if m == D.MAT_INSERT]))
+    xs = np.abs(V[ins, 0])
+    for x in np.linspace(xs.min(), xs.max(), 9):
+        gap = V[ins, 1].min() - np.interp(x, np.abs(E[c:, 0]), E[c:, 1])
+        assert gap > 0.020, f"visor edge {1000 * gap:.1f} mm ahead of the vents at |x| {1000 * x:.0f} mm"
+    nr, nc, _ = G.shape
+    Q = np.array(H.grid_faces(nr, nc))[nc - 1:]
+    W = G.reshape(-1, 3)
+    n1 = np.cross(W[Q[:, 1]] - W[Q[:, 0]], W[Q[:, 3]] - W[Q[:, 0]])
+    n2 = np.cross(W[Q[:, 3]] - W[Q[:, 2]], W[Q[:, 1]] - W[Q[:, 2]])
+    cos = np.sum(n1 * n2, 1) / (np.linalg.norm(n1, axis=1) * np.linalg.norm(n2, axis=1))
+    assert cos.min() > 0.5, f"{int((cos <= 0.5).sum())} folded quads in the visor's grid"
+
 
 def test_visor_chevrons_from_the_top_photo(art):
     """The visor's chevrons: seven per side, vectorised from Leatt's top photo (the stored outlines are the photo's,

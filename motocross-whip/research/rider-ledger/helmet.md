@@ -99,7 +99,7 @@ photos only MEASURE the print; the texture is drawn by script (`helmet_art.py tr
 | DOT print | drawn white on the black lower back: bar with the wordmark knocked out, MOTO 8.5, DOT, FMVSS No. 218, CERTIFIED | 19.3 x 21.8 mm, projected through the back camera | back 915-1017 x 1540-1620 px |
 | Size sticker | drawn: white 245/244/241, **L 59-60cm** (his size), 1305g±50g, ECE 22.06 | 18.4 x 16.0 mm | back 1020-1116 x 1562-1621 px (reads M 57-58cm) |
 | EIGHT POINT FIVE x2 | drawn: black capitals one per cell along the top of each side band, from the front up on his left, from the back down on his right | cap 2.45 mm, pitch 8.29 mm (24 of 26 letter centres, residual 8.1 mm) | iso-left, iso-right |
-| Visor chevrons x7 a side | **vectorised from the top photo**, where they are seen square-on (4 px per mm): dark components (below 90 on white) of 1200 to 2000 px in the columns x 1220-1480 (his left) and 440-700 (his right), y 950-1540; each outline at half contrast between its own black core and the white ring round it (sub-pixel contour, Douglas-Peucker 0.6 px), black ink, projected onto the visor through the top camera; the traced black under them erased 3 mm round | 7 a side, centres x +-78.7 mm, columns 102.7 and 101.2 mm long, each about 10 x 21 mm | top |
+| Visor chevrons x7 a side | **vectorised from the top photo**, where they are seen square-on (4 px per mm): dark components (below 90 on white) of 1200 to 2000 px in the columns x 1220-1480 (his left) and 440-700 (his right), y 950-1540; each outline at half contrast between its own black core and the white ring round it (sub-pixel contour, Douglas-Peucker 0.6 px), black ink, projected onto the visor through the top camera; the traced black under them erased 3 mm round | 7 a side, centres x +-78.7 mm, columns 102.7 and 101.2 mm long, each about 10 x 21 mm (round 4, through the solved top camera: each column moved 7 px in the photo to mirror places, centres (+-82.4, -106.6, 110.8) mm, section 7) | top |
 | Side chevrons, bands, stripe | traced (regions and fields) | | all four |
 
 | Material | Value | Source |
@@ -348,3 +348,171 @@ piece stands on its own print. Sizes through the solved cameras (helmet_detail.m
 - The rear slots' crest reads brighter than Leatt's soft edge.
 - The "moulded ridge line across the crown" of the brief is the visor's rear edge (top photo: the print crosses its
   step): phase B.
+
+## 7. Round 4 (2026-11-15, decision 50): crown, print, visor, vents, rear pieces
+
+Away from the front only: the brow, the face port, the chin bar, the helmet's place on his head and the goggle wait
+for the joint front fit (decision 47).
+
+### The crown: why the crown vent and the rear badge sat 43 to 52 px off the shell
+- Royal_Left is now solved free (round 3 held it as the gauge). It sits 1.4 to 2.3 deg off the side axis and 3.3 to
+  3.7 deg above it, not the 8 to 11 deg the old iso cameras implied, and the centre-line profile's silhouette fits its
+  outline at 2.0 to 2.5 px (0.5 to 0.6 mm). The profile is right; the shell was not changed.
+- The 43 to 52 px were forced readings. The rear badge was held on the profile: free, its four readings agree to 4.5
+  px rms and put it 22.6 mm inside the shell. The crown vent's side views had been read at its front end: read as the
+  centroid of its outline they still leave 26.9 px rms over 16 readings, the back views seeing the vent 10 to 15 mm
+  lower than the side views, the solved point 9.5 mm under the shell.
+- Reading of it: the crown has relief that the smooth shell has not. The silhouettes are the raised vent pods and
+  the rear ledge; the vents and the central panel lie lower between them. No outline sees that surface face-on, so it
+  is not measured yet (a later round, from the iso views' shading).
+- The top camera had no landmark at the front: free, it stretched 185 px (45 mm) past Leatt's visor tip. New landmark
+  `visor_tip` (Royal_Left, top, MY27 left and right; MY27's only along the length, its visor angle differs). Reduced
+  chi-square 2.50 to 2.02; twelve cameras (Royal back added).
+- Left over: the top photo puts the crown vents and the visor's rear edge 10 to 12 mm further forward than the side
+  views do (Leatt's visor tip to rear edge: 216 mm in the top photo at 0.238 mm/px, 228 mm in Royal). No rigid
+  mirror-symmetric shell takes both; the solve shares it out.
+
+| Camera | Landmark rms round 3 (px) | Round 4 (px) | Outline rms round 4 (px) |
+|---|---|---|---|
+| royal_left | 17.8 | 9.6 | 2.5 |
+| pin_isoleft | 21.3 | 8.0 | - |
+| pin_isoright | 17.2 | 6.0 | - |
+| pin_back | 15.4 | 13.7 | 3.7 |
+| pin_top | 22.7 | 6.8 | 2.0 |
+| v25w_isoleft | 10.3 | 8.6 | - |
+| v25w_back | 19.3 | 14.0 | 3.5 |
+| my27_isoleft | 4.9 | 6.5 | - |
+| my27_left | 30.2 | 11.5 | 3.6 |
+| my27_right | 20.1 | 11.6 | 3.5 |
+| my27_back | 12.4 | 9.8 | 2.7 |
+| royal_back | - | 11.1 | 3.3 |
+
+Front landmarks against the model now (measured, model; mm): brow y -136.6 / -139.7, chin vent y -158.1 / -156.9,
+eye-port triangle y -95.0 / -89.7, release tab y -86.3 / -85.9, side screw y -39.3 / -39.3. Round 3's 16 to 20 mm
+were the old cameras.
+
+### The print re-traced through the solved cameras
+- `helmet.PRINT_CAMS` are research/helmet-ba.json's Pinata cameras; the print and the moulded parts are cast through
+  them. The black blobs under each crown vent (round 3 sheet 02, main and r3) are gone: they were the old print's
+  vent openings, misregistered. The built vent insert lies on its traced outline in the top photo within 2.5 px.
+- The print round the rear lower pieces comes from the back camera (`helmet_art.BACK_ZONE`): the iso-left view had
+  drawn the white piece's edge out as a spike over the black (back photo px 500 to 540, 1495 to 1520).
+- To re-trace in the joint round, after the front moves: the brow badge, the eye port's black trim and grip panel,
+  the chin (cap, vent, chin text), the side icon, the emergency labels, the visor's side LEATT (distorted now) and
+  EIGHT POINT FIVE.
+- The visor's chevrons, cast column by column through the solved top camera, landed 5.0 mm from mirror places
+  (centres (81.3, -107.8, 112.6) and (-83.6, -105.5, 108.8) mm; main 1.9 mm). Leatt's art is symmetric: the mirror
+  of either column's cast lands 14 px (3.5 mm) from the other column in the photo, and the visor's sloping side
+  stretches that along the surface. The camera's error at the visor's tip and the visor's height there (4.4 mm high
+  in Royal) are the likely cause, not the print. Each column's outline is now moved in the photo half way to the
+  mirror of the other's cast (7.3 and 6.8 px, `proj.shift`): both at (+-82.4, -106.6, 110.8) mm, gap 0.04 mm, each
+  within 2 mm of its own photo place. The joint round's visor height should bring the casts together by themselves.
+- Seen, not done: the side exhaust vent is a painted black blob (Leatt: a dark slot with lit walls).
+
+### The visor
+- Rear end: the tongue's end kept at y 8.7 mm on the centre line. Through the solved cameras Royal (u 1135) and
+  MY27 left (1082, 316) put it there; the top photo puts it about 10 mm further forward (above). The brief's 20 mm
+  came from round 3's top and back triangulation.
+- Rear edge in plan, from the top photo at 3x (both sides traced, cast through the solved top camera onto the shell
+  offset by the visor's gap, mirrored and averaged; the sides agree within 1.3 mm but at the corner): a tongue over
+  the crown's centre (straight to |x| 22 mm, rounded to 30), the edge then running forward along the crown, steeply
+  to |x| 46 mm (22 mm ahead of the tongue's end) and gently to a corner 37.5 mm ahead at |x| 90 mm, then back up the
+  wing to |x| 113 mm, 15 mm ahead (y -6.2 mm: Royal's corner at u 1075). Main's ran straight across at the tongue's
+  end, 8.3 mm ahead of the vents, and its rear row gathered into one point at the centre (folded quads: the white
+  sliver at the visor's rear in the top view, sheet 03). Now, with the tongue's end put on the photo's (44.6 px),
+  the edge lies within 7.5 px (1.8 mm) of every traced point, median 2.3 px; over the vents' columns it stands 24.1
+  mm ahead of the inserts' front (Leatt's photo: 29 to 43 mm at the vents' own columns; ours 30 to 33).
+- How: the visor's grid is built 8 times finer across; where each fine column first crosses the rear edge gives the
+  edge, and the band behind y -60 mm is remeshed from that station to the edge, each column going to the edge's point
+  at the same share of its length. Sliding each arch column to its own crossing folded quads where the columns run
+  nearly along the edge's steep part. Behind the side corner the low line now runs on at the corner's height (main
+  rose to the crown for its straight edge).
+- In Royal the edge's corner shows at (1005, 464), Leatt's at about (977, 452): 7 mm further forward, relative to the
+  tongue, than the top photo gives. Kept to the top photo (the plan view).
+- Plan from the top photo through the solved top camera, row by row against the photo's outline: main stood 15 to 18
+  mm too wide 8 mm behind the tip (Leatt's tip is pointed in plan), 10 to 11 mm at 15 mm and 1.5 to 5.6 mm along
+  its sides; now within 3.2 mm from 5 mm behind the tip to y -112 mm (both sides, with the camera's 1.5 mm offset to
+  one side all along). The silhouette's rows near the tip agree within 6 px.
+- Wings (y -103 to -56 mm): 2 to 9 mm outside the photo's outline. The shell itself stands 0.4 to 3.2 mm outside it
+  there (the temples) and the wing must clear it: the wings' edges now come down to 4.5 mm off the shell (1 mm under
+  the visor) from 7.5. The shell's width at the temples belongs to the joint round.
+- Height: through the solved Royal camera the visor's top line stands 7 to 18 px (1.7 to 4.4 mm) above Leatt's, most
+  at the tip (the tip solves at z 136.1 mm, the model's 140.6). Its angle is adjustable (MY27's sits lower still).
+  Not changed: the joint round sets the visor on the front.
+- Not modelled (joint round): the screw in the triangular window of each wing (Royal at (865, 615)), the window, and
+  the visor's two moulded vents (printed black now).
+
+### The crown vents' shape
+- From the top photo at 3x: the opening a rounded parallelogram, hull lines top -23, right 94, bottom -21, left 100
+  deg (opposite sides within 6 deg of parallel through the camera), corners 6 px (1.5 mm); one rim 8 px (2.0 mm) all
+  round, the insert's outline the opening grown by 8 px. Main's two quads traced by eye gave a 6 to 12 px surround.
+- The lattice fitted to the photo's bars: cells 24.1 and 24.2 px (6.0 mm) a side, 119.5 deg apart, the third side
+  24.3 px (main: 21.4 and 25 px, 108 deg). Bars 1.0 mm (4.5 to 5 px at 3x).
+- The rim is a flat plate with crisp edges (each band its own vertices, a 0.2 mm chamfer), 1.5 mm proud: the first
+  build, shared vertices, shaded as a round tube against the photo's flat top with a bright inner edge.
+
+### The rear exhaust slots
+- Rendered at 3x in the Pinata back view: the round 3 lip 1.0 mm proud, a lip 0.4 mm proud with a 0.3 mm round, 0.2
+  mm proud, and a thin dark edge. Under the clear coat every raised edge showed a bright line (the coat's reflection
+  of the light backdrop on its round), the dark edge a black outline. Leatt's slot is a recess with no rim; the
+  shell stays closed, so the slot is the print's dark with the wire mesh in it (two sets at 40 deg, 1.6 mm apart,
+  0.35 mm wires, 0.2 mm over the shell) and nothing raised round it.
+
+### The rear lower pieces
+- A flat plate 2 mm over the shell, top flat within 0.2 mm, crisp edges (each band its own vertices, a 0.2 mm
+  chamfer): away from its point 3.6 % of its vertices join faces more than 20 deg apart (main's round loop 69 %).
+- Its point: the photo's point (481.5, 1594.5) is the raised top's. The back camera sees it at a cosine of 0.42, so a
+  top 2 mm proud shows 8.3 px left of its foot; the foot is placed for the top's point to land on the photo's (now
+  within 1 px).
+- A dark wire mesh fills the slot (as above, its top 0.9 mm over the floor's shell). Mesh material 36/37/40, rough
+  0.4 (the photos: near black, faint glints).
+- The print round it from the back camera (above).
+
+### The length: TF 172's 350 mm against our 369.7
+- Not the same 20 mm as the brow's 20.6. Our 369.7 is a bounding box: the chin's front (y -220.8 at z -80) and the
+  back's bulge (y 148.8 at z -35) at different heights. Length per height: 359.6 mm at most (z -80), 347.9 at z -95.
+  No pitch gives L 350 with H 300 (pitched 12 deg: L 351.7, H 342.8).
+- The brow's 20.6 mm was round 3's old cameras: through the solved ones the front landmarks agree with the model
+  within 1 to 5 mm (above), and the Royal outline, chin included, fits at 2.5 px.
+- The EPS figure fits the model: brow (y -140) to back (148.8) is 288.8 mm against the EPS's 287. So the file's
+  shell length is likely taken at another height or reference; the shell is left as the photos give it.
+
+### Liner numbers for the joint round (Technical File 172, M/L; nothing moved)
+- Shell 260 x 350 x 300 mm, EPS 256 x 287 x 270: the shell wall about 2 mm (width) and 1 mm (length, brow to
+  back, against our 288.8). EPS height 270 against the shell's 300: the shell's lower edge runs about 30 mm below
+  the EPS.
+- His head (size L, 592 mm round) on the model's placement (pitch 16.5 deg): skull 145.7 mm wide, 201.6 long, its
+  top 85.3 mm up (shell top 129.9). EPS plus comfort padding at the EPS's widest: (256 - 145.7) / 2 = 55 mm a side;
+  front and back (287 - 201.6) / 2 = 42.7 mm. At his head's widest (z 16 mm) the model's shell is 243.8 wide: 47 mm
+  a side less a 2 mm wall.
+- Model now: outer surface to his head 48.2 top, 47.9 back and sides, 39.0 at the forehead; solid 21.3 to 40.0 mm
+  thick.
+- Cheek pads 25 / 30 / 35 / 40 mm in the file, beside the weights 1250 / 1305 / 1340 / 1430 g (the label in Leatt's
+  photos: M, 1305 g). If the pads follow that order the M is 30 mm and the L 35; to read from the file's table in
+  the joint round before the cheeks are built.
+
+### Tests (all fail on main)
+- `test_crown_vent_outline_and_lattice`: even 8 px surround, parallel sides, rounded corners, equilateral cells (main:
+  surround 10.5 px on one side).
+- `test_rear_pieces_soft_slot_edge_flat_plate_point_and_mesh`: nothing of the exhaust slot over 0.5 mm, the plate's
+  top flat at 2 mm, its edges crisp, its point within 3 px of the photo's, a mesh in both slots (main: the lip 1.01 mm).
+- `test_print_round_the_rear_lower_piece`: black and white at seven points picked on the back photo (main: magenta
+  at (505, 1500)).
+- `test_visor_plan_on_the_top_photo`: the visor's edges within 3.5 mm of the top photo's outline from 5 mm behind
+  its tip to y -110 mm (main: its first station falls 139 px beyond the photo's tip).
+- `test_visor_rear_edge_on_the_top_photo`: the rear edge within 8 px of 52 points read on the top photo's edge
+  (median under 3), at least 20 mm ahead of the vent inserts over their columns, no folded quad (main: 467 px off,
+  median 205).
+- `test_vents_are_moulded_away_from_the_front` takes the mesh material.
+
+### Still not right
+- The crown's relief (pods, ledge, the lower central panel) is not modelled; the crown vent's readings disagree by
+  10 to 15 mm in height between the back and side views.
+- The top photo and the side photos disagree by 10 to 12 mm along the crown.
+- The visor stands up to 4.4 mm high at the tip through the solved Royal camera; its wings 2 to 9 mm outside the
+  top photo's outline over the temples; its rear edge's corner 7 mm behind Leatt's in Royal; no window, screws or
+  moulded vents.
+- The crown vents' rim: Leatt's reads thinner on the side towards the centre line (5 px against 8 to 11 on the outer
+  side); ours is even, as asked.
+- The rear exhaust slots' edge is the print's: no moulded roll (the shell is closed).
+- In the iso views the front (black eye port too high and too big, the visor low over it): the joint round.

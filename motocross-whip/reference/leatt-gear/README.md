@@ -9,7 +9,7 @@ identification, how each item was checked against his photos, colours, logo plac
   site redirect to it, `eu`, `uk` and `au` are unreachable. On 2026-11-12 the 2026 items are listed as clearance
   (`sale-my26`, tagged "MY26 Obsolete"), so these pages may disappear: the images are kept here.
 - File names: `<item>_<colourway>_<view>_<source>_<Leatt id>_<px>.<ext>`.
-- 57 files, 34.3 MB, plus the comparison sheets below.
+- 57 files, 34.3 MB, plus the comparison sheets below (2026-11-15: plus two V25 Royal helmet views, 5.3 MB).
 
 ## Jersey: Leatt Moto 5.5 UltraWeld, 2026 (MY26), Tiger Pink
 
@@ -53,7 +53,7 @@ Product pages: https://us.leatt.com/products/pants-moto-5-5-i-k-s-new-sale-my26,
 
 ## Helmet: Leatt Moto 8.5 Composite V26 helmet kit, Pinata Teal
 
-The four Pinata Teal kit views are everything Leatt publishes for that colourway. The two `white-v25` files are the plain white Moto 8.5 Damien wears in photo 05 of 2026-11-10 (same shell).
+The two `royal-v25` files (V25 Royal, product helmet-kit-moto-8-5-composite-with-5-5-goggle-sale, added 2026-11-15) are the same shell: the left view is the one the shell's profile is traced from (helmet.py), and both are views of the photo solve (helmet_ba.py). The four Pinata Teal kit views are everything Leatt publishes for that colourway. The two `white-v25` files are the plain white Moto 8.5 Damien wears in photo 05 of 2026-11-10 (same shell).
 
 Product page: https://us.leatt.com/products/helmet-kit-moto-8-5-composite-with-5-5-goggles-sale-my26
 
@@ -65,6 +65,8 @@ Product page: https://us.leatt.com/products/helmet-kit-moto-8-5-composite-with-5
 | `helmet85-kit_pinatateal_top_leatt-us_1026000250_1920.png` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_HelmetKitMoto_8.5_PinataTeal_Top_1026000250_cbe05872-ae5b-46d2-9525-e679130f611f.png |
 | `helmet85_white-v25_iso-left_leatt-us_1025100260.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Helmet_Moto_8.5_White_ISO_Left_1025100260.jpg |
 | `helmet85_white-v25_back_leatt-us_1025100260.jpg` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Helmet_Moto_8.5_White_Back_1025100260.jpg |
+| `helmet85_royal-v25_left_leatt-us_1025100220_1920.png` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Helmet_Moto_8.5_Royal_Left_1025100220.png |
+| `helmet85_royal-v25_back_leatt-us_1025100220_1920.png` | 1920x1920 | https://cdn.shopify.com/s/files/1/0689/8876/4207/files/Leatt_Helmet_Moto_8.5_Royal_Back_1025100220_9117e0ed-97d5-4155-a968-67d16b7e5392.png |
 
 ## Goggles: Leatt Velocity 5.5 Iriz, Pinata Teal, Purple 78% lens
 

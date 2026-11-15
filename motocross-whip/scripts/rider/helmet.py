@@ -15,7 +15,8 @@ Sources (research/rider-ledger/helmet.md has every number with its source):
             registered onto that side view by a similarity fit (residual 18 px), camera taken 1.5 m away.
   WIDTHS    back-view half widths (Royal_Back, scaled the same way) and the plan (Pinata Teal top view).
   ART       the Pinata Teal print, the brow badge included, redrawn flat by helmet_art.py (traced in Leatt's four
-            Pinata photos through the cameras CAMS, logos from Leatt's own files): no studio light in the texture.
+            Pinata photos through PRINT_CAMS, the cameras solved with all the photos, research/helmet-ba.json;
+            logos from Leatt's own files): no studio light in the texture.
             The paint is that print under a gloss clear coat (MATERIALS["helmet_paint"]).
 """
 import json
@@ -674,17 +675,87 @@ RIM_R = 0.004                      # m, the rubber trim's roll beyond the cut ed
 
 # ---------------------------------------------------------------- visor
 # Royal_Left pixels: top line (centre line) and lower edge (the visor's side edge seen from the side), tip at u 220,
-# rear end on the crown at u 1135 (its rear edge runs down to the side corner at u 1075, v 662).
+# rear end on the crown at u 1135 (its rear edge runs down to the side corner at u 1075, v 662). Round 4: behind that
+# corner the low line runs on at its height (main rose to the crown, v 540 and 380, for a rear edge straight across):
+# the grid then lies over the shell to the tongue's end and VISOR_REAR cuts the rear edge from it.
 VISOR_TOP = [(220, 334), (257, 323), (297, 322), (337, 322), (407, 321), (487, 322), (567, 323), (647, 326),
              (726, 329), (806, 334), (886, 340), (966, 347), (1045, 352), (1100, 356), (1135, 360)]      # rear end raised 3 mm: sits on the crown
 VISOR_LOW = [(220, 334), (277, 377), (346, 416), (416, 454), (487, 491), (558, 528), (610, 600), (660, 660),
-             (720, 712), (760, 722), (900, 692), (1000, 675), (1075, 662), (1110, 540), (1135, 380)]
+             (720, 712), (760, 722), (900, 692), (1000, 675), (1075, 662), (1135, 662)]
 # plan half width of the visor (Pinata Teal top view, 0.247 mm/px), by Royal_Left u
-VISOR_PLAN = [(220, 0.0), (236, 0.0356), (276, 0.0652), (315, 0.0745), (395, 0.0800), (474, 0.0860),
-              (554, 0.0921), (634, 0.0988), (713, 0.1058), (793, 0.1162), (872, 0.1212), (912, 0.1225),
-              (1000, 0.090), (1075, 0.050), (1135, 0.0)]      # behind u 912 the visor lies on the shell
+# Round 4 (decision 50): the half widths ahead of u 912 measured against Leatt's top photo through the solved top
+# camera (research/helmet-ba.json; its outline: the photo's mask, the visor's edge row by row): main's visor stood
+# 10 to 18 mm too wide over its first 15 mm (Leatt's tip is pointed in plan), 1.5 to 5 mm along its sides and 5 to
+# 10 mm at its wings (y -103 to -61 mm). Behind u 912 the visor lies on the shell and its rear edge is VISOR_REAR's
+# (round 4: the half width stays 50 mm to the rear end, where main's 0 gathered the rear row into one point).
+VISOR_PLAN = [(220, 0.0), (236, 0.018), (251, 0.030), (279, 0.055), (311, 0.0695), (347, 0.0732), (403, 0.0775),
+              (460, 0.0819), (516, 0.0864), (573, 0.0913), (629, 0.0967), (685, 0.0978), (742, 0.0995),
+              (798, 0.1079), (854, 0.1136), (912, 0.1199), (1000, 0.090), (1075, 0.050), (1135, 0.050)]
 VISOR_T = 0.0035                   # m, visor thickness (moulded ABS)
 VISOR_GAP = 0.0075                 # m, top surface off the shell where it lies over it (underside 4 mm clear)
+# the wings' edges come down to the shell (round 4): Leatt's top photo has its outline 5 to 10 mm inside main's wings,
+# which stood the full gap off the shell to their edges; over the outer fifth of the arch the gap falls to the
+# visor's thickness plus 1 mm
+VISOR_EDGE_GAP = 0.0045
+# the visor's rear edge in plan (round 4, decision 50): |x| and y, m, y from the tongue's rear end (Royal's u 1135).
+# Leatt's top photo at 3x: a tongue over the crown's centre (straight to |x| 22 mm, round to 30), the edge then
+# running forward along the crown (steeply to |x| 46 mm, 22 mm ahead, then gently) to a corner 37.5 mm ahead at |x|
+# 90 mm, ahead of the vents, and back up the wing to |x| 113 mm, 15 mm ahead (y -6.2 mm: Royal's corner at u 1075).
+# Main's rear edge ran straight across at the tongue's end. Both sides traced, cast through the solved top camera
+# (research/helmet-ba.json) onto the shell offset by VISOR_GAP, mirrored and averaged (the sides agree within 1.3 mm
+# but at the corner, 4 mm); y is taken from the tongue because the top photo puts the crown 10 to 12 mm ahead of the
+# side views (helmet.md 7).
+VISOR_REAR = [(0.0, 0.0), (0.022, 0.0), (0.026, -0.0005), (0.028, -0.0010), (0.030, -0.0022), (0.032, -0.0043),
+              (0.036, -0.0099), (0.040, -0.0157), (0.044, -0.0207), (0.046, -0.0218), (0.050, -0.0230),
+              (0.062, -0.0269), (0.074, -0.0309), (0.086, -0.0353), (0.0905, -0.0375), (0.095, -0.0328),
+              (0.101, -0.0269), (0.107, -0.0210), (0.113, -0.0149), (0.200, -0.0149)]
+VISOR_REAR_FROM = -0.06            # m, stations ahead of this y keep their place (the rear edge's corner: y -28.8)
+VISOR_FINE = 8                     # the finer grid's columns per column
+
+
+def grid_at(F, c, t):
+    """Points of a grid surface F (rows, columns, 3) at fractional column c and row t (bilinear)."""
+    nr, nc, _ = F.shape
+    c0 = np.clip(np.floor(c).astype(int), 0, nc - 2)
+    t0 = np.clip(np.floor(t).astype(int), 0, nr - 2)
+    a, b = (c - c0)[:, None], (t - t0)[:, None]
+    return ((1 - a) * (1 - b) * F[t0, c0] + a * (1 - b) * F[t0, c0 + 1] + (1 - a) * b * F[t0 + 1, c0]
+            + a * b * F[t0 + 1, c0 + 1])
+
+
+def visor_rear_edge(F, nphi, y_end):
+    """The visor's grid (nphi columns) from a finer one F whose rear stations run straight across: ahead of
+    VISOR_REAR_FROM its own columns; behind it a band whose last row lies on VISOR_REAR. Where each fine column first
+    crosses the rear edge gives the edge; every column then runs from its place on the station at VISOR_REAR_FROM to
+    the edge's point at the same share of its length (sliding each column to its own crossing sheared the band into
+    folded quads where the columns run nearly along the edge's steep part)."""
+    rear = np.array(VISOR_REAR)
+    nr, nf, _ = F.shape
+    step = (nf - 1) // (nphi - 1)
+    i0 = int(np.searchsorted(F[:, nf // 2, 1], VISOR_REAR_FROM))
+    te = np.full(nf, nr - 1.0)
+    for k in range(nf):
+        g = F[:, k, 1] - (y_end + np.interp(np.abs(F[:, k, 0]), rear[:, 0], rear[:, 1]))
+        h = np.nonzero(g[i0:] > 1e-9)[0]
+        if len(h):
+            m = i0 + h[0]
+            te[k] = (m - 1) + g[m - 1] / (g[m - 1] - g[m])
+    ce = np.arange(nf, dtype=float)
+
+    def share(P):
+        c = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+        return c / c[-1]
+
+    fe = share(grid_at(F, ce, te))
+    cj = np.arange(nphi) * step
+    f = share(F[i0])[cj]
+    c_end, t_end = np.interp(f, fe, ce), np.interp(f, fe, te)
+    r = np.linspace(0.0, 1.0, nr - i0)[:, None]
+    C = (1 - r) * cj[None, :] + r * c_end[None, :]
+    T = (1 - r) * i0 + r * t_end[None, :]
+    G = F[:, ::step].copy()
+    G[i0:] = grid_at(F, C.ravel(), T.ravel()).reshape(nr - i0, nphi, 3)
+    return G
 
 
 def visor_surface(prof, nu=56, nphi=41):
@@ -697,22 +768,25 @@ def visor_surface(prof, nu=56, nphi=41):
     zt = np.interp(ys, top[:, 0], top[:, 1])
     zl = np.interp(ys, low[:, 0], low[:, 1])
     a = np.interp(us, plan[:, 0], plan[:, 1])
-    phi = np.linspace(-1, 1, nphi)
-    G = np.zeros((len(us), nphi, 3))
+    nf = VISOR_FINE * (nphi - 1) + 1                   # the rear edge is found on a finer grid (visor_rear_edge)
+    phi = np.linspace(-1, 1, nf)
+    G = np.zeros((len(us), nf, 3))
     for i, (y, z0, z1, ai) in enumerate(zip(ys, zt, zl, a)):
         c = 1 - np.cos(phi * np.pi / 2)
         z = z0 - (z0 - z1) * c ** 1.3
         x = ai * np.sin(phi * np.pi / 2)
-        G[i] = np.c_[x, np.full(nphi, y), z]
+        G[i] = np.c_[x, np.full(nf, y), z]
     # lie over the shell where the shell is under it: never closer than VISOR_GAP
     flat = G.reshape(-1, 3)
     ins = prof.inside(flat[:, 1:])
     hw = np.zeros(len(flat))
     hw[ins] = shell_hw(prof, flat[ins, 1], flat[ins, 2])
     side = np.sign(flat[:, 0]) + (flat[:, 0] == 0)
-    need = ins & (np.abs(flat[:, 0]) < hw + VISOR_GAP)
-    flat[need, 0] = side[need] * (hw[need] + VISOR_GAP)
-    return flat.reshape(G.shape)
+    k = np.clip((np.tile(np.abs(phi), len(us)) - 0.8) / 0.2, 0, 1)
+    gap = VISOR_GAP - (VISOR_GAP - VISOR_EDGE_GAP) * k * k * (3 - 2 * k)
+    need = ins & (np.abs(flat[:, 0]) < hw + gap)
+    flat[need, 0] = side[need] * (hw[need] + gap[need])
+    return visor_rear_edge(flat.reshape(G.shape), nphi, ys[-1])
 
 
 def grid_faces(nr, nc, off=0, flip=False):
@@ -822,6 +896,13 @@ CAMS = dict(isoleft=[62.0789, 3.9144, -7.4058, 1.4021, 5653.2658, -0.0307, -0.00
             back=[179.7402, 11.1849, 0.0388, 1.1854, 5620.7099, 0.0004, 0.0194, 0.0024],
             top=[3.0441, 87.254, 0.2669, 1.4571, 5624.0378, 0.0002, -0.0141, -0.0449],
             isoright=[-59.1663, 8.6293, 8.1332, 1.8892, 7721.6883, 0.0325, 0.0004, -0.0393])
+# The print's cameras (helmet round 4, decision 50): the four Pinata views as solved together with Leatt's other
+# photos of the shell (helmet_ba.py, research/helmet-ba.json: shared landmarks and outlines). CAMS above, each fitted
+# alone to its own outline, put the crown print 20 to 30 mm ahead of where the other views see it (round 3); they stay
+# as helmet_ba's start values. cam_from and cam_project take either kind.
+BA_JSON = os.path.normpath(os.path.join(HERE, "..", "..", "research", "helmet-ba.json"))
+PRINT_CAMS = {k[4:]: dict(C=np.array(c["C"]), R=np.array(c["R"]), f=float(c["f"]))
+              for k, c in json.load(open(BA_JSON))["cameras"].items() if k.startswith("pin_")}
 # the goggle and its strap cover the right side in Leatt's iso-right view: not the helmet's art (hand-drawn, px)
 ISORIGHT_GOGGLE = [(215, 630), (560, 610), (800, 700), (1430, 700), (1470, 1000), (1440, 1260), (800, 1240),
                    (770, 1040), (560, 960), (215, 930)]
@@ -833,6 +914,10 @@ BASE_WHITE = (226, 229, 235)
 
 
 def cam_from(x):
+    """(centre, rotation rows right/up/forward, focal px) of a camera: a solved one (dict C, R, f; principal point
+    960, 960) or CAMS' parameters."""
+    if isinstance(x, dict):
+        return x["C"], x["R"], x["f"]
     az, el, roll, d, f, tx, ty, tz = x
     a, e = math.radians(az), math.radians(el)
     dirn = np.array([math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)])
@@ -1130,6 +1215,9 @@ MATERIALS = {
     # shell's own white under its clear coat (the print's white ink, helmet_art.json, and helmet_paint's coat)
     "helmet_vent_insert": dict(rgb=[205, 209, 216], rough=0.35),
     "helmet_moulded": dict(rgb=[226, 229, 235], rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
+    # the rear slots' wire mesh (round 4): near black in Leatt's back photos, its wires seen by their faint glints
+    # (Pinata back at 3x: the exhaust slot's mesh barely shows, the lower slot's dark grey on black)
+    "helmet_vent_mesh": dict(rgb=[36, 37, 40], rough=0.4),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
     "goggle_strap": dict(rough=0.7, sheen=0.3, image="goggle_strap.png"),

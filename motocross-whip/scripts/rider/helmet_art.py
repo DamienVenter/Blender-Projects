@@ -12,8 +12,9 @@ trace  1. every atlas texel is a point on the shell (helmet.atlas_uvs, rasterize
           on his left half (|x|, y, z): the Pinata art is mirror-symmetric (Leatt iso-left against iso-right), words
           excepted (drawn afterwards, reading right on each side)
        2. each design point is looked up in the views that see it (Leatt's four Pinata photos through the cameras
-          fitted to the shell, helmet.CAMS; the right side's photo mirrored); ONE view owns each texel (the most
-          square-on one, smoothed), so no two misregistered views are blended
+          solved with Leatt's other photos, helmet.PRINT_CAMS; the right side's photo mirrored); ONE view owns each
+          texel (the most square-on one, smoothed; round the rear lower pieces the back view, BACK_ZONE), so no two
+          misregistered views are blended
        3. lighting out: the studio shading of each view is fitted on the white base as a smooth function of the
           shell's normal (second-order spherical harmonics, robust) and divided out; studio reflections (pixels
           brighter than any print, and the hand-marked reflections in HIGHLIGHTS) are cut and filled from their
@@ -114,7 +115,7 @@ def lin_to_srgb(c):
 def view_lookup(view, P, N, all_P):
     """Where each point lands in a view's photo (px), whether the view sees it (depth test against all_P, the
     whole outer surface), and how squarely (cos of the angle between the normal and the ray)."""
-    x = H.CAMS[view]
+    x = H.PRINT_CAMS[view]
     C, Rm, f = H.cam_from(x)
     uv, depth = H.cam_project(x, P)
     uva, da = H.cam_project(x, all_P)
@@ -187,6 +188,14 @@ FORCE = {"isoleft": [
 # crease along the chevrons, the shadow under its raised side, the side vent's recess lit pale blue), which the
 # model's plain visor does not have; the chevrons and the visor's LEATT are drawn over it (VISOR_CHEVRONS, ELEMENTS).
 FORCE_VISOR = {"top": [("white", [(1230, 960), (1480, 960), (1480, 1560), (1230, 1560)])]}
+# The print round the rear lower pieces comes from the back view (round 4, decision 50). The shell turns there from
+# the back to the side and every camera sees it at a grazing angle (cosine 0.13 to 0.43); the iso-left view, owning
+# it by its larger cosine, laid the white piece's edge out as a spike over the black beside it (back photo px 500 to
+# 540, 1495 to 1520), its camera having no outline of its own there. Inside this zone (back photo px, his left; his
+# right takes the mirror) the back view owns every texel it sees at a cosine over BACK_ZONE_COS, the others weigh
+# 0.02 of their own.
+BACK_ZONE = [(425, 1395), (555, 1395), (565, 1645), (425, 1645)]
+BACK_ZONE_COS = 0.1
 
 
 def design_points(P, N):
@@ -255,6 +264,14 @@ def sample_views(tex):
     return out
 
 
+def back_zone(P, N, S):
+    """Shell texels whose design point lies in BACK_ZONE, seen in the back view."""
+    from matplotlib.path import Path
+    Pd, Nd = design_points(P, N)
+    uv, vis, cos = view_lookup("back", Pd, Nd, P)
+    return Path(BACK_ZONE).contains_points(uv) & vis & (cos > 0.0) & (S == 0)
+
+
 def force_labels(P, N, S):
     """The ink FORCE (shell) and FORCE_VISOR (visor's top) put on each texel (index into INKS), -1 where none: the
     texel's design point is looked up in the marked view and must be seen there."""
@@ -296,6 +313,7 @@ def trace(tex=TRACE_TEX, log=print):
     r, c = d["r"], d["c"]
     n = len(r)
     force = force_labels(d["P"], d["N"], d["S"])
+    zone = back_zone(d["P"], d["N"], d["S"])
     keys = [f"{v}{m}" for v, m in VIEWS]
     W_lin = srgb_to_lin(np.array(WHITE, float))
     cov = to_img(tex, r, c, np.ones(n)) > 0
@@ -303,9 +321,12 @@ def trace(tex=TRACE_TEX, log=print):
     for k in keys:
         rgb, a, vis, cos = d[k + "_rgb"], d[k + "_a"], d[k + "_vis"], d[k + "_cos"]
         ok = vis & (a > 200) & (cos > 0.25)
+        own_ok, zp = ok, np.where(zone, 0.02, 1.0)     # who may own a texel (BACK_ZONE: the back view)
+        if k.startswith("back"):
+            own_ok, zp = ok | (zone & vis & (a > 200) & (cos > BACK_ZONE_COS)), 1.0
         whiteish = ok & (rgb.max(1) - rgb.min(1) < 20) & (rgb.min(1) > 100) & (force < 0)
         level = np.percentile(rgb[whiteish].min(1), 90) if whiteish.sum() > 500 else 200.0
-        hl = ok & (highlight_flags(rgb, level) | d[k + "_hand"])
+        hl = own_ok & (highlight_flags(rgb, level) | d[k + "_hand"])
         # studio shading: second-order SH of the normal fitted to the white print (robust: reflections are
         # positive outliers), then corrected locally by the measured white around each texel
         lin = srgb_to_lin(rgb)
@@ -334,13 +355,13 @@ def trace(tex=TRACE_TEX, log=print):
         # brighter than the white base once de-lit is no print (white is the lightest ink): a reflection, or the
         # shading fit extrapolated to a face turned away from the light (the iso-left view on his rear lower side,
         # facing down, gave magenta over 255, drawn as a saturated pink glow); that view does not own the texel
-        over = ok & (alb[-1].max(1) > 255.0)
+        over = own_ok & (alb[-1].max(1) > 255.0)
         hl = hl | over
         hl_all.append(hl)
         side = np.isin(H.face_island(d["N"]), ["L", "R"]) & (d["S"] == 0)
         mp = 1.0 if k.endswith("0") else np.where(side, MIRROR_PREF["side"], MIRROR_PREF["other"])
         vp = np.where(d["S"] == 1, VISOR_PREF[k[:-1]], 1.0)
-        w = np.clip(cos, 0, 1) ** 2 * ok * VIEW_PREF[k[:-1]] * mp * vp
+        w = np.clip(cos, 0, 1) ** 2 * own_ok * VIEW_PREF[k[:-1]] * mp * vp * zp
         sm, _ = norm_blur(to_img(tex, r, c, w), cov, 6.0)
         weights.append(np.where(w > 0, sm[r, c], 0.0) * ~hl)
         log(k, "white level", round(float(level), 1), "reflections", int(hl.sum()), "of them over white once de-lit",
@@ -920,7 +941,11 @@ def decal_turbine():
 # 0.6 px), projected through the top camera onto the visor like the back labels. Each side from its own column (his
 # left: the image's right). Kept: ink components (under 90 on white) of 1200 to 2000 px, the chevrons (1415 to 1556
 # px); left out: the visor's LEATT (1049 px, drawn from the file), the shadows under the visor's side (about 350 px)
-# and the vents (over 4000 px).
+# and the vents (over 4000 px). Leatt's art is mirror-symmetric, but through the solved top camera (helmet round 4)
+# the mirror of one column's cast lands 14 px (3.5 mm) from the other column in the photo, and on the visor's sloping
+# side the two casts lie 5 mm from mirror places (the camera and the visor's height at its tip, not the art). So each
+# column's outline is moved in the photo half way to the mirror of the other's cast (about 7 px each): the two sit at
+# mirror places, each within 2 mm of its own photo place.
 VISOR_CHEVRONS = dict(view="top", y=(950, 1540), cols={"visor_chevrons": (1220, 1480), "visor_chevrons_R": (440, 700)},
                       dark=90.0, area=(1200, 2000), tol=0.6, q=4.0, erase_grow=0.003)
 
@@ -1146,10 +1171,10 @@ def frame_px(fr, P, N):
     """Image px (x right, y down) of the element's art at shell points; NaN off its face."""
     if "proj" in fr:                                  # projected through a photo's camera
         pj = fr["proj"]
-        x = H.CAMS[pj["view"]]
+        x = H.PRINT_CAMS[pj["view"]]
         C, _, _ = H.cam_from(x)
         uv, _ = H.cam_project(x, P)
-        px = (uv - np.asarray(pj["origin"])) * pj["q"]
+        px = (uv - np.asarray(pj.get("shift", (0.0, 0.0))) - np.asarray(pj["origin"])) * pj["q"]
         bad = (np.linalg.norm(P - np.asarray(fr["o"]), axis=1) > pj["radius"]) | (np.sum(N * (C - P), 1) <= 0)
         px[bad] = np.nan
         return px
@@ -1211,7 +1236,7 @@ def refine_on_shell(fr, m, view, roi, test, P, N, all_P, log=print, free_aspect=
     uv, w = uv[ok], w[ok]
     w_in = ndimage.map_coordinates(within.astype(np.float32), [uv[:, 1] - y0, uv[:, 0] - x0], order=0) > 0.5
     # photo px per mm round the element (for the blur levels)
-    x = H.CAMS[view]
+    x = H.PRINT_CAMS[view]
     u_ = np.asarray(fr["u"])
     q2, _ = H.cam_project(x, np.array([o, o + 0.001 * u_]))
     ppm = max(np.linalg.norm(q2[1] - q2[0]), 0.5)
@@ -1276,24 +1301,33 @@ def element_frames(log=print):
         Ps, Ns = P[S == surf], N[S == surf]
         if "chevrons" in e:                           # outlines from a photo, projected through its camera
             v = e["chevrons"]
+            cast = {}
             for name, polys in chevron_polys().items():
                 allp = np.vstack(polys)
                 ctr = (allp.min(0) + allp.max(0)) / 2
                 cs = [p.mean(0) for p in polys]
-                (o, a_, b_, f_, l_), _ = photo_to_shell(Ps, Ns, v["view"], [ctr, ctr - [0, 10], ctr + [0, 10], cs[0],
-                                                                         cs[-1]], all_P)
+                cast[name] = (polys, ctr) + tuple(photo_to_shell(Ps, Ns, v["view"], [
+                    ctr, ctr - [0, 10], ctr + [0, 10], cs[0], cs[-1]], all_P)[0])
+            for name, (polys, ctr, o, a_, b_, f_, l_) in cast.items():
+                other = cast[name[:-2] if name.endswith("_R") else name + "_R"][2]
+                uv, _ = H.cam_project(H.PRINT_CAMS[v["view"]], ((o + MX * other) / 2)[None])
+                shift = uv[0] - ctr                       # photo px: half way to the mirror of the other column
+                o = photo_to_shell(Ps, Ns, v["view"], [ctr + shift], all_P)[0][0]
+                allp = np.vstack(polys)
                 mpp = float(np.linalg.norm(b_ - a_) / 20.0)
                 pad = v["erase_grow"] / mpp + 3.0             # the art reaches past the erase margin (px)
                 lo, hi = allp.min(0) - pad, allp.max(0) + pad
                 size = hi - lo
                 frames.append(dict(name=name, art="polys", ink=e["ink"], surface=surf, o=o.tolist(),
                                    proj=dict(view=v["view"], origin=lo.round(2).tolist(), size=size.round(2).tolist(),
-                                             q=v["q"], mpp=mpp, radius=0.6 * float(np.hypot(*size)) * mpp + 0.01),
+                                             q=v["q"], mpp=mpp, radius=0.6 * float(np.hypot(*size)) * mpp + 0.01,
+                                             shift=shift.round(2).tolist()),
                                    erase_grow=v["erase_grow"], polys=[p.tolist() for p in polys]))
                 ext = np.array([np.ptp(p, 0) for p in polys]) * mpp * 1000
                 log(name, len(polys), "chevrons from the photo, centre mm", (o * 1000).round(1).tolist(),
                     "column mm", round(float(np.linalg.norm(l_ - f_) * 1000), 1), "each about",
-                    ext.mean(0).round(1).tolist(), "mm (photo px x, y), mm per px", round(mpp * 1000, 3))
+                    ext.mean(0).round(1).tolist(), "mm (photo px x, y), mm per px", round(mpp * 1000, 3),
+                    "moved px", shift.round(1).tolist())
             continue
         img, kp = art_image(e["art"])
         if "proj" in e:
@@ -1369,7 +1403,7 @@ def eight_frames(P, N, all_P, log=print):
     C = np.array([np.polyval(coef[:, k], tt) for k in range(3)]).T
     dC = np.array([np.polyval(np.polyder(coef[:, k]), tt) for k in range(3)]).T
     # letter height: the photo's letter length over the camera's px per metre across the curve (his right side)
-    x = H.CAMS[e["right"]["view"]]
+    x = H.PRINT_CAMS[e["right"]["view"]]
     hs = []
     for i in range(n_cells):
         if e["right"]["px"][n_cells - 1 - i] is None:
@@ -1529,7 +1563,7 @@ def draw_brow(P, N, col):
 # left (in at y 861.7 to x 915.4 at y 887.5, down to y 945) and its lower edge a diagonal down to the right, parallel
 # to the italic LEATT below (to 1059.2, 1028.8). It is not mirror-symmetric, so the trace (every texel read at its
 # point on his left half) drew it symmetric and blobby, split where the top and back views meet. Here each shell
-# or visor texel is looked up at its own place in the top view (helmet.CAMS["top"]), and inside the outlines it
+# or visor texel is looked up at its own place in the top view (helmet.PRINT_CAMS["top"]), and inside the outlines it
 # takes a smooth colour field measured in the photo (helmet_art_stripe.png: the photo de-lit by the white either
 # side of the stripe, a white level linear in y, 212 at y 450 to 229 at y 1050; normalised Gaussian 5 px inside
 # each outline, 3 px in from its edge, the moulded ridge's reflection rows left out). Round them a white margin
@@ -1610,12 +1644,67 @@ def draw_stripe(P, N, col, white):
 
 # The crown's two vents: a white moulded insert with a triangle lattice over the dark opening. Round 3 (decision 46)
 # builds the insert and the lattice as geometry (helmet_detail.py, through the same top camera); the print keeps
-# the insert's colour under them and the opening dark (no painted bars: they would double the built ones). Leatt's top photo px, the vent on his
-# right (image left); his left gets the mirror. Lattice: cells a along the opening's top edge, b down its side,
-# bars along a, b and a + b (the photo's three bar directions), 4 to 5 px wide.
-CROWN_VENT = dict(view="top", insert=[(690, 605), (770, 583), (772, 716), (670, 746)],
-                  opening=[(697, 612), (760, 592), (761, 712), (683, 737)],
-                  origin=(700.0, 615.0), a=(20.3, -6.7), b=(0.0, 25.0), bar=0.15)
+# the insert's colour under them and the opening dark (no painted bars: they would double the built ones). Leatt's top
+# photo px, the vent on his right (image left); his left gets the mirror.
+# Round 4 (decision 50), traced again at 5x (helmet round 4 ledger): the opening is a parallelogram whose sides run
+# along the lattice's two bar directions, its corners rounded; the insert is a thin, even surround round it.
+#   opening  the convex hull of the dark holes (darker than 60, opened by 3 px) fitted with four lines: top -23,
+#            right 94, bottom -21, left 100 deg; corners rounded 6 px (the hull stands 2 to 4.6 px inside the
+#            lines' corners)
+#   rim      7 to 9 px wide all round at 5x (its outer edge: the thin dark gap on the shell): 8 px
+#   lattice  fitted to the photo's brightness in the opening as a triangle lattice: a 24.1 px at -21 deg, b 24.2 px
+#            at 98.5 deg, 119.5 deg apart (a + b 24.3 px at 39 deg): near-equilateral cells, bars along a, b and
+#            a + b, 21 px apart (main: a right-angled grid with bars along the vent's long axis)
+CROWN_VENT = dict(view="top", opening=[(700.9, 618.4), (764.3, 591.3), (756.7, 712.5), (678.8, 742.1)],
+                  corner=6.0, rim=8.0, origin=(725.9, 643.5), a=(22.46, -8.61), b=(-3.57, 23.95))
+
+
+def _grow_quad(q, d):
+    """A convex quadrilateral's corners with every side moved d px outwards (parallel)."""
+    q = np.asarray(q, float)
+    c = q.mean(0)
+    lines = []
+    for i in range(4):
+        a, b = q[i], q[(i + 1) % 4]
+        t = (b - a) / np.linalg.norm(b - a)
+        n = np.array([t[1], -t[0]])
+        n = n if (a - c) @ n > 0 else -n
+        lines.append((n, n @ a + d))
+    return np.array([np.linalg.solve(np.array([lines[i - 1][0], lines[i][0]]), [lines[i - 1][1], lines[i][1]])
+                     for i in range(4)])
+
+
+CROWN_VENT["insert"] = np.round(_grow_quad(CROWN_VENT["opening"], CROWN_VENT["rim"]), 1).tolist()
+
+
+def round_quad(q, r, n=8):
+    """A convex polygon with its corners rounded to radius r (px): arcs tangent to both sides, n points each."""
+    q = np.asarray(q, float)
+    out = []
+    m = len(q)
+    for i in range(m):
+        a, b, c = q[i - 1], q[i], q[(i + 1) % m]
+        u, v = (a - b) / np.linalg.norm(a - b), (c - b) / np.linalg.norm(c - b)
+        ang = math.acos(np.clip(u @ v, -1, 1))
+        d = r / math.tan(ang / 2)
+        p0, p1 = b + u * d, b + v * d
+        bis = (u + v) / np.linalg.norm(u + v)
+        ctr = b + bis * r / math.sin(ang / 2)
+        a0, a1 = math.atan2(*(p0 - ctr)[::-1]), math.atan2(*(p1 - ctr)[::-1])
+        da = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+        for t in np.linspace(0, 1, n):
+            out.append(ctr + r * np.array([math.cos(a0 + da * t), math.sin(a0 + da * t)]))
+    return np.array(out)
+
+
+def vent_outline(kind):
+    """The crown vent's opening or insert outline (top photo px, rounded): the insert's corners are the opening's
+    grown by the rim (radius corner + rim), so the surround is even."""
+    v = CROWN_VENT
+    if kind == "opening":
+        return round_quad(v["opening"], v["corner"])
+    return round_quad(v["insert"], v["corner"] + v["rim"])
+
 VENT_BAR_RGB = (209, 213, 219)      # top photo, bars de-lit (now built: helmet.MATERIALS helmet_vent_insert)
 VENT_RIM_RGB = (202, 206, 214)      # the insert's moulded rim, same measure
 VENT_HOLE_RGB = (24, 23, 25)        # the opening (photo: 0 0 0): the print's black ink, one black in the print
@@ -1629,8 +1718,8 @@ def draw_crown_vents(P, N, S, col):
         Q, Nq = P[sel] * sg, N[sel] * sg
         uv, vis, cos = view_lookup(v["view"], Q, Nq, Q)
         ok = vis & (cos > 0.2)
-        ins = Path(v["insert"]).contains_points(uv) & ok
-        op = Path(v["opening"]).contains_points(uv) & ok
+        ins = Path(vent_outline("insert")).contains_points(uv) & ok
+        op = Path(vent_outline("opening")).contains_points(uv) & ok
         c = col[sel]
         c[ins] = VENT_RIM_RGB
         c[op] = VENT_HOLE_RGB

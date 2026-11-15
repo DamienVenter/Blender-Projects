@@ -1,16 +1,15 @@
 """Moulded detail away from the helmet's front, as geometry (helmet round 3, decision 46): the crown's two mesh vents
-(a raised white insert round a triangle lattice over the dark opening), the two rear exhaust slots' moulded surround
-and the rear lower white pieces round the lower rear vents. The front's detail (grip panels, the trim's roll, brow
+(a raised white insert round a triangle lattice over the dark opening), the two rear exhaust slots' wire mesh and
+the rear lower white pieces round the lower rear vents. The front's detail (grip panels, the trim's roll, brow
 and chin vents, chin LEATT, brow tag) waits for phase B, because the front moves.
 
 Each outline is traced in one of Leatt's Pinata photos (px) and cast onto the shell through that photo's camera in
-helmet.CAMS, the cameras the print was traced through, so the geometry stands on its own print (the painted dark
-openings, the white of the rear lower pieces). Sizes are measured at 1:1 against the solved cameras of
-research/helmet-ba.json (mm per px at the feature, helmet_ba.py): see the tables' comments and the ledger, section 6.
+helmet.PRINT_CAMS (round 4: the cameras solved with all of Leatt's photos, research/helmet-ba.json), the cameras the
+print is traced through, so the geometry stands on its own print (the painted dark openings, the white of the rear
+lower pieces). Sizes are measured at 1:1 against those cameras (mm per px at the feature, helmet_ba.py): see the
+tables' comments and the ledger, sections 6 and 7.
 All in the HELMET frame (metres, x his left, y back, z up); the right side is the mirror of the left.
 """
-import math
-
 import numpy as np
 
 import helmet as H
@@ -19,29 +18,34 @@ PART = "helmet_vents"
 MAT = "helmet_moulded"           # the rear surrounds and lower pieces: the shell's own white under its clear coat
 MAT_INSERT = "helmet_vent_insert"  # the crown vents' insert and lattice: white plastic, satin
 MAT_DARK = "helmet_trim"          # the slots' depth (the trim's black, helmet.MATERIALS)
+MAT_MESH = "helmet_vent_mesh"     # the rear slots' wire mesh
 SINK = 0.0006                     # m, walls start this far under the shell's surface (no gap on a curved shell)
-BEVEL = 0.0003                    # m, the moulded edges' round-over
 
-# The crown vents: helmet_art.CROWN_VENT (top photo px, the vent on his right; the left is its mirror). Measured
-# through the solved top camera (helmet_ba, 0.222 mm/px at the vent): insert 41 x 28 mm, opening 35 x 21 mm (through
-# the print's top camera, helmet.CAMS: opening 35 x 23 mm, 0.232 mm/px); the rim (insert to opening) 1.2 to 3.5 mm
-# wide, 2.5 mm median; lattice bars 3.5 to 4 px (0.8 to 0.9 mm), cells a = 21 px (4.7 mm) by b = 25 px (5.6 mm).
-# Heights read from the iso and back photos' shading (the rim's lit top edge and its shadow on the shell, 5 to 7 px
-# at 0.21 to 0.25 mm/px): rim 1.5 mm above the shell, the lattice 0.6 mm under the rim's top.
+# The crown vents: helmet_art.CROWN_VENT (top photo px, the vent on his right; the left is its mirror). Round 4
+# (decision 50): Leatt's outline is a rounded parallelogram with a thin, even surround and its lattice near-equilateral
+# triangles (helmet_art's table). Through the solved top camera (0.248 mm/px at the vent): the rim 8 px, 2.0 mm, as
+# one width on the shell all round (the insert's outer edge is the opening's offset on the shell, so its corners
+# round with the opening's); cells 24 px (6.0 mm) a side; bars 4.5 to 5 px wide in the photo at 3x, and the built
+# bar's top plus its lit wall read 1 px wider through that camera (render at 3x, round 4): 1.0 mm. Heights read from
+# the iso and back photos' shading (the rim's lit top edge and its shadow on the shell, 5 to 7 px at 0.21 to 0.25
+# mm/px): rim 1.5 mm above the shell, the lattice 0.6 mm under the rim's top. The rim is a flat plate with crisp
+# edges (plate()): the photo at 3x shows a flat white top, a bright line along its inner edge and a thin grey line
+# at its outer edge; round 4's first build, a frame with shared vertices, shaded as a soft round tube.
 CROWN_RIM_H = 0.0015
+CROWN_RIM_W = 0.0020
 CROWN_BAR_H = 0.0009
-CROWN_BAR_W = 0.00085
-CROWN_CORNER_PX = 9.0             # the insert's rounded corners (top photo px, radius about 2 mm)
+CROWN_BAR_W = 0.0010
 
 # The rear exhaust slots (Pinata back photo px, his left; traced: pixels darker than 70, closed, filled). Through the
 # solved back camera (0.194 mm/px at the slot): 30.5 x 6.1 mm. Leatt's back photos show the slot sunk into the
-# shell, its edge rounded down into it (a lit band over its top edge, 8 to 10 px, a lit facet at its outer end): a
-# lip rising 1.0 mm to a rounded crest at the slot's edge, 2.0 mm wide along the top, 1.0 mm round the rest, its
-# inner wall dark (the shell is closed: the lip stands for the recess's edge).
+# shell, its edge rounded down into it (a lit band over its top edge, 8 to 10 px, a lit facet at its outer end), no
+# rim. Round 3 stood a lip 1.0 mm proud for that edge: it read as a bright rim. Round 4 rendered it at 3x in that
+# view as a lip 0.4 mm proud (crest rounded 0.3 mm, falling to the shell 1.5 to 2.5 mm away), 0.2 mm proud, and as a
+# thin dark edge: under the clear coat any raised edge shows a bright line, and the dark edge a black outline. The
+# shell stays closed (no recess), so the slot is the print's dark with the wire mesh in it, nothing raised round it.
 REAR_SLOT_PX = [(796.5, 734.0), (835.0, 733.5), (839.5, 739.0), (837.5, 746.0), (827.0, 760.5), (800.0, 762.5),
                 (704.0, 762.5), (698.5, 758.0), (690.5, 739.0), (696.0, 735.5)]
-REAR_SLOT_H = 0.0010
-REAR_SLOT_W = (0.0010, 0.0020)    # m, round the sides and bottom; along the top edge
+REAR_MESH_H = 0.0002              # m, the mesh's top over the shell
 
 # The rear lower white pieces round the lower rear vents (Pinata back photo px, his left; the slot traced darker than
 # 80). The slot sits where the shell turns from the back to the side, seen at a grazing 0.13 to 0.43 cosine from
@@ -51,17 +55,31 @@ REAR_SLOT_W = (0.0010, 0.0020)    # m, round the sides and bottom; along the top
 # 5.8 mm on the shell, and its lower end drawn out to a point 42 px (11 mm) under the slot (px 483, 1551 to 1593).
 # Height 2 mm (its lit edge and shadow in the V25 iso view). The across-slot sizes carry the grazing view's
 # uncertainty (a few mm).
+# Round 4 (decision 50): Leatt's piece is a flat plate (back photos at 4x: Pinata, V25 white, Royal), main's a thick
+# round loop. A flat top 2 mm over the shell with crisp edges (each face band has its own vertices, so the shading
+# breaks at the edges; a 0.2 mm chamfer catches the light), 10 px wide round the slot in the back photo (the outer
+# side 10 px, the top 12), its lower end two straight sides to a sharp point at px (481.5, 1594.5), 43 px under
+# the slot's end. That point is the raised top's: the back camera sees the piece at a cosine of 0.42 there, and a top
+# 2 mm over the shell shows 8 px to the left of its foot (round 4's first build, the foot on the photo's point:
+# its top's point 8.3 px left of Leatt's at 2x), so the foot's point is placed for the top's point to land on it.
+# A dark wire mesh fills the slot: two sets of wires 40 deg either side of its long axis, 1.6 mm apart (the back
+# photos' mesh: 6 to 8 px between wires at 0.2 mm/px), 0.35 mm thick, its top 0.9 mm over the shell.
 LOW_VENT_PX = [(465.5, 1417.0), (478.0, 1417.5), (491.0, 1420.5), (495.5, 1425.0), (497.5, 1432.0), (490.5, 1505.0),
                (484.5, 1547.0), (482.0, 1551.5), (469.5, 1525.0), (469.5, 1478.0), (466.5, 1447.0), (461.5, 1422.0),
                (461.5, 1419.0)]
 LOW_PIECE_H = 0.0020
-LOW_PIECE_W = 0.0045
-LOW_PIECE_TIP = 0.0070            # m, the point's length under the frame's lower edge (11 mm under the slot)
+LOW_PIECE_PX = 10.0               # photo px, the plate's width round the slot
+LOW_PIECE_TIP_PX = (481.5, 1594.5)
 LOW_FLOOR_H = 0.0003              # m, the slot's dark floor over the shell: the frame's white walls show 1.7 mm deep
+LOW_MESH_H = 0.0009
+PLATE_CHAMFER = 0.0002
+MESH_PITCH = 0.0016
+MESH_W = 0.00035
+MESH_ANGLE = 40.0                 # deg either side of the slot's long axis
 
 
 def camera(view):
-    C, R, f = H.cam_from(H.CAMS[view])
+    C, R, f = H.cam_from(H.PRINT_CAMS[view])
     return C, R, f
 
 
@@ -126,23 +144,6 @@ def resample_loop(P, step):
     return np.c_[[np.interp(t, s, Q[:, k]) for k in range(Q.shape[1])]].T
 
 
-def round_corners(P, r, n=4):
-    """A polygon's corners rounded with radius r (same units), n points per corner."""
-    out = []
-    m = len(P)
-    for i in range(m):
-        a, b, c = P[i - 1], P[i], P[(i + 1) % m]
-        u, v = a - b, c - b
-        lu, lv = np.linalg.norm(u), np.linalg.norm(v)
-        u, v = u / lu, v / lv
-        ang = math.acos(np.clip(u @ v, -1, 1))
-        d = min(r / math.tan(ang / 2), 0.45 * lu, 0.45 * lv)
-        p0, p1 = b + u * d, b + v * d
-        for t in np.linspace(0, 1, n):                  # a quadratic Bezier through the corner
-            out.append((1 - t) ** 2 * p0 + 2 * (1 - t) * t * b + t * t * p1)
-    return np.array(out)
-
-
 def outward(P, N):
     """In-surface unit directions away from a closed loop's inside."""
     t = np.roll(P, -1, 0) - np.roll(P, 1, 0)
@@ -174,28 +175,86 @@ def orient(V, F, N_ref, P_ref):
     return F[:, ::-1] if np.sum(np.sum(fn * N_ref[j], 1)) < 0 else F
 
 
-def frame(P, N, w, h, shell, ramp=False):
-    """A raised moulded frame round a closed loop on the shell: inner wall at the loop, top h above the shell, outer
-    edge w (per point) outside it on the shell, both walls from SINK under the surface, edges rounded by BEVEL.
-    ramp: the top falls from a rounded crest at the loop to the shell at the outer edge (a lip into a recess).
-    Returns V, F and the inner wall's faces (a mask)."""
-    o = outward(P, N)
-    w = np.broadcast_to(np.asarray(w, float), (len(P),))[:, None]
-    Q, NQ = shell.snap(P + o * w)
-    b = min(BEVEL, h / 3)
-    if ramp:
-        M, NM = shell.snap(P + o * w * 0.45)
-        rings = [P - N * SINK, P + N * (h - b), P + o * b + N * h, M + NM * (0.6 * h), Q + NQ * 0.00005,
-                 Q + o * 0.0002 - NQ * SINK]
-    else:
-        rings = [P - N * SINK, P + N * (h - b), P + o * b + N * h, Q - o * b + NQ * h, Q + NQ * (h - b),
-                 Q + o * (0.3 * h) - NQ * SINK]
-    V = np.vstack(rings)
-    F = loop_faces(rings, len(P))
-    # the top must face out: the ring order runs inner wall -> top -> outer wall
-    F = orient(V, F, N, P)
-    wall = np.arange(len(F)) < len(P)
-    return V, F, wall
+def plate(P, N, Q, NQ, h):
+    """A flat plate between a slot's loop P and its outer edge Q on the shell (point for point): a flat top h above the
+    shell, inner and outer walls from SINK under it, a PLATE_CHAMFER on both top edges. Each band (inner wall,
+    chamfer, top, chamfer, outer wall) has its own vertices, so smooth shading breaks at the edges: crisp, as Leatt's
+    moulded piece. Returns V, F."""
+    o, oq = outward(P, N), outward(Q, NQ)
+    c = min(PLATE_CHAMFER, h / 4)
+    bands = [(P - N * SINK, P + N * (h - c)), (P + N * (h - c), P + o * c + N * h),
+             (P + o * c + N * h, Q - oq * c + NQ * h), (Q - oq * c + NQ * h, Q + NQ * (h - c)),
+             (Q + NQ * (h - c), Q + oq * (0.15 * h) - NQ * SINK)]
+    n = len(P)
+    V, F = [], []
+    for k, (A_, B_) in enumerate(bands):
+        V += [A_, B_]
+        F += [[i + 2 * n * k for i in f] for f in loop_faces([A_, B_], n)]
+    V = np.vstack(V)
+    return V, orient(V, F, N, P)
+
+
+def plate_outline(px, wpx, tip):
+    """A slot's outline (photo px, resampled) and, point for point, the plate's outer edge: the outline grown wpx
+    along its outward normals and joined to the tip by straight sides (their convex hull), each slot point's outer
+    point where its outward ray meets that edge; the slot's lowest point's is the tip itself."""
+    from scipy.spatial import ConvexHull
+    p = resample_loop(np.asarray(px, float), 3.0)
+    t = np.roll(p, -1, 0) - np.roll(p, 1, 0)
+    n2 = np.c_[t[:, 1], -t[:, 0]] / np.linalg.norm(t, axis=1)[:, None]
+    if np.mean(np.sum((p - p.mean(0)) * n2, 1)) < 0:
+        n2 = -n2
+    allp = np.vstack([p + n2 * wpx, np.asarray(tip, float)[None]])
+    hull = allp[ConvexHull(allp).vertices]
+    q = np.zeros_like(p)
+    for i, (pi, ni) in enumerate(zip(p, n2)):
+        best = np.inf
+        for a, b in zip(hull, np.roll(hull, -1, 0)):
+            M = np.array([ni, a - b]).T
+            if abs(np.linalg.det(M)) < 1e-9:
+                continue
+            s, r = np.linalg.solve(M, a - pi)
+            if s > 0 and -1e-9 <= r <= 1 + 1e-9:
+                best = min(best, s)
+        q[i] = pi + ni * best
+    q[np.argmax(p[:, 1])] = tip
+    return p, q
+
+
+def mesh_wires(P, N, shell, h, inset=0.0004):
+    """A wire mesh across a slot's loop P on the shell: two sets of straight wires MESH_ANGLE either side of the
+    slot's long axis, MESH_PITCH apart, MESH_W thick, from SINK under the shell to h over it, ending inset inside
+    the loop (under its wall). Returns [(V, F)]."""
+    from matplotlib.path import Path
+    c = P.mean(0)
+    n = N.mean(0) / np.linalg.norm(N.mean(0))
+    T = (P - c) - np.outer((P - c) @ n, n)
+    e1 = np.linalg.svd(T, full_matrices=False)[2][0]
+    e2 = np.cross(n, e1)
+    xy = np.c_[T @ e1, T @ e2]
+    cen = xy.mean(0)
+    shrink = Path(cen + (xy - cen) * (1 - inset / np.maximum(np.linalg.norm(xy - cen, axis=1), 1e-6))[:, None])
+    out = []
+    R = np.abs(xy).max() * 1.5
+    for sgn in (1.0, -1.0):
+        a = np.radians(MESH_ANGLE) * sgn
+        dv, nv = np.array([np.cos(a), np.sin(a)]), np.array([-np.sin(a), np.cos(a)])
+        for k in range(-int(R / MESH_PITCH) - 1, int(R / MESH_PITCH) + 2):
+            s = np.linspace(-R, R, int(2 * R / 0.0002) + 1)
+            pts = cen + nv * (k * MESH_PITCH) + s[:, None] * dv
+            ins = shrink.contains_points(pts)
+            if ins.sum() < 3:
+                continue
+            idx = np.nonzero(ins)[0]
+            runs = np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1)
+            for run in runs:
+                if len(run) < 3:
+                    continue
+                m = max(2, int(np.ptp(s[run]) / 0.001) + 1)
+                st = np.linspace(pts[run[0]], pts[run[-1]], m)
+                Q, NQ = shell.snap(c + st[:, :1] * e1 + st[:, 1:] * e2)
+                out.append(bar(Q, NQ, MESH_W, h))
+    return out
 
 
 def cap(P, N, h, shell):
@@ -269,20 +328,10 @@ def crown_vent(shell, side):
     import helmet_art as A
     cv = A.CROWN_VENT
     m = (lambda P: P) if side < 0 else (lambda P: P * [-1, 1, 1])
-    ins = round_corners(np.asarray(cv["insert"], float), CROWN_CORNER_PX)
-    opn = round_corners(np.asarray(cv["opening"], float), CROWN_CORNER_PX * 0.6)
-    opn = resample_loop(opn, 3.0)
-    # the insert's outer edge, sampled where the opening is (same count, nearest by angle about the centre)
-    c = opn.mean(0)
-    ins = resample_loop(ins, 1.0)
-    ang_i = np.arctan2(*(ins - c).T[::-1])
-    ang_o = np.arctan2(*(opn - c).T[::-1])
-    j = np.argmin(np.abs(np.angle(np.exp(1j * (ang_o[:, None] - ang_i[None])))), 1)
+    opn = resample_loop(A.vent_outline("opening"), 2.0)
     P, N = shell.cast(cv["view"], opn, side=-1.0)
-    Pi, _ = shell.cast(cv["view"], ins[j], side=-1.0)
-    o = outward(P, N)
-    w = np.clip(np.sum((Pi - P) * o, 1), 0.0012, 0.0035)
-    parts = [frame(P, N, w, CROWN_RIM_H, shell)[:2]]
+    Q, NQ = shell.snap(P + outward(P, N) * CROWN_RIM_W)
+    parts = [plate(P, N, Q, NQ, CROWN_RIM_H)]
     for a, b in lattice_lines(cv):
         n = max(3, int(np.linalg.norm(b - a) / 4.0) + 1)
         uv = a + (b - a) * np.linspace(0, 1, n)[:, None]
@@ -291,46 +340,52 @@ def crown_vent(shell, side):
     return [(m(V), F if side < 0 else F[:, ::-1]) for V, F in parts]
 
 
-def slot_frame(shell, view, px, w, h, tip=0.0, side=1.0, ramp=False, floor=None):
-    """A surround round a slot traced in a photo (his left), mirrored to his right with side -1: pieces (V, F, mats)
-    with the frame in MAT, its inner wall in MAT_DARK when it is a lip (ramp), and the slot's floor (floor: its
-    height above the shell) in MAT_DARK."""
-    uv = resample_loop(np.asarray(px, float), 3.0)
-    P, N = shell.cast(view, uv, side=1.0)
-    if isinstance(w, tuple):                            # (sides and bottom, top): by height within the slot
-        z = (P[:, 2] - P[:, 2].min()) / np.ptp(P[:, 2])
-        w = w[0] + (w[1] - w[0]) * np.clip((z - 0.6) / 0.3, 0, 1)
-    w = np.broadcast_to(np.asarray(w, float), (len(P),)).copy()
-    if tip:
-        o = outward(P, N)
-        low = np.argmin(P[:, 2])
-        d = np.linalg.norm(P - P[low], axis=1)
-        k = np.clip(1 - d / 0.006, 0, 1)
-        k = k * k * (3 - 2 * k)
-        down = -np.cross(np.cross(N[low], [0, 0, 1.0]), N[low])     # down the surface
-        down /= np.linalg.norm(down)
-        w = w + k * tip * np.clip(np.sum(o * down, 1), 0, 1)
-    V, F, wall = frame(P, N, w, h, shell, ramp=ramp)
-    out = [(V, [list(f) for f in F], [MAT_DARK if (ramp and k) else MAT for k in wall])]
-    if floor is not None:
-        Vc, Fc = cap(P, N, floor, shell)
-        out.append((Vc, Fc, [MAT_DARK] * len(Fc)))
+def mirror(out, side):
+    """Pieces (V, F, mats) of his left as they are, or mirrored to his right (side -1)."""
     if side < 0:
-        out = [(V * [-1, 1, 1], [f[::-1] for f in F], m) for V, F, m in out]
-    return out
+        return [(V * [-1, 1, 1], [list(f)[::-1] for f in F], m) for V, F, m in out]
+    return [(V, [list(f) for f in F], m) for V, F, m in out]
+
+
+def rear_slot(shell, side=1.0):
+    """A rear exhaust slot's wire mesh (MAT_MESH) over its printed dark."""
+    uv = resample_loop(np.asarray(REAR_SLOT_PX, float), 3.0)
+    P, N = shell.cast("back", uv, side=1.0)
+    out = [(Vm, Fm, [MAT_MESH] * len(Fm)) for Vm, Fm in mesh_wires(P, N, shell, REAR_MESH_H)]
+    return mirror(out, side)
+
+
+def low_piece(shell, side=1.0):
+    """A rear lower piece: the flat plate (MAT) round the slot, to its point, the slot's dark floor (MAT_DARK) and
+    its mesh (MAT_MESH)."""
+    want = np.asarray(LOW_PIECE_TIP_PX, float)
+    tip = want.copy()
+    for _ in range(3):                                   # the top's point on the photo's (see LOW_PIECE_TIP_PX)
+        p, q = plate_outline(LOW_VENT_PX, LOW_PIECE_PX, tip)
+        k = np.argmax(p[:, 1])
+        T, NT = shell.snap(shell.cast("back", q[k:k + 1], side=1.0)[0])
+        tip = tip + want - H.cam_project(H.PRINT_CAMS["back"], T + NT * LOW_PIECE_H)[0][0]
+    P, N = shell.cast("back", p, side=1.0)
+    Q, NQ = shell.cast("back", q, side=1.0)
+    Q, NQ = shell.snap(Q)
+    V, F = plate(P, N, Q, NQ, LOW_PIECE_H)
+    out = [(V, F, [MAT] * len(F))]
+    Vc, Fc = cap(P, N, LOW_FLOOR_H, shell)
+    out.append((Vc, Fc, [MAT_DARK] * len(Fc)))
+    out += [(Vm, Fm, [MAT_MESH] * len(Fm)) for Vm, Fm in mesh_wires(P, N, shell, LOW_MESH_H)]
+    return mirror(out, side)
 
 
 def build(Vo, Fo, part=None):
-    """The detail as one Part (helmet frame): the crown vents in MAT_INSERT, the rear pieces in MAT, the slots'
-    depths in MAT_DARK."""
+    """The detail as one Part (helmet frame): the crown vents in MAT_INSERT, the rear lower pieces in MAT, their
+    slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
     for side in (1.0, -1.0):
         pieces += [(V, [list(f) for f in F], [MAT_INSERT] * len(F)) for V, F in crown_vent(shell, side)]
-        pieces += slot_frame(shell, "back", REAR_SLOT_PX, REAR_SLOT_W, REAR_SLOT_H, side=side, ramp=True)
-        pieces += slot_frame(shell, "back", LOW_VENT_PX, LOW_PIECE_W, LOW_PIECE_H, tip=LOW_PIECE_TIP, side=side,
-                             floor=LOW_FLOOR_H)
+        pieces += rear_slot(shell, side)
+        pieces += low_piece(shell, side)
     for V, F, mats in pieces:
         part.add(V, F, mats)
     return part
@@ -343,8 +398,8 @@ def measure():
     cams = B.solved_cameras()
     Vm, Fm, _, _ = B.model_mesh()
     out = {}
-    for name, view, px in (("crown vent insert", "pin_top", A.CROWN_VENT["insert"]),
-                           ("crown vent opening", "pin_top", A.CROWN_VENT["opening"]),
+    for name, view, px in (("crown vent insert", "pin_top", A.vent_outline("insert")),
+                           ("crown vent opening", "pin_top", A.vent_outline("opening")),
                            ("rear exhaust slot", "pin_back", REAR_SLOT_PX),
                            ("lower rear vent slot", "pin_back", LOW_VENT_PX)):
         c = cams[view]
