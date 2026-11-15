@@ -411,6 +411,41 @@ def test_visor_chevrons_from_the_top_photo(art):
     chevron_band_check(A, art["tex"], [f for n, f in sorted(fr.items())], d["frames"])
 
 
+def test_crown_stripe_from_the_top_photo(art):
+    """The crown's centre stripe as in Leatt's top photo (round 3), read through the top camera on the drawn art:
+    the chevron's sides straight (purple 3 mm inside, white 3 mm outside, both sides), the white step notch at its
+    lower left only (purple at the mirror place), white below its lower diagonal, dark purple at the stem and the
+    chevron's top, red at its lower right."""
+    A = art["A"]
+    img = art["drawn"][0]
+    r, c, P, N, S = A.texels(SMALL)
+    sel = np.nonzero(P[:, 2] > 0.05)[0]
+    uv, vis, cos = A.view_lookup("top", P[sel], N[sel], P[sel])
+    ok = vis & (cos > 0.15)
+
+    def at(x, y):
+        k = sel[ok & (np.hypot(uv[:, 0] - x, uv[:, 1] - y) < 3.0)]
+        assert len(k) > 0, (x, y)
+        return np.median(img[r[k], c[k]], 0)
+
+    def white(p):
+        return p.min() > 190 and np.ptp(p) < 25
+
+    def purple(p):                                      # purple to red: next to no green
+        return p[1] < 60 and max(p[0], p[2]) > 50
+    for y in (760, 840):
+        for x in (884, 1047):
+            assert purple(at(x, y)), (x, y, at(x, y))
+        for x in (859, 1072):
+            assert white(at(x, y)), (x, y, at(x, y))
+    assert white(at(900, 915)), at(900, 915)            # the notch, his right (image left) only
+    assert purple(at(1030, 915)), at(1030, 915)
+    assert purple(at(1000, 980)) and white(at(1000, 1012))
+    top, low, stem = at(966, 650), at(1035, 1000), at(966, 520)
+    assert top[2] > top[0] and low[0] > 1.5 * low[2], (top, low)
+    assert purple(stem) and stem.sum() < 250, stem
+
+
 def chevron_band_check(A, tex, chev, frames):
     """Inside the drawn chevrons black; in the band round them (0.5 to 3 mm from one, not under the visor's black
     LEATT) the white print only: the share of dark texels there."""

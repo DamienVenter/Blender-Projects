@@ -15,7 +15,8 @@ Sources of the views (rest frame, metres; target near the goggle lens centre):
   front, isol     square on and front-left three-quarter at goggle height, for the frame and lens shape
   cam07           the camera fitted to his photo 07 (research/rider-cameras.json, fitted to the bike), the render
                   cropped round his head: the true angle of that photo when the blend has the bike in it
-The studio matches build_rider.studio(): Cycles, AgX, the same world and two area lights.
+The studio matches build_rider.studio(): Cycles, the same world and two area lights, and the scene look shared with
+the bike (decision 46: AgX - Punchy at exposure -0.6); the daylight uses the same look (SCENE_LOOK).
 """
 import math
 import os
@@ -51,7 +52,16 @@ os.makedirs(OUT, exist_ok=True)
 DAY_SUN = {"p07": (90.0, 106.7), "p08": (85.0, 130.0), "p09": (81.0, 130.0)}
 DAY_SUN_OTHER = (90.0, 110.0)      # the views with no photo
 DAY_SUN_DISC = 0.53                # deg, the sun's angular diameter
-DAY_SUN_W = float(os.environ.get("DAY_SUN_W", 4.0))       # sun lamp irradiance (W/m2, Blender units)
+# The look (decision 46): the scene's AgX - Punchy at -0.6, shared with the bike, for the studio and the daylight
+# alike. His photos' exposure goes into the light instead: his phone exposes for him, so his white shell's lit half
+# is near white (median linear luminance 0.84 in 08, 0.86 in 09). Round 2 matched that with plain AgX at +2.0 (lit
+# shell 0.55 / 0.59; at +2.6 the frame and the sky washed out) and a 4.0 sun. With the look at -0.6 the sun and the
+# sky are DAY_GAIN times that. Measured on p07 / p08 / p09 (16 samples; median display value of the white shell, round
+# 2 = 219 / 202 / 204): 2.6 EV gives 205 / 183 / 185 (Punchy's curve darkens the mid-tones), 3.0 EV 213 / 194 / 196,
+# 3.4 EV 221 / 203 / 205, so 3.4 EV keeps the lit shell where round 2 had it, the inks a little more saturated
+SCENE_LOOK = ("AgX", "AgX - Punchy", -0.6)
+DAY_GAIN = float(os.environ.get("DAY_GAIN", 2.0 ** 3.4))
+DAY_SUN_W = float(os.environ.get("DAY_SUN_W", 4.0 * DAY_GAIN))     # sun lamp irradiance (W/m2, Blender units)
 # the sky's strength: a clear sky at a high sun gives about 12 % of the global light on the ground as diffuse light
 # (clear-sky models), so its light on a horizontal plane is 0.136 of the sun's there; Blender 5.2's
 # multiple-scattering sky at strength 1 puts 14.9 (luminance) on it at sun elevations 60 to 75 deg (measured)
@@ -59,10 +69,7 @@ DAY_SKY_E1 = 14.9
 DAY_SKY = float(os.environ.get("DAY_SKY", 0.136 * DAY_SUN_W * math.cos(math.radians(15)) / DAY_SKY_E1))
 DAY_GROUND = (0.41, 0.40, 0.36)    # ground albedo (his 07: the lit pavement / his white shell top x 0.8)
 DAY_THETA = os.environ.get("DAY_THETA")                   # override theta (deg) for the calibration sweep
-# the photos' exposure: his phone exposes for him, so his white shell's lit half is near white (median linear
-# luminance 0.84 in 08, 0.86 in 09). AgX compresses highlights: the render's lit shell reaches 0.45 / 0.51 at +1.3 EV,
-# 0.55 / 0.59 at +2.0 and 0.62 / 0.66 at +2.6, where the frame and the sky wash out; +2.0 is kept (the ledger)
-DAY_EXPOSURE = float(os.environ.get("DAY_EXPOSURE", 2.0))
+DAY_EXPOSURE = float(os.environ.get("DAY_EXPOSURE", SCENE_LOOK[2]))      # override for calibration sweeps
 
 
 def head_motion():
@@ -81,7 +88,7 @@ def studio(sc):
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
-    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = SCENE_LOOK
     w = bpy.data.worlds.new("w")
     sc.world = w
     w.use_nodes = True
@@ -99,12 +106,13 @@ def studio(sc):
 
 def daylight(sc):
     """A sun lamp and Blender's multiple-scattering sky (its own sun disc off: the lamp is the sun) above a flat
-    ground colour (the arena's light from below); AgX as the studio, at the photos' exposure (DAY_EXPOSURE). The
+    ground colour (the arena's light from below); the scene look as the studio, the photos' exposure in the light
+    (DAY_GAIN). The
     sun is aimed per view (day_sun)."""
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
-    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.view_transform, sc.view_settings.look = SCENE_LOOK[:2]
     sc.view_settings.exposure = DAY_EXPOSURE
     for o in [o for o in sc.objects if o.type == "LIGHT"]:
         bpy.data.objects.remove(o)

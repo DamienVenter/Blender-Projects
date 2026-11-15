@@ -1,6 +1,7 @@
 """The Pinata Teal graphics of Damien's Leatt Moto 8.5, redrawn as flat print in the shell's UV atlas.
 
-python3 helmet_art.py trace     (once, needs Leatt's photos: writes helmet_art.json and helmet_art_field.png)
+python3 helmet_art.py trace     (once, needs Leatt's photos: writes helmet_art.json, helmet_art_field.png and
+                                 helmet_art_stripe.png)
 python3 helmet_art.py draw      (writes textures/rider/helmet_pinata.png from those two files; helmet.py calls it)
 
 Why: projecting Leatt's studio photos onto the shell (helmet.paint_atlas) carried their lighting into the texture
@@ -1522,6 +1523,91 @@ def draw_brow(P, N, col):
     col[z] = c
 
 
+# The crown's centre stripe (round 3), from the top photo at 1:1 (px): the teal block either side of the purple
+# stem below the turbine, and the chevron: its sides straight (the teal's outer edges, x 871.7 and 1059.2), its
+# top two diagonals from the stem (950 / 983.3 at y 595) to the sides (y 728.3), a white step notch at its lower
+# left (in at y 861.7 to x 915.4 at y 887.5, down to y 945) and its lower edge a diagonal down to the right, parallel
+# to the italic LEATT below (to 1059.2, 1028.8). It is not mirror-symmetric, so the trace (every texel read at its
+# point on his left half) drew it symmetric and blobby, split where the top and back views meet. Here each shell
+# or visor texel is looked up at its own place in the top view (helmet.CAMS["top"]), and inside the outlines it
+# takes a smooth colour field measured in the photo (helmet_art_stripe.png: the photo de-lit by the white either
+# side of the stripe, a white level linear in y, 212 at y 450 to 229 at y 1050; normalised Gaussian 5 px inside
+# each outline, 3 px in from its edge, the moulded ridge's reflection rows left out). Round them a white margin
+# (25 px, 6 mm) clears what the trace left outside. The turbine disc is stamped over the stem's top afterwards.
+STRIPE = dict(view="top", box=(830, 430, 1100, 1060), cos=0.15, sigma=5.0, ridge=(780, 818),
+              white_cols=[(822, 856), (1075, 1110)],
+              white=[(846, 440), (1085, 440), (1085, 1040), (1050, 1056), (890, 960), (890, 894), (846, 868)],
+              teal=[(871.7, 440), (1059.2, 440), (1059.2, 728.3), (871.7, 728.3)],
+              purple=[(950.0, 440), (983.3, 440), (983.3, 595.0), (1059.2, 728.3), (1059.2, 1028.8),
+                      (1054.4, 1031.9), (915.4, 945.0), (915.4, 887.5), (871.7, 861.7), (871.7, 728.3),
+                      (950.0, 595.0)])
+STRIPE_FIELD = os.path.join(HERE, "helmet_art_stripe.png")
+
+
+def stripe_field(log=print):
+    """Trace: the stripe's colour fields in STRIPE's box of the top photo (teal left half, purple right half of
+    helmet_art_stripe.png, sRGB)."""
+    from PIL import Image
+    from matplotlib.path import Path
+    from scipy import ndimage
+    s = STRIPE
+    ph = load_photo(s["view"])
+    a = ph[..., 3:] / 255.0
+    rgb = ph[..., :3] * a + 255.0 * (1 - a)
+    x0, y0, x1, y1 = s["box"]
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    pts = np.c_[xx.ravel() + 0.5, yy.ravel() + 0.5]
+    sub = rgb[y0:y1, x0:x1].reshape(-1, 3)
+    ridge = (pts[:, 1] >= s["ridge"][0]) & (pts[:, 1] <= s["ridge"][1])
+    wm = np.zeros(len(pts), bool)
+    for c0, c1 in s["white_cols"]:
+        wm |= (pts[:, 0] >= c0) & (pts[:, 0] < c1)
+    wm &= (sub.min(1) > 150) & ~ridge
+    A = np.c_[np.ones(len(pts)), pts[:, 1] / 1000.0]
+    level = A @ np.linalg.lstsq(A[wm], srgb_to_lin(sub[wm]), rcond=None)[0]
+    shape = (y1 - y0, x1 - x0)
+    alb = (srgb_to_lin(sub) / level * srgb_to_lin(np.array(WHITE, float))).reshape(shape + (3,))
+    halves = []
+    for name, excl in (("teal", "purple"), ("purple", None)):
+        m = Path(s[name]).contains_points(pts)
+        if excl:
+            m &= ~Path(s[excl]).contains_points(pts)
+        m = ndimage.binary_erosion(m.reshape(shape), iterations=3) & ~ridge.reshape(shape)
+        f, den = norm_blur(alb, m.astype(np.float32), s["sigma"])
+        far, _ = norm_blur(alb, m.astype(np.float32), 4 * s["sigma"])
+        halves.append(lin_to_srgb(np.where((den > 0.05)[..., None], f, far)))
+    Image.fromarray(np.clip(np.hstack(halves), 0, 255).round().astype(np.uint8)).save(STRIPE_FIELD, optimize=True)
+    log("stripe field", STRIPE_FIELD)
+
+
+def stripe_lookup(P, N):
+    """Each point's place in the stripe's view (px) and whether it shows there squarely enough (depth test
+    against the points given: the shell and the visor's top)."""
+    uv, vis, cos = view_lookup(STRIPE["view"], P, N, P)
+    return uv, vis & (cos > STRIPE["cos"])
+
+
+def draw_stripe(P, N, col, white):
+    """The centre stripe at its own place on the shell and the visor's top (no mirror): the white margin, then the
+    teal and the purple outlines in their fields."""
+    from PIL import Image
+    from matplotlib.path import Path
+    from scipy import ndimage
+    s = STRIPE
+    fimg = np.asarray(Image.open(STRIPE_FIELD).convert("RGB"), np.float32)
+    x0, y0, x1, y1 = s["box"]
+    w = x1 - x0
+    sel = np.nonzero(P[:, 2] > 0.05)[0]
+    uv, ok = stripe_lookup(P[sel], N[sel])
+    col[sel[Path(s["white"]).contains_points(uv) & ok]] = white
+    for j, name in enumerate(("teal", "purple")):
+        ins = Path(s[name]).contains_points(uv) & ok
+        q = uv[ins] - [x0, y0] - 0.5
+        qx = np.clip(q[:, 0], 0, w - 1) + j * w
+        qy = np.clip(q[:, 1], 0, y1 - y0 - 1)
+        col[sel[ins]] = np.stack([ndimage.map_coordinates(fimg[..., k], [qy, qx], order=1) for k in range(3)], -1)
+
+
 # The crown's two vents: a white moulded insert with a triangle lattice over the dark opening (moulded parts, no
 # print, painted so the crown reads right on a shell without the openings). Leatt's top photo px, the vent on his
 # right (image left); his left gets the mirror. Lattice: cells a along the opening's top edge, b down its side,
@@ -1597,6 +1683,7 @@ def draw_elements(art, tex, data, log=print, tx=None):
     col = art[r, c].astype(np.float32)
     draw_brow(P, N, col)
     draw_crown_vents(P, N, S, col)
+    draw_stripe(P, N, col, np.asarray(data["inks"]["white"], np.float32))
     texel = 1.0 / (H.ATLAS_K * tex / 4096.0)
     cache = {}
     for fr in data.get("frames", []):
@@ -1623,5 +1710,6 @@ if __name__ == "__main__":
         print("erased texels (elements redrawn from files)", int(erased.sum()))
         reg, probs, fields = regions(t, erased=erased, exclude=exclude)
         save_trace(t, reg, probs, fields, extra=dict(frames=frames, element_rgb=rgb))
+        stripe_field()
     elif sys.argv[1] == "draw":
         draw(sys.argv[2] if len(sys.argv) > 2 else None)

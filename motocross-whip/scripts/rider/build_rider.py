@@ -356,7 +356,9 @@ def studio():
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
     sc.render.resolution_x, sc.render.resolution_y = 1200, 1600
-    sc.view_settings.view_transform = "AgX"
+    # the scene look shared with the bike (decision 46): AgX - Punchy at -0.6; plain AgX at 0 turned the helmet's
+    # bright saturated inks pale and salmon. Comparisons with Leatt's studio photos use the Standard view instead
+    sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = "AgX", "AgX - Punchy", -0.6
     w = bpy.data.worlds.new("w")
     sc.world = w
     w.use_nodes = True
