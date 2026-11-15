@@ -47,8 +47,8 @@ description: How Damien's CRF250R is modelled by script from calibrated studio p
 - Check a fitted paint colour's hue on its diffuse body, not its lit mean (coordinator, look round 2's review): a
   "lit" quartile by luma takes in the clear coat's sky highlights, which run pink on red plastic under a blue sky.
   Round 2's RED (205, 41, 62) fitted that way had B above G and read crimson at 1:1, and Honda's studio views turned
-  pink (27 to 40 dE). Gate: max channel red, saturation over 0.5, G and B each under 0.45 R. His 07 then reads
-  183, 51, 45 (lit 221, 87, 57): an orange-red, G at or above B. One red must read right in his photos AND Honda's.
+  pink (27 to 40 dE). Gate: max channel red, saturation over 0.5, G and B each under 0.45 R. The coordinator then read
+  his 07 as 183, 51, 45 (lit 221, 87, 57), an orange-red: wrong, as the next lines show. One red must read right in his photos AND Honda's.
   Round 2b: that reading covered the whole photo panel, and 8522 of its 21378 gated pixels are the orange sign
   behind the bike; the bike alone (cam07's region) reads 183, 41, 41, lit 238, 74, 80: G = B, a plain red. Gate
   the part's own pixels before reading a hue off a photo.
