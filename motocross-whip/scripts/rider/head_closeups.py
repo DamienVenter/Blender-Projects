@@ -28,6 +28,9 @@ import sys
 import bpy
 from mathutils import Matrix, Vector
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
+import scene_look  # noqa: E402  (decision 54: the look shared with the bike)
+
 argv = sys.argv[sys.argv.index("--") + 1:]
 BLEND, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1])
 HIS_VIEWS = ("p09", "p07", "p08")          # his photos' cameras in the helmet frame (his-photo-cameras.json)
@@ -62,7 +65,6 @@ DAY_SUN_DISC = 0.53                # deg, the sun's angular diameter
 # sky are DAY_GAIN times that. Measured on p07 / p08 / p09 (16 samples; median display value of the white shell, round
 # 2 = 219 / 202 / 204): 2.6 EV gives 205 / 183 / 185 (Punchy's curve darkens the mid-tones), 3.0 EV 213 / 194 / 196,
 # 3.4 EV 221 / 203 / 205, so 3.4 EV keeps the lit shell where round 2 had it, the inks a little more saturated
-SCENE_LOOK = ("AgX", "AgX - Punchy", -0.6)
 DAY_GAIN = float(os.environ.get("DAY_GAIN", 2.0 ** 3.4))
 DAY_SUN_W = float(os.environ.get("DAY_SUN_W", 4.0 * DAY_GAIN))     # sun lamp irradiance (W/m2, Blender units)
 # the sky's strength: a clear sky at a high sun gives about 12 % of the global light on the ground as diffuse light
@@ -72,7 +74,7 @@ DAY_SKY_E1 = 14.9
 DAY_SKY = float(os.environ.get("DAY_SKY", 0.136 * DAY_SUN_W * math.cos(math.radians(15)) / DAY_SKY_E1))
 DAY_GROUND = (0.41, 0.40, 0.36)    # ground albedo (his 07: the lit pavement / his white shell top x 0.8)
 DAY_THETA = os.environ.get("DAY_THETA")                   # override theta (deg) for the calibration sweep
-DAY_EXPOSURE = float(os.environ.get("DAY_EXPOSURE", SCENE_LOOK[2]))      # override for calibration sweeps
+DAY_EV = float(os.environ.get("DAY_EV", 0.0))             # exposure offset (stops) on the look, for sweeps
 
 
 def head_motion():
@@ -91,7 +93,7 @@ def studio(sc):
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
-    sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = SCENE_LOOK
+    scene_look.apply(sc, "scene")
     w = bpy.data.worlds.new("w")
     sc.world = w
     w.use_nodes = True
@@ -115,8 +117,7 @@ def daylight(sc):
     sc.render.engine = "CYCLES"
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
-    sc.view_settings.view_transform, sc.view_settings.look = SCENE_LOOK[:2]
-    sc.view_settings.exposure = DAY_EXPOSURE
+    scene_look.apply(sc, "daylight", ev=DAY_EV)
     for o in [o for o in sc.objects if o.type == "LIGHT"]:
         bpy.data.objects.remove(o)
     w = bpy.data.worlds.new("daylight")
