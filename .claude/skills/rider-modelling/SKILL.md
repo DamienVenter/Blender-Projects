@@ -553,6 +553,40 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   wrapping the lens post, the strap seen through its windows (the teal dots in the slots). Modelling it needs the
   strap threaded through it, which is the worn fit's (reported, not forced).
 
+## Goggle round 13: strap carrier, rigid worn plate, joint teeth, grazing gloss (2026-11-15, goggle.py, ledger goggle.md section 16, decision 57)
+- **Compare a worn part at the photo's own placement before judging its pose**: Leatt's Pinata iso-right is an empty
+  helmet with the goggle 12.6 mm lower and 3.5 mm back. Rebuilt there (hbuildp.py, comparison only) the plate needs
+  no turn at all; the lean of its back edge then compares like for like (760 / 752 px against his 764 / 751).
+- **A per-row twist leans an edge the other way**: the worn plate turned by each row's own need to clear the shell
+  (0 at the bottom, 20 deg at the top) leaned its back edge right going down where Leatt's leans left. A rigid plate,
+  turned by the largest need, keeps its own taper's lean. Check the sign of a lean through the photo's camera.
+- **Set a bound from the measured value, with its source**: the worn turn 20.25 +- 0.5 deg (the turn at which the
+  top back corner clears the shell by OR_GAP, 0.25 deg steps), not a round 22.
+- **A metric's model must hold what the render holds**: the free goggle in the outline metric had no strap's end, so
+  the frame showed through the carrier's new windows as frame-coloured islands and the p90s jumped 2 to 3 mm (iso55
+  4.13 to 6.21). With the strap's end in place: 4.08. When a new part opens a hole, put in the metric what fills it.
+- **Remove a part from the metric before blaming it**: the near carrier showed through our see-through lens where
+  Leatt's CAD lens shows nothing, but removing it from the metric (opaque lens) changed iso55, phy and wiso not at
+  all: it sits behind the lens. Its look is the lens's transparency, not its place.
+- **Read a small edge through several views jointly and build only where they agree**: each view's drop by |s| less
+  a line through its read beyond the feature (each view's own offset and tilt), the median of the views, linear ramps
+  between the steps fitted to it. Report where they scatter (here the second tooth's end, 75 to 78 mm) and build the
+  median there; one view's mapping disagreed with older back-projections by 1.3 mm rms.
+- **A peak tone can be the backdrop**: the comb rim's peak 160 (Leatt 100) was its top pixel blended with our white
+  backdrop. Leave out the run's edge pixel on both sides, then compare: the rest was Fresnel specular at grazing view
+  (Specular IOR Level 0.5 by default); foam at 0.1 matches (L 86, peak 94 against 87, 93).
+- **A rest found by one constraint fails where that constraint goes slack**: the worn plate turns until it clears the
+  shell; at the empty helmet's placement the shell never reaches it, it stays straight back, and the strap (which
+  really turns it) leaves it outwards over its back face (25 px in the iso-right). Render the comparison placement
+  with the strap on, not only the part's own edge.
+- **Look at 1:1 beyond the silhouette too**: the carrier's clear post (from phr and the Forge front) stands 17 to 20 px
+  beyond the ISO renders' edge, where Leatt's CAD shows none. Name such conflicts between sources in the report.
+- **A window needs something behind it from every side it is seen**: the carrier's windows showed the strap's end
+  from the front but the sky from his 07's side, through the gap open at the carrier's outer edge.
+- Where a maker's CAD render and photos of the product disagree on a part and the solved cameras cannot account
+  for it (move the part along one camera's rays and see what the other sees), build to the photos and record how
+  far the CAD then departs: the photos show the product as made (goggle round 13, the strap carrier's C and post).
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

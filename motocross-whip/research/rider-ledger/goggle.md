@@ -1304,6 +1304,110 @@ phr, 04b the vent sawtooth at 4x, 05 the far piece in three colourways. Blender 
 identical to 5.2.3 (mean 0.000, max 0). The new tests (5) fail on main; the whole rider suite on the final tree, on
 origin/main 30bab2d (main had not moved): 114 passed, exit 0.
 
+## 16. Round 13: the strap carrier, the worn plate's lean, the far side, the vent teeth, the rim (decision 57)
+
+### The strap carrier round the lens post (item 1; CAR_*, car_frame, carrier_mesh, build_strap_ends)
+- Leatt's front photos show the piece beyond the frame's far end in the plates' colour: a C with an outer bar, two
+  windows at the chassis slots' heights (the strap seen through them: teal in the Pinata ISO's lower window), arms
+  reaching in to the lens's end at the top and bottom, a clear post on its outer edge at mid height (phr, the Forge
+  front). Built as part of the outriggers, free and worn: fixed on the frame's end, flat, 2.5 mm in front of the most
+  the end face comes forwards over the windows' heights (the strap's end between), up and down as far as it clears
+  the frame's corners by 0.3 mm (z -32.3 to 26.4 mm). The strap's end behind it (build_strap_ends): near black in
+  the carrier's shade, the print's teal along its cut end in the lower window's rows.
+- A rigid L (the C square to the plate on a pivot behind the frame's end, scratch isofit13.py, pose13.py) fitted both
+  ISO renders' C and near plate but stood behind the frame's front corner (y 31 to 37 mm against 25 to 28): a 10 px
+  strip at 1690 to 1700 px. No pose put the far C in front of the corner without the near plate covering the near
+  frame's pink side (918 to 951 in iso55). Hence fixed on the frame, the plate swinging behind it on round 12's hinge.
+- Fitted on the meshes (scratch carmeas13.py): outer edge iso55 1700 to 1705 px (Leatt 1703), the white ISO 1698 to
+  1701 (1701); windows rows 837 to 906 and 1025 to 1091 (830 to 900, 1025 to 1092); the teal at 1681 to 1685, rows
+  1038 to 1080 (Leatt 1679 to 1683, 1040 to 1076). Faces are split (flat): smooth shading over shared vertices drew
+  white dashes at the window sills.
+- Not fitted: Leatt's Royal (phr) shows the C 13 mm wide at 1625 to 1677 px with the plate hidden behind it (ours
+  reaches 1633, the plate's printed face beside it); a point moved so that iso55 sees no change moves 0.5 px a mm in
+  phr, so iso55 and phr cannot both hold (his Royal and the Pinata CAD differ). The clear post: phr and the Forge
+  front show it standing out of the C's outer edge (phr 1665 to 1700 px); the two ISO renders (CAD) show none, and
+  ours stands 17 to 20 px beyond their edge at rows 958 to 972. The back views (phyb) show the C as a loop the strap
+  wraps round; ours is a solid plate there (not built).
+- Which to trust where they disagree (the C, the post): the photos, phr and the Forge front. They show the goggle as
+  made, two goggles through two solved cameras agree with each other, and phr is his colourway; the ISO renders are
+  Leatt's CAD, which can be an earlier revision or leave out small parts (a clear post in a render's glass can vanish
+  on white). The cameras cannot explain the difference: phr's C spans 52 px (1625 to 1677) where ours reaches 1633,
+  and moving our C along iso55's rays shifts it only 0.5 px a mm in phr. Round 13 built the C to the CAD (the brief
+  named iso55's far silhouette); the next round should build it to the photos and record how far iso55's far edge
+  then departs. Not ruled out: the C rides on the plate and swings with its turn (phr's plates turn 76.5 deg,
+  iso55's 64); the rigid L above was fitted to the two ISO renders only.
+- Near side: the near carrier sits behind the lens's near end. Through our see-through lens (VLT 0.78) it reads as a
+  dark strip at 1000 to 1040 px (iso55, rows 800 to 1135) over main's dark chassis wall seen through the lens: the
+  lens reads light from 1038 px at row 900 (main 1021), the same as main over rows 950 to 1050 (1038 to 1041);
+  Leatt's CAD lens shows only a faint darker band at 985 to 1000. With the lens opaque (the outline metric) removing the near carrier changes iso55, phy
+  and wiso not at all. Seen from the side (his 07 at 4x) the windows show the sky above the strap's end: the gap
+  between the carrier and the frame is open at its outer edge (1 to 2 px at his photo's scale).
+- Tests: test_round13_strap_carrier_round_the_lens_post, test_round13_carrier_stands_off_the_frame_flat (both fail
+  on main); the parts-apart pairs and the frame-colour parts list take the carrier and the strap's end.
+
+### The worn plate's lean (item 2; outrigger_grids, WORN_TURN)
+- Rounds 9 to 12 twisted the worn plate: each row turned out by what it needed to clear the shell (0 at the bottom,
+  20.25 deg at the top on phase 2's shell). Through the Pinata iso-right camera its back edge then leaned right going
+  down (the mesh's edge +3.3 px a 100 rows over rows 860 to 980; in the render, where the strap's print meets the
+  plate, +19.3: 764 to 787 px), where Leatt's leans left (-10.8: 764 to 751; scratch edge13.py, lean13.py).
+- Built: the plate turns as one, by the largest turn any row needs (20.25 deg, its top back corner 1.56 mm off the
+  shell). Its back edge leans -6.5 at any turn (the plate's own taper). Placed as on Leatt's empty helmet (12.6 mm
+  lower, 3.5 mm back, the comparison render through the solved camera) it meets no shell (turn 0) and its back edge
+  stands at 760 / 752 px at rows 860 / 980 (Leatt 764 / 751). The strap's end frame follows the rigid plate.
+  Rendered at PLACE, where the print meets the plate: 757 / 749 (-6.5).
+- Not right: at the empty helmet's placement the strap, its path solved there, leaves the straight-back plate
+  outwards and covers its back 25 px (the print's edge at 785 / 777 against the plate's 760 / 752; a yellow fold at
+  its top). The rest takes the shell only; where the shell does not reach, the strap's pull should turn the plate
+  (not built).
+- His photos 07 and 09 see the plate at 0.41 and 0.51 px a mm: twist and rigid differ there by 1 to 2 px, under the
+  cameras' landmark rms (2.2 and 8 px), so they cannot choose (overlays at 12x, scratch lean13c.py).
+- test_goggle's turn bound: 20.25 +- 0.5 deg, one turn per plate (measured: the turn at which the top back corner
+  clears phase 2's shell by OR_GAP, 0.25 deg steps, scratch lean13b.py; it was < 22, a round number). Test:
+  test_round13_worn_plate_turns_as_one_and_leans_as_leatts (the lean at PLACE and at the empty helmet's placement,
+  the back edge there within 6 px of Leatt's; fails on main: +3.3).
+
+### The far side in iso55 (item 3)
+- The silhouette: the carrier's outer edge now makes it, 1699 to 1705 px over rows 820 to 1100 (Leatt 1703 to 1705;
+  main 1692 to 1696), held by item 1's test.
+- The lens's end bow at rows 840 and 1090 (round 12: dark from 1648, Leatt 1657 to 1658) is unchanged: easing the
+  curl over a shorter height (SIDE_LENS_Z -31 to -24 and 19 to 27 mm) broke test_round6_frame_is_fair and put the
+  lens's inner face 0.15 mm into the frame. Reverted.
+- Outlines (the same metric as round 12, errtab.py; main 8c75de2 against round 13), outline model-to-photo p50 / p90
+  mm: with the strap's end behind the carrier's windows (as rendered): iso55 0.73 / 4.08 (main 0.75 / 4.13), phy 0.81
+  / 3.84 (0.83 / 3.72; round 11 3.44), phr 0.87 / 3.95 (0.76 / 4.32; round 11 3.89), wiso 0.89 / 4.25 (0.90 / 3.96).
+  errtab.py's free goggle has no strap's end: the frame then shows through the windows as frame-coloured islands and
+  the p90s read 6.21, 6.47, 4.02 and 6.55 (scratch errfar13.py, errmap13.py). phr is back; phy is 0.12 above main
+  and 0.40 above round 11; wiso rose 0.29.
+
+### The vent teeth (item 4; GP teeth, tooth_drop)
+- Read through three views jointly (scratch saw13.py, sawfit13b.py): the white ISO and the Pinata ISO through the
+  iso55 camera, the yellow studio photo phy through its own. Per view the frame colour's lowest row per column against
+  our edge projected with no teeth and with a 1 mm drop, by the edge's |s|, less a line through its read beyond the
+  vents (|s| 41 to 43 and 81 to 85 mm); the median of the three (they scatter about it by rms 0.42 mm).
+- They agree on: a step down at 48.5 mm, a ramp to about 1.5 mm, a step up at 58.5, a step down at 61.5 (phy 60), a
+  ramp to 2.9 mm at 71.5, and no drop at 79 to 80 (round 6's 1.5 mm step at 79.5 was not there). Built: ramps 0.27 to
+  1.82 mm (48.5 to 58.5), 0.51 to 1.36 (58.5 to 61.5), 1.96 to 2.98 (61.5 to 71.5); fit residual rms 0.10.
+- They disagree on where the second tooth's slanted end face meets the band (the white ISO by 75 mm, iso55 77, phy
+  78): built to the median, 2.98 mm at 71.5 to 0 at 77.5. Below 47 mm they disagree by 0.4 to 1.8 mm: not built.
+- Model against the joint read over 47 to 71 mm: rms 0.20 mm (main 0.77). At 4x in the white ISO the edge is within 3
+  px of Leatt's from 1100 to 1320 px (main flat at 768 to 769 px from 1095 to 1225, Leatt 768 to 779). Its steps
+  are eased (TOOTH_EASE): Leatt's 48.5 step is crisp (6 px), ours a ramp over about 20 px. Outline and crease hold (iso55
+  crease p50 1.50 to 1.42 mm, phy outline p50 1.01 to 0.90).
+- Test: test_round13_vent_teeth_follow_the_joint_read (the read embedded, rms under 0.35 mm, no drop at 79 and 80;
+  fails on main: 0.77).
+
+### The comb's rim (item 5; goggle_foam)
+- The rim above the near tongues in phr is the face foam's top seen past the comb at a grazing view; with no sheen it
+  still read lighter than Leatt's through its Fresnel specular (Specular IOR Level 0.5 by default). At 0.1 (scratch
+  rim13.py): L p50 86 (Leatt 87, main 97), its peak 94 (Leatt 93, main 99), the run's top pixel left out on both
+  sides. Round 12's peak 160 was mostly that pixel: the rim's edge blended with our white backdrop (Leatt's teal
+  backdrop is left out by the same rule). Test: test_round13_face_foam_has_no_grazing_gloss (fails on main).
+
+### Item 6 and checks
+- The Forge back-strap sheet (item 6): not done (items 1 and 3 not fully right).
+- renders/checkpoints/2026-11-15_goggle-r13/ (README there). Blender 5.2.0 check, the tests and the trial merge: in
+  the README and decision 57.
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|
