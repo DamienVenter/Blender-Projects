@@ -3,6 +3,7 @@ and the shared 3D landmarks solved together with the shell's outlines, in the HE
 left, y back, z up).
 
 usage: python3 helmet_ba.py [OUT.json]      (default research/helmet-ba.json; about 4 minutes on one core)
+       python3 helmet_ba.py refit VIEW [IN.json [OUT.json]]   (round 5: one camera refitted, the rest held; 1 minute)
 
 Photos (reference/leatt-gear): Pinata Teal iso-left, iso-right, back, top (helmet/, 1920 px); V25 Royal left (the
 side view the profile was traced from) and back (helmet/); V25 white iso-left and back (helmet/); MY27 kit
@@ -131,12 +132,26 @@ PAIRS = {
               "v25w_back": (456.0, 1435.9, 4.0), "my27_back": (515.7, 1332.1, 4.0), "royal_back": (472.0, 1465.0, 4.0)},
         "R": {"my27_right": (426.0, 1100.0, 8.0), "v25w_back": (1434.2, 1444.2, 4.0),
               "my27_back": (1427.5, 1330.4, 4.0), "royal_back": (1455.0, 1460.0, 4.0)}},
-    # the grey triangle badge on the shell beside the eye port, above the goggle strap (light triangle centroid)
+    # the brow tag: the Leatt triangle on the brow's corner beside the eye port, above the goggle strap (the centroid
+    # of its rim's three outer corners). Round 5: Pinata iso-left re-read at 5x, (1083.3, 717.3) from its corners
+    # (1078, 691), (1060, 734), (1112, 727): round 3's light-triangle centroid (1070.1, 724.1) sat 13 px left, pulled
+    # by the triangle's dark right half; Pinata iso-right likewise, 3.5 px up and left of round 3's
     "eyeport_triangle": {
-        "L": {"pin_isoleft": (1070.1, 724.1, 3.0), "royal_left": (718.2, 767.7, 2.0),
+        "L": {"pin_isoleft": (1083.3, 717.3, 2.0), "royal_left": (718.2, 767.7, 2.0),
               "v25w_isoleft": (950.2, 776.8, 2.0), "my27_isoleft": (1227.6, 700.2, 2.0),
               "my27_left": (744.4, 739.5, 2.0)},
-        "R": {"pin_isoright": (816.5, 727.6, 2.0), "my27_right": (1212.5, 724.3, 2.0)}},
+        "R": {"pin_isoright": (813.0, 724.2, 2.0), "my27_right": (1212.5, 724.3, 2.0)}},
+    # Round 5: the chin's mouthpiece, its opening's outer corners (read at 4x; Pinata: the white paint's corner on the
+    # black frame, MY27: the corner of the rim's lit bevel line, 1 to 2 mm inside the paint's, sigma 5 px). Its side
+    # corner, where the angled shoulder meets the side, and its bottom corner, where the side meets the flat bottom
+    "mouth_corner": {
+        "L": {"pin_isoleft": (626.5, 1398.0, 3.0), "my27_isoleft": (741.0, 1404.0, 5.0)},
+        "R": {"pin_isoright": (1253.5, 1406.0, 3.0)}},
+    # (MY27's lit line at the bottom corner, 607, 1689, lies 17 px, 3.5 mm, below where the two Pinata views put the
+    # paint's corner: the lower lip's bevel, not the rim; left out)
+    "mouth_bottom": {
+        "L": {"pin_isoleft": (529.0, 1641.0, 3.0)},
+        "R": {"pin_isoright": (1350.5, 1647.0, 3.0)}},
     # the chin bar's side vent (lattice centroid)
     "chin_vent": {
         "L": {"royal_left": (439.4, 1416.4, 4.0), "v25w_isoleft": (729.0, 1450.3, 4.0),
@@ -167,7 +182,7 @@ CENTRES = {
     "visor_rear_edge": {"pin_top": (960.0, 792.0, 3.0, 90.0), "pin_back": (960.0, 447.0, 3.0, 90.0)},
 }
 # the art view of each landmark: where the model's print or part was placed from (for "model now")
-ART_VIEW = {"eyeport_triangle": "pin_isoleft", "chin_vent": "royal_left", "side_screw": "pin_isoleft", "release_tab": "pin_isoleft", "rear_slot": "pin_back",
+ART_VIEW = {"mouth_corner": "pin_isoleft", "mouth_bottom": "pin_isoleft", "eyeport_triangle": "pin_isoleft", "chin_vent": "royal_left", "side_screw": "pin_isoleft", "release_tab": "pin_isoleft", "rear_slot": "pin_back",
             "crown_vent": "pin_top", "side_vent": "pin_isoleft", "low_vent": "royal_left",
             "rear_badge": "pin_back", "dot_o": "pin_back", "brow_badge": "pin_isoleft",
             "visor_rear_edge": "pin_top", "visor_tip": "royal_left"}
@@ -685,5 +700,172 @@ def main():
     print("written", path)
 
 
+# Round 5 (decision 56): one camera refitted with every other camera and every landmark of the solution held, but
+# the landmarks it re-solves (REFIT_LMS: the brow tag, re-read, and the mouthpiece's corners). Pinata iso-left's
+# camera (the print's and the front details' camera, helmet.PRINT_CAMS) had only six landmarks, all on the side but
+# the brow badge, and saw the chin's outline 12.4 mm inside Leatt's (MY27 front-iso-left +3.1, iso-right -4.2) and
+# the mouthpiece's corners 2.8 and 6.0 mm off where those two cameras place them. Residuals: its readings of the
+# held landmarks, each with the landmark's own uncertainty carried into the photo (sigma, its 3 x 3 covariance's
+# diagonal, through the camera: a held landmark is no better known than its solve); every reading of the re-solved
+# landmarks in every view; the shell's chin outline (y < FRONT_Y, z < -0.03 m) as ONE measurement of the chin's
+# place, the mean of its points' offsets over CHIN_REFIT_MM (the chin's own uncertainty: MY27 and iso-right, which
+# phase 2 rebuilt it to, read it +3.1 and -4.2 mm); the log f prior. (A fresh full solve from the start cameras is
+# no longer round 4's on the shell phase 2 rebuilt: 2026-11-15, reduced chi2 22.7 against round 4's 2.0, the top
+# camera 1.9 m away; so the solution file is kept and refitted one camera at a time.)
+REFIT_LMS = ("eyeport_triangle", "mouth_corner", "mouth_bottom")
+CHIN_REFIT_MM = 3.6
+CHIN_REFIT_Z = -0.03
+
+
+def chin_outline(outline, cam, view):
+    """The shell's outline vertices on the chin (y < FRONT_Y, z < CHIN_REFIT_Z) seen from cam (indices)."""
+    from PIL import Image, ImageDraw
+    from scipy import ndimage
+    V = outline.V
+    face = np.sign(((cam["C"] - outline.FC) * outline.FN).sum(1))
+    a = np.nonzero(outline.EK[1:] == outline.EK[:-1])[0]
+    idx = np.unique(outline.ES[a[face[outline.EF[a]] != face[outline.EF[a + 1]]]].ravel())
+    idx = idx[idx < outline.n_shell]
+    uv = project(cam, V)
+    im = Image.new("L", (W // 2, W // 2), 0)
+    d = ImageDraw.Draw(im)
+    for f in outline.F:
+        d.polygon([tuple(uv[i] / 2) for i in f], fill=255)
+    m = np.asarray(im) > 0
+    dist = ndimage.distance_transform_edt(~(m & ~ndimage.binary_erosion(m)))
+    q = uv[idx] / 2
+    ok = (q[:, 0] > 0) & (q[:, 0] < W // 2 - 1) & (q[:, 1] > 0) & (q[:, 1] < W // 2 - 1)
+    ok[ok] = dist[q[ok, 1].astype(int), q[ok, 0].astype(int)] < 1.5
+    idx = idx[ok]
+    return idx[(V[idx, 1] < FRONT_Y) & (V[idx, 2] < CHIN_REFIT_Z)]
+
+
+def chin_mm(cam, view, outline=None):
+    """The chin outline's offsets from the photo's silhouette (mm at their depth, + = the model outside)."""
+    if outline is None:
+        mesh = model_mesh()
+        outline = Outline(mesh[0], mesh[1], len(mesh[2]))
+    P = outline.V[chin_outline(outline, cam, view)]
+    return P, sample(sdf(view), project(cam, P)) * ((P - cam["C"]) @ cam["R"][2]) / cam["f"] * 1000
+
+
+def refit(view, src=BA_JSON, dst=BA_JSON, log=print):
+    """Refit one camera of a solution file (see above) and re-solve REFIT_LMS; written to dst."""
+    ba = json.load(open(src))
+    cams = solved_cameras(src)
+    c0 = cams[view]
+    mesh = model_mesh()
+    outline = Outline(mesh[0], mesh[1], len(mesh[2]))
+    held = {n: np.array(l["X"]) for n, l in ba["landmarks"].items() if n not in REFIT_LMS}
+    sig = {n: np.array(l["sigma"]) for n, l in ba["landmarks"].items()}
+    obs_new = []                                      # (landmark, side, view, (u, v, sigma)) of the re-solved ones
+    for n in REFIT_LMS:
+        for side in ("L", "R"):
+            for v, o in PAIRS[n][side].items():
+                obs_new.append((n, side, v, o))
+    held_rows = []                                    # this view's readings of held landmarks, whitened
+    for n, X in held.items():
+        for side, o in (((s, PAIRS[n][s].get(view)) for s in ("L", "R")) if n in PAIRS else
+                        (("C", CENTRES[n].get(view)),)):
+            if o is None or len(o) != 3:
+                continue
+            P = X * ([-1, 1, 1] if side == "R" else [1, 1, 1])
+            J = c0["f"] / ((P - c0["C"]) @ c0["R"][2]) * c0["R"][:2]
+            S = J @ np.diag(sig[n] ** 2) @ J.T + np.eye(2) * o[2] ** 2
+            held_rows.append((n + ("" if side == "C" else "_" + side), P, np.array(o[:2]),
+                              np.linalg.inv(np.linalg.cholesky(S))))
+    x0 = np.r_[0.0, 0.0, 0.0, c0["C"], math.log(c0["f"])]
+    pts0 = []
+    for n in REFIT_LMS:                               # starts: the solution's, else cast from the view's camera
+        if n in ba["landmarks"]:
+            pts0.append(np.array(ba["landmarks"][n]["X"]))
+        else:
+            o = PAIRS[n]["L"][view]
+            d = ray(c0, o[0], o[1])
+            p = raycast(mesh[0], mesh[1], c0["C"], d)
+            if p is None:                             # missed: the ray's point nearest the shell
+                t = (mesh[2] - c0["C"]) @ d
+                k = np.argmin(np.linalg.norm(mesh[2] - c0["C"] - t[:, None] * d, axis=1))
+                p = c0["C"] + t[k] * d
+            p[0] = abs(p[0])
+            pts0.append(p)
+    x0 = np.r_[x0, np.concatenate(pts0)]
+    sd = sdf(view)
+
+    def cam_of(x):
+        return dict(R=Rotation.from_rotvec(x[:3]).as_matrix() @ c0["R"], C=x[3:6], f=math.exp(x[6]),
+                    cx=c0["cx"], cy=c0["cy"])
+
+    def res(x, idx):
+        cam = cam_of(x)
+        cs = dict(cams)
+        cs[view] = cam
+        r = []
+        for n, P, o, Wm in held_rows:
+            r.extend(Wm @ (project(cam, P[None])[0] - o))
+        for n, side, v, o in obs_new:
+            P = x[7 + 3 * REFIT_LMS.index(n):10 + 3 * REFIT_LMS.index(n)] * ([-1, 1, 1] if side == "R" else [1, 1, 1])
+            r.extend((project(cs[v], P[None])[0] - o[:2]) / o[2])
+        Q = outline.V[idx]
+        mm = sample(sd, project(cam, Q)) * ((Q - cam["C"]) @ cam["R"][2]) / cam["f"] * 1000
+        r.append(np.mean(mm) / CHIN_REFIT_MM)
+        r.append((x[6] - x0[6]) / LOGF_SIGMA)
+        return np.array(r)
+
+    x = x0.copy()
+    for it in range(3):                               # the outline's vertices chosen at the current camera
+        idx = chin_outline(outline, cam_of(x), view)
+        r = least_squares(res, x, args=(idx,), method="trf", x_scale="jac", max_nfev=300)
+        x = r.x
+    cam = cam_of(x)
+    J = r.jac
+    cov = np.linalg.pinv(J.T @ J) * max(1.0, float(np.sum(r.fun ** 2)) / max(1, len(r.fun) - len(x)))
+    _, mm = chin_mm(cam, view, outline)
+    log("%s: camera moved %.1f mm, turned %.2f deg, f %.0f -> %.0f; chin outline median %+.1f mm (before %+.1f)" % (
+        view, 1000 * np.linalg.norm(cam["C"] - c0["C"]), np.degrees(np.linalg.norm(x[:3])), c0["f"], cam["f"],
+        np.median(mm), np.median(chin_mm(c0, view, outline)[1])))
+    out = json.loads(json.dumps(ba))
+    cams[view] = cam
+    e = np.concatenate([project(cam, P[None])[0] - o for _, P, o, _ in held_rows] +
+                       [project(cam, (x[7 + 3 * REFIT_LMS.index(n):10 + 3 * REFIT_LMS.index(n)] *
+                                      ([-1, 1, 1] if side == "R" else [1, 1, 1]))[None])[0] - o[:2]
+                        for n, side, v, o in obs_new if v == view])
+    d = float(-(cam["C"] @ cam["R"][2]))
+    out["cameras"][view].update(C=cam["C"].tolist(), R=cam["R"].tolist(), f=cam["f"],
+                                landmark_rms_px=float(np.sqrt(np.mean(e ** 2))), n_landmark_readings=len(e) // 2,
+                                depth_of_origin=d, mm_per_px_at_origin=d / cam["f"] * 1000,
+                                chin_outline_median_mm=float(np.median(mm)))
+    now = model_now(mesh, cams)
+    Vo, NV = mesh[2], mesh[3]
+    for k, n in enumerate(REFIT_LMS):
+        p = x[7 + 3 * k:10 + 3 * k]
+        j = np.argmin(((Vo - p) ** 2).sum(1))
+        rows = []
+        for m, side, v, o in obs_new:
+            if m == n:
+                P = p * ([-1, 1, 1] if side == "R" else [1, 1, 1])
+                rows.append((side, v, (project(cams[v], P[None])[0] - o[:2]).round(1).tolist()))
+        out["landmarks"][n] = dict(kind="pair (L given; R = mirror)", X=p.tolist(),
+                                   sigma=np.sqrt(np.diag(cov)[7 + 3 * k:10 + 3 * k]).tolist(),
+                                   model_now=None if now[n] is None else now[n].tolist(),
+                                   off_shell=float((p - Vo[j]) @ NV[j]), residuals_px=rows)
+        log("  %-16s X %s mm, off the shell %+.1f mm, residuals %s" % (
+            n, np.round(1000 * p, 1), 1000 * out["landmarks"][n]["off_shell"], rows))
+    for n, P, o, _ in held_rows:
+        log("  %-18s (%+.1f, %+.1f) px, before (%+.1f, %+.1f)" % (n, *(project(cam, P[None])[0] - o),
+                                                                  *(project(c0, P[None])[0] - o)))
+    out.setdefault("refits", []).append(dict(
+        view=view, round="5 (decision 56)", camera_moved_mm=1000 * float(np.linalg.norm(cam["C"] - c0["C"])),
+        turned_deg=float(np.degrees(np.linalg.norm(x[:3]))), f_before=c0["f"], f_after=cam["f"],
+        chin_outline_median_mm=float(np.median(mm)), relanded=list(REFIT_LMS),
+        held="every other camera and landmark", chin_sigma_mm=CHIN_REFIT_MM))
+    json.dump(out, open(dst, "w"), indent=1)
+    log("written " + dst)
+    return out
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "refit":
+        refit(sys.argv[2], *(sys.argv[3:5]))
+    else:
+        main()

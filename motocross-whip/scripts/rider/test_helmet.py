@@ -564,6 +564,43 @@ def test_chin_front_on_the_iso_photos():
     assert abs(off) < 0.0015, f"chin_vent landmark {1000 * off:+.1f} mm off the shell"
 
 
+def test_iso_left_camera_refit():
+    """Round 5 (decision 56): Pinata iso-left's camera (the print's and the front details' camera, helmet.PRINT_CAMS)
+    refitted with the other cameras held (helmet_ba.refit): its chin outline's median within 5 mm of Leatt's, like
+    MY27 front-iso-left (+3.1) and iso-right (-4.2) (main -12.4, now -4.5); the mouthpiece's side corner, placed by
+    those two cameras alone, seen within 1.5 mm of where Pinata iso-left shows it (main 2.8 mm, now 0.7); the brow
+    badge's reading within 8 px (main 17.3 px, now 5.7); and the brow tag's reading at the centre of its rim's three
+    corners (helmet_detail.BROW_TAG_PX, read at 3x), within 3 px (main's reading, the light triangle's centroid, 15.8
+    px off)."""
+    import helmet_ba as BA
+    import helmet_detail as D
+    from scipy.optimize import least_squares
+    Vo, Fo, _ = H.shell_outer()
+    P, mm = outline_mm("pin_isoleft", Vo, Fo)
+    chin = (P[:, 1] < -0.12) & (P[:, 2] < -0.06)
+    assert chin.sum() >= 20
+    assert abs(np.median(mm[chin])) < 5.0, f"pin_isoleft: chin outline {np.median(mm[chin]):+.1f} mm off Leatt's"
+    cams = BA.solved_cameras()
+    assert "mouth_corner" in BA.PAIRS, "no mouthpiece landmarks (main)"
+    obs = [(v, s, o) for s in ("L", "R") for v, o in BA.PAIRS["mouth_corner"][s].items() if v != "pin_isoleft"]
+
+    def r(x):
+        return np.concatenate([(BA.project(cams[v], (x * ([1, 1, 1] if s == "L" else [-1, 1, 1]))[None])[0] -
+                                o[:2]) / o[2] for v, s, o in obs])
+    X = least_squares(r, np.array([0.05, -0.2, -0.11]), method="lm").x
+    c = cams["pin_isoleft"]
+    e = BA.project(c, X[None])[0] - BA.PAIRS["mouth_corner"]["L"]["pin_isoleft"][:2]
+    mm_px = ((X - c["C"]) @ c["R"][2]) / c["f"] * 1000
+    assert np.linalg.norm(e) * mm_px < 1.5, f"mouth corner {np.linalg.norm(e) * mm_px:.1f} mm off in pin_isoleft"
+    ba = json.load(open(H.BA_JSON))
+    Xb = np.array(ba["landmarks"]["brow_badge"]["X"])
+    eb = BA.project(c, Xb[None])[0] - BA.CENTRES["brow_badge"]["pin_isoleft"][:2]
+    assert np.linalg.norm(eb) < 8.0, f"brow badge {np.linalg.norm(eb):.1f} px off in pin_isoleft"
+    tag = np.mean(D.BROW_TAG_PX, 0)
+    rd = BA.PAIRS["eyeport_triangle"]["L"]["pin_isoleft"]
+    assert np.linalg.norm(tag - rd[:2]) < 3.0, f"brow tag reading {np.linalg.norm(tag - rd[:2]):.1f} px off its rim"
+
+
 def test_mouthpiece_and_side_vents(built):
     """Phase 2 (decision 51): the chin's mouthpiece (helmet_detail.MOUTH_RIM, MOUTH_OPEN: traced on Leatt's MY27
     front-iso-left and Pinata iso-right photos and cast through their solved cameras) is a black moulded wall from
