@@ -19,6 +19,15 @@ python3 look_fit.py bike EXR INDEX.json REDS --out OUT.json [--ev7 EV] [--also N
 python3 look_fit.py honda VIEW EXR INDEX.json REDS --out OUT.json [--ev EV] [--also NAME=R,G,B;...]
     the same against Honda's studio photo of VIEW (build_bike.py's honda_<VIEW>, stock, SCENE_LOOK=linear, at
     BIKE_STUDIO_RES 2000,1125) under the studio look at EV (build_bike.STUDIO's) on all of the red (honda_red)
+python3 look_fit.py gear OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json [--no-tint]
+    the kit, gloves and boots (and the bike's tyres, a neutral check) in his views p07, p08, p09 and cam07 (linear
+    EXRs with the diffuse passes) at each photo's exposure and tint of its darks (scene_look.PHOTO_EV, PHOTO_TINT;
+    --no-tint leaves the tint out): colour-gated regions on both sides, each its diffuse body, and the albedo and
+    the albedo that meets the photo at each scale of the rest (specular, sheen, coat; gear, decision 59)
+python3 look_fit.py darks OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json
+    his phone's lift of the darks and 07's tint (scene_look.DARK_LIFT, PHOTO_TINT) fitted on the neutral blacks
+    outside the gear (the helmet's black print in p07 and p08, the tyres in cam07), the gear's darks held out
+    (dark_fit; decision 59)
 python3 look_fit.py sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
     photo | decision 46's look | the scene look, for the checkpoints (sheet)
 
@@ -134,6 +143,7 @@ def classify(mat, alb, sky, names):
     cls[pant & dark] = "pant_dark"
     cls[pant & lime] = "pant_lime"
     cls[np.char.startswith(nm, "glove_fabric") & dark] = "glove"
+    cls[(nm == "tyre") & dark] = "tyre"                  # the bike's black rubber: a neutral check (decision 59)
     cls[sky] = "sky"
     return cls
 
@@ -349,8 +359,8 @@ def lab(rgb8):
     return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
 
 
-def blender_look(lin, kind, ev=0.0, blender="blender"):
-    """Display values (0..1) of scene-linear pixels (N, 3) through scene_look.apply(scene, kind, ev) in Blender
+def blender_look(lin, kind, ev=0.0, blender="blender", tint=None):
+    """Display values (0..1) of scene-linear pixels (N, 3) through scene_look.apply(scene, kind, ev, tint) in Blender
     itself (look_apply.py: a render, view settings and compositor)."""
     import subprocess
     import tempfile
@@ -363,7 +373,7 @@ def blender_look(lin, kind, ev=0.0, blender="blender"):
         np.save(os.path.join(t, "in.npy"), a.reshape(h, w, 3))
         subprocess.run([blender, "-b", "--factory-startup", "--python-exit-code", "1", "--python",
                         os.path.join(HERE, "look_apply.py"), "--", os.path.join(t, "in.npy"), os.path.join(t, "out.png"),
-                        kind, str(ev)], check=True, capture_output=True)
+                        kind, str(ev)] + ([",".join(map(repr, tint))] if tint else []), check=True, capture_output=True)
         return np.asarray(Image.open(os.path.join(t, "out.png")).convert("RGB")).reshape(-1, 3)[:n] / 255.0
 
 
@@ -667,6 +677,214 @@ def honda_red(exr_path, index, view, reds, ev, also=None):
     return out
 
 
+# ---------------------------------------------------------------- the gear (decision 59)
+# The kit, gloves and boots against his photos. The pose is not fitted to his photos, so there are no pixel pairs:
+# colour-gated regions. Render: the class's pixels; photo: the pixels inside the garment's render mask dilated
+# GEAR_REGION px (about the pose's error; the helmet, goggle and bike classes taken out) that pass the same colour
+# gate. Each class: (garment, gate); the tyre is the bike's black rubber, a neutral check on the darks.
+GEAR = {"jersey_magenta": ("jersey", "magenta"), "jersey_lime": ("jersey", "lime"), "jersey_teal": ("jersey", "teal"),
+        "jersey_dark": ("jersey", "dark"), "pant_magenta": ("pant", "magenta"), "pant_lime": ("pant", "lime"),
+        "pant_dark": ("pant", "dark"), "glove": ("glove", "dark"), "boot": ("boot", "white"), "tyre": ("tyre", "dark")}
+GARMENT = {g: tuple(c for c, (gg, _) in GEAR.items() if gg == g) for g in ("jersey", "pant", "glove", "boot", "tyre")}
+GEAR_EXCLUDE = ("white", "magenta", "black", "teal", "purple", "frame", "red", "bike_black")
+GEAR_REGION = {"p07": 20, "p08": 20, "p09": 20, "cam07": 25}
+GEAR_BODY = 90          # the diffuse body: each side's pixels under the class's 90th luminance percentile (glints out)
+GEAR_K = (0.5, 1.0, 2.0)  # gear_fit: the albedo at these scales of the grey layer (1: as now)
+
+
+def gear_gate(rgb, kind):
+    """The colour gates (sRGB-encoded 0..1), the same on photo and render: pink hue 315 to 352, lime 55 to 110, teal
+    150 to 205, dark value under 0.3 and saturation under 0.6, white saturation under 0.2 and value over 0.6."""
+    h, s, v = hsv(rgb)
+    return {"magenta": (s > 0.45) & (v > 0.2) & (h >= 315) & (h <= 352),
+            "lime": (s > 0.45) & (v > 0.3) & (h >= 55) & (h <= 110),
+            "teal": (s > 0.25) & (v > 0.3) & (h >= 150) & (h <= 205),
+            "dark": (v < 0.3) & (s < 0.6),
+            "white": (s < 0.2) & (v > 0.6)}[kind]
+
+
+def luma_L(rgb):
+    """L* of the 10 % and 90 % luminance quantiles (the shade and the lit side) of display pixels (0..1)."""
+    Y = (rgb * 255.0) @ np.array(scene_look.LUMA)
+    return lab(np.repeat(np.percentile(Y, [10, 90])[:, None], 3, 1))[:, 0]
+
+
+def gear_stats(rgb):
+    """Median (8-bit), its L*, C*, hue, and the L* of the 10 % and 90 % luminance quantiles."""
+    med = np.median(rgb * 255.0, 0)
+    L = lab(med)
+    q = luma_L(rgb)
+    return dict(n=int(len(rgb)), median=med.round().astype(int).tolist(), L=round(float(L[0]), 1),
+                C=round(float(np.hypot(L[1], L[2])), 1), h=int(round(float(np.degrees(np.arctan2(L[2], L[1])) % 360))),
+                q10=round(float(q[0]), 1), q90=round(float(q[1]), 1))
+
+
+def body(rgb, keep=None):
+    """The diffuse body: the pixels under the GEAR_BODY luminance percentile (a mask; keep: restrict to it first)."""
+    Y = rgb @ np.array(scene_look.LUMA)
+    m = np.ones(len(rgb), bool) if keep is None else keep.copy()
+    return m & (Y <= np.percentile(Y[m], GEAR_BODY))
+
+
+def gear_fit(lin, light, alb, photo, look, ks=GEAR_K):
+    """What the material should do. Each class pixel is its diffuse part D = light x albedo (Diffuse Direct +
+    Indirect times the Diffuse Color pass) and the rest G = Combined - D (specular, sheen, coat); one albedo a for
+    the class (pass units) at a scale k of the rest, lin' = D a / albedo + k G, fitted so that the diffuse body's
+    median (CIELAB) and q10 and q90 L* meet the photo's body's; for each k in ks (1: the grey layer as now). The
+    body's numbers cannot tell k from the albedo (classes made with k 0.6 fit as well at k 2.3 with a third of the
+    albedo, test_gear_look.py): k is the maker's studio photos' to say (the highlights), the albedo then follows
+    from his photos at that k. rest_share = G's share of the pixel's light now (median)."""
+    from scipy.optimize import least_squares
+    D = light * alb
+    G = np.maximum(lin - D, 0.0)
+    goal = np.concatenate([lab(np.median(photo * 255.0, 0)), luma_L(photo)])
+    a0 = np.maximum(np.median(alb, 0), 1e-3)
+    share = float(np.median((G @ np.array(scene_look.LUMA)) / np.maximum(lin @ np.array(scene_look.LUMA), 1e-6)))
+    out = dict(albedo8_now=(scene_look.oetf(a0) * 255).round().astype(int).tolist(), rest_share=round(share, 3), k={})
+    for k in ks:
+        def lin_of(x):
+            return D * (np.exp(x) / np.maximum(alb, 1e-4)) + k * G
+
+        def resid(x):
+            d = look(lin_of(x))
+            d = d[body(d)]
+            return np.concatenate([lab(np.median(d * 255.0, 0)), luma_L(d)]) - goal
+        r = least_squares(resid, np.log(a0), diff_step=1e-2, bounds=(np.full(3, np.log(1e-4)), np.zeros(3)))
+        a = np.exp(r.x)
+        d = look(lin_of(r.x))
+        out["k"][str(k)] = dict(albedo=a.round(4).tolist(), albedo8=(scene_look.oetf(a) * 255).round().astype(int).tolist(),
+                                fitted=gear_stats(d[body(d)]), resid=np.round(r.fun, 1).tolist())
+    return out
+
+
+def gear_region(d, view, c):
+    """One gear class in a loaded view (load_view): the photo's pixels (inside the garment's render mask dilated
+    GEAR_REGION px, the helmet, goggle and bike classes out, through the class's colour gate) and the render's class
+    pixels through the same gate under the look without the photo's tint (the material's pixels: a tint must not
+    move pixels in or out of the gate). Returns (photo px, render lin, render light, render albedo) or None."""
+    garment, kind = GEAR[c]
+    cls = d["cls"]
+    rm = cls == c
+    if rm.sum() < 50:
+        return None
+    excl = ~erode(~np.isin(cls, GEAR_EXCLUDE), 3)
+    region = ~erode(~np.isin(cls, GARMENT[garment]), GEAR_REGION[view]) & ~excl
+    ph = d["photo"][region]
+    ph = ph[gear_gate(ph, kind)]
+    g = gear_gate(scene_look.display(d["lin"][rm], "daylight", scene_look.photo_ev(view)), kind)
+    if len(ph) < 50 or g.sum() < 20:
+        return None
+    pick = lambda k: None if d.get(k) is None else d[k][rm][g]                   # noqa: E731
+    return ph, pick("lin"), pick("light"), pick("alb")
+
+
+def gear(view, exr_path, index, tint=True, fit=True):
+    """The gear's classes in one of his views (p07, p08, p09 or cam07; a linear EXR with the diffuse passes) at the
+    photo's exposure (scene_look.photo_ev) and, with tint, its tint of the darks (scene_look.photo_tint): photo and
+    ours (each its diffuse body), dE of the medians, and the material fit (gear_fit). Rows per class."""
+    d = load_view(view, exr_path, json.load(open(index)))
+    if d["light"] is None:
+        raise SystemExit("%s has no diffuse light passes: render it with scene_look's linear kind" % exr_path)
+    ev = scene_look.photo_ev(view)
+    t = scene_look.photo_tint(view) if tint else None
+    look = lambda x: scene_look.display(x, "daylight", ev, t)                  # noqa: E731
+    rows = []
+    for c in GEAR:
+        r = gear_region(d, view, c)
+        if r is None:
+            continue
+        ph, lin, light, alb = r
+        disp = look(lin)
+        ph_b, ours_b = ph[body(ph)], disp[body(disp)]
+        row = dict(view=view, cls=c, ev=ev, tint=t, photo=gear_stats(ph_b), ours=gear_stats(ours_b),
+                   dE=round(float(np.linalg.norm(lab(np.median(ours_b * 255, 0)) - lab(np.median(ph_b * 255, 0)))), 1))
+        if fit and c != "tyre":
+            row["fit"] = gear_fit(lin, light, alb, ph_b, look)
+        rows.append(row)
+        f = lambda s: "%-15s L%3.0f C%3.0f h%3d q%3.0f-%-3.0f" % (str(s["median"]), s["L"], s["C"], s["h"], s["q10"],  # noqa: E731
+                                                                  s["q90"])
+        print("%-5s %-15s n %5d/%5d | photo %s | ours %s | dE %5.1f%s" % (
+            view, c, row["photo"]["n"], row["ours"]["n"], f(row["photo"]), f(row["ours"]), row["dE"],
+            "" if "fit" not in row else " | albedo %s, rest %2.0f%% -> at k %s" % (
+                row["fit"]["albedo8_now"], 100 * row["fit"]["rest_share"], ", ".join(
+                    "%s %s (dE %.1f)" % (k, q["albedo8"], float(np.linalg.norm(q["resid"][:3])))
+                    for k, q in row["fit"]["k"].items()))), flush=True)
+    return rows
+
+
+# ---------------------------------------------------------------- the darks (decision 59)
+# scene_look.DARK_LIFT and PHOTO_TINT["07"], fitted on the neutral blacks outside the gear: the helmet's black print
+# (pixel pairs, the class eroded by ERODE) in his 07 and 08 and the tyres' rubber in cam07 (gear_region); his 09's
+# black print has no pairs at its camera's rms, the gear's darks are held out. Each set's median, CIELAB.
+DARKS_FIT = (("p07", "black"), ("p08", "black"), ("cam07", "tyre"))
+DARKS_HELD = ("jersey_dark", "pant_dark", "glove")
+
+
+def dark_sets(specs, index):
+    """{(view, class): (photo px, render lin)}: the black print's pairs and the dark gear classes' bodies."""
+    names = json.load(open(index))
+    sets = {}
+    for spec in specs:
+        view, path = spec.split("=")
+        d = load_view(view, path, names)
+        m = erode(d["cls"] == "black", ERODE[view])
+        if m.sum() >= 20:
+            sets[(view, "black")] = (d["photo"][m], d["lin"][m])
+        for c in ("tyre",) + DARKS_HELD:
+            r = gear_region(d, view, c)
+            if r is not None:
+                ph, lin = r[0], r[1]
+                base = scene_look.display(lin, "daylight", scene_look.photo_ev(view))
+                sets[(view, c)] = (ph[body(ph)], lin[body(base)])
+    return sets
+
+
+def dark_fit(sets):
+    """One neutral lift for all his photos and 07's tint on top (x = lift, tint R, G, B; display units), least
+    squares on the CIELAB medians of DARKS_FIT. Returns x and per set the photo's median and ours before (no lift),
+    with the lift as shipped (scene_look's) and with x."""
+    from scipy.optimize import least_squares
+    lift0 = scene_look.DARK_LIFT
+
+    def ours(key, x):
+        v = key[0]
+        scene_look.DARK_LIFT = 0.0
+        d = scene_look.display(sets[key][1], "daylight", scene_look.photo_ev(v))
+        scene_look.DARK_LIFT = lift0
+        if x is None:
+            return np.median(d * 255.0, 0)
+        o = np.full(3, x[0]) + (np.asarray(x[1:4]) if scene_look.photo_tint(v) is not None else 0.0)
+        return np.median(scene_look.lift(d, o) * 255.0, 0)
+    fit_keys = [k for k in DARKS_FIT if k in sets]
+    r = least_squares(lambda x: np.concatenate([lab(ours(k, x)) - lab(np.median(sets[k][0] * 255.0, 0))
+                                                for k in fit_keys]),
+                      np.array([0.03, 0.0, 0.0, 0.05]), bounds=([-0.05] + [-0.1] * 3, [0.3] * 4))
+    x = r.x
+    shipped = np.r_[lift0, scene_look.PHOTO_TINT.get("07", (0.0, 0.0, 0.0))]
+    rows = []
+    for k in sets:
+        ph = np.median(sets[k][0] * 255.0, 0)
+        row = dict(view=k[0], cls=k[1], fitted=k in fit_keys, n=[len(sets[k][0]), len(sets[k][1])],
+                   photo=ph.round().astype(int).tolist())
+        for nm, xx in (("before", None), ("shipped", shipped), ("fit", x)):
+            q = ours(k, xx)
+            row[nm] = q.round().astype(int).tolist()
+            row["dE_" + nm] = round(float(np.linalg.norm(lab(q) - lab(ph))), 1)
+        rows.append(row)
+        print("%-5s %-12s %-4s photo %-15s | before %-15s %5.1f | shipped %-15s %5.1f | fit %-15s %5.1f" % (
+            k[0], k[1], "FIT" if row["fitted"] else "held", row["photo"], row["before"], row["dE_before"],
+            row["shipped"], row["dE_shipped"], row["fit"], row["dE_fit"]))
+    out = dict(lift=round(float(x[0]), 4), tint07=np.round(x[1:], 4).tolist(), rows=rows)
+    for grp in (True, False):
+        rr = [q for q in rows if q["fitted"]] if grp else [q for q in rows if q["cls"] in DARKS_HELD]
+        for nm in ("before", "shipped", "fit"):
+            out["mean_%s_%s" % ("fitted" if grp else "held", nm)] = round(float(np.mean([q["dE_" + nm] for q in rr])), 1)
+    print("lift %.4f (%.1f levels), 07's tint %s; mean dE fitted %s -> %s, held out %s -> %s" % (
+        x[0], x[0] * 255, out["tint07"], out["mean_fitted_before"], out["mean_fitted_fit"], out["mean_held_before"],
+        out["mean_held_fit"]))
+    return out
+
+
 def sheet(view, exr_path, out, panel_scale=2, ev=0.0, region=None, vertical=False):
     """A before / after sheet: his photo (Lanczos up to the panel scale) | decision 46's look | the scene look
     ("daylight" at ev), both renders from the view's linear EXR (box-averaged to panel_scale x the photo's pixels,
@@ -730,6 +948,16 @@ if __name__ == "__main__":
             res = honda_red(a[2], a[3], a[1], reds_of(a[4]), float(a[a.index("--ev") + 1]) if "--ev" in a else -0.9,
                             also)
         json.dump(res, open(a[a.index("--out") + 1], "w"), indent=1)
+    elif a[0] == "gear":                         # gear OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json [--no-tint]
+        i = a.index("--index")
+        res = []
+        for spec in [s for s in a[2:i] if "=" in s]:
+            v, p = spec.split("=")
+            res += gear(v, p, a[i + 1], tint="--no-tint" not in a)
+        json.dump(res, open(a[1], "w"), indent=1)
+    elif a[0] == "darks":                        # darks OUT.json VIEW=EXR [VIEW=EXR ...] --index INDEX.json
+        i = a.index("--index")
+        json.dump(dark_fit(dark_sets(a[2:i], a[i + 1])), open(a[1], "w"), indent=1)
     elif a[0] == "sheet":                        # sheet VIEW EXR OUT.jpg [--scale S] [--ev EV] [--region x0,y0,x1,y1] [--vertical]
         opt = {k: a[a.index(k) + 1] for k in ("--scale", "--ev", "--region") if k in a}
         sheet(a[1], a[2], a[3], int(opt.get("--scale", 2)), float(opt.get("--ev", 0.0)),

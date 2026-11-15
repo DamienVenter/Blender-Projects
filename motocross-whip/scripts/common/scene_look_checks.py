@@ -29,32 +29,36 @@ def swatch_chart():
     return a.astype(np.float32)
 
 
-def blender_render(a, kind, ev):
+def blender_render(a, kind, ev, tint=None):
     """The chart through look_apply.py (an emission plane, one sample per pixel: each pixel its texel) with
-    scene_look.apply(scene, kind, ev); 8-bit RGB."""
+    scene_look.apply(scene, kind, ev, tint); 8-bit RGB."""
     from PIL import Image
     with tempfile.TemporaryDirectory() as d:
         np.save(os.path.join(d, "in.npy"), a)
         r = subprocess.run(["blender", "-b", "--factory-startup", "--python-exit-code", "1", "--python",
                             os.path.join(HERE, "look_apply.py"), "--", os.path.join(d, "in.npy"),
-                            os.path.join(d, "out.png"), kind, str(ev)], capture_output=True, text=True, timeout=600)
+                            os.path.join(d, "out.png"), kind, str(ev)] + ([",".join(map(repr, tint))] if tint else []),
+                           capture_output=True, text=True, timeout=600)
         assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
         line = [x for x in r.stdout.splitlines() if x.startswith("LOOK_APPLY")]
         return np.asarray(Image.open(os.path.join(d, "out.png")).convert("RGB")).astype(float), line[0]
 
 
-def check_swatches(kinds=(("daylight", 0.0), ("scene", 1.5), ("studio", -0.9))):
-    """Blender's output within one level of display() on every swatch, for each kind."""
+def check_swatches(kinds=(("daylight", 0.0), ("scene", 1.5), ("studio", -0.9), ("daylight", S.PHOTO_EV["07"], "07"))):
+    """Blender's output within one level of display() on every swatch, for each kind (and a photo's tint of its
+    darks: the daylight look's lift, decision 59, with 07's own)."""
     if not shutil.which("blender"):
         import pytest
         pytest.skip("needs Blender (tools/setup_blender.sh)")
     a = swatch_chart()
-    for kind, ev in kinds:
-        out, line = blender_render(a, kind, ev)
-        ref = np.round(S.display(a, kind, ev) * 255.0)
+    for kind, ev, *photo in kinds:
+        tint = S.PHOTO_TINT[photo[0]] if photo else None
+        out, line = blender_render(a, kind, ev, tint)
+        ref = np.round(S.display(a, kind, ev, tint) * 255.0)
         d = np.abs(out - ref)
         assert d.max() <= 1.0, "%s %s: Blender differs from display() by up to %d levels (%s)" % (kind, ev, d.max(), line)
         assert ("compositor gains" in line) == (kind != "studio"), line
+        assert ("lift" in line) == (kind == "daylight"), line
 
 
 def check_numbers():

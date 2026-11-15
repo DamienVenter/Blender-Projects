@@ -1,12 +1,13 @@
 """Put scene-linear pixels through a scene look in Blender itself: a render, so the view settings and the compositor
 both apply, as they do to the scripts' renders.
 
-blender -b --factory-startup --python-exit-code 1 --python look_apply.py -- IN.npy OUT.png KIND [EV]
+blender -b --factory-startup --python-exit-code 1 --python look_apply.py -- IN.npy OUT.png KIND [EV [TINT]]
 
 IN.npy: (H, W, 3) float32, scene-linear Rec.709, rows top to bottom. The pixels go into a float image ("Linear
 Rec.709") on an emission plane that fills an orthographic camera at one render pixel per texel (closest texel, one
 sample, a 0.01 px pixel filter: each pixel is its texel exactly), rendered by Cycles under
-scene_look.apply(scene, KIND, EV) and written as an 8-bit RGB PNG without dither. Used by look_fit.py (the look
+scene_look.apply(scene, KIND, EV, TINT) (TINT "r,g,b": a photo's tint of its darks, scene_look.PHOTO_TINT) and
+written as an 8-bit RGB PNG without dither. Used by look_fit.py (the look
 before and after on the fit's pairs) and test_scene_look.py (a fixed swatch chart against scene_look.display).
 """
 import os
@@ -21,6 +22,7 @@ import scene_look  # noqa: E402
 argv = sys.argv[sys.argv.index("--") + 1:]
 src, out, kind = argv[0], argv[1], argv[2]
 ev = float(argv[3]) if len(argv) > 3 else 0.0
+tint = tuple(float(v) for v in argv[4].split(",")) if len(argv) > 4 else None
 a = np.load(src).astype(np.float32)
 H, W = a.shape[:2]
 if min(H, W) < 4:
@@ -70,7 +72,7 @@ sc.render.resolution_x, sc.render.resolution_y = W, H
 sc.render.resolution_percentage = 100
 sc.render.film_transparent = False
 sc.render.dither_intensity = 0.0
-scene_look.apply(sc, kind, ev=ev)
+scene_look.apply(sc, kind, ev=ev, tint=tint)
 im = sc.render.image_settings
 im.media_type = "IMAGE"
 im.file_format = "PNG"

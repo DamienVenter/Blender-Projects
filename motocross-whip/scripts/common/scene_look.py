@@ -8,6 +8,8 @@
     scene_look.apply(scene, "linear")        # scene-referred EXR (multilayer, float, uncompressed) for fitting
     scene_look.apply(scene, "daylight", ev=scene_look.photo_ev("p08"))   # a comparison with his photo 08, at
                                              # that photo's own exposure (decision 55; other views: 0)
+    scene_look.apply(scene, "daylight", ev=scene_look.photo_ev("p07"), tint=scene_look.photo_tint("p07"))
+                                             # and that photo's own tint of its darks (decision 59: 07's only)
 
 The look (research/scene-look.md; fitted by look_fit.py on pixel-aligned pairs of his photos 07, 08 and 09, each
 held out in turn, and checked on the bike's red in his 07), in a compositor node group and the Standard view:
@@ -15,7 +17,9 @@ held out in turn, and checked on the bike's red in his 07), in a compositor node
   2. a tone curve with a toe and a shoulder on the largest channel, the others scaled with it (the hue and the
      channel ratios kept: a tone curve per channel crushed the weak channels of saturated colours, the bike's red
      to G 7 where his photos show 47): T(u) = m u^P / (1 + u^P), m so that T(XMAX) = 1;
-  3. the Standard view (the sRGB curve).
+  3. "daylight" only: his phone's lift of the darks, on the display values d (sRGB-encoded) by the pixel's value,
+     d + o (1 - max d)^2 per channel, o = DARK_LIFT plus a photo's own tint (PHOTO_TINT; decision 59);
+  4. the Standard view (the sRGB curve).
 The view's curve mapping cannot do step 2 (per channel; its film-like mode still puts the smallest channel through
 the curve), so the look lives in the compositor: renders show it; the viewport shows it with Viewport Shading's
 Compositor set to Camera or Always. display() is the same look in numpy, the reference test_scene_look.py holds
@@ -51,6 +55,20 @@ EV_SCENE = 1.514                      # 0.18 -> 69 as under AgX - Punchy -0.6 (l
 # (357 / 328 / 230), the photo's median G there (246 / 234 / 221) met by our median G through the look
 # (research/scene-look.md "Each photo's exposure")
 PHOTO_EV = {"07": -0.045, "08": -0.147, "09": -0.649}
+# his phone's lift of the darks (decision 59, research/scene-look.md "The darks"): the matte darks of all three of
+# his photos (the jersey's, the pant's and the gloves' black, the tyres' rubber) read 10 to 20 levels over ours
+# while his white shell's shade and lit sides match, and the same blacks read darker in Leatt's studio photos than
+# ours under Standard (the flat's 21 against our 45): not the dyes, the phone's toe. A lift of the display values d
+# by the pixel's value (its largest channel: a saturated colour's weak channels are left alone, a white moves under
+# a level), d + o (1 - max d)^2 per channel; "daylight" only (the scene kind keeps decision 54's curve). Fitted
+# (look_fit.py darks) on the neutral blacks outside the gear: the helmet's black print in his 07 and 08 (pixel
+# pairs) and the tyres in his 07 (cam07), with 07's tint; the gear's darks held out
+DARK_LIFT = 0.0668
+# each photo's own tint of its darks on top of the lift, for comparisons with that photo only (as PHOTO_EV): his 07
+# lifts its darks blue whatever they are and however they are lit (the tyres' rubber and the helmet's black print,
+# which Leatt's studio shows neutral, linear B/G 1.5 to 2.1 where the white shell's shade, the light itself, reads
+# 1.12); 08's and 09's blacks read the shade's own light. Fitted with DARK_LIFT
+PHOTO_TINT = {"07": (-0.0044, 0.0123, 0.0706)}
 GROUP = "scene_look"                  # the compositor node group apply() builds
 
 
@@ -137,12 +155,37 @@ def photo_ev(view):
     return PHOTO_EV.get(m.group(1), 0.0) if m else 0.0
 
 
-def display(lin, kind="daylight", ev=0.0):
-    """What apply(scene, kind, ev) makes of scene-linear pixels, in numpy (daylight, scene and studio)."""
+def photo_tint(view):
+    """The tint of a photo's darks for a view matched to it ("p07", "cam07" -> PHOTO_TINT["07"]), else None (the
+    lift alone)."""
+    import re
+    m = re.fullmatch(r"(?:p|cam)(\d\d)", view or "")
+    return PHOTO_TINT.get(m.group(1)) if m else None
+
+
+def lift(d, o):
+    """The lift of the darks on display values d (0..1): d + o (1 - max(d))^2 per channel, clipped to 0..1."""
+    import numpy as np
+    d = np.asarray(d, float)
+    w = (1.0 - d.max(-1, keepdims=True)) ** 2
+    return np.clip(d + np.asarray(o, float) * w, 0.0, 1.0)
+
+
+def dark_lift(kind, tint=None):
+    """The lift's offset per channel for a kind: "daylight" DARK_LIFT plus a photo's tint; the others None."""
+    if kind != "daylight":
+        return None
+    return tuple(DARK_LIFT + (0.0 if tint is None else float(t)) for t in (tint or (0.0, 0.0, 0.0)))
+
+
+def display(lin, kind="daylight", ev=0.0, tint=None):
+    """What apply(scene, kind, ev, tint) makes of scene-linear pixels, in numpy (daylight, scene and studio)."""
     import numpy as np
     if kind == "studio":
         return oetf(np.clip(np.asarray(lin, float) * 2.0 ** ev, 0.0, 1.0))
-    return model(lin, gains=gains_of(kind, ev))
+    d = model(lin, gains=gains_of(kind, ev))
+    o = dark_lift(kind, tint)
+    return d if o is None else lift(d, o)
 
 
 def kind_of(kind):
@@ -165,9 +208,11 @@ def _plain(scene, view, look, ev):
         scene.compositing_node_group = None
 
 
-def _compositor(scene, gains, p=P, xmax=XMAX):
+def _compositor(scene, gains, p=P, xmax=XMAX, offset=None):
     """Gains and the max-RGB tone curve as a compositor node group (math nodes, float): x = max(gain * channel, 0);
-    M = max(x); out = x * T(min(M, xmax)) / max(M, 1e-9), alpha passed through; then the Standard view."""
+    M = max(x); out = x * T(min(M, xmax)) / max(M, 1e-9), alpha passed through; then the Standard view. With an offset
+    (dark_lift()), each channel is taken through the sRGB curve, lifted (lift()) and back, so the view's curve shows
+    the lifted display values."""
     import bpy
     if scene.compositing_node_group is not None and not scene.compositing_node_group.name.startswith(GROUP):
         raise RuntimeError("the scene already has a compositor group (%s): the look would replace it"
@@ -199,13 +244,31 @@ def _compositor(scene, gains, p=P, xmax=XMAX):
     up = math("POWER", math("MINIMUM", M, xmax), p)
     T = math("MULTIPLY", math("DIVIDE", up, math("ADD", up, 1.0)), (1.0 + xmax ** p) / xmax ** p)
     k = math("DIVIDE", T, math("MAXIMUM", M, 1e-9))
+    y = [math("MULTIPLY", xc, k) for xc in x]     # at most 1: T(M) <= 1
+    if offset is not None:
+        def pick(cond, a, b):                       # cond (0 or 1) ? a : b
+            return math("ADD", math("MULTIPLY", cond, a), math("MULTIPLY", math("SUBTRACT", 1.0, cond), b))
+
+        def enc(v):                                 # the sRGB curve (oetf)
+            return pick(math("LESS_THAN", v, 0.0031308), math("MULTIPLY", v, 12.92),
+                        math("SUBTRACT", math("MULTIPLY", math("POWER", v, 1 / 2.4), 1.055), 0.055))
+
+        def dec(e):                                 # and back (eotf)
+            return pick(math("LESS_THAN", e, 0.04045), math("DIVIDE", e, 12.92),
+                        math("POWER", math("DIVIDE", math("ADD", e, 0.055), 1.055), 2.4))
+        e = [enc(v) for v in y]
+        w = math("POWER", math("SUBTRACT", 1.0, math("MAXIMUM", math("MAXIMUM", e[0], e[1]), e[2])), 2.0)
+        y = [dec(math("MAXIMUM", math("MINIMUM", math("ADD", ec, math("MULTIPLY", w, float(o))), 1.0), 0.0))
+             for ec, o in zip(e, offset)]
     comb = N.new("CompositorNodeCombineColor")
-    for c, xc in zip(("Red", "Green", "Blue"), x):
-        L.new(math("MULTIPLY", xc, k), comb.inputs[c])
+    for c, yc in zip(("Red", "Green", "Blue"), y):
+        L.new(yc, comb.inputs[c])
     L.new(sep.outputs["Alpha"], comb.inputs["Alpha"])
     out = N.new("NodeGroupOutput")
     L.new(comb.outputs["Image"], out.inputs[0])
     g["scene_look"] = dict(gains=[float(v) for v in gains], p=float(p), xmax=float(xmax))
+    if offset is not None:
+        g["scene_look"]["lift"] = [float(v) for v in offset]
     scene.compositing_node_group = g
     scene.render.use_compositing = True
     # 5.2's default compositor device is the GPU (no GPU on the build server: EGL errors, then a fall-back) and its
@@ -248,13 +311,13 @@ def _linear(scene):
         json.dump({n: i + 1 for i, n in enumerate(names)}, open(os.environ["SCENE_LOOK_INDEX"], "w"), indent=0)
 
 
-def apply(scene, kind="daylight", ev=0.0):
+def apply(scene, kind="daylight", ev=0.0, tint=None):
     """Set the scene's look: the view settings and, for "daylight" and "scene", the compositor group. ev: an
-    exposure offset in stops (a rig brighter or darker than the one the look was fitted on). Returns the kind
-    applied (SCENE_LOOK overrides)."""
+    exposure offset in stops (a rig brighter or darker than the one the look was fitted on); tint: a photo's tint of
+    its darks over the lift (photo_tint(view), "daylight" only). Returns the kind applied (SCENE_LOOK overrides)."""
     k = kind_of(kind)
     if k in ("daylight", "scene"):
-        _compositor(scene, gains_of(k, ev))
+        _compositor(scene, gains_of(k, ev), offset=dark_lift(k, tint))
     elif k == "linear":
         _linear(scene)
     elif k == "studio":
@@ -270,5 +333,6 @@ def describe(scene):
     g = scene.compositing_node_group
     q = dict(g["scene_look"]) if g is not None and "scene_look" in g else None
     if q:
-        q = "gains %s p %.3g" % (tuple(round(v, 3) for v in q["gains"]), q["p"])
+        q = "gains %s p %.3g%s" % (tuple(round(v, 3) for v in q["gains"]), q["p"],
+                                   " lift %s" % (tuple(round(v, 4) for v in q["lift"]),) if "lift" in q else "")
     return "look %s %s %.2f compositor %s" % (vs.view_transform, vs.look, vs.exposure, q)
