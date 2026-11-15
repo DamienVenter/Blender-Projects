@@ -1194,10 +1194,12 @@ def arm_facing(body, s, P):
     return cos, fr
 
 
-def sleeve_photo_uv(body, P, s, view, photo_s=None):
+def sleeve_photo_uv(body, P, s, view, photo_s=None, phase=None):
     """A sleeve point in one of the photos: along the arm (shoulder point to cuff, upper arm then forearm) and
     across it (outward from the arm's line, the photo's arm seen square on). photo_s: the photo's other sleeve
-    instead (outward to outward: the point's mirror image across his middle)."""
+    instead (outward to outward: the point's mirror image across his middle). phase: knots (the sleeve's t, the
+    photo's t) where the photo's print runs at another place along the arm (SLEEVE_PHASE). Returns the photo's
+    pixel and the sleeve's own t."""
     S, E, W, f, o = arm_frame(body, s)
     L1, L2 = np.linalg.norm(E - S), np.linalg.norm(W - E)
     d1, d2 = (E - S) / L1, (W - E) / L2
@@ -1211,15 +1213,16 @@ def sleeve_photo_uv(body, P, s, view, photo_s=None):
     rad = np.where(upper, np.linalg.norm((P - S) - np.outer(t1, d1), axis=1),
                    np.linalg.norm((P - E) - np.outer((P - E) @ d2, d2), axis=1))
     lat = lat / np.maximum(rad, 1e-6)                                   # -1 .. 1 across the arm seen square on
+    tp = t if phase is None else np.interp(t, phase[0], phase[1])
     tab = J_ARM_TAB.get(view, J_ARM_HALF)
-    half = np.interp(t, tab[0], tab[1])
+    half = np.interp(tp, tab[0], tab[1])
     (u0, v0), (u1, v1) = J_ARMS[(view, photo_s or s)]
     A, B = np.array([u0, v0], float), np.array([u1, v1], float)
     dd = (B - A) / np.linalg.norm(B - A)
     out_px = np.array([dd[1], -dd[0]])                              # across the photo's arm, away from the body
     if np.dot(out_px, (A + B) / 2 - [J_ARM_CX[view], (v0 + v1) / 2]) < 0:
         out_px = -out_px
-    q = A + t[:, None] * (B - A) + (lat * half)[:, None] * out_px
+    q = A + tp[:, None] * (B - A) + (lat * half)[:, None] * out_px
     return q[:, 0], q[:, 1], t
 
 
@@ -1499,6 +1502,16 @@ FLAT_MEDIAN = 11          # px
 # to the cuff; his left takes it mirrored (an estimate: the bands' colours run the same down both sleeves in the
 # flat and the back photos, grey, teal, lime; their exact shapes on his left sleeve differ)
 SLEEVE_ZEBRA_FROM = {"L": "R", "R": "R"}
+# Round 4 (decision 58): checked along the front line (sleeve_profile: the light bands' t, shoulder point 0 to cuff
+# end 1, the elbow at 0.50), both front views put his left's bands further down the arm than his right's: Leatt
+# US's flat its teal at 0.480 against 0.445, its green at 0.705 against 0.665, the cuff's lime from 0.845 against
+# 0.840; Leatt NZ's on-model front 0.430, 0.490, 0.590 and 0.765 against 0.375, 0.455, 0.555 and 0.730. (The bands
+# arch up round the arm away from the front line, so the flat's turned-in left would see them higher, not lower.)
+# Behind, Leatt NZ's back three-quarter flat puts his left's at 0.475, 0.725 and 0.810, the mirror (the right's
+# front) at 0.445, 0.660 and 0.775. His left takes the right's print 0.035 further down the arm from the upper arm
+# to the forearm (the front views' middle bands: 0.035 to 0.040), none over the raglan part and at the cuff's
+# lime; its shapes stay the right's mirrored (an estimate). Per sleeve: knots, its own t and the flat's
+SLEEVE_PHASE = {"L": ((0.0, 0.15, 0.35, 0.80, 0.86, 1.0), (0.0, 0.15, 0.315, 0.765, 0.86, 1.0))}
 FP_FLAT_SLEEVE = {"white_min": 1.0, "speck": 1.5e-4, "ground": 0.02, "near_white": 0.6, "span": (0.05, 0.1),
                   "feature": 0.003, "fs_min": 0.10, "rng": 0.015}
 FP_BACK = {"ground": 0.02, "near_white": 0.5}
@@ -3010,7 +3023,7 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
         img[m] = cf * wf[:, None] + cb * (1 - wf[:, None])
         # the zebra's source: below the raglan part the traced flat all round (sleeve_print mirrors its back half)
         wz = (1 - (1 - wf[:, None]) * (1 - ws))
-        uz, vz, _ = sleeve_photo_uv(body, P, s, "flat", photo_s=SLEEVE_ZEBRA_FROM[s])
+        uz, vz, _ = sleeve_photo_uv(body, P, s, "flat", photo_s=SLEEVE_ZEBRA_FROM[s], phase=SLEEVE_PHASE.get(s))
         zimg[m] = (plz.lin(uz, vz) * ws + pf.lin(uF, vF) * (1 - ws)) * wz + cb * (1 - wz)
         nf = (nrm[m] * fseg).sum(1)                          # the photos see the hanging arm square to its front
         ws = ws[:, 0]

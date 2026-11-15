@@ -485,8 +485,9 @@ def _sleeve(body, P, s):
 def test_sleeve_fronts_carry_the_flats_bands(built, texels):
     """Fix 1: each sleeve's front shows the front flat's zebra (grey-teal bands on the upper arm, teal, lime at the
     cuff). Band or ground, texel by texel, against Leatt US's front flat (its right sleeve; the left is drawn as its
-    mirror image): the band texels' IoU over 0.75 on the upper arm and the forearm of both sleeves (round 3: his
-    left 0.27 and 0.37, near black; main 0.21 to 0.36; round 3b 0.85 to 0.88)."""
+    mirror image, 0.035 further down the arm since round 4: SLEEVE_PHASE): the band texels' IoU over 0.75 on the
+    upper arm and the forearm of both sleeves (round 3: his left 0.27 and 0.37, near black; main 0.21 to 0.36;
+    round 3b 0.85 to 0.88)."""
     body, g = built
     a, pos, nrm, chm, _ = texels["jersey"]
     m = chm >= 0
@@ -495,7 +496,7 @@ def test_sleeve_fronts_carry_the_flats_bands(built, texels):
     for s in "LR":
         P = pos[m]
         t, cosf, on = _sleeve(body, P, s)
-        u, v, _ = K.sleeve_photo_uv(body, P, s, "flat", photo_s="R")
+        u, v, _ = K.sleeve_photo_uv(body, P, s, "flat", photo_s="R", phase=K.SLEEVE_PHASE.get(s))
         sel = on & (cosf > 0.5) & (t > 0.25) & (t < 0.85) & (fl.seen(u, v) > 0.5)
         br, bg = band(K.to_srgb(fl.lin(u[sel], v[sel]))), band(a[m][sel])
         for seg, (lo, hi) in (("upper arm", (0.25, 0.5)), ("forearm", (0.5, 0.85))):
@@ -861,3 +862,55 @@ def test_outseam_has_no_step(built, texels):
         ok = ~np.isnan(d)
         res.append((s, int(ok.sum()), round((d[ok] < 0.25).mean(), 3)))
     assert all(n > 250 and f > 0.85 for _, n, f in res), res
+
+
+def _band_starts(light, t):
+    """Where the light runs along t begin (runs of 2 bins or more, as sleeve_profile's)."""
+    out, i = [], 0
+    while i < len(t):
+        if light[i]:
+            j = i
+            while j < len(t) and light[j]:
+                j += 1
+            if j - i >= 2:
+                out.append(t[i] - (t[1] - t[0]) / 2)
+            i = j
+        else:
+            i += 1
+    return np.array(out)
+
+
+def test_left_sleeve_bands_sit_where_the_photos_put_them(built, texels):
+    """Round 4, item 3: his left sleeve is the flat's right mirrored (the flat sees its own left turned in). Along
+    the arm (t: shoulder point 0 to cuff end 1, the elbow at 0.50) the photos put his left's bands further down
+    than his right's. The light bands' starts (brightest display channel over 0.3, a 16 px strip's median along the
+    photo's front line; ours within 15 deg of the front line round the arm): the teal band at the elbow in Leatt
+    US's flat (0.480) and Leatt NZ's on-model front (0.490), the green band under it in the flat (0.705); ours
+    start within 0.015 of each (main 0.445, 0.445 and 0.660: drawn where the right's are; round 4 0.480, 0.480 and
+    0.695)."""
+    body, g = built
+    a, pos, nrm, chm, _ = texels["jersey"]
+    m = (chm == 2) | (chm == 3)
+    P, A = pos[m], a[m]
+    an, _, _ = K.sleeve_unroll(body, "L", P)
+    _, _, t = K.sleeve_photo_uv(body, P, "L", "flat")
+    tt = np.arange(0.3025, 0.9, 0.005)
+    k = np.floor((t - 0.30) / 0.005).astype(int)
+    res = []
+    for ref, view, ang, (lo, hi) in ((K.FLAT_REF, "flat", 0, (0.46, 0.50)), (K.JF_REF, "front", 0, (0.46, 0.50)),
+                                     (K.FLAT_REF, "flat", 0, (0.68, 0.73))):
+        ph = K.Photo(ref)
+        (x0, y0), (x1, y1) = K.J_ARMS[(view, "L")]
+        B0, B1 = np.array([x0, y0], float), np.array([x1, y1], float)
+        d = (B1 - B0) / np.linalg.norm(B1 - B0)
+        q = B0[None, None] + tt[:, None, None] * (B1 - B0) + np.linspace(-8, 8, 9)[None, :, None] * [-d[1], d[0]]
+        lp = np.array([np.median(ph.sample(r[:, 0], r[:, 1]), 0).max() > 0.3 for r in q])
+        sp = _band_starts(lp, tt)
+        sp = sp[(sp >= lo) & (sp <= hi)]
+        sel = np.abs((np.degrees(an) - ang + 180) % 360 - 180) < 15
+        lo_ = np.array([np.median(A[sel][k[sel] == i].max(1)) > 0.3 if (k[sel] == i).sum() > 5 else False
+                        for i in range(len(tt))])
+        so = _band_starts(lo_, tt)
+        assert len(sp) == 1 and len(so), (ref, sp, so)
+        res.append((round(float(sp[0]), 3), round(float(so[np.argmin(np.abs(so - sp[0]))]), 3)))
+    assert all(abs(p - o) <= 0.015 for p, o in res), res
