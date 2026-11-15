@@ -123,8 +123,10 @@ def day_sun(day, name, cam):
     if DAY_THETA:
         theta = float(DAY_THETA)
     d = day_rig.aim(day, cam, phi, theta, DAY_ELEV if name in SUN_HEIGHT_VIEWS else None)
-    # a view of one of his photos at that photo's own exposure (decision 55), the others at the one look
-    scene_look.apply(bpy.context.scene, "daylight", ev=DAY_EV + scene_look.photo_ev(name))
+    # a view of one of his photos at that photo's own exposure (decision 55) and its own tint of the darks
+    # (decision 59: 07's phone), the others at the one look
+    scene_look.apply(bpy.context.scene, "daylight", ev=DAY_EV + scene_look.photo_ev(name),
+                     tint=scene_look.photo_tint(name))
     print("DAYLIGHT", name, "sun", [round(v, 3) for v in d], "elevation %.1f deg" % day["elevation"],
           "camera pitch %.1f deg" % day["pitch"] if name in SUN_HEIGHT_VIEWS else "(the blend's up)")
 

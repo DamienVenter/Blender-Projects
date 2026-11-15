@@ -43,3 +43,15 @@ def test_head_closeups_puts_each_photo_view_at_its_exposure():
     fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "day_sun")
     calls = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_look.apply"]
     assert any("scene_look.photo_ev(name)" in c and "'daylight'" in c for c in calls), calls
+
+
+def test_head_closeups_gives_each_photo_view_its_tint():
+    """Decision 59: a view of his 07 (p07, cam07) takes 07's tint of the darks with its exposure, at the same look
+    call (scene_look.photo_tint: None for the other views, the lift alone)."""
+    import ast
+    tree = ast.parse(open(os.path.join(HERE, "head_closeups.py")).read())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "day_sun")
+    calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_look.apply"]
+    kw = [{k.arg: ast.unparse(k.value) for k in c.keywords} for c in calls]
+    assert any(k.get("tint") == "scene_look.photo_tint(name)" and "scene_look.photo_ev(name)" in k.get("ev", "")
+               for k in kw), [ast.unparse(c) for c in calls]
