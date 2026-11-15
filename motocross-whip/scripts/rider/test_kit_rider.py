@@ -510,8 +510,11 @@ def test_back_and_sleeve_backs_carry_no_fragments(built, texels):
     flat): stripe ink on under 0.02 of its flanks beside the side panels (round 3: 0.22, lime and teal fragments;
     main 0.21; round 3b 0.001). Each forearm's LEATT is Leatt's file at its place: the white over its span all round
     the arm is the stamp's letters, IoU over 0.8 (round 3: 0.27 and 0.13, a blob on his right forearm, a streak and
-    letters at two places on his left; main 0.00 and 0.03; round 3b 0.99). No white specks under 20 mm2 on the
-    sleeves' backs (main 3 on his left), and no white piece under 200 mm2 anywhere on the sleeves but Leatt's
+    letters at two places on his left; main 0.00 and 0.03; round 3b 0.99; since round 4 the line drawn past his left
+    elbow ends at that LEATT's top and is left out), the stamp whole: over 0.15 of its length squared (round 4: 0.21
+    and 0.18, his left's 44 mm long, 352 mm2). No white specks under 20 mm2 on the
+    sleeves' backs but Leatt's stamped marks (main 3 on his left; round 4's left LEATT lies across the back's edge,
+    a letter cut at it to 4.5 mm2), and no white piece under 200 mm2 anywhere on the sleeves but Leatt's
     stamped marks (round 3: 25, his left 23 up to 75 mm2, his right 183 and 17 mm2; main 14, his left 9 up to
     48 mm2, his right 5 up to 188 mm2; round 3b's build 9: on his left, an 81 mm2 end of the forearm LEATT's traced
     streak and 14 specks of 1 to 2 mm2 over the elbow; round 3b: none)."""
@@ -527,12 +530,16 @@ def test_back_and_sleeve_backs_carry_no_fragments(built, texels):
     assert flank.sum() > 20000 and stripe.mean() < 0.02, (int(flank.sum()), round(float(stripe.mean()), 3))
     marks = K.sleeve_marks(body, pos, nrm, chm)
     white = m & (a.min(-1) > 0.6)
+    lsl = (chm == 2) | (chm == 3)
+    line = np.zeros(m.shape, bool)
+    line[lsl] = K.sleeve_line_dist(body, "L", pos[lsl]) < K.SLEEVE_LINE_W
     for mk in [mk for mk in marks if mk["kind"] == "leatt"]:
         stamp = mk["canvas"].apply(np.zeros(a.shape), pos, mk["zone"]).max(-1) > 0.5
         band = m & mk["keep"](pos.reshape(-1, 3)).reshape(m.shape)
-        got = white & band
+        got = white & band & ~line
         iou = (got & stamp).sum() / max((got | stamp).sum(), 1)
-        assert stamp.sum() * tx ** 2 > 5e-4 and iou > 0.8, (mk["s"], round(float(iou), 2))
+        assert stamp.sum() * tx ** 2 > 0.15 * mk["w"] ** 2 and iou > 0.8, (mk["s"], round(float(iou), 2))
+    stamped = np.any([mk["zone"] for mk in marks], 0)
     for s in "LR":
         P = pos[m]
         t, cosf, on = _sleeve(body, P, s)
@@ -541,10 +548,10 @@ def test_back_and_sleeve_backs_carry_no_fragments(built, texels):
         from scipy import ndimage
         lab, n = ndimage.label(back & white, np.ones((3, 3)))
         sz = ndimage.sum(back & white, lab, range(1, n + 1)) * tx ** 2 * 1e6
-        assert (sz < 20).sum() == 0, (s, int((sz < 20).sum()))
+        st = ndimage.maximum(stamped, lab, range(1, n + 1)).astype(bool) if n else np.zeros(0, bool)
+        assert ((sz < 20) & ~st).sum() == 0, (s, int(((sz < 20) & ~st).sum()))
         sl = np.zeros(m.shape, bool)
         sl[m] = on & (t > 0.15) & (t < 0.95)
-        stamped = np.any([mk["zone"] for mk in marks], 0)
         lab, n = ndimage.label(sl & white, np.ones((3, 3)))
         sz = ndimage.sum(sl & white, lab, range(1, n + 1)) * tx ** 2 * 1e6
         st = ndimage.maximum(stamped, lab, range(1, n + 1)).astype(bool) if n else np.zeros(0, bool)
@@ -914,3 +921,50 @@ def test_left_sleeve_bands_sit_where_the_photos_put_them(built, texels):
         assert len(sp) == 1 and len(so), (ref, sp, so)
         res.append((round(float(sp[0]), 3), round(float(so[np.argmin(np.abs(so - sp[0]))]), 3)))
     assert all(abs(p - o) <= 0.015 for p, o in res), res
+
+
+def test_left_sleeve_line_runs_on_past_the_elbow(built, texels):
+    """Round 4, item 4: his left sleeve's line past the elbow as Leatt NZ's back three-quarter flat sees it at 1:1
+    (SLEEVE_LINE): from the traced line's end it jogs out across the arm and runs down the forearm to the LEATT's
+    top, a stub running on toward the icon. Along it (points 1 mm apart from t 0.43 to its ends; the texels within
+    1 mm of each) the texture is white with no gap: the whitest texel's lowest display channel over 0.8 at over 0.98
+    of the points (main 0.07: the traced line ends at t 0.445; round 4 1.00). The marks round it (the white more than
+    2.5 mm off the line): the forearm LEATT's letters start within 4 mm of the line's end along the arm and lie 4 to
+    16 deg round from its end toward the front (main: the nearest white 27 mm above it, the old icon, and 55 deg
+    round; round 4: 3.2 mm, 9.1 deg); the icon 15 to 40 deg round from the junction toward the arm's inside (main
+    -53, the triangle past the arm's outer back; round 4 24.8).
+    And no other white from the drawn line's start to 0.05 past the junction, within 40 deg of it (main 5 texels,
+    round 4's first build 2, beside the stub: the traced line's tip again on the forearm's cloth behind the elbow's
+    plane, which the raster maps over the upper arm)."""
+    from scipy.spatial import cKDTree
+    body, g = built
+    a, pos, nrm, chm, tx = texels["jersey"]
+    m = (chm == 2) | (chm == 3)
+    P, A = pos[m], a[m]
+    xy, rho = K.sleeve_line_coords(body, "L", P)
+    ang, along = xy[:, 0] / rho(xy[:, 1]), xy[:, 1]
+    S, E, W, f, o = K.arm_frame(body, "L")
+    Lr = np.linalg.norm(E - S) + np.linalg.norm(W - E)
+    pts = K.sleeve_line_points(body, "L", rho, step=0.001)
+    pts = pts[pts[:, 1] > 0.43 * Lr]
+    tree = cKDTree(xy)
+    mn = A.min(1)
+    near = tree.query_ball_point(pts, 0.001)
+    assert all(len(k) for k in near)
+    run = float(np.mean([mn[k].max() > 0.8 for k in near]))
+    d = K.sleeve_line_dist(body, "L", P)
+    t, deg = along / Lr, np.degrees(ang)
+    off = (mn > 0.8) & (d > 0.0025)
+    (te, ae), (tj, aj) = K.SLEEVE_LINE["L"][0][-1], K.SLEEVE_LINE["L"][0][1]
+    lt = off & (t > te - 0.05) & (t < te + 0.1) & (np.abs(deg - ae) < 60)
+    top = (t[lt].min() - te) * Lr * 1000
+    side = ae - np.median(deg[lt])
+    ic = off & (t > tj - 0.02) & (t < tj + 0.12) & (np.abs((deg - aj + 180) % 360 - 180) < 70)
+    turn = np.median((deg[ic] - aj + 180) % 360 - 180)
+    marks = K.sleeve_marks(body, pos, nrm, chm)
+    stamped = np.any([mk["zone"] for mk in marks], 0)[m]
+    t0 = K.SLEEVE_LINE["L"][0][0][0]
+    stray = int((off & ~stamped & (t > t0 + 0.005) & (t < tj + 0.05)
+                 & (np.abs((deg - aj + 180) % 360 - 180) < 40)).sum())
+    res = (round(run, 2), round(float(top), 1), round(float(side), 1), round(float(turn), 1), stray)
+    assert run > 0.98 and abs(top) < 4 and 4 < side < 16 and 15 < turn < 40 and stray == 0, res

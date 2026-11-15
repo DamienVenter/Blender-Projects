@@ -1485,7 +1485,7 @@ FP_SLEEVE = {"white_min": 2e-4, "speck": 1.5e-4, "ground": 0.02, "near_white": 0
 # the sleeves' white elements: his left sleeve's line (510 mm2 on the raster); the elbow icon and the forearm LEATTs
 # are printed from the official files (sleeve_marks), so the traced whites are the line's alone: pieces under
 # 200 mm2 dropped (round 3b review: white specks, 24 to 91 mm2, among them the line's jog at the elbow, which the
-# photos see at a slant and traced as fragments: not drawn)
+# photos see at a slant and traced as fragments; drawn since round 4: SLEEVE_LINE)
 # The sleeves' zebra (round 3b): traced on the raster the upper arm's bands came out as fragments (they fade from
 # grey into the black toward the shoulder, under 0.25 of contrast, so the cut fell on the photos' noise; and a
 # 3 cm window took its light level from the next band or the trunk's lime). It is traced first on Leatt US's front
@@ -1951,16 +1951,22 @@ FP_SLEEVE_WRAP = 0.04    # m, the unrolled sleeve's raster runs on this far past
 #   0.802: centre 0.715; long 0.175 of his arm's 0.503 m, 88 mm), its centre 83 px outward of the line where the
 #   sleeve's half is 87 px (lat 0.95: 72 deg); reading down the arm, its letters' tops toward the front. Leatt NZ's
 #   back photo sees four of its letters at the right forearm's outer edge, 100 px (63 mm).
-# - L, icon: Leatt NZ's back photo, the triangle at (285, 910): t 0.56 on the line (427, 400) to (293, 1324), 67 px
-#   outward where the half is 72 px (lat 0.93: 68 deg from the back, 112 from the front); 35 px along the arm of the
-#   line's 934 (19 mm); apex up the arm, under the end of the sleeve's line (the front 3/4 and back photos).
-# - L, LEATT: the right's place mirrored (an estimate: Leatt draws the sleeves as mirror images, and no view sees
-#   this one square: Leatt NZ's back three-quarter flat sees it near the sleeve's outer edge, the front three-quarter
-#   photo on the forearm's outer front). Reading up the arm, its letters' tops toward the front (both photos: the
-#   letters run toward the elbow), so it reads from outside as the right's does. Traced, the photos put it in three
-#   places at once (a 1086 mm2 streak 44 deg from the front, 340 mm2 of letters at 109 deg; build 7 of round 3b).
-SLEEVE_MARKS = (("R", 0.715, 72.0, 0.088, "leatt"), ("L", 0.715, 72.0, 0.088, "leatt"),
-                ("L", 0.56, 112.0, 0.019, "icon"))
+# - L, icon: Leatt NZ's back three-quarter flat (round 4, decision 58; it sees the elbow square, at 1:1), the
+#   triangle's runs at rows 873 to 922 (t 0.473 to 0.515: centre 0.494) and 178 to 207 deg (b34's mapping: centre
+#   192), just past the line's jog toward the arm's inside, its point that way (its flat side along the arm, the
+#   line's stub pointing at its upper corner). Round 3b had it at t 0.56, 112 deg, apex up the arm, from Leatt NZ's
+#   back on-model photo, which sees it at the arm's outer edge (lat 0.93): that photo sees the line there too, so
+#   its arm is turned some 50 deg and its angles at that edge do not hold. 19 mm (b34: 21 mm along the arm).
+# - L, LEATT: under the end of the line's run down the forearm, its letters' baseline beside the line (the back
+#   three-quarter flat: the letters' runs at rows 1032 to 1136, t 0.618 to 0.706, 104 to 135 deg, the line's end at
+#   t 0.623, 133 deg; Leatt NZ's side panel close-up, 1:1: the line ends 15 px over the LEATT's top, 28 px past its
+#   baseline edge; the front three-quarter on-model: the line ends at its top corner). Half the right's length
+#   (0.088 of the arm against the right's 0.175 in the front flat: 44 mm). Its top at the line's end, its centre
+#   9 mm from the line (the letters' half height 5.5 mm, 2 mm clear of the line's edge): t 0.663, 123 deg. Round 3b
+#   had the right's place mirrored (t 0.715, 72 deg, 88 mm: an estimate). Reading up the arm, its letters' tops
+#   toward the front (both photos: the letters run toward the elbow), so it reads from outside as the right's does.
+SLEEVE_MARKS = (("R", 0.715, 72.0, 0.088, "leatt"), ("L", 0.663, 123.0, 0.044, "leatt"),
+                ("L", 0.494, 192.0, 0.019, "icon"))
 SLEEVE_MARK_KEEP = 0.012        # m round each mark where the photos' traced whites are dropped
 
 
@@ -1992,7 +1998,7 @@ def sleeve_marks(body, pos, nrm, chm):
             b = np.sin(th) * fd - np.cos(th) * od                   # tops to the front
         else:
             art = leatt_icon()
-            b = -d                                                  # apex up the arm
+            b = -np.sin(th) * fd + np.cos(th) * od                  # its point round the arm, toward the larger angle
             a = np.cross(b, n)
         assert np.dot(np.cross(a, b), n) > 0.99                     # seen from outside, not mirrored
         h = w * art.shape[0] / art.shape[1]
@@ -2013,6 +2019,108 @@ def sleeve_marks(body, pos, nrm, chm):
             keep = near
         out.append(dict(s=s, kind=kind, C=C, n=n, a=a, b=b, w=w, h=h, canvas=cv, zone=zone, near=near, keep=keep))
     return out
+
+
+# His left sleeve's line past the elbow (round 4, decision 58). Traced, the photos gave the line from the shoulder
+# down to t 0.445 at 158 to 164 deg (texture: 3.2 mm across at half its white, its core 2 mm) and the rest as specks
+# (dropped since round 3b). Leatt NZ's back three-quarter flat sees the rest at 1:1 (its white runs per row, placed
+# by sleeve_photo_uv's b34 mapping): the line comes down to a junction at row 860 (t 0.463, 164 deg); a stub runs on
+# 6 px toward the icon (t 0.468, 171 deg); the line jogs out across the arm to row 900 (t 0.503, 128 deg) and runs
+# down the forearm to row 1040 (t 0.623, 133 deg), its end beside the LEATT's top (Leatt NZ's side panel close-up
+# and the front three-quarter on-model photo see the same run and end). Drawn, not traced: per path, its points
+# (t along the arm, deg round it from the front, outward positive), from inside the traced line's end (t 0.42 at its
+# own 161.3 deg); straight between them in t and angle. Width as the traced line's (the photos': 2 mm). It is
+# drawn on the texels themselves along the arm's axis rounded over the elbow (sleeve_bent): his elbow is bent 46 deg
+# and the jog lies on its point, where the unrolled raster's distance along (sleeve_unroll's, the straight segments)
+# maps 4 cm of cloth twice (2 r tan 23 deg at the sleeve's 5 cm): drawn there, the jog came out twice
+SLEEVE_LINE = {"L": (((0.420, 161.3), (0.463, 164.0), (0.503, 128.0), (0.623, 133.0)),
+                     ((0.463, 164.0), (0.468, 171.0)))}
+SLEEVE_LINE_W = 0.0030         # m, full white across (the traced line: 0.91 or more over 2 mm, half white at 3.2 mm)
+SLEEVE_LINE_SOFT = 0.0012      # m, its edge's ramp (the traced line's: 0.91 to 0.2 over 1.25 mm)
+
+
+def sleeve_rho(rad, along):
+    """A sleeve's median radius along its arm (1 cm bins, smoothed over 5) as a function of the distance along, and
+    the bins' values."""
+    from scipy import ndimage
+    k = np.floor(along / 0.01).astype(int)
+    k -= k.min()
+    med = np.array([np.median(rad[k == i]) if (k == i).any() else np.nan for i in range(k.max() + 1)])
+    ok = ~np.isnan(med)
+    med = np.interp(np.arange(len(med)), np.nonzero(ok)[0], med[ok])
+    med = ndimage.uniform_filter1d(med, 5, mode="nearest")
+    a0 = np.floor(along.min() / 0.01) * 0.01
+
+    def rho(al):
+        return np.interp((al - a0) / 0.01 - 0.5, np.arange(len(med)), med)
+    return rho, med
+
+
+SLEEVE_BEND_R = 0.08           # m, the arm's axis rounded over the elbow on this radius (over the sleeve's 5 to 6 cm
+                               # there, so each point of it has one nearest axis point)
+
+
+def sleeve_bent(body, s, P):
+    """A sleeve point against the arm's axis rounded over the elbow (a circle of SLEEVE_BEND_R from the upper arm's
+    segment into the forearm's): the angle round the axis (as sleeve_unroll's: from the front, his outward side
+    positive), the distance from it and the distance along it from the shoulder point, the bend's arc counted as the
+    length of the straight segments it replaces (outside the bend, sleeve_unroll's own)."""
+    S, E, W, f, o = arm_frame(body, s)
+    L1, L2 = np.linalg.norm(E - S), np.linalg.norm(W - E)
+    d1, d2 = (E - S) / L1, (W - E) / L2
+    beta = np.arccos(np.clip(d1 @ d2, -1.0, 1.0))
+    k = SLEEVE_BEND_R * np.tan(beta / 2)
+    T1, T2 = E - d1 * k, E + d2 * k
+    inn = d2 - d1 * (d1 @ d2)
+    inn /= np.linalg.norm(inn)                                   # toward the bend's inside, at T1
+    C = T1 + inn * SLEEVE_BEND_R
+    v = P - C
+    phi = np.clip(np.arctan2(v @ d1, v @ -inn), 0.0, beta)       # round the bend from T1 toward T2
+    a1, a2 = (P - S) @ d1, (P - T2) @ d2
+    seg1, seg2 = a1 <= L1 - k, a2 >= 0
+    arc = ~seg1 & ~seg2
+    A = np.where(seg1[:, None], S + np.outer(a1, d1), T2 + np.outer(a2, d2))
+    tau = np.where(seg1[:, None], d1, d2)
+    A[arc] = C + SLEEVE_BEND_R * (np.outer(np.cos(phi[arc]), -inn) + np.outer(np.sin(phi[arc]), d1))
+    tau[arc] = np.outer(np.sin(phi[arc]), inn) + np.outer(np.cos(phi[arc]), d1)
+    along = np.where(seg1, a1, np.where(seg2, L1 + k + a2, L1 - k + phi / max(beta, 1e-9) * 2 * k))
+    fs = np.array([0, -1.0, 0]) - tau * (-tau[:, 1:2])
+    fs /= np.linalg.norm(fs, axis=1, keepdims=True)
+    os_ = o - tau * (tau @ o)[:, None] - fs * (fs @ o)[:, None]
+    os_ /= np.linalg.norm(os_, axis=1, keepdims=True)
+    r = P - A
+    return np.arctan2(np.sum(r * os_, 1), np.sum(r * fs, 1)), np.linalg.norm(r, axis=1), along
+
+
+def sleeve_line_points(body, s, rho, step=0.00025):
+    """SLEEVE_LINE's paths where sleeve_line_coords lays the sleeve out (x round the arm at its median radius rho, y
+    along the arm; m) as points `step` apart, straight between the path's points in t and angle."""
+    S, E, W, f, o = arm_frame(body, s)
+    Lr = np.linalg.norm(E - S) + np.linalg.norm(W - E)
+    pts = []
+    for path in SLEEVE_LINE.get(s, ()):
+        for (t0, a0), (t1, a1) in zip(path[:-1], path[1:]):
+            n = max(int(np.hypot((t1 - t0) * Lr, np.radians(a1 - a0) * rho(t0 * Lr)) / step), 1)
+            u = np.linspace(0, 1, n + 1)
+            al = (t0 + u * (t1 - t0)) * Lr
+            pts.append(np.stack([np.radians(a0 + u * (a1 - a0)) * rho(al), al], 1))
+    return np.concatenate(pts) if pts else np.zeros((0, 2))
+
+
+def sleeve_line_coords(body, s, P):
+    """Sleeve points where SLEEVE_LINE is laid out: x round the arm at its median radius, y along it (m; sleeve_bent),
+    and that radius as a function of the distance along."""
+    ang, rad, along = sleeve_bent(body, s, P)
+    rho, _ = sleeve_rho(rad, along)
+    return np.stack([ang * rho(along), along], 1), rho
+
+
+def sleeve_line_dist(body, s, P):
+    """How far sleeve points (all of one sleeve's texels: its radius along the arm is their median) are from
+    SLEEVE_LINE (m), as sleeve_print draws it."""
+    xy, rho = sleeve_line_coords(body, s, P)
+    d, _ = cKDTree(sleeve_line_points(body, s, rho)).query(xy)
+    return d
 
 
 SLEEVE_WHITE_Q = 0.02          # the sleeves' white elements only where a photo saw the texel (view weight over this)
@@ -2036,16 +2144,7 @@ def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes, zlin=None, 
         m = (chm == base) | (chm == base + 1)
         P = pos[m]
         ang, rad, along = sleeve_unroll(body, s, P)
-        k = np.floor(along / 0.01).astype(int)
-        k -= k.min()
-        med = np.array([np.median(rad[k == i]) if (k == i).any() else np.nan for i in range(k.max() + 1)])
-        ok = ~np.isnan(med)
-        med = np.interp(np.arange(len(med)), np.nonzero(ok)[0], med[ok])
-        med = ndimage.uniform_filter1d(med, 5, mode="nearest")
-        a0 = np.floor(along.min() / 0.01) * 0.01
-
-        def rho(al):
-            return np.interp((al - a0) / 0.01 - 0.5, np.arange(len(med)), med)
+        rho, med = sleeve_rho(rad, along)
         x, y = ang * rho(along), along
         tree = cKDTree(np.stack([x, y], 1))
         R = np.pi * med.max() + FP_SLEEVE_WRAP
@@ -2102,6 +2201,7 @@ def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes, zlin=None, 
         # the flat's is 0.99 (round 3c review, sheets 05, 06, 11)
         rag = GY <= SLEEVE_MIRROR[1]
         o, _, _ = flat_layers(col, qq, hit, texel, white, sh, whites=False, plain=rag, **FP_SLEEVE)
+        o0 = np.where(hit[..., None], o, 0.0)
         o = o * (1 - aw)[..., None] + np.asarray(white) * aw[..., None]
         o = np.where(hit[..., None], o, 0.0)
         # back onto the texels: each at its own place on the raster (the cut's edge stays within a texel)
@@ -2109,6 +2209,19 @@ def sleeve_print(lin, q, chm, pos, body, texel, gain, white, shapes, zlin=None, 
         val = np.stack([ndimage.map_coordinates(o[..., i], [cy, cx], order=1, mode="nearest") for i in range(3)], -1)
         wgt = ndimage.map_coordinates(hit.astype(float), [cy, cx], order=1, mode="nearest")
         val = val / np.maximum(wgt, 1e-6)[:, None]
+        # the forearm's cloth behind the elbow's plane (his elbows bent 46 deg) reads the upper arm's last 3.6 cm on
+        # the raster: no traced whites there (round 4: the left line's traced tip came out again beside its stub)
+        S_, E_ = arm_frame(body, s)[:2]
+        dup = (((P - S_) @ (E_ - S_)) >= np.dot(E_ - S_, E_ - S_)) & (along < np.linalg.norm(E_ - S_))
+        if dup.any():
+            v0 = np.stack([ndimage.map_coordinates(o0[..., i], [cy[dup], cx[dup]], order=1, mode="nearest")
+                           for i in range(3)], -1)
+            val[dup] = v0 / np.maximum(wgt[dup], 1e-6)[:, None]
+        # his left sleeve's line past the elbow, drawn on the texels (SLEEVE_LINE: the photos' slanted views traced
+        # it as specks; the raster maps the bent elbow's back twice)
+        if s in SLEEVE_LINE:
+            cov = np.clip((SLEEVE_LINE_W / 2 - sleeve_line_dist(body, s, P)) / SLEEVE_LINE_SOFT + 0.5, 0, 1)
+            val = val * (1 - cov[:, None]) + np.asarray(white) * cov[:, None]
         res = to_srgb(val)
         cm = chm[m]
         for c in (base, base + 1):
