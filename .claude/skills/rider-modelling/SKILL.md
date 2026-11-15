@@ -453,6 +453,34 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   Keep the worn-fit tests passing on the current shell and list in the ledger which numbers are worn on it
   (twist, anchor, strap length and so STRAP_LEN_UV, strap fit, clearances, the Pinata plate run).
 
+## Goggle round 10: grain, plate outline, chassis band, comb (2026-11-15, goggle.py, goggle_strap_art.py, ledger goggle.md section 12)
+- Fabric detail in Cycles shimmers (no mip-maps): build the tile from the photos' power spectrum (only the waves the
+  photos show, nothing finer than about 2.5 px at the closest view), cap the albedo (0.9) and fade the tile by the
+  pixel's footprint with a driver on the camera's pixel angle. Test shimmer as two frames (new seed, camera moved 3 mm)
+  with and without the tile, the second frame registered back by the no-tile pair's sub-pixel shift (whipcmp.py):
+  the ratio should be about 1.
+- A band-limited weave from two pure waves reads as long parallel ripples when seen at 4x: the measured spectrum
+  has width, so the waves' phase must wander enough (more than 1 rad over 0.8 mm) to break the rows into the
+  photo's short twill. Look at the strap at 4x as well as at 1:1 before calling it done.
+- A shape's outline from photos: fit its edges where the photo shows them (plcmp.py: edge rms per view) and keep
+  the full error table as the check; a better local edge can cost the front views 0.001 of IoU, say so.
+- What a dark band in a photo is: compare colourways (black in White, Black and Pinata alike means a separate black
+  part), look for what shows through it, then name the ring gaps that cover those pixels (ringvis.py) before
+  modelling. Read slots off per-row and per-column luminance profiles, map rows through the part's own surface.
+- Shallow pockets must not be glossy inside: a 1.5 mm pocket with a specular floor reflects the studio and reads
+  brighter than the face around it; give the inside no specular (spec 0) for a slot's darkness. Check a pocket
+  stays in the moulding and off the lens (cross-section inside test, lens offset; slotchk.py).
+- A lean seen the same way on both sides of a symmetric part, from one side only, is depth: work out how far a
+  point shifts per mm deeper through each camera (combdepth.py) and fit the depth lean where the views agree before
+  reading the fan. Check the depth is possible (what lies behind it) before building it; say when it is not.
+- The comb's outline is a general (s, z) polygon now (rib_outline, rib_fillet, rib_dense): densify long edges to 0.25
+  mm before sheet()'s Delaunay; cut it on him by a level line (contourpy) rather than per column.
+- New tests that call a function main does not have still fail on main, but prefer checks through functions both
+  have (build_nose_ribs, outrigger_grids, build_frame) so the failure message shows the old numbers.
+- Doc patch scripts: find both ends of a slice inside the one section (index(end, start)) and assert the slice
+  is not empty. str.replace('', x) puts x between every character (round 10 turned the ledger into 77 MB
+  that way; undone with replace(x, '')). Check git diff --stat after every doc patch.
+
 ## Boots: Leatt Moto 6.5 White (2026-11-13, `boots.py`, ledger research/rider-ledger/boots.md)
 - Which boot a Leatt view shows: work it out from the camera, not the caption. 02 (outer side, buckles, toe
   right) and 03 (inner side, toe left) are both the RIGHT boot; in 06 (soles, toes up) the right boot is the

@@ -877,7 +877,7 @@ plate's front, ours at 963: the plate shows 141 px against 90. So the excess is 
 side overlaps the plate (its hinge inboard of the side face), not at the strap end.
 
 ### The comb (item 6)
-Not done this round (items 1 to 5 first, as the brief asks).
+Not done this round (items 1 to 5 first, as the brief asks). Done in round 10 (section 12).
 
 ### What depends on the helmet's eyeport edge
 The coordinator, during this round: the helmet agent (decision 44) found the shell's eyeport side edge 35 to 40 mm
@@ -906,6 +906,122 @@ the slides' with their normal map and kit.py's bump material as before. 03 and 0
 and the selvedges' vertex order changed; 03 rendered again from the final build differs by 0.06 of 255 on average.
 goggle_views.py no longer places the studio's lights in daylight (daylight removes them: round 9's per-camera light
 rig crashed the daylight views).
+
+## 12. Round 10: grain, plate outline, chassis band, comb (decision 48)
+Done in the brief's order. The worn fit (the helmet front, PLACE, the plates' worn twist, the strap layout, the plate's
+worn width) is decision 47's and not touched here; the plate's new outline moves the worn plate's top twist from 13.0
+to 12.25 deg by itself (outrigger_grids rests it on the shell, scratch wornturn.py). Look: decision 46 (Standard for
+the studio sheets, AgX - Punchy 0.6 EV down in daylight). Sources: Leatt's goggle ISO renders (White 8024070390,
+Pinata 8026000150, Black, Neon Yellow, Forge), the Royal Clear front photo (phr), the exploded view, the Pinata kit
+iso-right, the MY27 back view.
+
+### Strap grain (item 1; goggle_strap_art.py, goggle_views.py)
+Round 9's tile read as glitter: fibre flecks 0.1 mm and an albedo factor of 0.15 to 2.2 (40 % of the brightest print's
+texels reflected more than all the light), loop rows 0.45 mm apart (2 px in the Pinata view). Both photos' power
+spectra (scratch psd2d.py) hold two families of diagonal waves and nothing finer: MY27 back 3.48 px (0.745 mm) at 68
+and 109 deg to the strap, the Pinata 2.9 to 3.9 px at 44 and 136 deg. The tile is now those two waves (a crosshatch,
+WAVE_MM 0.745, 9 periods along the 19 mm tile), its phase wandering 1 rad over 0.8 mm, plus a coarse relief of the
+loops' clusters (blue channel); albedo factor 0.35 to 1.3, the shader capping the albedo at 0.9 and fading the tile by
+the pixel's footprint on the strap (a driver on the camera's pixel angle: full crosshatch to 0.25 mm a pixel, none
+from 0.45 mm; the coarse relief from 0.5 to 1.0 mm). Cycles has no mip-maps, so this is what stops the shimmer. Bump
+strength 0.35.
+| Check | Round 9 | Round 10 | Leatt |
+|---|---|---|---|
+| Pinata grain at 1:1 (scratch grain.py, strap only) | 0.157 | 0.130 (MOTTLE 0.35) | 0.125 to 0.147 |
+| Tile power under 0.5 mm, relief / albedo | 17 % / 30 % | under 3 % / 6 % | |
+| Whip distance (2.7 mm a px, 128 samples, OIDN): strap's registered frame difference, weave over no weave | 1.72 | 1.00 | |
+| The same at the near camera | | 1.05 | |
+The whip test: two frames, seed 1 and seed 2 with the camera moved 3 mm, with and without the tile, the second frame
+shifted back by the image's own sub-pixel offset (measured on the no-weave pair), the strap's mask from a mask render
+(scratch whip.sh, whipcmp.py). Test: test_round10_strap_weave_band_limited (fails on main: 0.17 and 0.30).
+
+### The plate's outline (item 2; GP or_*, OR_CHAMFER, OR_FRONT_CUT, or_u)
+Leatt's plate in his goggle photos tapers and its corners are cut; round 9's ran 63.5 mm at the frame to 58.7 at the
+back with square corners. Fitted on the plate's top and bottom edges in iso55 (near plate, 0 deg) and phr (far, 65 deg)
+(scratch plcmp.py: Leatt minus ours, rms), with the full error table over ten views as the check (errvar.py):
+or_back_h 55.1 mm (58.7), or_top_in 1.3 (3.2), or_bot_in 1.6 (3.5), or_back_dz 1.45 (0.6); the back corners cut at 45
+deg, 2 mm at the top and 3 mm at the bottom (OR_CHAMFER), the front corners cut back 1.9 mm (OR_FRONT_CUT, so the
+front edge stays where round 9's showed it). The plate is 63.5 mm tall at the frame and 50.1 at its back. or_u puts a
+column of the grid on each cut's start, so the cuts are straight.
+| Edge rms, mm (top / bottom) | Round 9 | Round 10 |
+|---|---|---|
+| iso55 | 1.73 / 2.65 | 1.08 / 1.52 |
+| phr | 1.31 / 1.29 | 0.53 / 1.00 |
+Error table (free goggle, outline p90 model to photo / photo to model, IoU; round 9 in brackets): iso55 IoU 0.9750
+(0.9732); phy 4.05 / 3.39, 0.9704 (4.09 / 3.33, 0.9690); phr 0.9586 (0.9569); expl 4.53 / 4.08, 0.8921 (4.73 / 4.09,
+0.8925); phyb 2.02 / 1.97, 0.9723 (1.97 / 1.97, 0.9733); the front views lose a little: phw 1.49 / 1.63, 0.9750 (1.43
+/ 1.49, 0.9759), ink 1.42 / 1.69, 0.9787 (1.29 / 1.46, 0.9795), ind 1.77 / 1.94, 0.9748 (1.65 / 1.73, 0.9756), frg
+1.47 / 1.53, 0.9796 (1.38 / 1.38, 0.9804), chee 1.51 / 1.60, 0.9783 (1.44 / 1.58, 0.9791). Turning the free plates in
+the front views to -5 or -15 deg instead of -10 does not win it back (phw / ink 1.51 / 1.71 and 1.45 / 1.69 at -5).
+Not matched: Leatt's top edge rises more steeply into a black rim along the frame top; his frame's side face covers
+the plate's front (920 px in iso55 against our 955). Test: test_round10_plate_tapers_with_chamfered_back_corners
+(fails on main: 63.5 and 58.7 mm).
+
+### The frame's side where the plate meets it (item 3; CHASSIS_*, build_frame, chassis_slots)
+What it is: in Leatt's ISO the band from the lens's far edge to the silhouette (iso55 x 1655 to 1703 px, y 790 to 1150)
+is black in the White, Black and Pinata colourways alike, takes the plates' colour where the plates are coloured (the
+Neon Yellow's purple chassis rim in phy, the Forge's grey back) and shows the strap through its two slots (teal in
+the Pinata ISO, green in phy, teal in phr); on the near side a black rim runs on from the plates' edges along the
+frame. It is the chassis that carries the plates and the strap's clips, not the coloured shell. Built: the frame's
+ring gaps a (the bevel up from the lens), b, l, m and n (the lens's seat and the plate behind it) are goggle_chassis
+(black, glossy) where the lens edge's |s| is 85 mm or more. The slots, measured in the white ISO by per-row and
+per-column luminance (scratch slotprof.py) and mapped through gap a's middle (slotz.py): y 835 to 903 and 1025 to
+1094 px, lens edge z 19.4 to 6.5 and -15.9 to -28.5 mm; across, x 1673 to 1696 px, the whole width of gap a; near
+black inside (L 1 to 3 against the face's 18 to 23). Each is a pocket 1.5 mm deep cut into gap a between 0.12 and
+0.92 of its width: side walls and floor goggle_slot (no specular: as glossy chassis the shallow pocket read 41 to 54,
+brighter than the face; now 4 to 10 against the face's 36), the end walls chassis. Square to the face the floor ran
+0.17 mm into the lens's groove and parallel to the lens it came within 0.24 mm of the front rim's face, so half its
+part along the lens normal is taken off: the floor is 0.20 mm or more above the lens front and 0.66 mm or more inside
+the moulding (scratch slotchk.py). Each pocket face has its own vertices (sharp edges under smooth shading).
+Not matched: our band reads brighter (36 against 18 to 23) and narrower: Leatt's has a flat face 34 px wide with a lit
+outer rim, ours the bevel and the crease; inside Leatt's slots a clip tab and the strap show, ours are empty. phr:
+Leatt shows red 1600 to 1615 px, a gap, then black 1625 to 1680; ours the seat (1597 to 1611) and the bevel (1612 to
+1630). Test: test_round10_chassis_band_has_two_clip_slots_a_side (fails on main: no slots).
+
+### The comb (item 4; RIB_*, rib_outline, rib_fillet, rib_cut, build_nose_ribs)
+Leatt's gaps back-projected onto the comb's front face (scratch combbp.py; ds/dz from upright, s his left):
+| Gap | phr s mm (top to bottom) | z mm | ds/dz | iso55 s mm | z mm | ds/dz |
+|---|---|---|---|---|---|---|
+| lobe / finger, his right | -26.8 to -21.6 | -23.9 to -29.0 | -1.05 | -27.6 to -24.3 | -24.8 to -27.3 | -1.30 |
+| two fingers, his right | -17.0 to -11.1 | -18.3 to -24.8 | -0.91 | -19.4 to -12.2 | -18.7 to -25.2 | -1.16 |
+| centre finger, his right | -5.8 to -2.2 | -16.7 to -24.4 | -0.49 | -9.2 to -3.5 | -16.7 to -24.8 | -0.77 |
+| centre finger, his left | 4.9 to 5.6 | -19.4 to -24.4 | -0.08 | 1.8 to 3.5 | -18.9 to -23.9 | -0.44 |
+All lean the same way on both sides: a common shear plus an outward fan. Seen from his right, depth reads as a shift
+(1 mm deeper reads 0.75 to 1.15 mm further to his right in phr, 0.94 to 1.45 in iso55; scratch combdepth.py). With the
+tongues leaning back towards his nose by T mm a mm above z -29 mm, the centre finger's two sides lean alike at T 0.35
+in phr and 0.45 in iso55 (combfit.py), and the two views then agree on the fan: 0.15 to 0.27 at the centre finger,
+0.64 to 0.78 at the next gap, 0.80 to 0.99 at the outer one (T 0.35 to 0.45). Each view's gaps centred on s 0 by
+the centre finger's pair need 3.8 mm (phr) and 2.1 mm (iso55) of offset: the cameras' calibration at the nose, as
+round 5's 3.6 mm. phr at 3x (scratch z_combphr.png) shows seven tongues: a lobe 16 mm wide whose top falls outward,
+two fingers and the centre finger; the gap between lobe and finger is a wedge open at its top (the finger's side
+nearly upright, 0.18; the lobe's leaning 0.81; px 1333,1023 to 1348,1060 and 1326,1037). Built from T 0.40 (RIB_GAPS,
+RIB_TOPS, RIB_LOBE_TOP): gaps with round bottoms at |s| 3.9, 13.0 and 25.4 mm (z -24.6, -25.0, -28.4), leaning 0.20,
+0.67 and 0.18 / 0.81, 2.4, 2.4 and 1.2 mm wide; tops -16.4 (centre), -16.7 to -17.1, -18.5 to -20.2, the lobe -23.5
+to -23.9 out to |s| 33 then falling to -28.6 at 41 mm; tip corners 2.4 mm round (Leatt's about a third of a finger's
+width; round 9 1.8). The closed slots are gone (Leatt's open wedge is where they were). On him the comb is cut 0.5 mm
+short of his skin as before, now as the level line of the outline's signed distance and rib_clear's columns
+(contourpy), so leaning slots cut cleanly.
+Not built: the depth lean itself. The frame's nose bridge lies 0.3 mm behind the comb's front (bridge_depth 2.5 mm
+at the centre), so tips 5 mm deeper would sink behind it; Leatt's dark bridge shows above and behind his tongues, so
+his bridge sits deeper than ours. Until the bridge is checked, our gaps read 15 to 20 deg less lean than Leatt's on
+his right side and lean outward on his left where Leatt's read upright (phr) or inward (iso55). Also not matched:
+Leatt's far-side tongue tops read 2.7 to 6.7 mm lower than the near side's in phr (C -16.7 against E -19.4, B
+-18.3 against F -25), which a symmetric comb cannot show; the comb still runs through the inner lens (2.8 to 3.4 mm
+deep) at |s| over 8 mm, as since round 5. Test: test_round10_comb_has_seven_leaning_tongues (fails on main: five
+tongues at z -24 mm); test_round5_offsets_teeth_and_nose_ribs's comb checks now use RIB_TOPS and no longer expect the closed slots.
+
+### Checkpoint and checks
+renders/checkpoints/2026-11-15_goggle-r10/: 01a the Pinata strap at 4x (on the helmet, 128 samples, Standard), 01b
+and 01c the grain at whip distance (round 9 and round 10: two frames each, with and without the tile, the
+registered differences x4; 128 samples, daylight look), 02 the plate in iso55 at 1:1, 03 the chassis band in iso55
+at 2x (Leatt White and Pinata, round 9, round 10), 04a and 04b the comb through Leatt's see-through lenses (phr
+Clear 83 %, iso55 Iriz 78 %) at 2x. Items 2 to 4: free goggle, 64 samples, OIDN, decision 46 Standard.
+Seen at 4x, the new weave reads as long parallel diagonal ripples, more regular than the photo's soft twill: the
+phase wander (1 rad over 0.8 mm) is too little to break them up at that zoom.
+Blender 5.2.0 (Damien's) against 5.2.3: the free goggle in iso55 (slots, chassis, comb, plate), 16 samples, pixel
+identical (mean difference 0.00).
+Item 4's second half, the vent sawtooth's 1 to 2 mm steps, not done this round (the comb took the time).
+Item 5 (the Forge back-strap sheet) not done: no camera is fitted to that photo.
 
 ## 3. Eyes
 | Number | Value | Source |

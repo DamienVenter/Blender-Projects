@@ -47,9 +47,31 @@ JACQUARD = 1.9                             # mm
 # against the photo's 0.9 (autocorrelation half widths, scratch acfcmp.py)
 TILE_MM = 19.0
 TILE_PX_MM = 24.0
-MOTTLE = 0.75                              # the body's albedo spread (sd / mean of the factor); the MY27 back photo's
-                                           # 1:1 crops read 0.25 (body) and 0.56 (selvedges) in sRGB luminance at the
-                                           # high pass (sd over a 4 px blur); the renders read about half the factor's
+MOTTLE_MY27 = 0.75                         # round 9's body albedo spread (sd / mean of the factor); the MY27 back
+                                           # photo's 1:1 crops read 0.25 (body) and 0.56 (selvedges) in sRGB luminance
+                                           # at the high pass (sd over a 4 px blur); the renders read about half the
+                                           # factor's
+# Round 10 (decision 48): his strap is the Pinata, so its grain comes from the Pinata kit iso-right (scratch grain.py
+# over the strap alone, 1:1: 0.125 to 0.147), the pitch from MY27. Round 9's factor (sd 0.62, 0.15 to 2.2, fibre flecks
+# 0.1 mm) put 40 % of the brightest print's texels above an albedo of 1 and read as glitter, brightest on the teal end;
+# its loop lattice put rows 0.45 mm apart, 2 px in the Pinata view (Nyquist): moire lines. Both photos' power spectra
+# (scratch psd2d.py) show two families of diagonal waves instead: MY27 back 3.48 px (0.745 mm) at 68 and 109 deg to the
+# strap (20.5 deg either side of across), the Pinata 2.9 to 3.9 px at 44 and 136 deg (the view foreshortens the strap).
+# His tile is those two waves (a crosshatch whose crossings are the pores), nothing finer: band-limited by construction.
+WAVE_MM = 0.745            # the waves' period (MY27 back photo, 0.214 mm/px)
+WAVE_ALONG = 9             # whole periods of each wave along the 19 mm tile: sin(angle) = 9 * 0.745 / 19, 20.7 deg
+                           # from across (measured 20.5)
+WAVE_JITTER = (1.0, 0.8)   # rad, mm: the waves' phase wanders by 1 rad over about 0.8 mm (a woven elastic is not a
+                           # lattice); the amplitude by 25 % over the same
+MOTTLE = 0.35              # the albedo factor's sd over the crosshatch (calibrated: the ledger goggle.md section 12)
+ALB_CLIP = (0.35, 1.3)
+ALB_CAP = 0.9              # the strap's albedo (linear, per channel) after the weave: no fabric reflects more
+# the shader fades the tile by the pixel's footprint on the strap (mm, the view distance times the camera's pixel
+# angle over the square root of the view's cosine): the crosshatch (red, green) from full at FADE_FINE[0] to none at
+# FADE_FINE[1] (3 to 1.7 px a period), the coarse relief (blue: the loops' clusters, about 1 mm) over FADE_COARSE.
+# Cycles has no mip-maps: at whip distance (2.7 mm a pixel) the strap shows the print and its normal map only
+FADE_FINE = (0.25, 0.45)
+FADE_COARSE = (0.5, 1.0)
 FLECK = (0.35, 2.2)                        # the selvedges: a dark ground (0.45) and light flecks on the knit's loop
                                            # tops (+1.5 per sd above the mean), normalised to a mean of 1
 SELVEDGE_MM = 5.2
@@ -133,14 +155,15 @@ def _gauss_wrap(a, sig):
     return ndimage.gaussian_filter1d(a, sig[0] if np.ndim(sig) else sig, axis=0, mode="reflect")
 
 
-def weave_height(nx, ny, mm_x, mm_y, seed=7, loop=None):
+def weave_height(nx, ny, mm_x, mm_y, seed=7, loop=None, spread=0.65, fibre=0.25):
     """Knit loops (texels nx along, ny across; mm per texel mm_x, mm_y; periodic along when nx * mm_x is a whole
-    number of loops): impulses on a staggered lattice with random strength, an elliptical blob each; the 1.9 mm
-    jacquard repeat along; fine fibre noise. Zero mean, about unit sd; rows top down. loop: (along, across) mm,
-    default the body's."""
+    number of loops): impulses on a staggered lattice with random strength (1 +- spread), an elliptical blob each;
+    the 1.9 mm jacquard repeat along; fine fibre noise (weight fibre). Zero mean, about unit sd; rows top down.
+    loop: (along, across) mm, default the body's."""
     rng = np.random.default_rng(seed)
     imp = np.zeros((ny, nx))
     la, lc = loop if loop else (LOOP_ALONG, LOOP_ACROSS)
+    sp = spread
     pa, pc = la / mm_x, lc / mm_y                                # texels
     js = np.arange(int(ny / pc) + 2)
     for j in js:
@@ -151,11 +174,12 @@ def weave_height(nx, ny, mm_x, mm_y, seed=7, loop=None):
         yi = int(round(y))
         if 0 <= yi < ny:
             xi = np.round(xs_).astype(int) % nx
-            np.add.at(imp[yi], xi, rng.uniform(0.35, 1.65, len(xi)))
+            np.add.at(imp[yi], xi, rng.uniform(1.0 - sp, 1.0 + sp, len(xi)))
     hgt = _gauss_wrap(imp, (0.25 * pc, 0.235 * pa))              # each loop a blob a quarter of its pitch wide
     X = (np.arange(nx) + 0.5) * mm_x
     hgt = hgt * (1.0 + 0.15 * np.cos(2 * math.pi * X / JACQUARD))[None, :]
-    hgt = hgt + 0.25 * _gauss_wrap(rng.normal(size=(ny, nx)), 0.6 * pa / 4.3) * hgt.std() / 0.3
+    if fibre:
+        hgt = hgt + fibre * _gauss_wrap(rng.normal(size=(ny, nx)), 0.6 * pa / 4.3) * hgt.std() / 0.3
     hgt = (hgt - hgt.mean()) / hgt.std()
     return hgt
 
@@ -196,39 +220,84 @@ def wordmark_box(nx, ny, x0, y0, w, h, mirror=False):
     return out
 
 
-def weave_tile(outdir, name="goggle_strap_weave.png"):
-    """The weave as a detail tile, TILE_MM along (periodic) by the strap's width, TILE_PX_MM texels a mm, rows top
-    down (v 1 at the top edge): red the relief (0.5 + mm / WEAVE_RANGE_MM), green the albedo factor / ALB_MAX (the
-    knit's light loop tops and dark gaps, and the selvedges' light flecks on their dark ground)."""
-    from PIL import Image
+def crosshatch(nx, ny, mm_x, mm_y, seed=5):
+    """His strap's weave (round 10): two families of waves WAVE_MM apart, WAVE_ALONG whole periods along the tile
+    (periodic), mirrored about the across direction, their phase and amplitude wandering over about a mm. Zero mean,
+    unit sd; rows top down. Returns the two waves' sum (the crosshatch, its troughs' crossings the pores) and the
+    first wave alone (the selvedges' diagonal rib)."""
+    rng = np.random.default_rng(seed)
+    X = (np.arange(nx) + 0.5)[None, :] * mm_x
+    Y = (np.arange(ny) + 0.5)[:, None] * mm_y
+    fa = WAVE_ALONG / TILE_MM                                           # cycles a mm along
+    fc = math.sqrt(1.0 / WAVE_MM ** 2 - fa ** 2)                         # ... and across
+    sig = (WAVE_JITTER[1] / mm_y, WAVE_JITTER[1] / mm_x)
+
+    def smooth():
+        n = _gauss_wrap(rng.normal(size=(ny, nx)), sig)
+        return n / n.std()
+    w1 = (1 + 0.25 * smooth()) * np.cos(2 * math.pi * (fa * X + fc * Y) + WAVE_JITTER[0] * smooth())
+    w2 = (1 + 0.25 * smooth()) * np.cos(2 * math.pi * (-fa * X + fc * Y) + WAVE_JITTER[0] * smooth())
+    h = w1 + w2
+    return (h - h.mean()) / h.std(), (w1 - w1.mean()) / w1.std()
+
+
+def weave_fields(style="pinata"):
+    """The tile's fine relief (mm), coarse relief (mm), albedo factor, rows top down (see weave_tile), and (mm_x,
+    mm_y)."""
     nx, ny = int(round(TILE_MM * TILE_PX_MM)), int(round(W_MM * TILE_PX_MM))
     mm_x, mm_y = TILE_MM / nx, W_MM / ny
     Y = (np.arange(ny) + 0.5) * mm_y                                    # mm from the top edge
-    wv = weave_height(nx, ny, mm_x, mm_y)
-    rb = 0.7 * weave_height(nx, ny, mm_x, mm_y, seed=17, loop=EDGE_LOOP) + 0.3 * rib_height(nx, ny, mm_x, mm_y)
-    rb /= rb.std()
     e = np.minimum(Y, W_MM - Y)                                         # mm from the nearer edge
     sel = np.clip((SELVEDGE_MM + 0.2 - e) / 0.4, 0, 1)[:, None]         # 1 in the selvedge, 0.4 mm blend
-    tex = wv * (1 - sel) + rb * sel
-    Hmm = (LOOP_H * (1 - sel) + RIB_H * sel) * tex
     rng = np.random.default_rng(3)
     fleck = _gauss_wrap(rng.normal(size=(ny, nx)), 0.09 / mm_x)         # fibre to fibre, 0.1 mm
     fleck /= fleck.std()
     pebble = _gauss_wrap(rng.normal(size=(ny, nx)), PEBBLE_MM / mm_x)  # the loops' clusters (the photo's pebbly grain)
     pebble /= pebble.std()
-    wh = (wv + PEBBLE_W * pebble) / math.sqrt(1 + PEBBLE_W ** 2)        # in the relief only: as albedo it read as
-    Hmm = (LOOP_H * (1 - sel) + RIB_H * sel) * (wh * (1 - sel) + rb * sel)  # dark blotches the photo does not show
-    body = 1 + MOTTLE * (0.8 * wv + 0.6 * fleck)
-    ef = 0.8 * rb + 0.6 * fleck
-    edge = FLECK[0] + FLECK[1] * np.clip(ef, 0, None)
-    edge /= edge.mean()
-    alb = np.clip(body * (1 - sel) + edge * sel, 0.15, ALB_MAX)
-    R = np.clip(0.5 + Hmm / WEAVE_RANGE_MM, 0, 1)
-    rgb = np.stack([R, alb / ALB_MAX, np.zeros_like(R)], -1)
+    hgt = LOOP_H * (1 - sel) + RIB_H * sel
+    if style == "my27":
+        # round 9's MY27 jacquard (the back-view comparisons only): loops 0.655 x 0.45 mm, fibre flecks in the body,
+        # the selvedges' light flecks on a dark ground; up to 2.2 times the print
+        wv = weave_height(nx, ny, mm_x, mm_y)
+        rb = 0.7 * weave_height(nx, ny, mm_x, mm_y, seed=17, loop=EDGE_LOOP) + \
+            0.3 * rib_height(nx, ny, mm_x, mm_y)
+        rb /= rb.std()
+        wh = (wv + PEBBLE_W * pebble) / math.sqrt(1 + PEBBLE_W ** 2)    # in the relief only: as albedo it read as
+        Hmm = hgt * (wh * (1 - sel) + rb * sel)                         # dark blotches the photo does not show
+        body = 1 + MOTTLE_MY27 * (0.8 * wv + 0.6 * fleck)
+        edge = FLECK[0] + FLECK[1] * np.clip(0.8 * rb + 0.6 * fleck, 0, None)
+        edge /= edge.mean()
+        alb = np.clip(body * (1 - sel) + edge * sel, 0.15, ALB_MAX)
+        Hc = _gauss_wrap(Hmm, (PEBBLE_MM / mm_y, PEBBLE_MM / mm_x))
+        return Hmm - Hc, Hc, alb, (mm_x, mm_y)
+    # his Pinata (round 10): a sublimation print, one colour through the yarn: the albedo follows the crosshatch only
+    # (dark pores where its troughs cross), bounded; the selvedges a single diagonal rib of the same period; the
+    # loops' clusters in the coarse relief only
+    ch, rib = crosshatch(nx, ny, mm_x, mm_y)
+    tex = ch * (1 - sel) + rib * sel
+    alb = np.clip(1 + MOTTLE * tex, *ALB_CLIP)
+    alb /= alb.mean()
+    return hgt * tex, hgt * PEBBLE_W * pebble, alb, (mm_x, mm_y)
+
+
+def weave_tile(outdir, name="goggle_strap_weave.png", style="pinata"):
+    """The weave as a detail tile, TILE_MM along (periodic) by the strap's width, TILE_PX_MM texels a mm, rows top
+    down (v 1 at the top edge): red the fine relief (0.5 + mm / WEAVE_RANGE_MM: his crosshatch), green the albedo
+    factor / ALB_MAX (its pores), blue the coarse relief (the loops' clusters, as red). The shader fades red and green
+    by the pixel's footprint over FADE_FINE, blue over FADE_COARSE (detail_nodes). style "my27": round 9's jacquard
+    with the selvedges' light flecks on their dark ground, for the MY27 back-view comparisons (written to a scratch
+    folder, not textures/rider)."""
+    from PIL import Image
+    Hf, Hc, alb, _ = weave_fields(style)
+    R = np.clip(0.5 + Hf / WEAVE_RANGE_MM, 0, 1)
+    B = np.clip(0.5 + Hc / WEAVE_RANGE_MM, 0, 1)
+    rgb = np.stack([R, alb / ALB_MAX, B], -1)
     Image.fromarray(np.clip(rgb * 255 + 0.5, 0, 255).astype(np.uint8)).save(os.path.join(outdir, name),
                                                                             optimize=True)
-    return dict(relief_mm=[round(float(Hmm.min()), 3), round(float(Hmm.max()), 3)],
-                clipped=round(float(np.mean((R <= 0) | (R >= 1))), 4))
+    return dict(relief_mm=[round(float(Hf.min()), 3), round(float(Hf.max()), 3)],
+                coarse_mm=[round(float(Hc.min()), 3), round(float(Hc.max()), 3)],
+                albedo=[round(float(alb.min()), 3), round(float(alb.max()), 3)],
+                clipped=round(float(np.mean((R <= 0) | (R >= 1) | (B <= 0) | (B >= 1))), 4))
 
 
 ALB_MAX = 2.2              # the tile's green: the albedo factor / ALB_MAX
@@ -296,10 +365,71 @@ def strap_textures(outdir, colour="goggle_strap_print.jpg", normal="goggle_strap
     return dict(d_leatt_mm=None if d_leatt is None else [round(x, 1) for x in d_leatt], **info)
 
 
+PX_ANGLE_DRIVER = "sw / (lens * rx * pct / 100)"     # rad a pixel: the scene camera's (sensor fit horizontal or auto)
+
+
+def px_angle_node(nt):
+    """A Value node holding the scene camera's angle per pixel (rad), driven (a simple expression: no Python needed
+    at render time) by the camera's lens and sensor and the render's width, so it follows a camera that zooms."""
+    import bpy
+    v = nt.nodes.new("ShaderNodeValue")
+    v.name = v.label = "px_angle"
+    sc = bpy.context.scene
+    cam = sc.camera.data if sc.camera and sc.camera.type == "CAMERA" else None
+    v.outputs[0].default_value = (cam.sensor_width / (cam.lens * sc.render.resolution_x *
+                                                       sc.render.resolution_percentage / 100.0)) if cam else 36.0 / (50.0 * 3840)
+    drv = v.outputs[0].driver_add("default_value").driver
+    drv.type = "SCRIPTED"
+    for name, path in (("sw", "camera.data.sensor_width"), ("lens", "camera.data.lens"),
+                       ("rx", "render.resolution_x"), ("pct", "render.resolution_percentage")):
+        var = drv.variables.new()
+        var.name, var.type = name, "SINGLE_PROP"
+        var.targets[0].id_type = "SCENE"
+        var.targets[0].id = sc
+        var.targets[0].data_path = path
+    drv.expression = PX_ANGLE_DRIVER
+    return v
+
+
+def footprint_fades(nt):
+    """Node outputs (fine, coarse): 1 where the weave's crosshatch (the loops' clusters) is resolved, 0 where the
+    pixel's footprint on the strap is too big for it (FADE_FINE, FADE_COARSE, mm). Footprint: the view distance times
+    the pixel's angle, over the square root of the cosine between the view and the normal (floor 0.2)."""
+    cd, geo = nt.nodes.new("ShaderNodeCameraData"), nt.nodes.new("ShaderNodeNewGeometry")
+    pa = px_angle_node(nt)
+    m1 = nt.nodes.new("ShaderNodeMath")
+    m1.operation = "MULTIPLY"
+    nt.links.new(cd.outputs["View Distance"], m1.inputs[0])
+    nt.links.new(pa.outputs[0], m1.inputs[1])
+    dot = nt.nodes.new("ShaderNodeVectorMath")
+    dot.operation = "DOT_PRODUCT"
+    nt.links.new(geo.outputs["Incoming"], dot.inputs[0])
+    nt.links.new(geo.outputs["Normal"], dot.inputs[1])
+    ab, fl, sq, fp = (nt.nodes.new("ShaderNodeMath") for _ in range(4))
+    ab.operation, fl.operation, sq.operation, fp.operation = "ABSOLUTE", "MAXIMUM", "SQRT", "DIVIDE"
+    fl.inputs[1].default_value = 0.2
+    nt.links.new(dot.outputs["Value"], ab.inputs[0])
+    nt.links.new(ab.outputs[0], fl.inputs[0])
+    nt.links.new(fl.outputs[0], sq.inputs[0])
+    nt.links.new(m1.outputs[0], fp.inputs[0])
+    nt.links.new(sq.outputs[0], fp.inputs[1])
+    out = []
+    for lo, hi in (FADE_FINE, FADE_COARSE):
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        mr.clamp = True
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = lo / 1000.0, hi / 1000.0
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = 1.0, 0.0
+        nt.links.new(fp.outputs[0], mr.inputs["Value"])
+        out.append(mr.outputs["Result"])
+    return out
+
+
 def detail_nodes(nt, p, spec, texdir, base=None, normal=None):
     """Shader nodes for a material's weave tile (spec["detail"]: image, repeat (u, v), mask): the tile's
     albedo factor multiplies the base colour where the mask is white, its relief bumps the normal (after the
     material's own normal map). base, normal: the sockets feeding the Principled's Base Color and Normal (or None).
+    Round 10: both fade by the pixel's footprint (footprint_fades: the fine crosshatch in red and green, the coarse
+    relief in blue), the albedo is capped at ALB_CAP and the relief is kept off the silicone LEATT (the mask).
     Used by goggle_views.py and build_rider.py (Blender only)."""
     d = spec["detail"]
     tc = nt.nodes.new("ShaderNodeTexCoord")
@@ -314,13 +444,36 @@ def detail_nodes(nt, p, spec, texdir, base=None, normal=None):
     nt.links.new(mp.outputs["Vector"], t.inputs["Vector"])
     sp = nt.nodes.new("ShaderNodeSeparateColor")
     nt.links.new(t.outputs["Color"], sp.inputs["Color"])
+    wf, wc = footprint_fades(nt)
+    # albedo factor 1 + wf (green * ALB_MAX - 1); height 0.5 + wf (red - 0.5) + wc (blue - 0.5)
     mul = nt.nodes.new("ShaderNodeMath")
-    mul.operation = "MULTIPLY"
-    mul.inputs[1].default_value = ALB_MAX
+    mul.operation = "MULTIPLY_ADD"
+    mul.inputs[1].default_value, mul.inputs[2].default_value = ALB_MAX, -1.0
     nt.links.new(sp.outputs["Green"], mul.inputs[0])
+    af = nt.nodes.new("ShaderNodeMath")
+    af.operation = "MULTIPLY_ADD"
+    af.inputs[2].default_value = 1.0
+    nt.links.new(mul.outputs[0], af.inputs[0])
+    nt.links.new(wf, af.inputs[1])
+    hs = []
+    for ch, w in (("Red", wf), ("Blue", wc)):
+        c = nt.nodes.new("ShaderNodeMath")
+        c.operation = "SUBTRACT"
+        c.inputs[1].default_value = 0.5
+        nt.links.new(sp.outputs[ch], c.inputs[0])
+        m = nt.nodes.new("ShaderNodeMath")
+        m.operation = "MULTIPLY"
+        nt.links.new(c.outputs[0], m.inputs[0])
+        nt.links.new(w, m.inputs[1])
+        hs.append(m)
+    hsum = nt.nodes.new("ShaderNodeMath")
+    hsum.operation = "ADD"
+    nt.links.new(hs[0].outputs[0], hsum.inputs[0])
+    nt.links.new(hs[1].outputs[0], hsum.inputs[1])
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
     mix.blend_type = "MULTIPLY"
+    mk = None
     if d.get("mask"):
         mk = nt.nodes.new("ShaderNodeTexImage")
         mk.image = bpy.data.images.load(os.path.join(texdir, d["mask"]))
@@ -332,12 +485,23 @@ def detail_nodes(nt, p, spec, texdir, base=None, normal=None):
         nt.links.new(base, mix.inputs["A"])
     else:
         mix.inputs["A"].default_value = p.inputs["Base Color"].default_value
-    nt.links.new(mul.outputs[0], mix.inputs["B"])
-    nt.links.new(mix.outputs["Result"], p.inputs["Base Color"])
+    nt.links.new(af.outputs[0], mix.inputs["B"])
+    # round 10: no channel above ALB_CAP (round 9's factor up to 2.2 times the print made albedos above 1: glitter)
+    cap = nt.nodes.new("ShaderNodeVectorMath")
+    cap.operation = "MINIMUM"
+    cap.inputs[1].default_value = (ALB_CAP, ALB_CAP, ALB_CAP)
+    nt.links.new(mix.outputs["Result"], cap.inputs[0])
+    nt.links.new(cap.outputs["Vector"], p.inputs["Base Color"])
     bp = nt.nodes.new("ShaderNodeBump")
     bp.inputs["Distance"].default_value = WEAVE_RANGE_MM / 1000.0
     bp.inputs["Strength"].default_value = d.get("bump_strength", 1.0)
-    nt.links.new(sp.outputs["Red"], bp.inputs["Height"])
+    if mk is not None:                             # round 10: the knit's relief only on the fabric, not the silicone LEATT
+        bs = nt.nodes.new("ShaderNodeMath")
+        bs.operation = "MULTIPLY"
+        bs.inputs[1].default_value = d.get("bump_strength", 1.0)
+        nt.links.new(mk.outputs["Color"], bs.inputs[0])
+        nt.links.new(bs.outputs[0], bp.inputs["Strength"])
+    nt.links.new(hsum.outputs[0], bp.inputs["Height"])
     if normal is not None:
         nt.links.new(normal, bp.inputs["Normal"])
     nt.links.new(bp.outputs["Normal"], p.inputs["Normal"])

@@ -264,12 +264,18 @@ GP = dict(
     # the top band's teeth (tooth_drop): |s| in, |s| out, drop at each end (m)
     teeth=[[0.04360, 0.05900, 0.0, 0.00033], [0.05900, 0.07950, 0.00196, 0.00151]],
     # outriggers (outrigger_frames): fitted with the shape (round 5, kept; round 7 checked the far one in phr: ledger)
+    # round 10 (item 2): the plate tapers. Its edges are lines from Leatt's near plate in iso55 and phr (back-projected
+    # onto it at 1:1, scratch plcmp.py): top 28.5 mm at the hinge to 23.8 at the back, bottom -38.9 to -31.3, the back
+    # bottom between iso55's (-29.9), phr's (-32.5) and phw's (-33.5); the top's slope between iso55 and phr (0.20
+    # to 0.23) and phw (where a steeper one stands above Leatt's). Its front corners cut back to round 9's (26.6,
+    # -37.0 mm: OR_FRONT_CUT), where the frame hides them in the front photos, its back corners chamfered (OR_CHAMFER).
+    # Round 9: or_back_h 0.0587, or_top_in 0.0032, or_bot_in 0.0035, or_back_dz 0.0006 (a 63.5 by 58.7 mm plate).
     or_len=0.03040,
-    or_back_h=0.05870,
+    or_back_h=0.05510,
     or_turn=0.44010,
-    or_top_in=0.00320,
-    or_bot_in=0.00350,
-    or_back_dz=0.00060,
+    or_top_in=0.00130,
+    or_bot_in=0.00160,
+    or_back_dz=0.00145,
     or_front=0.00220,
     # round 7: the nose guard (build_nose_guard, NG_KEYS), fitted with the shape on the photos' silhouettes; the sweep
     # then set on the finished frame (10.2 to 3 mm: swept back 10 mm its far side left the backdrop showing inside the
@@ -593,6 +599,20 @@ def frame_rings(gp=None, per=None):
 # top vents: slots in the vent row behind the top band, s ranges on each side (Leatt exploded view and ISO: three
 # slots a side either side of the moulded logo)
 VENTS_S = [(0.008, 0.024), (0.030, 0.046), (0.052, 0.068)]
+# round 10 (decision 48, item 3): the black chassis round the lens's side edges (build_frame): ring gaps a (the
+# bevel up from the lens front), b, l, m (the inner wall and the plate behind the lens) and n (the lens's seat),
+# where the lens edge's |s| reaches CHASSIS_S; two clip slots a side in gap a (z ranges of the lens edge, m).
+# Measured in Leatt's white ISO through the iso55 camera (the same render as his Pinata ISO; the band is black in
+# every colourway): per-row luminance across the band, slots y 835 to 903 and 1025 to 1094 px (near black inside,
+# L 1 to 3 against the face's 18 to 23), mapped through gap a's middle to lens edge z 19.4 to 6.5 and -15.9 to
+# -28.5 mm; across, x 1673 to 1696 px, which is gap a's whole width (t -0.08 to 1.03 at row 1040). The post sits
+# between them. Each slot is a pocket CHASSIS_SLOT_D deep into the moulding (square to gap a's face), its mouth
+# CHASSIS_SLOT_T of the way across the gap (a thin chassis frame left either side), its floor near black.
+CHASSIS_S = 0.085
+CHASSIS_SLOTS = [(0.0065, 0.0194), (-0.0285, -0.0159)]
+CHASSIS_SLOT_T = (0.12, 0.92)
+CHASSIS_SLOT_D = 0.0015
+CHASSIS_RINGS = (0, 1, 12, 13, 14)
 
 
 def ring_faces(part, rings, mats, uv=None):
@@ -629,20 +649,79 @@ def build_frame(gp=None):
     Co = info["Co"]
     for k in (RING_BACK_OUT, RING_BACK_IN, RING_BACK_IN + 1):
         mats[k] = ["goggle_foam" if abs(c[0]) < RIB_BRIDGE_S and c[1] < 0 else "goggle_frame" for c in Co]
+    # round 10: round the lens's side edges the frame is the black chassis that carries the plates (Leatt's ISO in
+    # every colourway, the white, black and Pinata alike: a black band from the lens's far edge to the silhouette
+    # with two clip slots above and below the post; phr and phy show it the plates' colour, the strap through its
+    # slots): the lens's seat, the bevel in front of it and the inner wall behind it, where the lens edge's s is
+    # past CHASSIS_S. The coloured shell keeps the front rim, the crease and the outer wall.
+    side = np.abs(Co[:, 0]) >= CHASSIS_S
+    for k in CHASSIS_RINGS:
+        mats[k] = ["goggle_chassis" if side[i] else (mats[k][i] if not isinstance(mats[k], str) else mats[k])
+                   for i in range(len(Co))]
     # support rings CREASE_R either side of every edge: smooth shading then turns only at the edges, and the faces
     # read flat (without them the bezel shaded like a tube; round 6's 0.35 mm rolled each crease over 3 to 4 px at
-    # 1:1, Leatt's turn in 1.3 to 2.4 px)
+    # 1:1, Leatt's turn in 1.3 to 2.4 px). Gap a also gets the clip slots' mouth edges (CHASSIS_SLOT_T): strip 2.
     R2, M2 = [], []
     K = len(rings)
     for k in range(K):
         A_, B_ = rings[k], rings[(k + 1) % K]
         gap = np.linalg.norm(B_ - A_, axis=1)[:, None]
         f_ = np.clip(CREASE_R / np.maximum(gap, 1e-6), 0, 0.3)
-        R2 += [A_, A_ + (B_ - A_) * f_, B_ + (A_ - B_) * f_]
-        M2 += [mats[k]] * 3
+        mid = [A_ + (B_ - A_) * t for t in CHASSIS_SLOT_T] if k == 0 else []
+        R2 += [A_, A_ + (B_ - A_) * f_] + mid + [B_ + (A_ - B_) * f_]
+        M2 += [mats[k]] * (3 + len(mid))
     fr = H.Part("goggle_frame")
     ring_faces(fr, R2, M2)
+    chassis_slots(fr, R2[2], R2[3], rings, Co, side, info["L"])
     return fr, info
+
+
+def chassis_slots(fr, X0, X1, rings, Co, side, L):
+    """Round 10: the clip slots in the chassis band (CHASSIS_SLOTS): the faces of gap a's strip between X0 and X1
+    (the slot's mouth edges) over each slot's run of segments are cut out and a pocket CHASSIS_SLOT_D deep put in
+    their place: the floor and side walls in goggle_slot (no specular: they stand for the slot's dark inside, which
+    Leatt's shows at L 1 to 3; as glossy chassis the shallow pocket read 41 to 54, brighter than the face's 36) and
+    the end walls in goggle_chassis (Leatt's top slot shows its end lit). Each face of the pocket has its own
+    vertices, so its edges shade sharp. Faces of strip 2 are 2 m + i (ring_faces' order)."""
+    m = len(Co)
+    cen = np.mean(rings, axis=0)                          # the cross-section's centre per segment: into the moulding
+    cut, add = set(), []
+    for z0, z1 in CHASSIS_SLOTS:
+        inn = side & (Co[:, 1] >= z0) & (Co[:, 1] <= z1)
+        for sgn in (1, -1):
+            v = np.nonzero(inn & (np.sign(Co[:, 0]) == sgn))[0]
+            if len(v) < 2:
+                continue
+            v = v[np.argsort(v)]
+            if np.any(np.diff(v) != 1):                   # the run wraps the loop's start: never at the sides
+                raise ValueError("chassis slot run is not contiguous")
+            T = X0[(v + 1) % m] - X0[(v - 1) % m]
+            N = np.cross(T, X1[v] - X0[v])
+            N *= np.sign(np.sum(N * (cen[v] - 0.5 * (X0[v] + X1[v])), axis=1))[:, None]
+            N /= np.linalg.norm(N, axis=1)[:, None]
+            # square to the face the floor's inner edge ran 0.17 mm into the lens's groove; parallel to the lens its
+            # outer edge came within 0.24 mm of the front rim's face: half its part along the lens normal is taken
+            # off (the floor then 0.20 mm or more above the lens front, 0.66 mm or more inside the moulding)
+            NL = L.point(Co[v, 0], Co[v, 1], 0.0)[1]
+            N -= 0.5 * NL * np.sum(N * NL, axis=1)[:, None]
+            N /= np.linalg.norm(N, axis=1)[:, None]
+            Q0, Q1 = X0[v] + N * CHASSIS_SLOT_D, X1[v] + N * CHASSIS_SLOT_D
+            cut |= {2 * m + i for i in v[:-1]}
+            add += [(X0[v], Q0, "goggle_slot"), (Q0, Q1, "goggle_slot"), (Q1, X1[v], "goggle_slot")]
+            for j, flip in ((0, False), (-1, True)):
+                q = [X0[v[j]], Q0[j], Q1[j], X1[v[j]]]
+                fr.F.append(list(fr.add(np.array(q[::-1] if flip else q), [], "x") + np.arange(4)))
+                fr.M.append("goggle_chassis")
+                fr.UV.append([(0.0, 0.0)] * 4)
+    keep = [i for i in range(len(fr.F)) if i not in cut]
+    fr.F, fr.M, fr.UV = [fr.F[i] for i in keep], [fr.M[i] for i in keep], [fr.UV[i] for i in keep]
+    for A_, B_, mat in add:                               # each wall a strip of its own vertices along the run
+        a, b = fr.add(A_, [], "x"), fr.add(B_, [], "x")
+        n = len(A_)
+        for i in range(n - 1):
+            fr.F.append([a + i, a + i + 1, b + i + 1, b + i])
+            fr.M.append(mat)
+            fr.UV.append([(0.0, 0.0)] * 4)
 
 
 # ---------------------------------------------------------------- Leatt's goggle-alone photos as calibrated views
@@ -979,6 +1058,22 @@ WORN_TURN = {}             # round 9: the worn plates' turns (deg), set by outri
 OR_BEND = math.tan(math.radians(60))   # steepest outward bend of a mounted outrigger (lift per length)
 OR_ANCHOR = 0.010          # m, the strap's end sits this far inside the outrigger's back end (its buckle slot)
 OR_NU, OR_NV = 13, 7       # grid of each outrigger face (along x up)
+OR_CHAMFER = (0.002, 0.003)   # m, round 10: the plate's back corners cut at 45 deg (top, bottom): Leatt's near plate
+                              # in iso55 and phr at 1:1, the back edge's top and bottom 1 to 1.5 mm in from the
+                              # taper's lines over its last 2 to 3 mm (ledger section 12)
+OR_FRONT_CUT = (0.0019, 0.0019)   # m, round 10: the front corners cut at 45 deg (top, bottom) back to round 9's,
+                                  # where the frame hides them in Leatt's front photos (with GP's or_top_in, or_bot_in:
+                                  # the taper's lines raised them 1.9 mm, and phw, ink and frg then saw them)
+
+
+def or_u(nu=OR_NU, length=None):
+    """The outrigger grid's columns along the plate (0 at its front edge, 1 at its back end): even, plus a column
+    where each corner's cut starts (round 10), so that the cuts run straight."""
+    length = length or OR_HINGE_LEN
+    cuts = sorted({1.0 - c / length for c in OR_CHAMFER if c > 0} | {c / length for c in OR_FRONT_CUT if c > 0})
+    u = np.linspace(0.0, 1.0, nu - len(cuts))
+    keep = [x for x in u if all(abs(x - c) * length > 0.0005 for c in cuts)]
+    return np.array(sorted(keep + cuts))
 
 
 def shell_mount(prof):
@@ -1001,13 +1096,23 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
     plate is lifted outwards (x only, the front edge fixed on the frame) to clear the shell by OR_GAP behind the
     eyeport's edge, bending out at most OR_BEND before it reaches the edge and never back in towards its end."""
     out = {}
-    u = np.linspace(0.0, 1.0, nu)[:, None, None]
+    hinged = (gp or GP).get("or_hinge", 1.0 if OR_HINGE else 0.0)
+    length = (gp or GP).get("or_hinge_len", OR_HINGE_LEN) if hinged else (gp or GP).get("or_len", OR_LEN)
+    uu = or_u(nu, length)
+    nu = len(uu)
+    u = uu[:, None, None]
     v = np.linspace(0.0, 1.0, nv)[None, :, None]
+    run = ((1.0 - uu) * length)[:, None]                  # m from each column to the back end
+    cut_t, cut_b = (np.maximum(0.0, c - run) + np.maximum(0.0, cf - uu[:, None] * length)
+                    for c, cf in zip(OR_CHAMFER, OR_FRONT_CUT))
 
     def bil(c):                           # corners: front-top, front-bottom, back-bottom, back-top
-        return (1 - u) * ((1 - v) * c[1] + v * c[0]) + u * ((1 - v) * c[2] + v * c[3])
+        top = (1 - u) * c[0] + u * c[3]
+        bot = (1 - u) * c[1] + u * c[2]
+        top[..., 2] -= cut_t              # round 10: the back corners chamfered (OR_CHAMFER)
+        bot[..., 2] += cut_b
+        return (1 - v) * bot + v * top
     frames = outrigger_frames(gp)
-    hinged = (gp or GP).get("or_hinge", 1.0 if OR_HINGE else 0.0)
     rows = {}
     if hinged:
         # round 9: each row of the plate a straight line from the hinge, turned out by its own angle: free, all
@@ -1057,7 +1162,7 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
             Go[..., 0] += sg * lift
             Gi[..., 0] += sg * lift
         L = np.linalg.norm(Gi[-1, nv // 2] - Gi[0, nv // 2])
-        i_a = np.clip(1.0 - OR_ANCHOR / L, 0, 1) * (nu - 1)
+        i_a = float(np.interp(np.clip(1.0 - OR_ANCHOR / L, 0, 1), uu, np.arange(nu)))
         i0 = int(i_a)
         f = i_a - i0
         mid = 0.5 * (Go + Gi)[:, nv // 2]
@@ -1072,13 +1177,16 @@ def build_outriggers(gp=None, mount=None):
     o = H.Part("goggle_outriggers")
     for sg, (Go, Gi, anchor) in outrigger_grids(gp, mount).items():
         nu, nv = Go.shape[:2]
+        run = np.linalg.norm(Go[:, 0, :2] - Go[0, 0, :2], axis=1)    # the grid's columns along it (or_u)
+        uu = run / run[-1]
         V = np.vstack([Go.reshape(-1, 3), Gi.reshape(-1, 3)])
         O = lambda i, j: i * nv + j                               # noqa: E731
         I = lambda i, j: nu * nv + i * nv + j                     # noqa: E731
         quads, mats, uvs = [], [], []
         h0, h1 = (0.0, 0.5) if sg > 0 else (0.5, 1.0)
-        # outer face: texture u = height (h0 bottom .. h1 top) in its image half, v = along (0 front .. 1 back)
-        tex = lambda i, j: (h0 + (h1 - h0) * j / (nv - 1), i / (nu - 1))   # noqa: E731
+        # outer face: texture u = height (h0 bottom .. h1 top) in its image half, v = along (0 front .. 1 back; the
+        # grid's own columns, round 10)
+        tex = lambda i, j: (h0 + (h1 - h0) * j / (nv - 1), float(uu[i]))   # noqa: E731
         for i in range(nu - 1):
             for j in range(nv - 1):
                 quads.append([O(i, j + 1), O(i, j), O(i + 1, j), O(i + 1, j + 1)])
@@ -1287,35 +1395,87 @@ def build_nose_guard(gp=None, skin_G=None):
 # front face 0.3 mm in front of the round 4 bridge's nearest point (which keeps his nose clear), its back moulded
 # into the bridge; vertical slots.
 RIB_PROUD, RIB_SINK = 0.0003, 0.0002           # front: this far in front of the bridge's nearest point; back: into it
-RIB_FINGERS = [(0.0, 0.0038, -0.0164), (0.01025, 0.00405, -0.0179)]   # (|s| centre, half width, tip z), mirrored
-RIB_LOBE = (0.0167, 0.0290, -0.0187, -0.0215)  # |s| inner and outer edges, top z at the inner and outer edge
-RIB_SLOT_Z = (-0.0252, -0.0249)                # open slots' bottoms: inner pair, outer pair
-RIB_CLOSED = (0.0217, 0.00125, -0.0291, -0.0225)   # closed slot in each lobe: |s| centre, half width, z bottom, top
 RIB_BRIDGE_S = 0.030                           # the bridge behind the lens is black within this |s| (iso55)
-RIB_CORNER = 0.0018                            # tip corner radius
+# Round 10 (decision 48, item 4): seven tongues (an outer lobe, two fingers a side and the centre finger), the
+# slots between them leaning outward, where rounds 5 to 9 had five upright tongues and a closed slot in each lobe
+# (ledger goggle.md section 9, "Not matched", and section 12). Leatt's gaps back-projected onto the comb's front
+# face (scratch combbp.py; phr and iso55, four gaps each) all lean the same way on both sides (ds/dz -0.08 to
+# -1.30): a common shear plus an outward fan. Seen from his right a shear is depth (a point 1 mm deeper reads 0.75
+# to 1.15 mm further to his right in phr, 0.94 to 1.45 mm in iso55): the tongues lean back towards his nose, about
+# 0.40 mm a mm above z -29 mm, where the two views and the centre finger's two sides agree (combfit.py). That lean
+# is not built: the frame's nose bridge lies 0.3 mm behind the comb's front (bridge_depth), so tips 5 mm deeper
+# would sink behind it. The gaps are placed where that depth puts them (each view centred on s = 0 by the centre
+# finger's pair, 3.8 and 2.1 mm, the cameras' calibration at the nose, as round 5's 3.6 mm). RIB_GAPS, from the
+# centre out: the |s| and z of the centre of the gap's round bottom, its inner and outer sides' outward lean (ds/dz)
+# and its width (the bottom's diameter). The two inner gaps have parallel sides (the two views' leans 0.15 to 0.27
+# and 0.64 to 0.73). The outer one is a wedge open at its top (phr at 3x): the finger's outer side nearly upright
+# (0.18: px 1333,1023 to 1348,1060), the lobe's inner side leaning 0.81 to the lobe's lower top corner.
+RIB_GAPS = [(0.0039, -0.0246, 0.20, 0.20, 0.0024), (0.0130, -0.0250, 0.67, 0.67, 0.0024),
+            (0.0254, -0.0284, 0.18, 0.81, 0.0012)]
+# RIB_TOPS: per finger from the centre out, its top's z at its inner and outer corner; RIB_LOBE_TOP: the lobe's top
+# corner z and then its top's (|s|, z) points out to its outer corner (|s| RIB_OUTER), down to the base there.
+# phr's near side tops (combbp.py; depth hardly moves z, 0.02 mm a mm): -16.4; -16.6 to -17.1; -18.5 to -20.2;
+# the lobe -23.5 to -23.9 at |s| 30 to 33, then falling to -28.5 at 41 (its outer end in the photo's crop).
+RIB_TOPS = [(-0.0164, -0.0164), (-0.0167, -0.0171), (-0.0185, -0.0202)]
+RIB_LOBE_TOP = (-0.0235, [(0.0330, -0.0239), (0.0410, -0.0286)])
+RIB_OUTER = RIB_LOBE_TOP[1][-1][0]
+RIB_CORNER = 0.0024                            # tip corner radius (Leatt's: about a third of a finger's width)
 
 
-def rib_top(s):
-    """The comb's top edge z(s) (nan outside it), a function of |s|: tips with rounded corners, slot notches."""
-    a = np.abs(np.asarray(s, float))
-    z = np.full(a.shape, np.nan)
+def rib_fillet(P, corners, r, n=6):
+    """The closed (s, z) loop P with each vertex index in corners replaced by an arc of radius r tangent to both
+    edges (its tangent run capped at 0.45 of the shorter edge)."""
+    out = []
+    for i in range(len(P)):
+        if i not in corners:
+            out.append(P[i])
+            continue
+        p, a, b = P[i], P[i - 1], P[(i + 1) % len(P)]
+        u, v = (a - p) / np.linalg.norm(a - p), (b - p) / np.linalg.norm(b - p)
+        th = np.arccos(np.clip(u @ v, -1.0, 1.0))
+        d = min(r / np.tan(th / 2), 0.45 * min(np.linalg.norm(a - p), np.linalg.norm(b - p)))
+        rr = d * np.tan(th / 2)
+        c = p + (u + v) / np.linalg.norm(u + v) * rr / np.sin(th / 2)
+        p0, p1 = p + u * d - c, p + v * d - c
+        a0, a1 = np.arctan2(p0[1], p0[0]), np.arctan2(p1[1], p1[0])
+        da = (a1 - a0 + np.pi) % (2 * np.pi) - np.pi
+        out += [c + rr * np.array([np.cos(a0 + da * k / n), np.sin(a0 + da * k / n)]) for k in range(n + 1)]
+    return np.array(out)
 
-    def tip(c, hw, zt):
-        d = np.abs(a - c) - (hw - RIB_CORNER)
-        return np.where(d <= 0, zt, zt - RIB_CORNER + np.sqrt(np.clip(RIB_CORNER ** 2 - d ** 2, 0, None)))
-    for c, hw, zt in RIB_FINGERS:
-        m = np.abs(a - c) <= hw
-        z[m] = tip(c, hw, zt)[m]
-    i0, i1, zi, zo = RIB_LOBE
-    m = (a >= i0) & (a <= i1)
-    zl = zi + (zo - zi) * (a - i0) / (i1 - i0)
-    zl = np.where(a - i0 < RIB_CORNER, zl - RIB_CORNER + np.sqrt(np.clip(RIB_CORNER ** 2 - (RIB_CORNER - (a - i0)) ** 2, 0, None)), zl)
-    z[m] = zl[m]
-    gaps = [(RIB_FINGERS[0][0] + RIB_FINGERS[0][1], RIB_FINGERS[1][0] - RIB_FINGERS[1][1], RIB_SLOT_Z[0]),
-            (RIB_FINGERS[1][0] + RIB_FINGERS[1][1], i0, RIB_SLOT_Z[1])]
-    for g0, g1, zb in gaps:
-        z[(a > g0) & (a < g1)] = zb
-    return z
+
+def rib_side(g, sgn):
+    """A gap's side line s(z): sgn -1 its inner side, +1 its outer (g one of RIB_GAPS, |s| > 0), tangent to its
+    round bottom."""
+    sb, zb, qi, qo, w = g
+    q = qi if sgn < 0 else qo
+    return lambda z: sb + q * (z - zb) + sgn * 0.5 * w * np.hypot(1.0, q)
+
+
+def rib_outline(gp, step=0.00025):
+    """The comb's outline, a closed (s, z) loop, and the indices of its corners to round: the seven tongues' tops,
+    the leaning slots between them with round bottoms, the lobes' outer sides and the base (rib_base) under them."""
+    base = rib_base(gp)
+    right, corners = [], []
+    for k, (zt0, zt1) in enumerate(RIB_TOPS):
+        if k > 0:                                  # the finger's inner corner on the last gap's outer side
+            corners.append(len(right))
+            right.append([rib_side(RIB_GAPS[k - 1], +1)(zt0), zt0])
+        corners.append(len(right))                 # its outer corner
+        right.append([rib_side(RIB_GAPS[k], -1)(zt1), zt1])
+        sb, zb, qi, qo, w = RIB_GAPS[k]            # the gap's round bottom, from its inner side to its outer
+        for th in np.linspace(np.arctan2(qi, -1.0), np.arctan2(-qo, 1.0) + 2 * np.pi, 9):
+            right.append([sb + 0.5 * w * np.cos(th), zb + 0.5 * w * np.sin(th)])
+    zl, pts = RIB_LOBE_TOP
+    corners += list(range(len(right), len(right) + 1 + len(pts)))
+    right.append([rib_side(RIB_GAPS[-1], +1)(zl), zl])
+    right += [list(p) for p in pts]
+    sb_ = np.arange(RIB_OUTER, -1e-9, -step)
+    right = np.vstack([right, np.c_[sb_, base(sb_)]])
+    left = right[::-1].copy()
+    left[:, 0] *= -1
+    loop = np.vstack([right, left[1:]])            # clockwise seen from the front (s to his left), as round 5's
+    m = len(right)
+    return loop, sorted(set(corners) | {2 * m - 2 - c for c in corners})
 
 
 def rib_base(gp):
@@ -1389,49 +1549,76 @@ def rib_clear(L, s, skin_G, depth):
     return out
 
 
+def rib_front(gp):
+    """The comb's front offset (m, < 0: behind the lens front): RIB_PROUD in front of the bridge's nearest point
+    over the comb; and the bridge depth function."""
+    bd = bridge_depth(gp)
+    gs, gz = np.meshgrid(np.linspace(-RIB_OUTER, RIB_OUTER, 27), np.linspace(-0.030, RIB_TOPS[0][0], 8))
+    return -(float(bd(gs, gz).min()) - RIB_PROUD), bd
+
+
 def build_nose_ribs(gp=None, skin_G=None):
-    """The nose-bridge comb (frame plastic) and its closed slots. On him (skin_G, GOGGLE frame) the flexible ribs
-    give way to his nose: each column of the comb stops 0.5 mm short of his skin, and columns his nose fills are
-    left out (the comb bends flat there; behind the mirror lens nothing of it shows)."""
+    """The nose-bridge comb (frame plastic). On him (skin_G, GOGGLE frame) the flexible tongues give way to his
+    nose: the comb is cut 0.5 mm short of his skin (rib_clear per column of s; the cut outline is the level line of
+    the comb's signed distance and the clearance), and parts his nose fills are left out (the comb bends flat
+    there; behind the mirror lens nothing of it shows)."""
     gp = gp or GP
     L = LensSurface(gp)
-    base = rib_base(gp)
-    bd = bridge_depth(gp)
-
-    gs, gz = np.meshgrid(np.linspace(-RIB_LOBE[1], RIB_LOBE[1], 25), np.linspace(-0.030, RIB_FINGERS[0][2], 8))
-    off_f = -(float(bd(gs, gz).min()) - RIB_PROUD)
+    off_f, bd = rib_front(gp)
 
     def front(P2):
         return np.full(len(P2), off_f)
 
     def back(P2):
         return -(bd(P2[:, 0], P2[:, 1]) + RIB_SINK)
-    s = np.round(np.arange(-RIB_LOBE[1], RIB_LOBE[1] + 1e-9, 0.00025), 6)
-    top = rib_top(s)
+    loop, corners = rib_outline(gp)
+    polys = [rib_dense(rib_fillet(loop, corners, RIB_CORNER))]
     if skin_G is not None:
-        top = np.minimum(top, rib_clear(L, s, skin_G, lambda s_, z_: float(bd(s_, z_)) + RIB_SINK))
-    ok = np.isfinite(top) & (top > base(s) + 0.0008)
+        s = np.round(np.arange(-RIB_OUTER, RIB_OUTER + 1e-9, 0.00025), 6)
+        clear = rib_clear(L, s, skin_G, lambda s_, z_: float(bd(s_, z_)) + RIB_SINK)
+        polys = rib_cut(polys[0], s, clear)
     g = H.Part("goggle_noseribs")
-    runs = np.split(np.arange(len(s)), np.nonzero(np.diff(ok.astype(int)))[0] + 1)
-    for r in runs:
-        if not ok[r[0]] or len(r) < 3:
-            continue
-        poly = np.vstack([np.c_[s[r], top[r]], np.c_[s[r][::-1], base(s[r][::-1])]])
+    for poly in polys:
         # the edge strip dark: the slots read as gaps onto the black bridge, as in iso55
         closed_sheet(g, L, poly, front, back, "goggle_frame", "goggle_frame", "goggle_foam")
-    # the closed slots: dark through-cuts drawn on both faces of each lobe that is still there
-    c, hw, zb, zt = RIB_CLOSED
-    for sg in (-1.0, 1.0):
-        ss = sg * np.array([c - hw, c + hw, c + hw, c - hw])
-        zz = np.array([zb, zb, zt, zt])
-        if not np.all(np.interp(ss, s, np.where(ok, top, -1.0)) > zt + 0.001):
-            continue
-        dd = bd(ss, zz)
-        for off, rev in ((np.full(4, off_f + 0.0001), sg < 0), (-(dd + RIB_SINK + 0.0001), sg > 0)):
-            V = L.point(ss, zz, off)[0]
-            f = [0, 1, 2, 3] if rev else [3, 2, 1, 0]
-            g.add(V, [f], "goggle_noseguard", [[(0.0, 0.0)] * 4])
     return g
+
+
+def rib_cut(poly, s, clear, h=0.0001):
+    """The parts of the (s, z) loop poly under clear(s) (rib_clear's columns), as loops: the zero level line of
+    min(signed distance to poly, clear - z) on an h grid (contourpy). Parts under 0.8 mm across are dropped."""
+    import contourpy
+    from matplotlib.path import Path
+    lo, hi = poly.min(0) - 0.001, poly.max(0) + 0.001
+    S, Z = np.meshgrid(np.arange(lo[0], hi[0], h), np.arange(lo[1], hi[1], h))
+    P = np.c_[S.ravel(), Z.ravel()]
+    A, B = poly, np.roll(poly, -1, 0)
+    d = np.full(len(P), np.inf)
+    for k in range(0, len(A), 64):
+        a, e = A[k:k + 64], B[k:k + 64] - A[k:k + 64]
+        t = np.clip(((P[:, None] - a[None]) * e[None]).sum(-1) / np.maximum((e * e).sum(-1), 1e-18)[None], 0, 1)
+        d = np.minimum(d, np.linalg.norm(P[:, None] - a[None] - t[..., None] * e[None], axis=-1).min(1))
+    d = np.where(Path(poly).contains_points(P), d, -d)
+    c = np.interp(P[:, 0], s, np.where(np.isfinite(clear), clear, np.where(clear > 0, 1.0, -1.0)))
+    F = np.minimum(d, c - P[:, 1]).reshape(S.shape)
+    lines = contourpy.contour_generator(S, Z, F).lines(0.0)
+    out = []
+    for ln in lines:
+        ln = ln[:-1]
+        if len(ln) > 8 and np.ptp(ln[:, 0]) > 0.0008 and np.ptp(ln[:, 1]) > 0.0008:
+            area = np.sum(ln[:, 0] * np.roll(ln[:, 1], -1) - np.roll(ln[:, 0], -1) * ln[:, 1])
+            out.append(ln[::-1] if area > 0 else ln)          # clockwise, as rib_outline's
+    return out
+
+
+def rib_dense(P, h=0.00025):
+    """The closed loop P with no edge longer than h: sheet's Delaunay then keeps to the outline along the slots'
+    long straight sides."""
+    out = []
+    for a, b in zip(P, np.roll(P, -1, 0)):
+        n = max(1, int(np.ceil(np.linalg.norm(b - a) / h)))
+        out += [a + (b - a) * k / n for k in range(n)]
+    return np.array(out)
 
 
 # ---------------------------------------------------------------- placement, face foam, assembly
@@ -2203,6 +2390,9 @@ MATERIALS = {
     "goggle_frame": dict(rgb=[150, 0, 58], rough=0.05),
     "goggle_logo": dict(rgb=[236, 236, 238], rough=0.4),                   # printed white (MY27 kit views)
     "goggle_vent": dict(rgb=[16, 16, 18], rough=0.95),                      # foam-backed slots
+    "goggle_chassis": dict(rgb=[14, 14, 16], rough=0.05),                   # round 10: the black inner moulding
+    "goggle_slot": dict(rgb=[3, 3, 4], rough=0.9, spec=0.0),                # round 10: inside the clip slots
+                                                                            # (the plates' black and gloss)
     "goggle_foam": dict(rgb=[40, 40, 44], rough=0.95, sheen=0.6),
     "goggle_noseguard": dict(rgb=[30, 30, 32], rough=0.6),
     "goggle_post": dict(rgb=[20, 20, 22], rough=0.35),
@@ -2225,7 +2415,7 @@ MATERIALS["goggle_strap"] = dict(image="goggle_strap_print.jpg", normal="goggle_
                                  sheen=0.12, spec=0.25,
                                  detail=dict(image="goggle_strap_weave.png", mask="goggle_strap_mask.png",
                                              repeat=(0.645 * 1000.0 / 19.0, 1.0),    # SA.STRAP_LEN_UV / SA.TILE_MM
-                                             bump_strength=0.3))
+                                             bump_strength=0.35))
 MATERIALS["goggle_strap_rim"] = dict(image="goggle_strap_print.jpg", rough=0.85, sheen=0.12, spec=0.25)
 # the silicone band inside the strap (translucent grey rubber, never seen worn)
 MATERIALS["goggle_silicone"] = dict(rgb=[150, 150, 152], rough=0.5)

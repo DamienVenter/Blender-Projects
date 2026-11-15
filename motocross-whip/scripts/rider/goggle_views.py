@@ -69,6 +69,21 @@ LENS_VLT = float(os.environ.get("GOGGLE_VIEWS_LENS_VLT", "0") or 0)             
 STRAP_TEX = os.environ.get("GOGGLE_VIEWS_STRAP_TEX", "")
 SLIDE_RGB = [int(v) for v in os.environ.get("GOGGLE_VIEWS_SLIDE_RGB", "").split(",") if v]
 DENOISE = os.environ.get("GOGGLE_VIEWS_DENOISE", "1") != "0"     # round 9: 0 for 1:1 crops of the strap's weave
+# round 10, decision 46 (the render look, as the bike's): Standard for the studio comparisons with Leatt's photos (plain
+# AgX read pale in every sheet: the strap a third less saturated than both photos), AgX - Punchy 0.6 EV under the
+# photos' exposure in daylight. GOGGLE_VIEWS_LOOK=agx: rounds 4 to 9's plain AgX
+LOOK = os.environ.get("GOGGLE_VIEWS_LOOK", "d46")
+STUDIO_EV = float(os.environ.get("GOGGLE_VIEWS_STUDIO_EV", "0.0"))
+# round 10, the weave's shimmer test (two frames of a whip-distance view): GOGGLE_VIEWS_SEED the sampling seed (the
+# animation's seed changes every frame), GOGGLE_VIEWS_CAM_MM "dx,dy,dz" the camera moved along its own right, up and
+# back axes (mm), GOGGLE_VIEWS_NO_DETAIL 1 the build without the weave tile, GOGGLE_VIEWS_WEAVE_TEX another tile
+# (path), GOGGLE_VIEWS_BUMP its relief's bump strength, GOGGLE_VIEWS_MASK "mat,mat" a mask render (those materials
+# white, the rest black, no lights)
+SEED = int(os.environ.get("GOGGLE_VIEWS_SEED", "0"))
+CAM_MM = [float(v) for v in os.environ.get("GOGGLE_VIEWS_CAM_MM", "0,0,0").split(",")]
+NO_DETAIL = os.environ.get("GOGGLE_VIEWS_NO_DETAIL", "0") != "0"
+WEAVE_TEX = os.environ.get("GOGGLE_VIEWS_WEAVE_TEX", "")
+MASK = [m for m in os.environ.get("GOGGLE_VIEWS_MASK", "").split(",") if m]
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -82,7 +97,13 @@ def material(name, spec):
     m.use_nodes = True
     nt = m.node_tree
     p = nt.nodes["Principled BSDF"]
-    if "thin_vlt" in spec:                         # round 7: one face of a see-through lens (LENS_VLT)
+    if MASK:                                       # round 10: a mask render (the shimmer test's strap pixels)
+        nt.nodes.remove(p)
+        em = nt.nodes.new("ShaderNodeEmission")
+        em.inputs["Color"].default_value = (1, 1, 1, 1) if name in MASK else (0, 0, 0, 1)
+        nt.links.new(em.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+        return m
+    if "thin_vlt" in spec:                        # round 7: one face of a see-through lens (LENS_VLT)
         nt.nodes.remove(p)
         # Fresnel from outside the plastic on both faces: the see-through does not bend the ray, so on a back face
         # the Fresnel node's own inside view (IOR 1/1.5) gave total internal reflection past 42 deg, and the lens
@@ -160,6 +181,13 @@ def load(path):
                 spec[m] = dict(spec[m], image=STRAP_TEX)
     if SLIDE_RGB and "goggle_slide" in spec:
         spec["goggle_slide"] = dict(spec["goggle_slide"], rgb=SLIDE_RGB)
+    for m in [m for m in spec if "detail" in spec[m]]:
+        if NO_DETAIL:
+            spec[m] = {k: v for k, v in spec[m].items() if k != "detail"}
+        elif WEAVE_TEX:
+            spec[m] = dict(spec[m], detail=dict(spec[m]["detail"], image=WEAVE_TEX))
+        if os.environ.get("GOGGLE_VIEWS_BUMP") and not NO_DETAIL:              # the weave relief's strength
+            spec[m]["detail"] = dict(spec[m]["detail"], bump_strength=float(os.environ["GOGGLE_VIEWS_BUMP"]))
     mats = [str(m) for m in g["mats"]]
     bm = {m: material(m, spec.get(m, {})) for m in mats}
     for name in [str(n) for n in g["names"]]:
@@ -186,15 +214,19 @@ def studio(sc):
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = DENOISE
     sc.view_settings.view_transform = "AgX"
+    if LOOK == "d46":
+        vs = sc.view_settings
+        vs.view_transform, vs.look, vs.exposure = "Standard", "None", STUDIO_EV
     w = bpy.data.worlds.new("w")
     sc.world = w
     w.use_nodes = True
     nt = w.node_tree
-    # the backdrop seen by the camera is Leatt's light grey (236/255: strength 5.0 renders about 234 under AgX); the
-    # light it casts is kept low so the frame keeps its colour (a bright world washed the pink out)
+    # the backdrop seen by the camera is Leatt's light grey (236/255: strength 5.0 renders about 234 under AgX; under
+    # Standard 236 is linear 0.839, so 1.0 at 0 EV); the light it casts is kept low so the frame keeps its colour (a
+    # bright world washed the pink out)
     bg = nt.nodes["Background"]
     bg.inputs["Color"].default_value = (0.84, 0.84, 0.84, 1)
-    bg.inputs["Strength"].default_value = 5.0
+    bg.inputs["Strength"].default_value = 5.0 if LOOK != "d46" else 0.839 / 0.84 / 2.0 ** STUDIO_EV
     amb = nt.nodes.new("ShaderNodeBackground")
     amb.inputs["Color"].default_value = (0.84, 0.84, 0.84, 1)
     amb.inputs["Strength"].default_value = 0.25
@@ -262,7 +294,7 @@ def camera(sc, name, x, W, H, offset=(0.0, 0.0, 0.0)):
     r = math.radians(roll)
     right, up = right * math.cos(r) + up * math.sin(r), up * math.cos(r) - right * math.sin(r)
     M = Matrix((right, up, -fwd)).transposed().to_4x4()
-    M.translation = C
+    M.translation = C + (right * CAM_MM[0] + up * CAM_MM[1] - fwd * CAM_MM[2]) / 1000.0
     cam = bpy.data.objects.new("cam_" + name, bpy.data.cameras.new("cam_" + name))
     cam.data.sensor_fit = "HORIZONTAL"
     cam.data.sensor_width = 36.0
@@ -282,6 +314,9 @@ def daylight(sc):
     a flat ground colour, AgX at +2.0 EV. The sun is aimed per camera by its "sun": [phi, theta] (day_sun)."""
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.exposure = DAY_EXPOSURE
+    if LOOK == "d46":                              # decision 46: AgX - Punchy, 0.6 EV down
+        sc.view_settings.look = "AgX - Punchy"
+        sc.view_settings.exposure = DAY_EXPOSURE - 0.6
     for o in [o for o in sc.objects if o.type == "LIGHT"]:
         bpy.data.objects.remove(o)
     w = bpy.data.worlds.new("daylight")
@@ -337,11 +372,25 @@ def main():
     sc = bpy.context.scene
     load(NPZ)
     studio(sc)
+    sc.cycles.seed = SEED
     day = None
-    if LIGHT == "daylight":
+    if MASK:                                       # no lights, a black world: only the emission
+        for o in [o for o in sc.objects if o.type == "LIGHT"]:
+            bpy.data.objects.remove(o)
+        KEYS.clear()
+        for n in sc.world.node_tree.nodes:
+            if n.type == "BACKGROUND":
+                n.inputs["Strength"].default_value = 0.0
+        sc.view_settings.view_transform, sc.view_settings.look, sc.view_settings.exposure = "Standard", "None", 0.0
+        sc.cycles.use_denoising = False
+    elif LIGHT == "daylight":
         day = daylight(sc)
     elif LIGHT != "studio":
         rake(sc, LIGHT)
+    print("CYCLES samples %d adaptive %s %.3f denoise %s %s seed %d look %s %s %.2f" % (
+        sc.cycles.samples, sc.cycles.use_adaptive_sampling, sc.cycles.adaptive_threshold, sc.cycles.use_denoising,
+        sc.cycles.denoiser, sc.cycles.seed, sc.view_settings.view_transform, sc.view_settings.look,
+        sc.view_settings.exposure))
     for name in NAMES:
         s = SPEC[name]
         camera(sc, name, s["x"], s["W"], s["H"], s.get("offset", (0.0, 0.0, 0.0)))

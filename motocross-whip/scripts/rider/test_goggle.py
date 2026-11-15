@@ -145,10 +145,10 @@ def test_round5_offsets_teeth_and_nose_ribs():
     assert -1e-9 <= drop.min() and drop.max() < 0.0025 and drop[top & (s > 0.07) & (s < 0.0795)].max() > 0.001
     r = G.build_nose_ribs()
     assert abs(r.V[:, 0].min() + r.V[:, 0].max()) < 1e-6                   # symmetric
-    tips = [z for s_, w, z in G.RIB_FINGERS]
+    tips = [z for z, _ in G.RIB_TOPS]                                       # the fingers' tops
     assert all(-0.019 < z < -0.016 for z in tips)
     assert r.V[:, 2].max() < edge_z(Co, 0.0, False) + 0.020                # under the frame's top band, at the nose
-    assert {"goggle_frame", "goggle_foam", "goggle_noseguard"} <= set(r.M)
+    assert {"goggle_frame", "goggle_foam"} <= set(r.M)                     # round 10: no closed slots (noseguard)
 
 
 def crossings(P):
@@ -617,6 +617,139 @@ def test_round9_woven_strap_scale(built):
     assert abs(tile - SA.TILE_MM) < 0.3, tile
     r = ds / du / SA.STRAP_LEN_UV
     assert 0.95 < r.min() and r.max() < 1.05, (r.min(), r.max())
+
+
+def test_round10_strap_weave_band_limited():
+    """Round 10 (decision 48): round 9's weave read as glitter (his 07 at 4x, the Pinata iso-right at 1:1, brightest
+    on the teal end) and changed the strap 1.7 times as much as no weave between two frames at whip distance. The
+    tile now holds nothing finer than the photos' crosshatch: in the body under 3 % of the relief's variance and
+    under 6 % of the albedo's at wavelengths below 0.5 mm (round 9: 17 % and 30 %, fibre flecks and loop rows 0.45
+    mm apart, 2 px in the Pinata view); the albedo factor stays within 0.3 to 1.4 (round 9: 0.15 to 2.2, so 40 % of
+    the brightest print's texels reflected more than all the light); the shader caps the albedo at 0.9 and fades the
+    tile by the pixel's footprint (gone by 0.5 mm a pixel: the whip view is 2.7 mm), its blue channel the coarse
+    relief that stays longer."""
+    import goggle_strap_art as SA
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(H.TEXDIR, "goggle_strap_weave.png")).convert("RGB"), float) / 255.0
+    ny, nx = a.shape[:2]
+    mm_x, mm_y = SA.TILE_MM / nx, SA.W_MM / ny
+    body = a[int(ny * 0.3):int(ny * 0.7)]
+    fy = np.fft.fftfreq(body.shape[0], mm_y)[:, None]
+    fx = np.fft.fftfreq(body.shape[1], mm_x)[None, :]
+    short = np.hypot(fx, fy) > 2.0                                     # cycles a mm: under 0.5 mm
+    share = []
+    for c in (0, 1):
+        P = np.abs(np.fft.fft2(body[..., c] - body[..., c].mean())) ** 2
+        share.append(P[short].sum() / P.sum())
+    assert share[0] < 0.03 and share[1] < 0.06, share
+    g = a[..., 1] * SA.ALB_MAX
+    assert 0.3 <= g.min() and g.max() <= 1.4, (g.min(), g.max())
+    assert body[..., 2].std() > 0.01                                   # the coarse relief
+    assert SA.ALB_CAP <= 0.9
+    assert SA.FADE_FINE[0] < SA.FADE_FINE[1] <= 0.5 and SA.FADE_COARSE[1] <= 1.0
+    assert SA.WAVE_MM / SA.FADE_FINE[0] >= 2.5                         # the crosshatch full only at 2.5 px a period
+
+
+def test_round10_plate_tapers_with_chamfered_back_corners():
+    """Round 10 item 2: Leatt's plate (his goggle photos, iso55 and phr) narrows from 63.5 mm at the frame to about
+    50 mm at its back and its back corners are cut at 45 deg (2 mm top, 3 mm bottom); round 9's was 63.5 to 58.7 mm
+    with square corners (plate edges 1.7 / 2.7 mm rms off Leatt's in iso55, now 1.1 / 1.5)."""
+    for sg, (Go, Gi, anchor) in G.outrigger_grids().items():
+        h = np.linalg.norm(Go[:, -1] - Go[:, 0], axis=1) * 1000
+        mid = 0.5 * (Go[:, -1] + Go[:, 0])
+        back = np.linalg.norm(mid - mid[-1], axis=1) * 1000
+        assert 60.0 < h[0] < 66.0, (sg, h[0])
+        assert 10.0 < h[0] - h[-1] < 16.0, (sg, h[0], h[-1])               # the taper and the cut corners
+        h3 = float(np.interp(3.0, back[::-1], h[::-1]))
+        assert h3 - h[-1] > 4.0, (sg, h3, h[-1])                           # cut in the last 3 mm, not a taper
+
+
+def test_round10_chassis_band_has_two_clip_slots_a_side():
+    """Round 10 item 3: in Leatt's ISO (every colourway) the frame's side round the lens is a black band (the
+    chassis that carries the plates) with two clip slots in it, above and below the post, near black inside (L 1 to
+    3 against the face's 18 to 23). Round 9 drew that band in the frame's colour with no slots. Per side: chassis
+    faces on the side walls, and two pockets whose floors (goggle_slot) lie within Leatt's slot heights, at least
+    1.2 mm into the moulding, above the lens front and inside the frame's cross-section."""
+    from matplotlib.path import Path
+    fr, info = G.build_frame()
+    V = np.asarray(fr.V)
+    cen = {m: np.array([V[f].mean(0) for f, mm in zip(fr.F, fr.M) if mm == m]) for m in ("goggle_chassis",
+                                                                                         "goggle_slot")}
+    assert len(cen["goggle_chassis"]) > 100 and np.abs(cen["goggle_chassis"][:, 0]).min() > 0.06   # the sides only
+    rings, _ = G.frame_rings()
+    R = np.stack(rings, 1)
+    L = info["L"]
+    mouth = cKDTree(np.vstack([rings[0] + (rings[1] - rings[0]) * t for t in np.linspace(0, 1, 11)]))
+    fl = [f for f, mm in zip(fr.F, fr.M) if mm == "goggle_slot"]
+    for sg in (1, -1):
+        z = np.array([V[f].mean(0)[2] for f in fl])
+        x = np.array([V[f].mean(0)[0] for f in fl])
+        for z0, z1 in ((0.0060, 0.0200), (-0.0290, -0.0155)):
+            sel = (np.sign(x) == sg) & (z > z0) & (z < z1)
+            assert sel.sum() >= 6, (sg, z0, sel.sum())
+            P = V[sorted({i for f, s_ in zip(fl, sel) if s_ for i in f})]
+            assert np.ptp(P[:, 2]) > 0.008                                  # 9 to 13 mm tall, as Leatt's
+            P = P[mouth.query(P)[0] > 0.001]                                # the floor (not the mouth's edges)
+            assert len(P) >= 8
+            for p in P[::3]:
+                i = int(np.argmin(np.linalg.norm(R[:, 0] - p, axis=1)))
+                t = R[(i + 1) % len(R), 0] - R[i - 1, 0]
+                t /= np.linalg.norm(t)
+                e1 = np.cross(t, [1.0, 0.0, 0.0] if abs(t[2]) > 0.9 else [0.0, 0.0, 1.0])
+                e1 /= np.linalg.norm(e1)
+                e2 = np.cross(t, e1)
+                assert Path(np.c_[(R[i] - p) @ e1, (R[i] - p) @ e2]).contains_point((0.0, 0.0))
+    # the floors are the pockets' bottoms: 1.2 mm or more from the mouth (gap a's face), and above the lens
+    fv = np.array(sorted({i for f, mm in zip(fr.F, fr.M) if mm == "goggle_slot" for i in f}))
+    d = mouth.query(V[fv])[0]
+    assert np.median(d[d > 0.001]) > 0.0012, np.median(d[d > 0.001])
+    from scipy import optimize
+    for p in V[fv[d > 0.001]][::7]:
+        off = optimize.least_squares(lambda q: L.point(np.array([q[0]]), np.array([q[1]]), q[2])[0][0] - p,
+                                     [np.sign(p[0]) * 0.09, p[2], 0.0]).x[2]
+        assert off > 0.0001, off
+
+
+def comb_runs(part, z, step=0.00005):
+    """The x runs (m) the comb's sheets cover along the row z (front view: x his left, z up)."""
+    V = np.asarray(part.V)
+    T = np.array([[f[0], f[i], f[i + 1]] for f, m in zip(part.F, part.M) if m == "goggle_frame"
+                  for i in range(1, len(f) - 1)])
+    A, B, C = (V[T[:, k]][:, [0, 2]] for k in range(3))
+    keep = (np.minimum(np.minimum(A[:, 1], B[:, 1]), C[:, 1]) <= z) & (np.maximum(np.maximum(A[:, 1], B[:, 1]),
+                                                                                 C[:, 1]) >= z)
+    A, B, C = A[keep], B[keep], C[keep]
+    xs = np.arange(-0.045, 0.045, step)
+    P = np.c_[xs, np.full_like(xs, z)][:, None]
+    d = (B[:, 1] - C[:, 1]) * (A[:, 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (A[:, 1] - C[:, 1])
+    l1 = ((B[:, 1] - C[:, 1]) * (P[..., 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (P[..., 1] - C[:, 1])) / d
+    l2 = ((C[:, 1] - A[:, 1]) * (P[..., 0] - C[:, 0]) + (A[:, 0] - C[:, 0]) * (P[..., 1] - C[:, 1])) / d
+    inn = ((l1 >= -1e-9) & (l2 >= -1e-9) & (l1 + l2 <= 1 + 1e-9)).any(1)
+    idx = np.nonzero(inn)[0]
+    return [(xs[r[0]], xs[r[-1]]) for r in np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1) if len(r)]
+
+
+def test_round10_comb_has_seven_leaning_tongues():
+    """Round 10 item 4: Leatt's comb (phr and iso55 through his see-through lenses, phr at 3x) has seven tongues: an
+    outer lobe, two fingers a side and the centre finger, the slots between them leaning outward at the top (the
+    inner pair 0.15 to 0.27, the next 0.64 to 0.73 mm a mm in both views), the lobe 5 to 6 mm lower than the finger
+    beside it, behind a wedge-shaped slot open at its top. Round 9's had five upright tongues and a closed slot in
+    each lobe."""
+    r = G.build_nose_ribs()
+    runs = comb_runs(r, -0.0240)
+    assert len(runs) == 7, [(round(a * 1000, 1), round(b * 1000, 1)) for a, b in runs]
+    hi = [b for a, b in runs if b > 0]                    # his left: the gaps' inner edges (each tongue's outer end)
+    lo_ = [comb_runs(r, z) for z in (-0.0220, -0.0240)]
+    # each gap on his left moves outward going up: compare the tongues' outer ends at z -22 and -24 mm
+    ends = [sorted(b for a, b in rr if b > 0.001) for rr in lo_]
+    assert len(ends[0]) >= 3 and len(ends[1]) >= 3, ends
+    lean = [(ends[0][k] - ends[1][k]) / 0.002 for k in range(2)]
+    assert 0.1 < lean[0] < 0.4 and 0.5 < lean[1] < 0.9, lean           # mm a mm: the inner and the next gap
+    V = np.asarray(r.V)
+    top = lambda a, b: V[(V[:, 0] > a) & (V[:, 0] < b), 2].max()       # noqa: E731
+    finger, lobe = top(0.017, 0.026), top(0.029, 0.042)
+    assert 0.004 < finger - lobe < 0.007, (finger, lobe)
+    assert abs(V[:, 0].min() + V[:, 0].max()) < 1e-6 and hi                               # symmetric
 
 
 def test_frame_width_and_wrap():
