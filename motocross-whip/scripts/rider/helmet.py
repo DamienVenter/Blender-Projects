@@ -2078,6 +2078,9 @@ MATERIALS = {
     "helmet_cap_letters": dict(rgb=[22, 21, 23], rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     # the brow tag's rim (Pinata iso-left: light grey, lit to 184 188 194 beside its dark centre): bright metal-look
     "helmet_tag_rim": dict(rgb=[168, 171, 176], rough=0.3, metal=0.7),
+    # the brow's recess round its tag (round 5, decision 56): the brow's own black, the print's black ink under the
+    # paint's clear coat (helmet_art.json, helmet_paint)
+    "helmet_brow_moulding": dict(rgb=[22, 21, 23], rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),
     # the eye port (phase 2, decision 51; helmet_detail's tables): the grip panels' moulded rubber, dark grey with its
     # triangle relief (Pinata iso-left: the flat cells' mid grey 76 73 77 beside the white paint's 185 186 190, de-lit

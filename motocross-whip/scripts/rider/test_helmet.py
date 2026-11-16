@@ -193,7 +193,7 @@ def test_vents_are_moulded_away_from_the_front(built):
             cap[f] = True
     assert cKDTree(V[~cap]).query(V[~cap] * [-1, 1, 1])[0].max() < 1e-6
     assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_BEVEL,
-                        D.MAT_GRIP_GROOVE, D.MAT_FRAME, D.MAT_TAG, D.MAT_CAP}
+                        D.MAT_GRIP_GROOVE, D.MAT_FRAME, D.MAT_TAG, D.MAT_CAP, D.MAT_BROW}
     Vo, Fo, _ = H.shell_outer()
     h = surface_height(V, Vo, Fo)                       # height above the shell
     rim = D.mouth_rim_xz()
@@ -985,6 +985,54 @@ def test_brow_vents_and_tag(built):
     assert len(wires) >= 20
     h = surface_height(np.vstack([p[0] for p in wires]), Vo, Fo)
     assert h.min() > -D.SINK - 0.0004, f"brow wires {1000 * h.min():.2f} mm under the shell"
+
+
+def _turns(P):
+    """The turn at each point of a closed loop, deg."""
+    a, b = P - np.roll(P, 1, 0), np.roll(P, -1, 0) - P
+    c = np.sum(a * b, 1) / (np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1))
+    return np.degrees(np.arccos(np.clip(c, -1, 1)))
+
+
+def test_brow_vents_keep_their_corners():
+    """Round 5 (decision 56; the coordinator's 1:1 review: Leatt's brow vents are angular, ours rounded). Retraced at
+    4x, the centre vent ends at its divider in a straight slant and the side vent is a slanted parallelogram tipped
+    at (993, 706) px; their loops keep the traced corners. On the shell the centre loop turns 140 deg or more at the
+    slant's lower corner each side, the side loop 140 deg or more at its tip, each at one point (now 151 and 153;
+    main: corners rounded about 4 px and resampled through, its sharpest turns 101 and 120 deg)."""
+    import helmet_detail as D
+    Vo, Fo, _ = H.shell_outer()
+    (P, _), (Q, _) = D.brow_vent_loops(D.ExactShell(Vo, Fo))
+    t = _turns(P)
+    t = np.sort(t[np.isfinite(t)])[::-1]
+    assert t[1] >= 140.0, f"the centre vent's corners turn {t[0]:.0f} and {t[1]:.0f} deg"
+    t = _turns(Q)
+    assert np.nanmax(t) >= 140.0, f"the side vent's tip turns {np.nanmax(t):.0f} deg"
+
+
+def test_brow_tag_sits_in_its_recess(built):
+    """Round 5 (decision 56; the 1:1 review: Leatt's tag sits in a recess, ours stood on the plain moulding).
+    Pinata iso-left at 5x: round the tag's rim a dark groove about 1.5 px, then a lit bevel about 2 px up to the
+    brow's surface. Round each tag a groove (MAT_DARK) 0.25 mm or less over the shell, the brow's own moulding
+    (MAT_BROW) round it up to a surround standing above the tag's top (main: no recess; the tag 1 mm proud)."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    Vo, Fo, _ = H.shell_outer()
+    assert hasattr(D, "MAT_BROW") and D.MAT_BROW in P.M, "no recess round the tag (main: none)"
+    vs = {m: np.unique(np.concatenate([f for f, mm in zip(P.F, P.M) if mm == m])) for m in (D.MAT_TAG, D.MAT_DARK,
+                                                                                            D.MAT_BROW)}
+    for sgn in (1.0, -1.0):
+        tag = vs[D.MAT_TAG][sgn * V[vs[D.MAT_TAG], 0] > 0]
+        lo, hi = V[tag].min(0) - 0.003, V[tag].max(0) + 0.003
+        near = lambda k: k[np.all((V[k] > lo) & (V[k] < hi), 1)]
+        bro, dark = near(vs[D.MAT_BROW]), near(vs[D.MAT_DARK])
+        assert len(bro) and len(dark)
+        h = lambda k: surface_height(V[k], Vo, Fo)
+        assert h(dark).min() < 0.00025, f"groove {1000 * h(dark).min():.2f} mm over the shell"
+        assert h(tag).max() < h(bro).max(), f"tag {1000 * h(tag).max():.2f} mm, surround {1000 * h(bro).max():.2f}"
+        assert np.all(V[bro].min(0)[[1, 2]] < V[tag].min(0)[[1, 2]]) and np.all(V[bro].max(0)[[1, 2]] >
+                                                                                 V[tag].max(0)[[1, 2]])
 
 
 def test_visor_rear_lip_is_crisp(built):

@@ -950,12 +950,12 @@ def sym_loop(shell, px):
     open line from the centre line round to the centre line; its ends are carried across to the centre plane). Read
     as a closed loop, its closing segment down the traced centre (which the iso-left camera puts 8 to 10 mm off the
     model's at the brow) cut a notch 16 mm wide into the brow vent's lower edge."""
-    uv = H.resample_open(np.asarray(px, float), 3.0)
+    uv = _resample_open_keep(np.asarray(px, float), 3.0)   # round 5: the trace's corners kept (angular vents)
     P, _ = cast_any(shell, "isoleft", uv)
     P = P[P[:, 0] > 0.002]
     ends = [P[0] * [0, 1, 1], P[-1] * [0, 1, 1]]
     L = np.vstack([ends[0], P, ends[1], (P * [-1, 1, 1])[::-1]])
-    return shell.snap(resample_loop(L, 0.0015))        # points along the straight edges carried to the centre too
+    return shell.snap(_resample_closed(L, 0.0015))     # points along the straight edges carried to the centre too
 
 
 def front_cast(shell, xz):
@@ -1352,10 +1352,37 @@ def _resample_closed(P, step):
     return np.vstack(out)
 
 
-def vent_pieces(shell, P, N, rim_w, rim_h, rim_mat=MAT_FRAME, mesh=None):
+def _resample_open_keep(P, step):
+    """An open polyline with points at most step apart (its own points kept: corners stay sharp)."""
+    out = [P[:1]]
+    for a, b in zip(P[:-1], P[1:]):
+        k = max(1, int(np.ceil(np.linalg.norm(b - a) / step)))
+        out.append(a + (b - a) * (np.arange(1, k + 1) / k)[:, None])
+    return np.vstack(out)
+
+
+def mitred_outward(P, N, most=3.0):
+    """outward(P, N) where the loop runs straight; at a corner the bisector of its two sides' normals, long enough
+    that an offset along it keeps both sides parallel (a mitre: the rim's outer edge keeps the corner), at most most
+    times."""
+    o = outward(P, N)
+    a, b = P - np.roll(P, 1, 0), np.roll(P, -1, 0) - P
+    na, nb = np.cross(a, N), np.cross(b, N)
+    la, lb = np.linalg.norm(na, axis=1), np.linalg.norm(nb, axis=1)
+    ok = (la > 1e-9) & (lb > 1e-9)
+    na, nb = na / np.maximum(la, 1e-12)[:, None], nb / np.maximum(lb, 1e-12)[:, None]
+    na *= np.sign((na * o).sum(1))[:, None]
+    nb *= np.sign((nb * o).sum(1))[:, None]
+    m = na + nb
+    m /= np.maximum(np.linalg.norm(m, axis=1), 1e-12)[:, None]
+    m /= np.clip((m * na).sum(1), 1.0 / most, 1.0)[:, None]
+    return np.where(ok[:, None], m, o)
+
+
+def vent_pieces(shell, P, N, rim_w, rim_h, rim_mat=MAT_FRAME, mesh=None, mitre=False):
     """A vent's rim (rim_mat), dark floor (MAT_DARK) and wire mesh (MAT_MESH; mesh: its pitch, wire width and angle,
-    else the rear slots') round its loop P on the shell."""
-    Q, NQ = shell.snap(P + outward(P, N) * rim_w)
+    else the rear slots') round its loop P on the shell; mitre: the rim's outer edge keeps the loop's corners."""
+    Q, NQ = shell.snap(P + (mitred_outward(P, N) if mitre else outward(P, N)) * rim_w)
     V, F = plate(P, N, Q, NQ, rim_h)
     out = [(V, F, [rim_mat] * len(F))]
     Vc, Fc = cap(P, N, MOUTH_FLOOR_H, shell)
@@ -1398,15 +1425,29 @@ def side_vents(shell):
 # the rim's top corner is at 690 px, under the brow's lower edge; read again at 3x beside the render). At 3x the
 # photo's silver rim is about 10 px wide of the outline's 57 across (its dark centre 0.55 of the outline) and its
 # corners are rounded about 4 px (the first build: sharp corners, a rim half as wide).
+# Round 5 (decision 56; the coordinator's 1:1 review: Leatt's vents angular where ours were rounded, the tag dull with
+# no recess, the brow one dark moulding where Leatt's has lit facets and a lit lower edge). Retraced at 4x with a grid
+# (scratch k5d): the centre vent's mesh ends at the divider in a straight slant from (753, 631) to (785, 667), the side
+# vent is a slanted parallelogram with its tip at (993, 706). The loops keep their traced corners (sampled along each
+# side) and the rim's outer edge is mitred there (main: resampled through the corners and offset along the loop's
+# normals, its ends rounded about 1.7 mm). The tag sits in a recess (Pinata iso-left at 5x: a dark groove about 1.5 px
+# round its rim, then a lit bevel about 2 px): BROW_RECESS scales its outline about its centre for the groove's outer
+# edge, the bevel's top, the surround's top and the surround's foot, where it runs into the shell (BROW_RECESS_H: the
+# groove's floor and the surround's top over the shell; the tag's top 0.1 mm under the surround's), all but the tag
+# and the groove in the brow's own black under the clear coat (MAT_BROW). The side vent's lower edge stays phase 2's
+# (Leatt's runs 15 px lower at its left end, below the shell's port edge: our brow ends at the port 25 to 40 px, 5 to
+# 8 mm, above Leatt's lit lower edge under the side vent; its lower lip band and the brow's lit facets are round 6).
 BROW_VENTS_PX = [
-    [(663, 625), (720, 630), (765, 638), (782, 655), (762, 668), (700, 665), (663, 664)],      # centre: its left half
-    [(843, 652), (880, 657), (920, 664), (960, 676), (988, 690), (992, 704), (960, 697), (920, 686), (880, 676),
-     (850, 670)]]
+    [(663, 625), (720, 630), (753, 631), (785, 667), (700, 665), (663, 664)],      # centre: its left half
+    [(843, 652), (946, 664), (993, 706), (960, 697), (920, 686), (880, 676), (850, 670)]]
 BROW_RIM_W, BROW_RIM_H = 0.0015, 0.0010
 BROW_TAG_PX = [(1083, 690), (1112, 729), (1060, 734)]        # its rim's corners (3x)
 BROW_TAG_ROUND, BROW_TAG_IN = 4.0, 0.55     # corner radius px (about 1 mm); the dark centre's size against the outline
-BROW_TAG_H = 0.0010
+BROW_TAG_H = 0.0005
+BROW_RECESS = (1.10, 1.24, 1.30, 1.55)
+BROW_RECESS_H = (0.00015, 0.0006)
 MAT_TAG = "helmet_tag_rim"
+MAT_BROW = "helmet_brow_moulding"
 
 
 def brow_vents(shell):
@@ -1414,22 +1455,58 @@ def brow_vents(shell):
     brow tag each side. Pieces (V, F, mats)."""
     shell = ExactShell(shell.V, shell.F)
     out = []
-    P, N = sym_loop(shell, BROW_VENTS_PX[0])
-    out += mirror(vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H), 1.0)
+    (P, N), *loops = brow_vent_loops(shell)
+    out += mirror(vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H, mitre=True), 1.0)
     side = []
+    for P, N in loops:
+        side += vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H, mitre=True)
+    side += brow_tag(shell)
+    return out + mirror(side, 1.0) + mirror(side, -1.0)
+
+
+def brow_vent_loops(shell):
+    """The brow vents' loops on the shell (P, N): the centre one across the centre line, then the side one on his
+    left, their traced corners kept."""
+    out = [sym_loop(shell, BROW_VENTS_PX[0])]
     for px in BROW_VENTS_PX[1:]:
-        uv = resample_loop(np.asarray(px, float), 2.0)
-        P, N = shell.cast("isoleft", uv, side=1.0)
-        side += vent_pieces(shell, P, N, BROW_RIM_W, BROW_RIM_H)
+        out.append(shell.cast("isoleft", _resample_closed(np.asarray(px, float), 2.0), side=1.0))
+    return out
+
+
+def _bands(rings, N, P):
+    """Quads between consecutive rings, each band with its own vertices (crisp edges), facing along N."""
+    n = len(P)
+    V, F = [], []
+    for k, (A_, B_) in enumerate(zip(rings[:-1], rings[1:])):
+        V += [A_, B_]
+        F += [[i + 2 * n * k for i in f] for f in loop_faces([A_, B_], n)]
+    V = np.vstack(V)
+    return V, orient(V, F, N, P)
+
+
+def brow_tag(shell):
+    """The brow tag on his left in its recess: the rim (MAT_TAG) round its dark centre (MAT_DARK), standing on the
+    groove's floor (MAT_DARK), the bevel up to the surround's top and the surround running into the shell
+    (MAT_BROW). Pieces (V, F, mats)."""
     uv = resample_loop(round_corners(BROW_TAG_PX, BROW_TAG_ROUND), 1.5)
+    c2 = uv.mean(0)
     P, N = shell.cast("isoleft", uv, side=1.0)
     c = P.mean(0)
     Pi, Ni = shell.snap(c + (P - c) * BROW_TAG_IN)
+    out = []
     V, F = plate(Pi, Ni, P, N, BROW_TAG_H)
-    side.append((V, F, [MAT_TAG] * len(F)))
+    out.append((V, F, [MAT_TAG] * len(F)))
     Vc, Fc = cap(Pi, Ni, BROW_TAG_H, shell)
-    side.append((Vc, Fc, [MAT_DARK] * len(Fc)))
-    return out + mirror(side, 1.0) + mirror(side, -1.0)
+    out.append((Vc, Fc, [MAT_DARK] * len(Fc)))
+    (Pg, Ng), (Pb, Nb), (Pt, Nt), (Pf, Nf) = [shell.cast("isoleft", c2 + (uv - c2) * k, side=1.0)
+                                              for k in BROW_RECESS]
+    hf, ht = BROW_RECESS_H
+    V, F = _bands([P + N * hf, Pg + Ng * hf], N, P)
+    out.append((V, F, [MAT_DARK] * len(F)))
+    V, F = _bands([Pg + Ng * hf, Pb + Nb * ht, Pt + Nt * ht, Pf - Nf * SINK], N, P)
+    out.append((V, F, [MAT_BROW] * len(F)))
+    return out
+
 
 
 def build(Vo, Fo, part=None):
@@ -1437,8 +1514,8 @@ def build(Vo, Fo, part=None):
     slots' floor in MAT_DARK, the slots' wire mesh in MAT_MESH, the grip panels (floor and tiles in MAT_GRIP with UVs
     for its grain, MAT_GRIP_GROOVE between the tiles, their bevels MAT_GRIP_BEVEL, walls MAT_GRIP_EDGE), the chin's mouthpiece in MAT_FRAME (its outer wall in
     MAT) with its floor in MAT_DARK and its lattice in MAT_MESH, the chin bar's side vents (wall MAT, floor MAT_DARK,
-    mesh MAT_MESH), the brow's vents (rim MAT_FRAME, floor MAT_DARK, mesh MAT_MESH) and tag
-    (MAT_TAG round a MAT_DARK centre)."""
+    mesh MAT_MESH), the brow's vents (rim MAT_FRAME, floor MAT_DARK, mesh MAT_MESH) and tag (MAT_TAG round a
+    MAT_DARK centre, in its recess: MAT_BROW round a MAT_DARK groove)."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
