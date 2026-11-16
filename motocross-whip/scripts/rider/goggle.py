@@ -1487,6 +1487,8 @@ def hinged_frames(gp, zt, zb, zc, zbk, o_back_h, turn_deg, length=None):
 
 OR_GAP = 0.0015            # m, a mounted outrigger's inner face off the shell (it rests on it, strap tension)
 WORN_TURN = {}             # round 9: the worn plates' turns (deg), set by outrigger_grids(mount=...)
+WORN_SHELL = {}            # round 14 (item 3): the turns the shell alone asks (deg), set with WORN_TURN
+WORN_MIN = {}              # round 14 (item 3): {"mount": mount, side: deg}, the strap's pull (strap_rest)
 OR_BEND = math.tan(math.radians(60))   # steepest outward bend of a mounted outrigger (lift per length)
 OR_ANCHOR = 0.010          # m, the strap's end sits this far inside the outrigger's back end (its buckle slot)
 OR_NU, OR_NV = 13, 7       # grid of each outrigger face (along x up)
@@ -1575,7 +1577,9 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
                         if not np.any((need > 0) & (np.abs(Gi_[:, 0]) < need + OR_GAP)):
                             break
                     req[j] = a
-                turns[sg] = np.full(nv, float(req.max()))
+                WORN_SHELL[sg] = float(req.max())
+                pull = WORN_MIN.get(sg, 0.0) if WORN_MIN.get("mount") is mount else 0.0   # round 14: the strap's
+                turns[sg] = np.full(nv, max(float(req.max()), pull))
             WORN_TURN.clear()
             WORN_TURN.update({sg: (round(float(t[0]), 2), round(float(t[-1]), 2)) for sg, t in turns.items()})
         for sg in (1, -1):
@@ -2771,6 +2775,62 @@ class Surface:
         return O + D * hi[:, None]
 
 
+STRAP_REST_TOL = 0.05     # deg: the strap's pull and the plate agree within this
+
+
+def strap_exit(mount, surf):
+    """Round 14 (item 3): per side, the angle (deg, + outwards) in plan between the worn plate (its outer face's
+    middle row, front to back) and the strap's free span (its mid-thickness from the slot to the landing,
+    strap_layout), at the plates' turns outrigger_grids gives for mount."""
+    grids = outrigger_grids(mount=mount)
+    base, nrm, s_, (kL, kR) = strap_layout(surf, strap_ends(mount, grids))
+    j0 = int(np.argmin(np.abs(STRAP_ACROSS)))
+    mid = h2g(base[:, j0] + nrm[:, j0] * (STRAP_CLEAR + SIL_H + STRAP_T / 2))
+    out = {}
+    for sg, span in ((1, mid[:kL + 1]), (-1, mid[::-1][:kR + 1])):
+        Go = grids[sg][0]
+        nv = Go.shape[1]
+        t = (Go[-1, nv // 2] - Go[0, nv // 2])[:2]
+        t = t / np.linalg.norm(t)
+        n = sg * np.array([t[1], -t[0]])
+        st = (span[-1] - span[0])[:2]
+        out[sg] = math.degrees(math.atan2(st @ n, st @ t))
+    return out
+
+
+def strap_rest(mount, surf, iters=8):
+    """Round 14 (item 3): the worn plates' rest with the strap's pull. The strap pulls each plate's back end along
+    its free span; where the span leaves the plate outwards it turns the plate out until the two run in line, unless
+    the shell holds the plate further out (then the span leaves inwards and the shell takes the rest). Rounds 9 to
+    13 rested the plate by the shell only: on Leatt's empty helmet (12.6 mm lower, 3.5 mm back) at its stop
+    (CAR_STOP_TURN), the span then left it 2.1 deg outwards and the strap covered the plate's back 25 px in the
+    Pinata iso-right, where Leatt's lands on the plate's back end. A secant search on the turn (the angle falls
+    about 2 deg a degree: the plate turns and its slot moves out); sets WORN_MIN for this mount and returns the exit
+    angles at the rest."""
+    WORN_MIN.clear()
+    ang = strap_exit(mount, surf)
+    hist = {sg: [(WORN_TURN[sg][0], ang[sg])] for sg in (1, -1)}
+    for _ in range(iters):
+        want = {}
+        for sg in (1, -1):
+            (t1, a1), shell = hist[sg][-1], WORN_SHELL[sg]
+            if a1 <= STRAP_REST_TOL and (t1 <= shell + 1e-9 or abs(a1) <= STRAP_REST_TOL):
+                continue                                   # in line, or the shell holds it with the span inwards
+            if len(hist[sg]) > 1 and abs(a1 - hist[sg][-2][1]) > 1e-6:
+                t0, a0 = hist[sg][-2]
+                nxt = t1 - a1 * (t1 - t0) / (a1 - a0)
+            else:
+                nxt = t1 + a1 / 2.0
+            want[sg] = max(shell, nxt)
+        if not want:
+            break
+        WORN_MIN.update({"mount": mount, **{sg: WORN_MIN.get(sg, 0.0) for sg in (1, -1)}, **want})
+        ang = strap_exit(mount, surf)
+        for sg in want:
+            hist[sg].append((WORN_TURN[sg][0], ang[sg]))
+    return ang
+
+
 def strap_layout(surf, ends, plane=STRAP_PLANE, land=STRAP_LAND, step=0.0025):
     """The strap's stations from the left outrigger round the back to the right one (HELMET frame): base points
     (n x m x 3, m = STRAP_ACROSS), their normals, the centre line's arc length (m) and how many stations at each end
@@ -3329,9 +3389,12 @@ def build_goggle(body, Rt, prof):
     skin_G = h2g((skin - t) @ R)
     foam, foam_back = build_foam(rings, info, skin_G)
     mount = shell_mount(prof)                         # on the helmet: outriggers drape over the shell
+    Vo, Fo, _ = H.shell_outer(prof)
+    surf = Surface(Vo, Fo)
+    strap_rest(mount, surf)                           # round 14: the plates rest by the shell or the strap's pull
     parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(mount=mount),
              build_strap_ends(mount=mount), build_nose_guard(skin_G=skin_G), build_nose_ribs(skin_G=skin_G), foam]
-    strap, sinfo, _ = build_strap(Rt, prof, strap_ends(mount))
+    strap, sinfo, _ = build_strap(Rt, prof, strap_ends(mount), surf)
     for P in parts:
         P.V = g2h(P.V) @ R.T + t
     eyes, einfo = build_eyes(body)
@@ -3348,11 +3411,11 @@ def build_goggle(body, Rt, prof):
     return parts + strap + eyes, info_out
 
 
-def strap_ends(mount):
+def strap_ends(mount, grids=None):
     """Each outrigger's strap slot in the HELMET frame: the anchor (OR_ANCHOR inside its back end, mid height and
     thickness), the direction up its back end and the direction back along it."""
     ends = {}
-    for sg, (Go, Gi, a) in outrigger_grids(mount=mount).items():
+    for sg, (Go, Gi, a) in (grids or outrigger_grids(mount=mount)).items():
         nv = Go.shape[1]
         mid = 0.5 * (Go + Gi)
         # round 12: up the plate where the anchor is (the twisted plate's cross-section there; round 13's rigid plate

@@ -526,7 +526,8 @@ def test_round13_worn_plate_turns_as_one_and_leans_as_leatts():
     turn. That photo is an empty helmet: there the goggle sits 12.6 mm lower and 3.5 mm further back (round 12, the
     pink frames' best overlay), the plate meets no shell and its back edge stood at 760 / 752 px at turn 0. Round 14:
     from round 14's hinge it stands at 776 / 768 at turn 0 and 759.4 / 751.5 on the C's stop (CAR_STOP_TURN, 13.7
-    deg), where the strap pulls it in to: the C's inner bar against the frame's side."""
+    deg), the shell's rest there: the C's inner bar against the frame's side (the strap's pull then turns it out to
+    14.98 deg, test_round14_strap_pull_and_plate_rest_agree)."""
     Vo, Fo, prof = H.shell_outer()
     cam = H.PRINT_CAMS["isoright"]
 
@@ -548,6 +549,46 @@ def test_round13_worn_plate_turns_as_one_and_leans_as_leatts():
         assert -16.0 < (u[1] - u[0]) / 1.2 < -5.0
     finally:
         G.PLACE = keep
+        G.outrigger_grids(mount=G.shell_mount(prof))
+
+
+def test_round14_strap_pull_and_plate_rest_agree():
+    """Round 14 item 3 (decision 60): the worn plate rested by the shell only. On Leatt's empty helmet (the goggle 12.6
+    mm lower, 3.5 mm back) it rested at its stop (13.7 deg) and the strap's free span left it 2.1 deg outwards: the
+    strap covered the plate's back 25 px in the Pinata iso-right, where Leatt's lands on the plate's back end. The
+    strap pulls the plate's back end along its span, so now the plate turns out until the two run in line (strap_rest:
+    14.98 deg there, the span within 0.05 deg of the plate) or the shell holds it further out (his placement: 16.7
+    deg, the span 3.7 deg inwards). The plate keeps round 13's lean through the iso-right camera (-6.5 px a 100 rows;
+    Leatt -10.8) and its back edge stays within 6 px of Leatt's (764 / 751 at rows 860 / 980)."""
+    Vo, Fo, prof = H.shell_outer()
+    surf = G.Surface(Vo, Fo)
+    cam = H.PRINT_CAMS["isoright"]
+    ty, tz, pitch, k = G._place(None)
+    keep = G.PLACE
+    try:
+        for name, pl in (("his", (ty, tz, pitch, k)), ("empty", (ty + 0.0035, tz - 0.0126, pitch, k))):
+            G.PLACE = pl
+            mount = G.shell_mount(prof)
+            ang = G.strap_rest(mount, surf)
+            grids = G.outrigger_grids(mount=mount)
+            for sg in (1, -1):
+                rest, shell = G.WORN_TURN[sg][0], G.WORN_SHELL[sg]
+                assert ang[sg] < 0.1, (name, sg, ang)                  # the strap never leaves the plate outwards
+                assert rest >= shell and rest >= G.CAR_STOP_TURN
+                if rest > shell + 0.01:                                # turned out by the pull: in line
+                    assert abs(ang[sg]) < 0.1, (name, sg, ang)
+            q = H.cam_project(cam, G.g2h(grids[-1][0][-1]))[0]
+            o = np.argsort(q[:, 1])
+            u = np.interp([860.0, 980.0], q[o, 1], q[o, 0])
+            assert -8.0 < (u[1] - u[0]) / 1.2 < -5.0, (name, u)        # round 13's lean, -6.5
+            if name == "his":
+                assert G.WORN_TURN[-1][0] == G.WORN_SHELL[-1] and ang[-1] < -3.0
+            else:
+                assert 14.5 < G.WORN_TURN[-1][0] < 15.5 and G.WORN_SHELL[-1] == G.CAR_STOP_TURN
+                assert abs(u[0] - 764.0) < 6.0 and abs(u[1] - 751.0) < 6.0, u
+    finally:
+        G.PLACE = keep
+        G.WORN_MIN.clear()
         G.outrigger_grids(mount=G.shell_mount(prof))
 
 
