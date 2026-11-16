@@ -332,6 +332,8 @@ daylight kind, Leatt's views in Standard -1.0. Blender 5.2.0: the elbow's back v
 | strap | black Hypalon rubber (18, 18, 19), roughness 0.62 | PHOTO Tech1 |
 | strap_tab | black textile, roughness 0.85, sheen 0.3 | PHOTO |
 | buckle | black moulded plastic, roughness 0.32, coat 0.15 | PHOTO Tech1 |
+| jersey_print, jersey_mesh, jersey_print_hd, jersey_print_hd_mesh, pant_print (decision 61; replaces their sheen above) | sheen 0, Specular IOR Level 0.25 (main: sheen 0.18, 0.10, 0.16, Specular IOR Level 0.5); roughness as above | FIT: Leatt's front flat under Standard and his 07, 08, 09 (phase B below) |
+| the textures' inks (decision 61, kit.INK_FACTORS through kit.ink_palette) | linear: black x 2.76 (lift added: 23, 23, 26 -> 42, 42, 47), magenta x (1.03, 0.02, 0.86) (238, 12, 142 -> 242, 0, 133); lime and teal as Leatt's flat | FIT, as above |
 
 ### Materials round 1, phase A (decision 59, 2026-11-15): the darks
 
@@ -346,3 +348,30 @@ daylight kind, Leatt's views in Standard -1.0. Blender 5.2.0: the elbow's back v
   stays round 3's error, Leatt's black point.
 - The inks and jersey_print / pant_print are phase B (after jersey round 4, on the coordinator's go). The gear's
   numbers for it: `look_fit.py gear` (research/scene-look.md "Commands (decision 59)").
+
+### Materials round 1, phase B (decision 61, 2026-11-16): the grey layer and the inks
+
+- Correction to phase A: the black's 45 against the flat's 21 under Standard is not Leatt's black point. With the
+  print's grey layer off (sheen 0, Specular IOR Level 0) our black is 0.008 to 0.010 of the white core (jersey and
+  pant, front and back; the flat 0.0098); the sheen adds about 0.007, the specular about 0.03 (main 0.043 to 0.049):
+  our reflection of the studio's even white world, which a flat-lay photo's lights avoid.
+- The grey layer (all five print materials): sheen 0, Specular IOR Level 0.25. Fitted with the inks on Leatt's
+  front flat (each ink's ratio to the white) and his 07, 08, 09 (each class's diffuse body); its minimum is flat
+  along the specular, so the smallest change in it (research/scene-look.md "The kit's inks (phase B)").
+- The inks (kit.INK_FACTORS, linear): black x 2.76, magenta x (1.03, 0.02, 0.86); lime and teal kept (his 07 and 09
+  disagree on their lightness by a stop). kit.ink_palette lays them on the textures by ink class (a product for the
+  magenta, the black's lift as a sum): Leatt's print and marks only, before Damien's additions; INK_DARK (the
+  number's outline) takes x 2.76 itself: 59, 44, 75.
+- The textures on the charts: jersey black 23, 21, 29 -> 42, 41, 48, pant black 22, 22, 25 -> 42, 42, 47; jersey
+  magenta 213, 37, 132 -> 215, 1, 122, pant magenta 188, 41, 130 -> 188, 2, 121; front yoke 226, 14, 132 -> 229,
+  0, 123, back yoke 231, 25, 140 -> 234, 1, 131.
+- Leatt's flats under Standard (main -> phase B, dE of the ink's ratio to the white): magenta front 10.7 -> 6.3,
+  back 8.5 -> 5.2; lime jersey 30.0 -> 26.9, pant 8.7 -> 4.8; the black's ratio 0.041 to 0.048 -> 0.035 to 0.041
+  (flat 0.009). His photos: pinks p09 15.4 -> 8.9, cam07 pant 14.9 -> 6.6, p08 36.5 -> 33.9, p07 31.7 -> 27.9;
+  darks p07 7.3 -> 7.1, p08 6.0 -> 4.6, p09 5.2 -> 4.6, cam07 jersey 3.0 -> 4.6, pant 2.2 -> 3.3; teal p09 4.9 ->
+  3.3, cam07 23.2 -> 22.9; lime 0.6 to 4.2 worse (p07 31.7 -> 35.9, p09 8.9 -> 11.4, cam07 15.3 -> 18.4 and 29.1 ->
+  29.7). Checkpoint renders/checkpoints/2026-11-16_materials-r1b/.
+- Not changed: pant_iks (22, 22, 24; leather and ripstop, no print, no reading of it in his photos): beside the
+  lifted print it is now 20 levels darker, where main had them equal. Open question for Damien.
+- Build: kit.py's textures are bit-identical run to run (two builds, 141 and 156 s); the committed files are this
+  build's (test_kit_textures_rebuild_to_the_committed_files).

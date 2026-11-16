@@ -606,6 +606,134 @@ python3 scripts/common/look_fit.py gear gear.json p07=head_p07.exr p08=head_p08.
 python3 scripts/common/look_fit.py boot_white boot_white.json
 ```
 
+## The gear, materials round 1, phase B (decision 61)
+
+Renders: main ea66687's rider (helmet, gloves, boots, body and pose as phase A), the kit built from main's kit.py
+("main") and from this round's ("phase B"), his views p07, p08, p09 and cam07 linear at 64 samples on the rig below,
+through the look at PHOTO_EV with 07's tint; Leatt's views: build_rider's studio (rest pose, front and back),
+linear, Standard. Every number below is measured on the renders (no relighting), on the same pixels for both.
+
+### 07's tint in head_closeups
+
+head_closeups.day_sun passes `tint=scene_look.photo_tint(name)`: p07 and cam07 take 07's tint, the other views
+None. p07 (main's rider, main's rig): the black print 47, 46, 44 -> 46, 48, 57 (his 35, 37, 56; dE 15.3 -> 8.7),
+the jersey's dark 37, 36, 36 -> 36, 39, 51 (his 32, 47, 68; 16.5 -> 8.1), the white shell unchanged (3.0).
+head_closeups' own render of p07 (Blender's compositor, phase B's rider) reads the black print 44, 47, 60.
+goggle_views has no per-photo exposure or tint (its look is "daylight" at 0 for every view and its cameras name no
+photo): left to the goggle agent. The "scene" kind takes no lift: it renders our models under studio light, not a
+phone photo (the coordinator); the animation's look is decided against his clips.
+
+### The shade light
+
+His white shell's shade is bluer than ours in all three photos (linear B/G 1.13, 1.10, 1.14 against 1.03, 1.03,
+0.98) while the lit sides match; in the rig the shade is 78 to 87 % the ground's light (the sky 13 to 22 %). A gain
+on the sky's colour fitted on 09's shade put the lit sides at 9 to 10 dE (1.4 to 3.8) and the sky behind him 10 to
+16 dE further off. So day_rig.RIG's ground takes 09's shade's hue at GROUND_07's luminance (0.41, 0.40, 0.36 ->
+0.379, 0.398, 0.461; not darker) and the sun 07's and 08's lit sides' hue at luminance 1 (1.004, 1.007, 0.924). Held
+out: 09's gloves and the jersey's black. The darker ground stays out (it takes the black print too dark and 07's
+shade worse). Main's rider, before -> after (dE; the shade's linear B/G his / before / after):
+
+| photo | lit | shade | B/G shade | white | black print | sky | jersey dark | the rest |
+|---|---|---|---|---|---|---|---|---|
+| 07 | 2.0 -> 2.4 | 6.4 -> 2.3 | 1.13 / 1.03 / 1.17 | 3.0 -> 2.2 | 8.7 -> 7.0 | | 6.2 -> 7.3 | magenta 32.1 -> 31.7, lime 33.0 -> 31.7 |
+| 08 | 1.4 -> 0.8 | 8.2 -> 5.7 | 1.10 / 1.03 / 1.17 | 5.0 -> 4.7 | 5.2 -> 2.9 | 10.0 -> 10.0 | 6.5 -> 6.0 | magenta 31.5 -> 36.5 |
+| 09 | 3.8 -> 4.2 | 11.1 -> 6.2 | 1.14 / 0.98 / 1.13 | 8.0 -> 8.9 | | 4.9 -> 4.9 | 6.1 -> 5.2 (held out) | gloves 10.7 -> 9.9 (held out), magenta 10.6 -> 15.4, lime 8.0 -> 8.9, teal 3.8 -> 4.9 |
+| cam07 | | | | | | | 2.7 -> 3.0 | pant dark 2.0 -> 2.2, gloves 2.3 -> 2.2, tyre 6.1 -> 6.3, boot 12.3 -> 13.9, pant magenta 13.6 -> 14.9, lime 16.2 -> 15.3 and 28.9 -> 29.1, teal 25.7 -> 23.2 |
+
+08 holds or improves everywhere but its pink (the inks', below). 07's lit side goes 0.4 over (2.0 -> 2.4) and its
+jersey dark 1.1 over (6.2 -> 7.3); its shade, white and black print improve. The pinks read bluer under the bluer
+shade (08 31.5 -> 36.5, 09 10.6 -> 15.4): the inks are fitted on this rig.
+
+### The kit's inks (phase B)
+
+A print pixel is the ink's albedo under a grey layer (sheen, specular). Three renders per view of main's rider
+(v0: sheen 0 and Specular IOR Level 0; vS: the sheen alone; v1: main's) make each pixel v0 m + ks (vS - v0) +
+kp (v1 - vS): m the ink's albedo factor (R, G, B), ks and kp scales of main's sheen and specular. Rows: Leatt's
+front flat's inks under Standard (each ink's core against the white core, compared at the flat's luminance: a
+ratio, so the studio's exposure is free) and his photos (each class's diffuse body: median CIELAB, q10 and q90
+L*). Each ink's factors fitted on its own rows at each (ks, kp) of a grid; the criterion the sum of the classes'
+mean dE.
+
+- The grey layer: the criterion's minimum is flat along kp; the smallest change in it is **sheen 0, Specular IOR
+  Level 0.25** (ks 0, kp 0.5) on jersey_print, jersey_mesh, jersey_print_hd, jersey_print_hd_mesh and pant_print.
+  Main's veil: the magenta's green 0.048 of the white under Standard (the flat's 0.004), 54 to 74 of 255 in his
+  photos (his 1 to 21).
+- The black under Standard, layer by layer (its ratio to the white core; jersey and pant, front and back): the grey
+  layer off 0.008 to 0.010 (the flat 0.0098), the sheen alone 0.015 to 0.018, main's 0.043 to 0.049. Main's black
+  under Standard was our specular and sheen mirroring the studio's even white world, not Leatt's black point (phase
+  A's reading above; kit.md and gloves.md corrected): a flat-lay photo is lit so the cloth's reflection misses the
+  camera.
+- The inks' factors (kit.INK_FACTORS, linear): **black x 2.76** (his darks, with the specular that lifted them
+  halved), **magenta (1.03, 0.02, 0.86)** (its green out, its blue down: his pinks' green is 1 to 21, redder than
+  ours). The lime and the teal stay: his 07 and 09 put their lightness a stop apart (07's a stop darker than ours,
+  09's and the flat's as ours) and their fitted change was a few levels.
+- The palette (kit.ink_palette) lays the factors on the textures as the fit laid them on the classes: a texel of a
+  chromatic ink's class (ink_class softened over 0.1 either side of each bound: kit.ink_weight) takes the ink's
+  factors as a product, a texel of the black's class the black's lift (its fitted colour less its own) as a sum.
+  The inks land exactly; the black's blends with the white within 6.4 of 255; colours of no class stay (the
+  sleeves' grey-teal bands, light pinks); a 1-level step moves no colour more than 5.2 levels. Dropped: barycentric
+  palettes among the inks (the back yoke kept green 25 against the front's 6; the teal, 177 deg from the magenta
+  round the grey axis, made a near-singular wedge: light pinks lost their green, 1-level steps jumped 100 levels).
+  The pant texture's texels under the I.K.S panels now take it too (painted after it, they stayed at 22 beside the
+  print's 42, a dark rim where the print's faces filter them); the panels themselves are pant_iks (22, 22, 24,
+  leather and ripstop, not a print), unchanged.
+  Damien's additions keep their own colours; their outline ink takes the black's factor (INK_DARK 59, 44, 75: 1.35
+  times the ground's luminance, as in PHOTO 06).
+- The textures, on the charts: jersey black 23, 21, 29 -> 42, 41, 48; pant black 22, 22, 25 -> 42, 42, 47; jersey
+  magenta 213, 37, 132 -> 215, 1, 122; pant magenta 188, 41, 130 -> 188, 2, 121; the front yoke 226, 14, 132 ->
+  229, 0, 123, its back 231, 25, 140 -> 234, 1, 131; the lime and the teal unchanged.
+
+Leatt's flats under Standard (each ink's ratio to the white core; dE, at the flat's luminance in brackets):
+
+| view | ink | flat | main | dE | phase B | dE |
+|---|---|---|---|---|---|---|
+| front, jersey | magenta | 0.933, 0.004, 0.274 | 0.868, 0.048, 0.296 | 10.7 (12.5) | 0.891, 0.018, 0.244 | 6.3 (6.2) |
+| back, jersey | magenta | | 0.923, 0.045, 0.309 | 8.5 (11.0) | 0.950, 0.017, 0.256 | 5.2 (5.9) |
+| front, jersey | lime | 0.525, 0.990, 0.019 | 0.340, 0.570, 0.037 | 30.0 (10.3) | 0.333, 0.571, 0.023 | 26.9 (5.6) |
+| front, pant | lime | | 0.619, 1.060, 0.073 | 8.7 (10.6) | 0.609, 1.064, 0.048 | 4.8 (6.2) |
+| front, jersey | black | 0.009, 0.010, 0.010 | 0.041, 0.042, 0.046 | 15.7 | 0.035, 0.036, 0.043 | 13.9 |
+| front, pant | black | | 0.046, 0.046, 0.048 | 16.9 | 0.041, 0.041, 0.046 | 15.3 |
+| back, jersey | black | | 0.048, 0.048, 0.050 | 17.3 | 0.040, 0.040, 0.046 | 15.2 |
+| back, pant | black | | 0.045, 0.044, 0.047 | 16.4 | 0.039, 0.038, 0.045 | 14.8 |
+
+His photos (the diffuse body's median; dE of the CIELAB medians):
+
+| view | class | his | main | dE | phase B | dE |
+|---|---|---|---|---|---|---|
+| p09 | jersey pink | 191, 5, 91 | 189, 54, 120 | 15.4 | 191, 34, 109 | 8.9 |
+| cam07 | pant pink | 178, 21, 114 | 189, 74, 148 | 14.9 | 189, 44, 133 | 6.6 |
+| p08 | jersey pink | 147, 1, 46 | 217, 62, 140 | 36.5 | 217, 39, 126 | 33.9 |
+| p07 | jersey pink | 245, 68, 169 | 166, 66, 119 | 31.7 | 165, 38, 106 | 27.9 |
+| p07 | jersey dark | 22, 31, 38 | 35, 39, 53 | 7.3 | 30, 34, 49 | 7.1 |
+| p08 | jersey dark | 31, 26, 35 | 35, 35, 39 | 6.0 | 31, 32, 36 | 4.6 |
+| p09 | jersey dark | 25, 25, 34 | 27, 28, 30 | 5.2 | 24, 25, 28 | 4.6 |
+| cam07 | jersey dark | 28, 37, 49 | 30, 34, 49 | 3.0 | 26, 30, 46 | 4.6 |
+| cam07 | pant dark | 29, 35, 49 | 28, 33, 50 | 2.2 | 26, 30, 47 | 3.3 |
+| p09 | jersey teal | 56, 92, 97 | 69, 99, 109 | 4.9 | 62, 94, 103 | 3.3 |
+| cam07 | jersey teal | 57, 113, 114 | 76, 159, 135 | 23.2 | 64, 152, 127 | 22.9 |
+| p07 | jersey lime | 111, 168, 59 | 169, 234, 70 | 31.7 | 165, 234, 51 | 35.9 |
+| p09 | jersey lime | 145, 174, 47 | 135, 184, 48 | 8.9 | 134, 183, 32 | 11.4 |
+| cam07 | jersey lime | 114, 168, 41 | 155, 206, 63 | 15.3 | 152, 205, 44 | 18.4 |
+| cam07 | pant lime | 117, 169, 35 | 204, 249, 113 | 29.1 | 197, 248, 91 | 29.7 |
+
+- Rule 1 (one material for both references): on Leatt's flats every ink comes closer (magenta 10.7 and 8.5 -> 6.3
+  and 5.2, lime 30.0 and 8.7 -> 26.9 and 4.8, the black's ratio 0.041 to 0.048 -> 0.035 to 0.041): within round 3's
+  error. The black x 2.76 is his photos'; under Standard the halved specular more than pays for it.
+- What does not fit: 08's pink (his q10 to q90 L* 11 to 20, ours 30 to 36): his exposure and light there, not the
+  ink (an albedo that dark breaks 09's pink and the flat). The lime loses the blue the grey layer's sky gave it (51
+  against his 59 in 07, 32 against 47 in 09): 0.6 to 4.2 dE worse; its lightness is the 07 and 09 disagreement.
+  cam07's darks 3.0 -> 4.6 and 2.2 -> 3.3 (3 to 4 levels under his) while 08's and 09's come closer.
+- Blender 5.2.0: p09 rendered from phase B's saved blend is identical to 5.2.3's through the look (every pixel, the
+  kit's and the frame's).
+
+### Commands (decision 61)
+
+```
+python3 scripts/rider/kit.py body.npz kit.npz        # the kit and its textures (textures/rider), bit-identical run to run
+python3 -m pytest scripts/rider/test_kit_rider.py -k "phase_bs or rebuild or back_yoke"
+python3 scripts/common/look_fit.py gear gear.json p07=head_p07.exr p08=head_p08.exr p09=head_p09.exr cam07=head_cam07.exr --index index.json
+```
+
 ## Checks
 
 - `display()` against Blender (look_apply.py, emission plane, one sample): max 1 level, mean 0.0004 levels over a

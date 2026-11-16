@@ -1178,3 +1178,37 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   pose, not the paint. The maker's studio fixes the hue (clean neutral), not the level (its exposure is free).
 - A darker ground is not a fix for darks: it took the black print from 33 to 10 (his 35) while it made 08's and
   09's shade bluer and right. Each lever moves several classes: measure all of them before and after.
+
+## Gear materials round 1, phase B (decision 61): lessons (kit.py ink_palette and MATERIALS, day_rig.py, head_closeups.py)
+
+- Split a dark's level into its layers before blaming the albedo or the photo: render the print with the grey
+  layer off (sheen 0, Specular IOR Level 0), with the sheen only, and as is. Under Standard the jersey's black was
+  0.008 to 0.010 of its white with the layer off (Leatt's flat 0.0098) and 0.043 to 0.049 as is: our specular
+  (+0.03) and sheen (+0.007) mirroring the studio's even white world. Phase A's "Leatt's black point" was wrong: a
+  flat-lay photo is lit so the cloth's reflection misses the camera, an even world cannot be.
+- Fit each layer where its signal is: the grey layer on the flats' ink ratios and his inks' diffuse body together
+  (the sum of the classes' mean dE; its minimum was flat, so the smallest change in it), each ink's albedo factors
+  on its own class, and an ink's lightness only where his photos agree (his 07 and 09 put the lime and the teal a
+  stop apart: left alone).
+- A palette must act on the texture as the fit acted on the renders. The fit multiplied each class's albedo. A
+  barycentric palette among the inks (affine per hue wedge, exact on every blend) kept the traced shades' green as
+  a white or lime part (the back yoke 25 against the front's 6), and with two inks almost opposite round the grey
+  axis (the teal 177 deg from the magenta) its wedge was near singular: light pinks lost their green whole, 1-level
+  steps jumped 100 levels. Softened class weights (ink_weight), a product for the chromatic inks and a sum for the
+  black's lift: inks exact, 1-level steps under 6 levels, the black's blends with the white within 7.
+- Run a palette after every element painted in its inks (the pant texture's texels under the I.K.S panels, set
+  after it, stayed at 22 beside the print's lifted 42: a dark rim where the print filters them) and before what keeps
+  its own colours (Damien's additions; their outline ink takes
+  the black's factor itself, holding PHOTO 06's 1.35 contrast to the ground, where the palette's sum gave 1.13).
+- Measure a texture's ink classes on the charts only: dilate() fills the padding with the charts' mean colour,
+  69 % of the pant's black class on main.
+- The rig's shade light: a gain on the sky's colour fitted on his white shell's shade put the lit sides 9 to 10 dE
+  off and the sky behind him 10 to 16 dE further; the ground's hue fitted on the shade and the sun's on the lit
+  sides (both at their luminance) did it. Each lever moves several classes: every photo's lit, shade, white, black
+  and held-out gear before and after. A blue-grey ground broke check_turn's ground test ("B < R"): find the ground
+  by its own radiance.
+- When one view script gains a per-photo argument (the 07 tint), check every script that renders a view of his
+  photos: goggle_views has no PHOTO_EV or tint at all (its cameras name no photo), left to its owner.
+- A texture that differs from the committed file after a rebuild was a stale commit, not a random build: build
+  twice (bit-identical here, 141 and 156 s) and compare with git's copy before hunting for threads or seeds; commit
+  textures from the same build as the code (test_kit_textures_rebuild_to_the_committed_files).

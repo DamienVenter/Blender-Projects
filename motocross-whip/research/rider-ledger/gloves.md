@@ -145,3 +145,8 @@ itself does not match while the pose puts the grip through the palm (section 1).
   24, dE 10.7 (15.5): 09's shade light is bluer than the rig's (his white shade linear B/G 1.17, ours 1.03).
 - Sheen and roughness: the body's numbers cannot tell the grey layer from the albedo (look_fit.gear_fit, its test);
   Leatt's shots show no sheen highlight on the back (the dark's spread there is the printed weave). Kept.
+- Correction (decision 61): "Leatt's black point" above is wrong for the kit's black, and likely for the glove's.
+  The kit's black under Standard is 0.008 to 0.010 of its white with the print's grey layer off (Leatt's flat 0.0098)
+  and 0.043 to 0.049 with it: our specular and sheen mirroring the studio's even white world (research/scene-look.md
+  "The kit's inks (phase B)"). The glove's 0.055 against Leatt's 0.025 is probably the same reflection (glove_fabric
+  keeps the default specular); not measured with its grey layer off, so the gloves stay as they are.
