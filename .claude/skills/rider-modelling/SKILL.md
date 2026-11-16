@@ -984,6 +984,11 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - Our rider stands on the pegs in the riding view while his 07 shows him seated (thigh level, knee at the tank): an
   overlay of the legs in 07 is not a test until the pose task (#14); compare the kit there by 3D measures (the zebra's
   end over the knee joint, jersey round 4).
+- Memory is shared: the container has about 15 GB for every agent and the coordinator together, no swap. A
+  kit texture build or a rider test file takes 1.5 to 2 GB, a Blender render more. Five parallel builds by one
+  agent got the coordinator's full suite killed (exit 137). Each agent runs ONE heavy job at a time (build,
+  Blender, pytest); say so in every brief. Before a full suite, check `free -g` and who else is running
+  (`ps aux --sort=-rss`, then /proc/<pid>/cwd names the worktree).
 
 ## Helmet round 2: the face port and a fair shell (2026-11-15, helmet.py, test_helmet.py, ledger helmet.md section 5, decision 44)
 
