@@ -1408,6 +1408,93 @@ origin/main 30bab2d (main had not moved): 114 passed, exit 0.
 - renders/checkpoints/2026-11-15_goggle-r13/ (README there). Blender 5.2.0 check, the tests and the trial merge: in
   the README and decision 57.
 
+## 17. Round 14: the C on the plate, the strap's pull, the outlines, the teeth's steps (decision 60)
+
+### The C rides on the plate (item 1; CAR_ON_PLATE, CAR_TURNS, free_parts(post=...))
+- The hypothesis (round 13's open end): the C is part of the plate and swings with its turn, so the CAD (iso55, the
+  white ISO) and the photos (phr, the Forge front) differ by the plate's turn only. Fitted jointly (scratch
+  fitc14e.py to fitc14n4.py): one C (inner edge E1, window, outer corner E2, outer silhouette; the post's base and
+  tip in phr and the Forge front), one pivot, one turn per photo, and the near plate seen from outside (iso55, phr),
+  the near C kept out of the frame and the foam (signed distance). Each view against Leatt's lens posts so the
+  cameras' local offset cancels: iso55, the white ISO and phr a shift (ours +5, +4, -3 px), the Forge front a shift
+  and a scale (its camera spreads the posts 606 px apart where Leatt's are 542, 12 % wide).
+- In the image plane it fits: 24 observations, rms 1.25 px, at most 3.6 (the Forge front's inner edge), under the
+  cameras' landmark rms (4.4 to 4.5 px). Pivot (99, 24) mm (4.84 mm inside the frame's widest point, 4.36 ahead of
+  it); turns iso55 56.0 deg, the white ISO 55.9, phr 65.2, the Forge front 54.4; the near plate 13.7, its stop (the
+  C's inner bar on the frame's back rim). Built (commit be4bfe1), the post only where photos of the real goggle
+  show it (phr, the Forge front); the CAD and his goggle have none, so 01f shows no post now.
+- Not right (found after the build, scratch occl14.py, ray14.py): the fit placed points, it did not ask whether they
+  are seen. The C's face lies behind the frame's black chassis wall (round 12's pillar wall, 6.9 mm tall, with round
+  10's clip slots), in mm behind the wall from E1 to E2: iso55 and the white ISO 18.6, 17.9, 15.2, 13.7, then 0 at
+  E2; phr 17.5 to 18.5 at E1, about 14 at a quarter, then 0; the Forge front 17 to 18, 16 to 17, 14 to 15, then 0.
+  So in iso55 the "windows" seen now are the frame's clip slots, the C reads at L 16 to 28 (the chassis) against
+  Leatt's 43, and round 13's teal in the lower window is gone: a step back from round 13 in the CAD views.
+- Refitted with visibility (fitc14v.py, the frame's depth per pixel; points behind it may not carry a landmark): rms
+  4.01 px, at most 8.9 (phr E2 +8.6, silhouette -8.9; the Forge front +6.5, -8.5), the pivot at (90.5, 37.5) mm
+  inside the frame, phr's turn 14.1 deg and the Forge front's 28.4 against iso55's 53.8, the near plate -21.5, the
+  plate's length and the post at their bounds: not a goggle. The fit with the pivot held at (99, 24) did not finish
+  in its 50 min. So one C on the plate cannot both be seen and fit while the frame's far end stays as built.
+- Why: the photos show no such wall. phr at 3x (Leatt's Royal): his black band 1595 to 1602 px, the red frame end
+  1602 to 1617, the gap with the strap 1617 to 1630, the C 1630 to 1675 (windows 1638 to 1658). Ours: the chassis
+  wall with slots 1600 to 1648, a thin red strip at 1648, then the C. Round 12 built the wall 6.9 mm tall for
+  iso55's 46 px band, which round 13 found to be the C; round 10's slots at the C's window heights are the C's
+  windows. Next: the frame's far end to the photos (a wall about 1.2 mm in phr, the red end, the gap, no clip
+  slots), then the C refitted with visibility. Not done this round.
+- The Forge front's crops (01d) put our whole far end about 30 px beyond Leatt's (the C 1738 against 1708 px, the
+  post's tip 1778 against 1735, our far lens post 1683 against 1656): the camera, fitted to the outline only (round
+  6), spreads the goggle 12 % wide; against the posts the C's place holds.
+- phyb (Leatt's back view: the strap wraps round the C, a loop) was not in the fit; ours is a solid block there and
+  the free goggle has no strap.
+
+### The worn carrier against his photos (item 2)
+- With the C on the plate the near plate rests at its stop on him, the C's bar against the frame: no sky through
+  its windows in his 07 (scratch hissky14.py: rays through them meet the outrigger, 481 px, and the strap's end
+  slot, 191; round 13 saw the lens's mirror, 147 px, and the sky). His 07 shows none either. The black spot at the
+  C in 07 is the lens post.
+- Through the lens in iso55 at 1:1 (round 13's 01e, this round's 02a): round 13's dark strip at 1000 to 1040 px is
+  gone; the near C sits behind the frame's near end, out of the lens's view.
+
+### The strap's pull on the worn plate (item 3; strap_exit, strap_rest, WORN_SHELL, WORN_MIN)
+- The worn plate rested by the shell only. On Leatt's empty helmet (the goggle 12.6 mm lower, 3.5 mm back) it rested
+  at its stop and the strap's free span left it 2.11 deg outwards (scratch exit14.py: the plan angle between the
+  plate's outer face's middle row and the span's mid-thickness from the slot to the landing).
+- Built: the rest is the shell's or the strap's, the larger. The strap pulls the plate's back end along its span, so
+  the plate turns out until the two run in line (a secant search on the turn, within 0.05 deg). Empty helmet: 13.7
+  to 14.98 deg, the exit -0.01 deg. On him: 16.7 deg as before (the shell holds the plate out, the span leaves 3.7
+  deg inwards). The lean holds: -6.5 px a 100 rows (Leatt -10.8); main's empty-helmet strap left the plate 25.0 deg
+  outwards at turn 0.
+- Not right: in the iso-right at 2x the strap's print ends square at about 761 px while the plate's back edge leans
+  from 758 to 751 (rows 860 to 980), so the strap shows over the plate's back by 3 to 10 px; 13.7 and 14.98 deg
+  look nearly alike. The strap also lies lower than Leatt's (rows about 845 to 1057 against 795 to 1030).
+- Test: test_round14_strap_pull_and_plate_rest_agree (fails on main).
+
+### The outlines and the lens end (item 4)
+- Outline model-to-photo p90 (scratch errfar14.py, round 13's metric with the strap's end as rendered), mm, round 14
+  against main 3e653c9: iso55 3.92 (4.08), phy 3.51 (3.84; round 12 3.72), phr 3.60 (3.95), the white ISO 3.89
+  (4.25; round 12 3.96). Both rises are undone and iso55 and phr hold.
+- The lens end's bow at iso55 rows 840 and 1090: the lens's last pixel by geometry is 1650 to 1653 at rows 810 to
+  850, 1656 to 1658 in the middle, 1655 to 1657 at 1080 to 1120 (scratch lensgeo14.py; the lens 1 to 7 deg off
+  grazing there); rendered it reads dark from 1643 to 1648 at the top and 1647 to 1652 at the bottom. Leatt's
+  corners show light frame patches through the lens at 1642 to 1657 (the frame's corners); ours show the black
+  chassis wall there. The bow is the wall's, not the curl's: not changed, the fairness test untouched.
+
+### The teeth's steps (item 5; TOOTH_SNAP, tooth_steps, apply_snaps)
+- The frame's loops were sampled every 1 mm, so a step ran over two samples whatever TOOTH_EASE. Now each loop moves
+  one sample to 0.5 mm either side of each step (48.5, 58.5, 61.5 mm, both sides) before the bows. The white ISO
+  reads the 48.5 mm step over about 6 columns (1290 to 1296 px; Leatt 6, round 13 1282 to 1300).
+- Test: test_round14_teeth_steps_crisp (fails on main).
+
+### goggle_views' views of his photos (after decisions 59 and 61)
+- Each view re-applies the daylight look with scene_look.photo_ev / photo_tint by its name (p07: -0.045 EV and 07's
+  tint; Leatt's views 0 and none, as before). Blender 5.2.0: the iso55 camera as iso55 and as p07, the darks 18.5 /
+  17.6 / 18.5 and 17.7 / 20.8 / 36.3 (+17.8 in blue: the tint's 0.0706). Test:
+  test_round14_goggle_views_his_photos_take_their_exposure_and_tint (fails on main).
+
+### Item 6 and checks
+- The Forge back-strap sheet (item 6): not done (item 1 is not right).
+- renders/checkpoints/2026-11-16_goggle-r14/ (README there). The suite and the trial merge: in the README and
+  decision 60.
+
 ## 3. Eyes
 | Number | Value | Source |
 |---|---|---|
