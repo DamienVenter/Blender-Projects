@@ -733,3 +733,147 @@ beside the render (scratch pair.py: photo | main | phase 2).
 3. The mouthpiece as a recessed tunnel, its rails 5 mm, the chin LEATT; the brow's lit facets and the tag's recess.
 4. The crown vent pod and its thinner rim, the rear slot's chamfered end, the rear lower slot's taper, the rear
    spoiler shelf, the lower centre panel.
+
+## 10. Round 5 (2026-11-16, decision 56): his cameras, the mouthpiece, grip panels, the visor's wing, the brow, the crown's side vents
+
+Read through the solved cameras (research/helmet-ba.json) against Leatt's Pinata iso-left and iso-right, MY27
+front-iso-left and Royal_Left photos at 1:1 to 5x beside the render (photo | main | round 5), the unaligned crops
+too. Checkpoint renders: renders/checkpoints/2026-11-16_helmet-r5/.
+
+### His cameras (item 1; his_cameras.py, head_closeups.py's views)
+- helmet_ba.py gains a one-camera refit (python3 helmet_ba.py refit VIEW): the other cameras and the landmarks are
+  held, whitened by their covariance; the view's readings of two new landmarks (mouth_corner, mouth_bottom), the
+  corrected eyeport_triangle (now the triangle's centre; round 3 read its light facet's centroid, 13 px left) and
+  the chin outline drive it. Pinata iso-left's chin sat 12.4 mm off on main, 4.5 mm after the refit (iso-right 4.2,
+  MY27 3.1); the brow badge's residual went from (12, 12) px to (-1.3, -5.6).
+- The print was retraced through the new camera (helmet_art.json, the field, helmet_pinata.png) and his three photo
+  cameras refitted (07 moved 0.9 mm, 08 2.5 mm, 09 2.8 mm). PORT_REAR is unchanged: the goggle's rest does not move.
+
+### The mouthpiece and the chin (item 2; helmet_detail.mouthpiece)
+- The chin's front mesh: no domain point within 6 mm of the chin rim, the rim's first layer split in rows
+  (helmet.layer_strip), the mouth cut in the flat mesh's own parameters. Chin front edges at most 7.2 mm (main 35.5),
+  triangle centres within 0.33 mm of the surface at p99 (main 3.8), no folds.
+- The mouthpiece: the shell cut along the rim and pushed back 16.5 mm behind a recessed tunnel (white roll, black lip
+  and wall, inner opening 7, 12 and 6 mm inside the rim, lattice 11 mm deep, rails 5 mm wide standing 8 mm, their V
+  4 mm wider each side: Leatt's fins cast 3 mm behind the surface). A second cut 0.3 mm outside the rim keeps the
+  rim's vertex normals off the dent's walls (the teeth in the shading).
+- The chin's far side: the nose narrower above z -82 mm (NOSE_TOP): upper chin outline MY27 +2.1 mm (was +6.3),
+  iso-right +2.7 (+4.6), iso-left +0.6 (+2.4).
+- The chin cap's moulded LEATT (CHIN_LEATT_C, 40 mm, 0.6 mm proud, the print's black under the coat).
+- The cheek pads give way to the goggle lens's lower corners (helmet.pads_give_way: the narrower nose top brought
+  the port's lower corners 3 mm in, 12 lens points 0.06 to 0.79 mm into the pads): pressed back up to 1.26 mm within
+  5 mm of a contact; lens least gap 0.28 mm (main 0.31). The goggle's rest does not move.
+
+### The grip panels (item 3; helmet_detail.grip_panel)
+- The panel's outline: its floor runs from under the brow (row 745 or above beyond x 1320 px through the solved
+  iso-left camera; main 805) down over the chin bar (below row 1135; main 1094) and out to within 8 px of the
+  paint's edge on every row from 800 to 1090 (GRIP_OUTER_PX): no black margin between the trim's roll and the print.
+- The relief: raised tiles (triangles, and rhombi where a groove is left out) 114 a side, 20 % four-cornered, their
+  tops 45 % of the field, in a net of 0.6 mm grooves with 0.25 mm bevels round 6.0 mm cells.
+- The tone from Leatt's iso-left under the Standard view, de-lit: tiles and bevels 80 77 82 (rough 0.75 and 0.4),
+  the grooves' floor 18 17 19 (rough 0.85; the field's p10 17 in the photo). Rendered field p10 to p90 14 to 76
+  (Leatt 18 to 131; main 18 to 86): the lit ridges' highlights need the studio's glossy lamps.
+
+### The visor's underside, its windows and its lip (item 4; helmet.py)
+- The underside, rendered flat (emission, Standard view, 0 EV), reads 214 217 222; Leatt's reads 118 127 148 to
+  129 144 168 (Pinata iso-left px 320 to 457, 340 to 387), ours shaded 47 to 50. The material is right: the dark
+  comes from the light, which has no bounce from below (the studio's floor). A 100 W floor bounce in the comparison
+  rig brings it to Leatt's (150 W: 155 to 166; 400 W and more saturate). The model is unchanged; the scene's light
+  belongs to the look.
+- The windows: VISOR_WINDOW_PX (Royal_Left at 2x: a slanted parallelogram with rounded corners in a lit lip) through
+  the solved Royal camera, cut through both wings (cut_grid: Delaunay round the outline in the grid's parameters).
+  Through that camera the left window lies within 3 px of Leatt's (its px box 662 485 to 914 654, Leatt's corners
+  660 484 to 916 655). Delaunay leaves slivers along the outline; two of them, turned over, swung their points'
+  normals 83 and 85 deg and the window's wall stood into the opening in two spikes 3 mm tall (Royal at 5x). The
+  outline now takes the grid's own normal: rays through the window 12 px inside its sides miss the wing (3 hit before).
+- The lip: px2h reads Royal side-on at the centre plane, but the wing stands 100 mm or more nearer the camera:
+  through the solved camera main's lip ran 51 to 57 px (12 to 14 mm) above Leatt's from u 760 to the rear corner.
+  The lower edge is fitted in 3 rounds from u 660 (none) to 760 (all): within 0.1 px from u 760 to 1075, behind the
+  corner by the corner's move. The fit fades in across the arch from |phi| 0.5 to 0.9: carried up the whole arch it
+  lowered the visor 1.4 to 2.8 mm where it lies over the shell and folded two quads there. The rear band keeps the
+  unfitted grid's column shares (else 12 px off the top photo at the tongue's corner; now 7.6 px max, median 2.2).
+- Cross-check on Pinata iso-left, which the fit never saw: the lip now runs on Leatt's lower edge from px 1200 to
+  1400 (our top edge 8 to 12 px above it: the lip's thickness; main 25 to 60 px above). Ahead of that (px 900 to
+  1125) ours runs 17 to 27 px below Leatt's (main lower still).
+- Triangulated from Royal and Pinata iso-left (rays within 1.7 mm of each other): Leatt's lip at y -75, -47 and -22 mm
+  stands at x 127.8, 130.2 and 128.6 mm, ours at 118.9, 122.9 and 122.5 (z within 1 mm): 6 to 9 mm too narrow. The
+  window's corners: the front top one 6.4 mm outside and 5.5 mm above our wing, the rear top one 6 mm inside and 7 mm
+  below, the rear lower ones 9 and 6 mm inside. Leatt's wing flares out to its lip (x 118 mm at z 47 to 130 at z 38
+  near y -60); ours runs straight down. In iso-left our near window sits 44 px ahead of Leatt's at its front top
+  corner and 38 px behind at its rear top corner; our far window lies behind the shell (px 534 to 688, 485 to 642)
+  where Leatt's shows the background (455 to 550, 425 to 510).
+
+### The brow (item 5; helmet_detail.brow_vents, brow_tag)
+- The vents, retraced on Pinata iso-left at 4x with a grid: the centre vent's mesh ends at its divider in a straight
+  slant from (753, 631) to (785, 667) px; the side vent is a slanted parallelogram tipped at (993, 706). The loops
+  keep the traced corners (sampled along each side) and the rim's outer edge is mitred there. On the shell the centre
+  loop turns 151 deg at the slant's lower corner each side (main 101: corners rounded 4 px and resampled through),
+  the side loop 153 deg at its tip (main 120).
+- The tag in a recess (Pinata iso-left at 5x: a dark groove about 1.5 px round its rim, then a lit bevel about 2 px):
+  a groove floor 0.15 mm over the shell (MAT_DARK) out to 1.10 times the outline, a bevel up to the surround's top
+  0.6 mm over the shell (1.24 to 1.30 times), the surround running into the shell at 1.55 times, in the brow's own
+  black under the clear coat (helmet_brow_moulding, 22 21 23). The tag's top 0.5 mm over the shell (was 1.0).
+- Not done: the brow's lit facets and its lit lower edge. Our brow ends at the port's top edge, 25 to 40 px (5 to
+  8 mm) above Leatt's lit lower edge under the side vent; lowering it moves where the goggle rests (the goggle
+  agent's), so the port's top stays phase 2's. Leatt's facets read p50 51 (the upper facet 52, the divider's 110 to
+  135) against our 18 and 19: black plastic's sheen from the studio's lamps, which the comparison rig's lamps (unseen
+  by glossy rays) cannot show. At 2x (checkpoint 08c) the vents' top edges lie on Leatt's and their lower edges
+  10 to 17 px (2 to 4 mm) high, the side vent's most: the brow's lower edge again.
+
+### The crown's side vents (item 6; helmet_detail.crown_side_vents, helmet_art's FORCE)
+- Leatt's (Pinata iso-left at 4x, Royal at 2x to 6x): behind the visor's rear corner, a slot with straight front and
+  rear edges, the top rounded at its front corner, the lower edge curving down to a pointed rear corner, under a
+  wire mesh; a thin white lip round it; behind it a lit wall and a raised ridge (the pocket it sits in). Main had
+  none: its print carried the slot as two black blobs (traced from the photos).
+- Built (helmet_detail.crown_side_vents): the outline traced on iso-left (CROWN_SIDE_PX, his right the mirror), a
+  dark floor, the mesh, a white lip 1.2 mm wide standing 1 mm; helmet_art's FORCE whites out the blobs (iso-left px
+  1425 to 1535, 355 to 520; a FORCE acts at trace time: retrace, then draw).
+- Placement: cast through iso-left alone (it sees the crown's side at a grazing angle, 58 deg off the vent's normal;
+  Royal 44) the outline landed 15.5 mm from the side_vent landmark (45 to 67 px off in Royal, the top and the back
+  views); on the landmark's foot it read 28 and 35 px high in Royal and iso-left. Triangulated from the two (the
+  opening's centre at Royal px 1312 575 and iso-left 1484 455; rays 2.3 mm apart), Leatt's opening lies 11 mm inside
+  our shell: no shell point lies on it in both. The outline is carried along the shell to the point nearest it in
+  both photos (nearest_in_photos): the floor's centroid reads (-16, -4) px off in Royal (4 mm forward) and (+25, -9)
+  in iso-left. The outline's size agrees with Leatt's Royal outline cast on its plane (31.9 by 9.7 mm; Royal's
+  front and rear edges 28.4 and 33.2 mm, top 11.1).
+- The mesh: the lattice each photo shows, from the masked autocorrelation inside the opening (Royal (2, 11) and
+  (-10, 6) px, iso-left (0, 7) and (-9, 3)), mapped through each camera's projection of the vent's plane: bars 2.7 mm
+  apart at 50 deg either side of the long axis fit both at rms 2.0 px (the first build's 2.2 mm at 45 deg: 2.3, cells
+  4.8 mm2 against Royal's 9.1 and iso-left's 6.3; the two photos disagree, the pocket's floor is not our shell's
+  plane).
+- The print retraced on the final geometry: items 2 to 4 moved the chin and cut the visor's wing, and the chin
+  text's and the visor's side LEATT's frames moved with them. His 07, 08, 09 keep their cameras: on the new print
+  their landmarks read as before (rms 1.67, 5.97, 8.35 px); a refit (his_cameras.py) moved them 0.4 to 2.3 mm and
+  only traded 0.1 to 0.2 px of landmark fit for 0.002 to 0.018 of colour correlation, putting 08 over its 6 px bound.
+
+### Measured only: the print's magenta
+The look agent read the print's magenta 53.4 dE from his photos under its refitted daylight look (38.9 before).
+Against Leatt's studio, through the solved cameras under the Standard view (the main render; each image's magenta
+pixels, hue 300 to 345 deg, saturation over 0.45, value over 0.25, in a box round the cheek's print):
+- Pinata iso-left (px 1000 to 1450, 700 to 1400): Leatt's median sRGB 139 0 78 (Lab 29.2 54.0 -7.1), ours 157 6 91
+  (34.2 58.8 -8.4): dE76 7.1, dE2000 4.2.
+- Pinata iso-right (px 500 to 1150, 700 to 1450): Leatt's 193 0 85 (Lab 41.9 67.8 11.1), ours 146 6 72 (32.3 55.3 8.0):
+  dE76 16.0, dE2000 8.7.
+Leatt's two studio views differ from each other by about 26 dE76 (the lamps), ours lies between them. The ink is not
+off; the gap in his photos is the look's (the print is unchanged).
+
+### Still off (round 6)
+- The visor's wing: Leatt's lip stands 6 to 9 mm wider than ours (a flared lip) and the window's rear corners 6 to
+  9 mm inside our wing; in iso-left our near window sits 44 px ahead at its front top corner and 38 px behind at its
+  rear top corner, and our far window lies behind the shell. Small tick marks along the window wall's seams.
+- The brow: its lit facets and lit lower edge. Our port's top edge stands 5 to 8 mm above Leatt's lit lower edge;
+  lowering it moves where the goggle rests (with the goggle agent). The facets' sheen needs the studio's glossy
+  lamps (Leatt p50 51, ours 18).
+- The crown's side vent: Leatt's sits in a pocket 11 mm inside our shell, with a lit rear wall and a raised ridge
+  behind it; ours lies on the shell, 16 px ahead in Royal and 25 px behind in iso-left. Our shell stands 5 to 11 mm
+  proud there.
+- The grip panels' lit ridges (p90 76, Leatt 131): the studio's glossy lamps.
+- The brow tag is one triangle: Leatt's LEATT logo is three pieces on it.
+- The eyeport_triangle landmark (helmet-ba.json) stands 9.7 mm proud of our shell.
+
+### Round 6 plan (not started)
+From the coordinator's brief: the visor's screws, its top windows and moulded vents; the crown vent pod and its
+thinner rim; the rear slot's chamfered end; the rear lower slot's taper; the rear spoiler shelf; the lower centre
+panel; the lower edge behind the ear. Carried over: the wing's flared lip and window from the triangulated corners
+(Royal and iso-left); the crown side vent's pocket (its floor 11 mm in, its lit rear wall and ridge), which also
+brings the mesh to one plane for both photos; the brow's lower edge with the goggle agent.

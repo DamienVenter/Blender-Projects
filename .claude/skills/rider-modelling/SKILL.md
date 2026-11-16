@@ -1212,3 +1212,32 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - A texture that differs from the committed file after a rebuild was a stale commit, not a random build: build
   twice (bit-identical here, 141 and 156 s) and compare with git's copy before hunting for threads or seeds; commit
   textures from the same build as the code (test_kit_textures_rebuild_to_the_committed_files).
+
+## Helmet round 5 (decision 56): lessons (helmet.py, helmet_detail.py, helmet_ba.py, helmet_art.py, ledger helmet.md section 10)
+- A side photo read at the centre plane (helmet.px2h) misplaces any edge that stands off that plane: the visor's
+  wing stands 100 mm nearer the Royal camera and its lip read 12 to 14 mm high. Fit such edges through the solved
+  camera (helmet.royal_proj) and cross-check on a photo the fit never saw (Pinata iso-left).
+- Fade a fit out where the part lies on something else: the lip fit carried up the visor's arch lowered it 1.4 to
+  2.8 mm over the shell and folded two quads (cos 0.37). Check folds on every visor change and read every line of
+  the sorted list: a `tail -3` showed only the 4th to 6th worst and hid them.
+- Delaunay round a cut outline leaves slivers that can turn over: take the outline's normals from the parametric grid
+  (thicken_grid's holes), not from the triangles (two normals swung 83 deg, the window's wall stood 3 mm spikes).
+- A test that picks "the window" among boundary loops by vertex count picks the outline: sort by extent.
+- One camera off at a part (Pinata iso-left 12.4 mm at the chin): refit that camera alone (helmet_ba.py refit VIEW,
+  the rest held, whitened by their covariance) with new landmarks there; then retrace the print and refit his three
+  photo cameras, which hang on the print.
+- A part placed from one photo seen at a grazing angle lands far off (the crown's side vent cast through iso-left:
+  15.5 mm). Where Leatt's part sits in a pocket inside our shell (11 mm there), no shell point lies on it in two
+  photos, and a landmark's foot along the normal reads 28 to 35 px high in both: place it on the shell point nearest
+  the read px in both photos (helmet_detail.nearest_in_photos) and report each photo's offset.
+- helmet_art's FORCE acts at trace time: a FORCE edit needs `helmet_art.py trace` (about 4 min) then `draw`. Draw
+  alone keeps the old print (the vent's two black blobs stayed). After a retrace, score his three cameras on the new
+  print before refitting them: round 5's retrace left their landmark fit unchanged, and a refit only traded 0.1 to
+  0.2 px of it for a little colour correlation, putting 08 over its 6 px bound.
+- A wire mesh's pitch and angle: read its lattice in each photo from the autocorrelation inside the opening (masked,
+  high-passed; the peaks' two shortest vectors), map them through each camera's projection of the vent's plane and
+  fit the mesh to both (crown side vent: 2.7 mm at 50 deg, rms 2.0 px). The first build, read by eye, had cells 1.5 times too small.
+- Black plastic's sheen (the brow's facets, the grip panel's ridges) comes from the studio's lamps seen in glossy
+  rays; the comparison rig's lamps are not, so check those parts by their de-lit tone, not the rendered p50.
+- Before calling an ink off, read it against both of Leatt's studio views under the Standard view: the two differ
+  by 26 dE76 for the same print (the magenta: ours dE2000 4.2 and 8.7, between them).
