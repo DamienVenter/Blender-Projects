@@ -11,6 +11,7 @@ lower pieces). Sizes are measured at 1:1 against those cameras (mm per px at the
 tables' comments and the ledger, sections 6 and 7.
 All in the HELMET frame (metres, x his left, y back, z up); the right side is the mirror of the left.
 """
+import json
 import numpy as np
 
 import helmet as H
@@ -1414,6 +1415,67 @@ def side_vents(shell):
     return mirror(pieces, 1.0) + mirror(pieces, -1.0)
 
 
+# ---------------------------------------------------------------- the crown's side vents (round 5, decision 56)
+# Behind the visor's rear corner each side, the crown's upper side exhaust vent: a slot in a white moulded frame (the
+# shell's own white under its clear coat, lit along its rear wall) over a dark floor under a wire mesh of diagonal bars
+# (Leatt's Pinata iso-left at 4x, scratch k6c; Royal side at 3x, k6b). Main had none: its print carried the slot's
+# dark as two black blobs (traced from the photos), which the print's FORCE now whites out (helmet_art). Traced on
+# Pinata iso-left at 4x with a grid (px, his left; his right the mirror): straight front and rear edges, the top
+# rounded at its front corner, the lower edge curving down to a pointed rear corner. Iso-left sees the crown's side
+# at a grazing angle: cast through its camera the trace landed 15.5 mm from the side_vent landmark solved from nine
+# photos (research/helmet-ba.json; 45 to 67 px off in Royal, the top and the back views). Leatt's vent sits in a
+# pocket: triangulated from Royal and iso-left its opening's centre lies 11 mm inside our shell (rays 2.3 mm apart),
+# so no point of our shell lies on it in both. The cast outline is carried along the shell until its centroid sits
+# on the shell point whose projections lie nearest the opening's centre in both photos (CROWN_SIDE_AT; on the
+# landmark's foot it read 28 and 35 px high in them). The frame is the opening's thin white lip: 1.2 mm wide,
+# standing 1 mm (Royal at 2x, scratch k6f: its lip 3 to 4 px at the opening's front and top; the lit band behind it
+# in iso-left is the pocket's rear wall, round 6). The mesh: bars 0.5 mm thick, 2.7 mm apart, 50 deg either side of the long axis, fitted to the
+# lattice both photos show (the masked autocorrelation inside the opening: Royal (2, 11) and (-10, 6) px, iso-left
+# (0, 7) and (-9, 3)) through each camera's projection of the vent's plane: rms 2.0 px (2.2 mm at 45 deg: 2.3; its
+# cells 4.8 mm2 against the fit's 7.4, Royal's read 9.1 and iso-left's 6.3).
+CROWN_SIDE_PX = [(1469, 418), (1471, 412), (1476, 410), (1497, 409), (1500, 500), (1491, 497), (1481, 491),
+                 (1473, 484), (1469, 476)]
+CROWN_SIDE_AT = {"royal_left": (1312, 575), "pin_isoleft": (1484, 455)}  # px, the opening's centre (2x, 4x)
+CROWN_SIDE_RIM_W, CROWN_SIDE_RIM_H = 0.0012, 0.001
+CROWN_SIDE_MESH = (0.0027, 0.0005, 50.0)           # pitch, wire width, angle
+CROWN_SIDE_TOL_PX = 30.0              # px, the floor's centroid from CROWN_SIDE_AT in each photo (the pocket)
+
+
+def photo_px(cam, X):
+    """Px of points X (helmet frame, m) through a solved camera of research/helmet-ba.json."""
+    q = (np.atleast_2d(X) - np.asarray(cam["C"])) @ np.asarray(cam["R"]).T
+    return np.c_[cam["cx"] + cam["f"] * q[:, 0] / q[:, 2], cam["cy"] - cam["f"] * q[:, 1] / q[:, 2]]
+
+
+def nearest_in_photos(shell, X0, at, r=0.03, step=0.0005):
+    """The point of the shell within r of X0's foot whose projections lie nearest the px in `at` (camera name: px),
+    least squares over the photos."""
+    cams = json.load(open(H.BA_JSON))["cameras"]
+    F, N = shell.snap(np.atleast_2d(X0))
+    n = N[0] / np.linalg.norm(N[0])
+    t1 = np.cross(n, [0.0, 0.0, 1.0])
+    t1 /= np.linalg.norm(t1)
+    t2 = np.cross(n, t1)
+    g = np.arange(-r, r + step / 2, step)
+    A, B = np.meshgrid(g, g, indexing="ij")
+    Q, _ = shell.snap(F[0] + A.reshape(-1, 1) * t1 + B.reshape(-1, 1) * t2)
+    e = sum(np.sum((photo_px(cams[c], Q) - np.asarray(uv, float)) ** 2, axis=1) for c, uv in at.items())
+    return Q[np.argmin(e)]
+
+
+def crown_side_vents(shell):
+    """The crown's side vents, his left as traced and his right its mirror: frame (MAT), floor (MAT_DARK), mesh
+    (MAT_MESH). Pieces (V, F, mats)."""
+    shell = ExactShell(shell.V, shell.F)
+    P, N = shell.cast("isoleft", _resample_closed(np.asarray(CROWN_SIDE_PX, float), 2.0), side=1.0)
+    at = nearest_in_photos(shell, np.array(json.load(open(H.BA_JSON))["landmarks"]["side_vent"]["X"]), CROWN_SIDE_AT)
+    for _ in range(3):                                 # onto it, along the shell
+        P, N = shell.snap(P + (at - P.mean(0)))
+    pieces = vent_pieces(shell, P, N, CROWN_SIDE_RIM_W, CROWN_SIDE_RIM_H, rim_mat=MAT, mesh=CROWN_SIDE_MESH,
+                         mitre=True)
+    return mirror(pieces, 1.0) + mirror(pieces, -1.0)
+
+
 # ---------------------------------------------------------------- the brow's vents and tag (phase 2, decision 51)
 # Traced on Leatt's Pinata iso-left photo at 2x and 3x with grids (scratch gridcrop.py; 0.21 to 0.23 mm/px there):
 # under the visor the brow's black moulding carries two mesh vents a side. The centre one runs across the centre line
@@ -1515,7 +1577,8 @@ def build(Vo, Fo, part=None):
     for its grain, MAT_GRIP_GROOVE between the tiles, their bevels MAT_GRIP_BEVEL, walls MAT_GRIP_EDGE), the chin's mouthpiece in MAT_FRAME (its outer wall in
     MAT) with its floor in MAT_DARK and its lattice in MAT_MESH, the chin bar's side vents (wall MAT, floor MAT_DARK,
     mesh MAT_MESH), the brow's vents (rim MAT_FRAME, floor MAT_DARK, mesh MAT_MESH) and tag (MAT_TAG round a
-    MAT_DARK centre, in its recess: MAT_BROW round a MAT_DARK groove)."""
+    MAT_DARK centre, in its recess: MAT_BROW round a MAT_DARK groove), the crown's side vents (frame MAT, floor
+    MAT_DARK, mesh MAT_MESH)."""
     shell = Shell(Vo, Fo)
     part = part or H.Part(PART)
     pieces = []
@@ -1528,7 +1591,8 @@ def build(Vo, Fo, part=None):
     for side in (1.0, -1.0):                            # the grip panels, with their relief's UVs
         for V, F, mats, uv in grip_panel(shell, side):
             part.add(V, F, mats, uv)
-    for V, F, mats in mouthpiece(shell) + side_vents(shell) + brow_vents(shell) + chin_wordmark(shell):
+    for V, F, mats in (mouthpiece(shell) + side_vents(shell) + brow_vents(shell) + chin_wordmark(shell)
+                       + crown_side_vents(shell)):
         part.add(V, [list(f) for f in F], mats)
     return part
 

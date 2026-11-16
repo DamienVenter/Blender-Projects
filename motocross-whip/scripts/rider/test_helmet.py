@@ -1035,6 +1035,39 @@ def test_brow_tag_sits_in_its_recess(built):
                                                                                  V[tag].max(0)[[1, 2]])
 
 
+def test_crown_side_vents_are_moulded(built):
+    """Round 5 (decision 56; phase 2's item 5): behind the visor's rear corner each side, the crown's upper side
+    exhaust vent is geometry: a white moulded frame (MAT) round a dark floor (MAT_DARK) under a wire mesh (MAT_MESH),
+    traced on Pinata iso-left at 4x (CROWN_SIDE_PX), his right the mirror. On the built part, round the side_vent
+    landmark solved from nine photos (research/helmet-ba.json) each side: all three; his left floor's centroid through
+    the solved Royal and iso-left cameras within CROWN_SIDE_TOL_PX (30 px) of the opening's centre read in each
+    (CROWN_SIDE_AT; Leatt's vent sits in a pocket 11 mm inside our shell, so no shell point lies on it in both).
+    Main: none, the print's two black blobs."""
+    import json
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    ba = json.load(open(H.BA_JSON))
+    X = np.array(ba["landmarks"]["side_vent"]["X"])
+    tol = getattr(D, "CROWN_SIDE_TOL_PX", 30.0)
+    at = getattr(D, "CROWN_SIDE_AT", {"royal_left": (1312, 575), "pin_isoleft": (1484, 455)})
+    for sgn in (1.0, -1.0):
+        Xs = X * [sgn, 1, 1]
+        near = {}
+        for f, m in zip(P.F, P.M):
+            c = V[f].mean(0)
+            if np.linalg.norm(c - Xs) < 0.02:
+                near.setdefault(m, []).append(c)
+        assert {D.MAT, D.MAT_DARK, D.MAT_MESH} <= set(near), f"crown side vent ({sgn:+.0f}): {sorted(near)}"
+        if sgn > 0:
+            c = np.mean(near[D.MAT_DARK], 0)
+            for cam, uv in at.items():
+                cm = ba["cameras"][cam]
+                q = (c - np.asarray(cm["C"])) @ np.asarray(cm["R"]).T
+                e = np.array([cm["cx"] + cm["f"] * q[0] / q[2], cm["cy"] - cm["f"] * q[1] / q[2]]) - uv
+                assert np.hypot(*e) < tol, f"crown side vent in {cam}: {e.round(0)} px off Leatt's"
+
+
 def test_visor_rear_lip_is_crisp(built):
     """Phase 2 (decision 51; round 4's review item A): Leatt's visor ends in a crisp lip (its thickness a dark band
     under the lit top, a thin highlight along its top edge: Pinata iso-left at 2x), main's in a soft bump: its edge

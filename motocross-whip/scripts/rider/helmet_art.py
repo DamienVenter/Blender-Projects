@@ -176,6 +176,9 @@ FORCE = {"isoleft": [
                (1347, 735), (1331, 816), (1316, 897), (1300, 954), (1287, 1010), (1275, 1047), (1262, 1085),
                (1256, 1097), (1175, 1122), (1100, 1150), (950, 1140), (950, 760), (700, 740), (470, 720)]),  # port trim, grip panel
     ("black", [(385, 1180), (430, 1118), (480, 1098), (650, 1098), (650, 1192), (545, 1188), (400, 1182)]),     # chin cap
+    # round 5 (decision 56): the crown's side vent is geometry (helmet_detail.crown_side_vents): its slot and the
+    # shading round it are no print (main traced them as two black blobs, px 1440 to 1495, 369 to 496)
+    ("white", [(1425, 355), (1535, 355), (1535, 520), (1425, 520)]),
 ],
     # The centre stripe's end on the back (back photo px): teal both sides of the purple stem (x 941 to 987) down
     # to the spoiler's foot (y 722). The top view places the turbine on the shell about 40 mm above where the back
