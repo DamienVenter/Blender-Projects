@@ -1597,6 +1597,38 @@ def test_round14_c_stops_on_the_frame():
     assert all(t >= G.CAR_STOP_TURN for v in G.WORN_TURN.values() for t in v), G.WORN_TURN
 
 
+def test_round14_teeth_steps_crisp():
+    """Round 14 item 5: Leatt's tooth step at |s| 48.5 mm takes 6 px in the white ISO (0.18 mm a px: about 1 mm); ours
+    ran over 11 px and more (the white ISO's columns 1290 to 1301, round 13's checkpoint read 20): the loops are
+    sampled every 1 mm along the top band, so a step spread over two samples, 2 mm, whatever TOOTH_EASE. Now each loop
+    has a sample TOOTH_SNAP (0.5 mm) either side of each step (tooth_snaps; the white ISO then reads 48.5 mm's over 6
+    columns, scratch step14b.py): on the built lens edge, on both sides, exactly two samples lie within 0.55 mm of
+    each step and the drop between them is the teeth's own (unsmoothed) within 5 % of the step's jump; the three loops
+    keep their samples' sides of the polygon (sampled alike)."""
+    teeth = G.GP["teeth"]
+
+    def raw(a):
+        for s_in, s_out, d_in, d_out in teeth:
+            if s_in <= a < s_out:
+                return d_in + (d_out - d_in) * (a - s_in) / (s_out - s_in)
+        return 0.0
+    Co, Cu, Ci, seg, frac = G.outlines()
+    d = G.tooth_drop(G.GP, Co)
+    steps = G.tooth_steps(G.GP)
+    assert np.allclose(steps, [0.0485, 0.0585, 0.0615])
+    for s0 in steps:
+        jump = raw(s0 + 1e-7) - raw(s0 - 1e-7)
+        assert abs(jump) > 0.0002
+        for sg in (1, -1):
+            k = np.nonzero((Co[:, 1] > 0) & (np.abs(sg * Co[:, 0] - s0) < 0.00055))[0]
+            assert len(k) == 2, (s0, sg, np.round(sg * Co[k, 0] * 1000, 2))
+            lo, hi = k[np.argsort(sg * Co[k, 0])]
+            want = raw(sg * Co[hi, 0]) - raw(sg * Co[lo, 0])
+            assert abs((d[hi] - d[lo]) - want) < 0.05 * abs(jump), (s0, sg, d[hi] - d[lo], want, jump)
+    ref = G.fillet_closed(G.full_loop(G.GP["open"]), G.loop_per(G.GP), G.loop_values(G.GP["fillet_open"]))[1]
+    assert np.array_equal(seg, ref)
+
+
 def parts_by_name(parts):
     return {P.name: P for P in parts}
 

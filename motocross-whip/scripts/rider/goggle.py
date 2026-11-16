@@ -480,7 +480,7 @@ def outline_t(gp=None, per=None):
     gp = gp or GP
     per = loop_per(gp) if per is None else per
     Cb = fillet_closed(full_loop(gp["out"]), per, loop_values(gp["fillet_out"]))[0]
-    return loop_t(Cb, half_samples(gp, per))
+    return loop_t(apply_snaps(Cb, tooth_snaps(gp, per)), half_samples(gp, per))   # round 14: the teeth's samples
 
 
 def xs_at(gp, key, t):
@@ -498,6 +498,56 @@ def cp_t(gp=None):
 
 
 TOOTH_EASE = 0.0004                 # m, half width of a tooth's step (a moulded step, crisp at 1:1)
+TOOTH_SNAP = 0.0005                 # m, round 14 (item 5): a loop sample this far either side of each tooth step
+
+
+def tooth_steps(gp):
+    """The |s| (m) where the teeth's drop jumps: a tooth's start or end against the next tooth's, or the band's 0."""
+    teeth = sorted(gp.get("teeth", []))
+    out = set()
+    for s_in, s_out, d_in, d_out in teeth:
+        before = next((t[3] for t in teeth if abs(t[1] - s_in) < 1e-9), 0.0)
+        if abs(d_in - before) > 1e-5:
+            out.add(s_in)
+        if not any(abs(t[0] - s_out) < 1e-9 for t in teeth) and abs(d_out) > 1e-5:
+            out.add(s_out)
+    return sorted(out)
+
+
+def tooth_snaps(gp, per):
+    """Round 14 (item 5): moves for the loops' samples (fillet_closed's, sampled alike) that put a top band sample
+    TOOTH_SNAP either side of each tooth step (tooth_steps), both sides of the goggle: [(k, a, b, w)], sample k to
+    a + (b - a) w between its neighbours a and b on the same side of the loop's polygon, in order. Sampled every 1 mm
+    a step ran over 2 mm: the white ISO read 48.5 mm's over 11 px and more, Leatt's over 6 (scratch step14b.py)."""
+    steps = tooth_steps(gp)
+    if not steps:
+        return []
+    Co, seg, _ = fillet_closed(full_loop(gp["open"]), per, loop_values(gp["fillet_open"]))
+    x, n = Co[:, 0].copy(), len(Co)
+    used, moves = set(), []
+    for s0 in steps:
+        for sg in (1.0, -1.0):
+            for target in (sg * (s0 - TOOTH_SNAP), sg * (s0 + TOOTH_SNAP)):
+                for k in np.argsort(np.abs(x - target)):
+                    k = int(k)
+                    a, b = (k - 1) % n, (k + 1) % n
+                    if (k in used or Co[k, 1] <= 0.0 or seg[a] != seg[k] or seg[b] != seg[k]
+                            or not min(x[a], x[b]) < target < max(x[a], x[b])):
+                        continue
+                    w = (target - x[a]) / (x[b] - x[a])
+                    moves.append((k, a, b, float(w)))
+                    x[k] = target
+                    used.add(k)
+                    break
+    return moves
+
+
+def apply_snaps(C, moves):
+    """A loop (or its fractions) with tooth_snaps' moves applied in order."""
+    C = np.array(C, float)
+    for k, a, b, w in moves:
+        C[k] = C[a] + (C[b] - C[a]) * w
+    return C
 
 
 def tooth_drop(gp, C):
@@ -529,13 +579,16 @@ def outlines(gp=None, per=None, teeth=True):
     control points joined by fillets; the lens edge and the outer edge then bow off that polygon along its normal
     by a smooth offset (round 6: GP "open_dk", "out_dk", the coefficients of a bspline_half in the polygon's own arc
     length; round 5's one free offset per sample, rounded to 0.1 mm, crumpled the frame at 1:1). The lens edge
-    steps down at the top band's teeth (teeth=False: the plain lens edge)."""
+    steps down at the top band's teeth (teeth=False: the plain lens edge, sampled as with them). Round 14: a sample of
+    each loop TOOTH_SNAP either side of each step (tooth_snaps)."""
     gp = gp or GP
     per = loop_per(gp) if per is None else per
     nh = half_samples(gp, per)
     Co, seg, frac = fillet_closed(full_loop(gp["open"]), per, loop_values(gp["fillet_open"]))
     Cu, _, _ = fillet_closed(full_loop(gp["out"]), per, loop_values(gp["fillet_out"]))
     Ci, _, _ = fillet_closed(full_loop(gp["inner"]), per, loop_values(gp["fillet_inner"]))
+    mv = tooth_snaps(gp, per)                  # round 14 (item 5): a sample either side of each tooth step, every loop
+    Co, Cu, Ci, frac = (apply_snaps(C, mv) for C in (Co, Cu, Ci, frac))
     if gp.get("out_dk") is not None:
         Cu = Cu + outward2d(Cu) * bspline_half(gp["out_dk"], loop_t(Cu, nh))[:, None]
     if gp.get("open_dk") is not None:
