@@ -370,6 +370,8 @@ def main():
         if day:
             bpy.context.view_layer.update()
             day_sun(day, sc.camera, s.get("sun", (90.0, 110.0)), day_rig.SUN_ELEV if "sun" in s else None)
+            if LOOK != "agx":                      # a view of his photo at its exposure and tint (decisions 55, 59)
+                scene_look.apply(sc, "daylight", ev=scene_look.photo_ev(name), tint=scene_look.photo_tint(name))
         sc.render.use_border = sc.render.use_crop_to_border = "box" in s       # round 8: only the photo's box
         if "box" in s:
             x0, y0, x1, y1 = s["box"]

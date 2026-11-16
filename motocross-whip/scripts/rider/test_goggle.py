@@ -1851,3 +1851,21 @@ def test_textures_present():
             "goggle_slide_n.png"} <= names
     for f in names:
         assert os.path.getsize(os.path.join(H.TEXDIR, f)) > 1000, f
+
+
+def test_round14_goggle_views_his_photos_take_their_exposure_and_tint():
+    """Decisions 55 and 59 (main bcee814): head_closeups shows a view of his photo at that photo's exposure and tint
+    of the darks (scene_look.photo_ev / photo_tint by the view's name). goggle_views applied the daylight look once,
+    at 0 and no tint, for every view; now each view re-applies it with its own (p07 -0.045 EV and 07's tint, p09
+    -0.649 EV; Leatt's views 0 and None: the one look), except under the plain AgX."""
+    import ast
+    sys.path.insert(0, os.path.join(HERE, "..", "common"))
+    import scene_look
+    tree = ast.parse(open(os.path.join(HERE, "goggle_views.py")).read())
+    main = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "main")
+    calls = [ast.unparse(n) for n in ast.walk(main) if isinstance(n, ast.Call) and ast.unparse(n.func) ==
+             "scene_look.apply"]
+    assert calls == ["scene_look.apply(sc, 'daylight', ev=scene_look.photo_ev(name), "
+                     "tint=scene_look.photo_tint(name))"], calls
+    assert scene_look.photo_ev("p07") == scene_look.PHOTO_EV["07"] and scene_look.photo_tint("p07") is not None
+    assert scene_look.photo_ev("iso55") == 0.0 and scene_look.photo_tint("iso55") is None
