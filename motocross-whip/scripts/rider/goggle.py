@@ -1210,15 +1210,23 @@ OR_HINGE = True
 # at 64 and 76.5 deg. 3 mm back: from the widest point the plate's 5 mm crossed the lens's edge (x 97.1 mm at y 28.8,
 # back to y 30.7) by 0.6 mm. Worn, the plate turns out 0 to 18.75 deg to rest on the shell (round 11: 10.75; 4 mm
 # inboard needs 20.75). Round 13: rigid, 20.25 deg on phase 2's shell (outrigger_grids).
-OR_HINGE_IN = 0.003
-OR_HINGE_BACK = 0.003
+# Round 14 (decision 60, item 1): the pivot 4.84 mm inboard of that point and 4.36 mm AHEAD of it (OR_HINGE_BACK
+# negative), the plate 31.1 mm from it to its back end (OR_LEN 26.8 behind the widest point): the joint fit of the C
+# in the four far views and the near plate seen from outside (below, CAR_ON_PLATE). Round 12: 3 mm in, 3 mm back, 27.
+OR_HINGE_IN = 0.00484
+OR_HINGE_BACK = -0.00436
+OR_LEN = 0.02678
 OR_HINGE_LEN = OR_LEN - OR_HINGE_BACK   # m, hinge to the back end. 46 mm (to round 8's back end) showed the plate 197 px
                                    # wide between strap and frame in the Pinata iso-right (Leatt 69, round 8 157); 30
                                    # mm shows 115, and the strap fits his 07 at 4.2 mm rms (round 8 4.5)
-OR_FREE_TURN = 64.0                # deg out from straight back, free, or {side: deg}: the far plate of the Pinata
+OR_FREE_TURN = {1: 56.0, -1: 13.7}  # deg out from straight back, free, or {side: deg}: the far plate of the Pinata
                                    # goggle ISO (iso55, his SKU; IoU 0.972 against 0.968 at 0 to 40 deg); phr's is 65.
                                    # Round 12: 55 and 65 from the widest point; from the hinge OR_HINGE_IN inboard and
-                                   # OR_HINGE_BACK back the same back edges need 64 and 76.5 (hingescan12.py)
+                                   # OR_HINGE_BACK back the same back edges need 64 and 76.5 (hingescan12.py).
+                                   # Round 14: far 56.0 and near 13.7, solved with the C on the plate (CAR_ON_PLATE)
+                                   # in iso55 (the far plate: the white ISO 55.9, phr 65.2, the Forge front 54.4;
+                                   # the near plate one turn for iso55 and phr: at its stop, CAR_STOP_TURN, the C's
+                                   # inner bar against the frame's side; round 12 read it at 6.0 to 6.25)
 
 # Round 13 (decision 57, item 1): the strap carrier. In every Leatt front photo the piece beyond the frame's far end
 # has the plates' colour (navy on the Blue and Royal ISO renders, red on the Forge Grey Rose, black on the rest): a C,
@@ -1266,6 +1274,80 @@ CAR_Z = (-0.0347, 0.0264)           # m, its bottom and top (GOGGLE z): iso55 ro
                                     # the studio's low light (white, 250, against Leatt's 45)
 CAR_CLEAR = 0.0003                  # m, the carrier's back face off the frame's corners at its top and bottom
 CAR_POST = (0.0035, 0.0009, 0.0013)  # m, the clear post on the bar's outer edge, along it: length, stem, head radii
+
+# Round 14 (decision 60, item 1): the C rides on the plate and swings with its turn. A C fixed on the frame cannot
+# hold iso55 and phr at once (one C, one shared turn: 8.1 px rms against Leatt's lens post, phr 10 to 13 px off;
+# scratch fitc14b.py). One C on the plate, the plate turned its own way in each photo (its strap lays it), fits the
+# four front views together: the C's inner and outer front edges, its windows' inner edge, the silhouette beyond it
+# and, in phr and the Forge front, the post's base and tip, 20 observations, each against the photo's lens post
+# (the Forge front's camera spreads the two posts 12 % wide: scaled by them), 11 unknowns (scratch fitc14e.py with
+# the plate as built, fitc14f.py): 1.41 px rms, at most 3.3 (the cameras' landmark rms 4.4 to 4.5), the turns 67.4
+# (iso55), 67.3 (the white ISO), 79.3 (phr), 64.1 (the Forge front), round 12's hinge kept (the far views alone do
+# not fix the pivot: any over x 92 to 106, y 23 to 38 mm fits at 1.1 to 2.2 px). Built so, the NEAR plate (iso55,
+# phr, the Forge front: seen from outside, straight back) showed the C standing 2.4 mm proud of the plate, the front
+# 14 mm open to the backdrop and the print on 13 mm, where Leatt's near plate is one flat printed face from its back
+# edge (iso55 830, phr 930.5 px at mid height) to a front edge (909, 986) where a dark groove runs to the frame's
+# rim, the print over 0.09 to 0.92 of it (scratch near14.py, rowprof14.py). Fitted jointly, the far views' 20
+# observations and the near plate's back and front edges in iso55 and phr (24; scratch fitc14n2.py), the C's outer
+# corner the front edge of a flat outer face that runs back to the plate's end, one near turn: the pivot slides
+# along a valley (free, it runs inside the frame to x 85 mm); on the frame's side (pivgrid14.sh) round 12's hinge
+# fits at 2.57 px rms (phr's E2 7 px off), the widest point 1.80 (4.8), x 97 y 28 1.50 (3.8, on the lens's edge),
+# x 99 y 24 1.15 (3.1) with the near plate at 8.7 deg, where its C's inner bar stands 2.5 mm inside the frame's side
+# (bounded at 15.5 deg, 1.2 mm; at 25 deg, the C refitted, still 1.2 mm: scratch fitc14n3.py, clear14.py). So the fit
+# keeps the near C out of the frame and the face foam (scratch fitc14n4.py: the C's solid, its bar CAR_T thick, the
+# windows open, sampled every 0.5 by 0.8 mm and looked up in the frame's signed distance, sdf14.py, each point
+# deeper than -0.3 mm a residual of 4 px a mm), the near turn free: at x 99 y 24, 1.25 px rms, 3.6 at most (the
+# Forge front's inner edge; the cameras' landmark rms 4.4 to 4.5), the near C 0.29 mm clear. Built, 4.8 mm inside
+# the widest point and 4.4 ahead of it, the plate 31.1 mm long. Its far turns 56.0 (iso55), 55.9 (the white ISO),
+# 65.2 (phr), 54.4 (the Forge front); the near 13.7, where the C's inner bar meets the frame's back rim (the built
+# meshes, clear14.py: 16 points inside at 13.0 deg, 91 at 12, none from 13.7). phyb (no landmarks) is not fitted.
+# From the plate's outer face front edge (the hinge): the C's front face's inner end CAR_Q along the plate and out
+# (inboard: negative), the face turned CAR_PSI from square to the plate, CAR_PLATE_W across to its outer corner (0.2
+# mm proud of the plate's face: the plate's front edge, OR_PLATE_FRONT), two windows over CAR_PLATE_WIN in from that
+# corner (phr: 2 px of bar outside them), no gap (phr's bar runs whole from its inner edge, 1627 px, to the
+# windows). The clear post stands on the plate's outer face CAR_POST_AT behind the C's front and out square to the
+# plate (phr 1665 to 1700 px, the Forge front 1702 to 1735: base 2.7 mm, head 4.5 mm across, 12 px and 20 px in
+# phr). Leatt's CAD (iso55, his SKU; the white ISO) has none, nor do his Pinata kit photos or
+# the 2022 back photo (phyb: nothing beyond the bar, where ours stood 39 px out): built only for the Royal and the
+# Forge photos (goggle.py --free ... post); his goggle, worn and free, has none.
+CAR_ON_PLATE = True
+CAR_TURNS = {"iso55": 55.99, "wiso": 55.88, "phr": 65.16, "frg": 54.38}   # deg, each photo's far plate (solved)
+CAR_NEAR_TURN = 13.7                # deg, the near plate in iso55 and phr (solved: at its stop)
+CAR_STOP_TURN = 13.7                # deg, the least turn of a plate: below it its C's inner bar runs into the frame's
+                                    # back rim (z 13 to 23 mm, 0.3 mm deep at 13.0 deg). The free near plate rests on
+                                    # it; worn, the plate turns out from it until it clears the shell
+CAR_Q = (0.018221, -0.007988)       # m
+CAR_PSI = 18.29                      # deg
+CAR_PLATE_W = 0.008702              # m
+CAR_PLATE_WIN = (0.0006, 0.005403)  # m in from the outer corner
+CAR_POST_AT = 0.008439              # m along the plate behind the C's outer front corner
+CAR_POST_PLATE = (0.00927, 0.00135, 0.00225)  # m: length from the plate's face (through the C's corner),
+                                    # stem and head radii
+# The C's windows' heights (GOGGLE z): Leatt's rows (iso55 830/900 and 1025/1092, the white ISO 832/903 and
+# 1027/1092) back-projected onto the C's front face at each view's turn (scratch winz14.py: 7.72/21.08,
+# -28.90/-16.12; 6.98/20.51, -29.03/-16.65 mm), the mean. On the frame's end (round 13) they took the chassis slots'
+# (CHASSIS_SLOTS: 6.5/19.4, -28.5/-15.9), which on the plate puts the upper window 10 px low in iso55. His C's top
+# and bottom back-project to 26.8/27.2 and -35.0/-35.3 mm (CAR_Z: 26.4, -34.7)
+CAR_WIN_Z = [(0.0074, 0.0208), (-0.0290, -0.0164)]
+# The outrigger's front, from the hinge to the C, is open but for an arm at the top and the bottom (phr: the
+# background between them at rows 837 to 867 and 1060 to 1087, the strap at mid height, 1611 to 1627 px; the Forge
+# front the same; phyb from behind: the arms, the frame's clips between them). Built: the printed plate starts
+# OR_PLATE_FRONT along it from the hinge, so it runs from the C back to the strap (round 14's joint fit: from the
+# C's outer corner); the arms CAR_ARM tall across the plate's thickness from CAR_ARM_FROM along it (the frame's side
+# face is there: the hinge's knuckle not built) into the C. Behind the windows' outer part
+# (beyond the strap's cut end, CAR_STRAP) a wall in the C's shade (Leatt's iso55: grey, 1683 to 1693 px, in the
+# lower window; without it the studio's backdrop showed through).
+OR_PLATE_FRONT = CAR_Q[0] - CAR_PLATE_W * math.sin(math.radians(CAR_PSI))   # 15.49 mm: the C's outer corner
+OR_FACE_OUT = CAR_Q[1] + CAR_PLATE_W * math.cos(math.radians(CAR_PSI))      # 0.27 mm: the plate's outer face off the
+# hinge, through the C's outer corner, as the joint fit has it (the near plate seen from outside and the far one's
+# silhouette run flush from the corner to the back end; through the hinge, iso55's far edge stood 1 px inboard)
+CAR_ARM_FROM = 0.0040
+
+
+def plate_len(gp=None):
+    """Round 14: the printed plate's length, from its front edge (OR_PLATE_FRONT along it from the hinge with the C on
+    it, else the hinge) to its back end."""
+    return (gp or GP).get("or_hinge_len", OR_HINGE_LEN) - (OR_PLATE_FRONT if CAR and CAR_ON_PLATE else 0.0)
 
 
 def outrigger_frames(gp=None, turn=None):
@@ -1327,7 +1409,8 @@ def hinged_frames(gp, zt, zb, zc, zbk, o_back_h, turn_deg, length=None):
     line through the hinge (x, y), so that seen from the front the plate hides behind the frame's side (Leatt's front
     photos: nothing beyond the frame's widest point on the far side), the plate running back turned out by turn_deg
     (a number, or {side: deg})."""
-    length = length or gp.get("or_hinge_len", OR_HINGE_LEN)
+    length = length or plate_len(gp)
+    front = gp.get("or_hinge_len", OR_HINGE_LEN) - length                # round 14: the plate starts in the C
     hinges = hinge_points(gp, zc)
     h_in = gp.get("or_hinge_in", OR_HINGE_IN)
     h_back = gp.get("or_hinge_back", OR_HINGE_BACK)
@@ -1337,7 +1420,11 @@ def hinged_frames(gp, zt, zb, zc, zbk, o_back_h, turn_deg, length=None):
         t = np.array([sg * math.sin(a), math.cos(a), 0.0])
         n = np.array([sg * math.cos(a), -math.sin(a), 0.0])       # outwards, square to the plate
         Hp = np.array([hinges[sg][0] - sg * h_in, hinges[sg][1] + h_back, zc])
-        P0 = Hp                                                     # the outer face's front edge
+        P0 = Hp + t * front                                         # the outer face's front edge
+        if front > 0:                                               # round 14: through the C's outer corner
+            P0 = P0 + n * OR_FACE_OUT
+        if front > 0:                                               # round 14: in the C, as tall as the C
+            zt, zb = CAR_Z[1], CAR_Z[0]
         C = np.array([P0 + [0, 0, zt - zc], P0 + [0, 0, zb - zc],
                       P0 + t * length + [0, 0, zbk - zc - o_back_h / 2], P0 + t * length + [0, 0, zbk - zc + o_back_h / 2]])
         box = np.vstack([C, C - n * OR_T])
@@ -1361,7 +1448,7 @@ OR_FRONT_CUT = (0.0019, 0.0019)   # m, round 10: the front corners cut at 45 deg
 def or_u(nu=OR_NU, length=None):
     """The outrigger grid's columns along the plate (0 at its front edge, 1 at its back end): even, plus a column
     where each corner's cut starts (round 10), so that the cuts run straight."""
-    length = length or OR_HINGE_LEN
+    length = length or plate_len()
     cuts = sorted({1.0 - c / length for c in OR_CHAMFER if c > 0} | {c / length for c in OR_FRONT_CUT if c > 0})
     u = np.linspace(0.0, 1.0, nu - len(cuts))
     keep = [x for x in u if all(abs(x - c) * length > 0.0005 for c in cuts)]
@@ -1389,7 +1476,7 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
     eyeport's edge, bending out at most OR_BEND before it reaches the edge and never back in towards its end."""
     out = {}
     hinged = (gp or GP).get("or_hinge", 1.0 if OR_HINGE else 0.0)
-    length = (gp or GP).get("or_hinge_len", OR_HINGE_LEN) if hinged else (gp or GP).get("or_len", OR_LEN)
+    length = plate_len(gp) if hinged else (gp or GP).get("or_len", OR_LEN)
     uu = or_u(nu, length)
     nu = len(uu)
     u = uu[:, None, None]
@@ -1427,8 +1514,9 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
         if mount is not None:
             for sg in (1, -1):
                 req = np.zeros(nv)
+                a0 = CAR_STOP_TURN if CAR_ON_PLATE else 0.0       # round 14: never inside the C's stop
                 for j in range(nv):
-                    for a in np.arange(0.0, 90.0, 0.25):
+                    for a in np.arange(a0, 90.0, 0.25):
                         Gi_ = row(sg, a, j)[1]
                         need = mount(Gi_)
                         if not np.any((need > 0) & (np.abs(Gi_[:, 0]) < need + OR_GAP)):
@@ -1467,12 +1555,13 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
     return out
 
 
-def build_outriggers(gp=None, mount=None):
+def build_outriggers(gp=None, mount=None, post=False):
     """Black outriggers, white vertical LEATT on the outer face (letter tops towards the strap; Leatt's ISO view
     and the Pinata kit photo, right side), one image half per side. mount: see outrigger_grids. Round 13: and the
     strap carriers (carrier_mesh)."""
     o = H.Part("goggle_outriggers")
-    for sg, (Go, Gi, anchor) in outrigger_grids(gp, mount).items():
+    grids = outrigger_grids(gp, mount)
+    for sg, (Go, Gi, anchor) in grids.items():
         nu, nv = Go.shape[:2]
         run = np.linalg.norm(Go[:, 0, :2] - Go[0, 0, :2], axis=1)    # the grid's columns along it (or_u)
         uu = run / run[-1]
@@ -1502,10 +1591,9 @@ def build_outriggers(gp=None, mount=None):
             quads = [q[::-1] for q in quads]
             uvs = [w[::-1] for w in uvs]
         o.add(V, quads, "goggle_outrigger", uvs)
-    if CAR:                                       # round 13: each with its strap carrier on the frame's end
-        F = car_frame(gp)
+    if CAR:                                       # round 13: each with its strap carrier (round 14: on its plate)
         for sg in (1, -1):
-            carrier_mesh(o, sg, F)
+            carrier_mesh(o, sg, car_frame_plate(grids[sg][0], sg, post) if CAR_ON_PLATE else car_frame(gp))
     return o
 
 
@@ -1562,6 +1650,29 @@ def car_frame(gp=None):
     return dict(R0=R0, c=c, nrm=nrm, zb=zb, zt=zt, zc=zc, b0=b0, bow=(zg, bow))
 
 
+def car_frame_plate(Go, sg, post=True):
+    """Round 14: side sg's C on its plate (CAR_ON_PLATE), as car_frame's keys in side +1's coordinates (car_point
+    mirrors): from the plate's outer face grid Go (outrigger_grids), its front edge at mid height (the hinge) and its
+    direction there; the windows, width and post (or None) the C's own."""
+    nv = Go.shape[1]
+    m = np.array([sg, 1.0, 1.0])
+    A, B = Go[0, nv // 2] * m, Go[-1, nv // 2] * m
+    t = (B - A)[:2] / np.linalg.norm((B - A)[:2])
+    n = np.array([t[1], -t[0]])                                # outwards (side +1)
+    Hh = A[:2] - t * (OR_HINGE_LEN - plate_len()) - n * OR_FACE_OUT   # the hinge (pivot)
+    ps = math.radians(CAR_PSI)
+    E1 = Hh + CAR_Q[0] * t + CAR_Q[1] * n
+    c = n * math.cos(ps) - t * math.sin(ps)                    # along its front face, out
+    nrm = -(t * math.cos(ps) + n * math.sin(ps))               # its front normal
+    E2 = E1 + c * CAR_PLATE_W
+    R0 = E2 - c * CAR_E - nrm * (CAR_OFF + CAR_T)              # car_point(u 0, layer 0) is E2
+    zc = float(A[2])
+    pb = Hh + t * (float((E2 - Hh) @ t) + CAR_POST_AT) + n * OR_FACE_OUT   # on the plate's outer face
+    return dict(R0=np.r_[R0, zc], c=np.r_[c, 0.0], nrm=np.r_[nrm, 0.0], zb=CAR_Z[0], zt=CAR_Z[1], zc=zc, b0=0.0,
+                w=CAR_PLATE_W, bar=CAR_PLATE_W, win=CAR_PLATE_WIN, t=t, n=n, H=Hh, E1=E1, E2=E2,
+                post=(np.r_[pb, zc], np.r_[n, 0.0], CAR_POST_PLATE) if post else None)
+
+
 def car_bow(F, z):
     """The carrier's stand-off (m along nrm, beyond CAR_OFF) of the frame's end face at zc: flat, F["b0"]."""
     return F["b0"]
@@ -1576,8 +1687,9 @@ def car_point(sg, F, u, z, layer):
 
 
 def car_slots():
-    """The carrier's two windows' heights (GOGGLE z): the chassis slots' (CHASSIS_SLOTS)."""
-    return [tuple(sorted(z)) for z in CHASSIS_SLOTS]
+    """The carrier's two windows' heights (GOGGLE z): the chassis slots' (CHASSIS_SLOTS); round 14, on the plate,
+    Leatt's (CAR_WIN_Z)."""
+    return [tuple(sorted(z)) for z in (CAR_WIN_Z if CAR_ON_PLATE else CHASSIS_SLOTS)]
 
 
 def _split(V, faces):
@@ -1606,10 +1718,11 @@ def carrier_mesh(o, sg, F):
     open one); and the clear post on the bar's outer edge at mid height, along the C."""
     zb, zt = F["zb"], F["zt"]
     slots = car_slots()
-    w0, w1 = (CAR_BAR * f for f in CAR_WIN)
+    bar, wid = F.get("bar", CAR_BAR), F.get("w", CAR_W)        # round 14: the C on the plate has its own
+    w0, w1 = F.get("win") or tuple(CAR_BAR * f for f in CAR_WIN)
     cu = CAR_CUT[0]
     czt, czb = max(0.0, zt - CAR_CUT[1]), max(0.0, CAR_CUT[2] - zb)   # each cut's height
-    U = sorted({0.0, w0, w1, CAR_BAR, CAR_W, cu})
+    U = sorted({0.0, w0, w1, bar, wid, cu})
     Zs = {zb, zb + CAR_ARM, zb + czb, zt - czt, zt - CAR_ARM, zt} | {z for sl in slots for z in sl}
     Zs = sorted(Zs | set(np.linspace(zb, zt, 28).tolist()))
     Zs = [z for k, z in enumerate(Zs) if k == 0 or z - Zs[k - 1] > 2e-4]
@@ -1618,7 +1731,7 @@ def carrier_mesh(o, sg, F):
         uc, zc_ = 0.5 * (U[i] + U[i + 1]), 0.5 * (Zs[k] + Zs[k + 1])
         if w0 < uc < w1 and any(lo < zc_ < hi for lo, hi in slots):
             return False
-        return not (uc > CAR_BAR and zb + CAR_ARM < zc_ < zt - CAR_ARM)
+        return not (uc > bar and zb + CAR_ARM < zc_ < zt - CAR_ARM)
     ids, V = {}, []
 
     def vid(i, k, layer):
@@ -1660,16 +1773,32 @@ def carrier_mesh(o, sg, F):
             mats.append(m_)
     V, faces = _split(V, _outward(V, faces))
     o.add(V, faces, mats, [[(0.5, 0.5)] * len(f) for f in faces])
+    if "H" in F:                                               # round 14: the arms, hinge to C, top and bottom
+        m_ = np.array([sg, 1.0, 1.0])
+        a1 = float((F["E1"] - F["H"]) @ F["t"]) + 0.0005       # into the C's front face at its inner end
+        for z0, z1 in ((zb, zb + CAR_ARM), (zt - CAR_ARM, zt)):
+            box = [np.r_[F["H"] + F["t"] * a + F["n"] * (b + OR_FACE_OUT), z] * m_ for z in (z0, z1)
+                   for b in (-OR_T, 0.0)
+                   for a in (CAR_ARM_FROM, a1)]
+            quads = [[0, 1, 3, 2], [4, 6, 7, 5], [0, 4, 5, 1], [2, 3, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3]]
+            Vb, Fb = _split(box, _outward(box, quads))
+            o.add(Vb, Fb, "goggle_outrigger", [[(0.5, 0.5)] * 4] * 6)
     # the clear post: out of the bar's outer edge at mid height, along the C (phr 1662 to 1695 px, Forge front 1700
-    # to 1725), a stem and a round head
+    # to 1725), a stem and a round head. Round 14: on the plate (F["post"]: base, direction, size), or none (None)
     zc = F["zc"]
-    n = F["c"] * np.array([sg, 1.0, 1.0])
     up = np.array([0.0, 0.0, 1.0])
+    if "post" in F and F["post"] is None:
+        return
+    if "post" in F:
+        m_ = np.array([sg, 1.0, 1.0])
+        base, n, (ln, r0, r1) = F["post"][0] * m_, F["post"][1] * m_, F["post"][2]
+    else:
+        n = F["c"] * np.array([sg, 1.0, 1.0])
+        base = car_point(sg, F, 0.0, zc, 0.5)
+        ln, r0, r1 = CAR_POST
     t = np.cross(up, n)
-    base = car_point(sg, F, 0.0, zc, 0.5)
     k = 10
     ang = np.linspace(0, 2 * np.pi, k, endpoint=False)
-    ln, r0, r1 = CAR_POST
     rings = []
     for rr, hh in ((r0, -0.0005), (r0, ln - r1), (r1, ln - r1 * 0.7), (r1, ln), (r0 * 0.6, ln + r1 * 0.5)):
         rings.append(base + n * hh + rr * (np.cos(ang)[:, None] * t + np.sin(ang)[:, None] * up))
@@ -1688,19 +1817,21 @@ def carrier_mesh(o, sg, F):
     o.add(Pp, Fp, "goggle_post_clear", [[(0.0, 0.0)] * len(f) for f in Fp])
 
 
-CAR_STRAP = (-0.0264, 0.0135, 0.0034)   # m: the strap's end behind the carrier, its bottom and top (z) and its cut
+CAR_STRAP = (-0.0264, 0.0135, 0.0048)   # m: the strap's end behind the carrier, its bottom and top (z) and its cut
                                         # end in from the carrier's outer edge. Leatt's iso55 at 4x: the windows show
                                         # the strap dark (lum 3 to 30) with the chassis grey above it in the upper
                                         # window (rows 825 to 848 px: its top edge 13.5 mm) and below it in the lower
                                         # (from 1080: -26.4), its cut end a column of teal dots in the lower window
                                         # only (1679 to 1683 px, rows 1040 to 1076), the chassis grey beyond it (1683
                                         # to 1693). At 4.2 mm in ours showed at 1676 to 1681 (the strap 8 mm behind
-                                        # the C's face): 3.4 puts it at Leatt's
+                                        # the C's face): 3.4 puts it at Leatt's. Round 14, the C on the plate (the
+                                        # strap 1.2 to 2.5 mm behind its face): at 3.4 it showed at 1689 (the white
+                                        # ISO 1687), at 4.8 1683 (1681; scratch teal14.py)
 CAR_STRAP_TEAL = 0.0008                 # m, the print's teal along the cut end (the rest of the face the strap's back)
 CAR_STRAP_TEAL_Z = -0.0185              # m, ... up to this height (Leatt's rows 1040 to 1076: z -18.9 to -25.7 mm)
 
 
-def build_strap_ends(gp=None):
+def build_strap_ends(gp=None, mount=None):
     """Round 13: the strap's ends threaded behind the carriers (Leatt's front photos see them through the windows and
     the gap: teal in the Pinata ISO's lower window, the strap in phr's and the Forge front's gap): a strip of strap
     (STRAP_T thick) between each carrier and the frame's end face, from the carrier's inner end to its cut end
@@ -1709,12 +1840,13 @@ def build_strap_ends(gp=None):
     part = H.Part("goggle_strap_end")
     if not CAR:
         return part
-    F = car_frame(gp)
-    es = [CAR_E - CAR_W + 0.0003, CAR_E - CAR_STRAP[2] - CAR_STRAP_TEAL, CAR_E - CAR_STRAP[2]]
+    grids = outrigger_grids(gp, mount) if CAR_ON_PLATE else None   # round 14: behind the C on each plate
     ds = [(CAR_OFF + STRAP_T) / 2, (CAR_OFF - STRAP_T) / 2]          # front, back
     zs = np.array(sorted(set(np.linspace(CAR_STRAP[0], CAR_STRAP[1], 17).round(6)) | {CAR_STRAP_TEAL_Z}))
     nz = len(zs)
     for sg in (1, -1):
+        F = car_frame_plate(grids[sg][0], sg) if CAR_ON_PLATE else car_frame(gp)
+        es = [CAR_E - F.get("w", CAR_W) + 0.0003, CAR_E - CAR_STRAP[2] - CAR_STRAP_TEAL, CAR_E - CAR_STRAP[2]]
         V, idx = [], {}
         for a_, d in enumerate(ds):
             for b_, e in enumerate(es):
@@ -1741,6 +1873,20 @@ def build_strap_ends(gp=None):
             mats += ["goggle_strap_shade"] * 2
         V, faces = _split(V, _outward(V, faces))
         part.add(V, faces, mats, [[(0.5, 0.5)] * len(f) for f in faces])
+        if CAR_ON_PLATE:                          # round 14: the wall behind the windows' outer part, the C's shade
+            e0, e1 = CAR_E - CAR_STRAP[2] + 0.0002, CAR_E - 0.0002
+            z0, z1 = min(min(sl) for sl in car_slots()) - 0.001, max(max(sl) for sl in car_slots()) + 0.001
+            box = []
+            for z in (z0, z1):
+                for d in (ds[1] - 0.0002, ds[1] - 0.0007):
+                    for e in (e0, e1):
+                        X = F["R0"] + F["c"] * e + F["nrm"] * (car_bow(F, z) + d)
+                        X[2] = z
+                        X[0] *= sg
+                        box.append(X)
+            quads = [[0, 1, 3, 2], [4, 6, 7, 5], [0, 4, 5, 1], [2, 3, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3]]
+            Vb, Fb = _split(box, _outward(box, quads))
+            part.add(Vb, Fb, "goggle_slot", [[(0.5, 0.5)] * 4] * 6)
     return part
 
 
@@ -1787,7 +1933,13 @@ def outrigger_texture(path, w=256, h=512):
     h_mid = 0.5 * ((GP["out"][ci("top_corner")][1] - GP["out"][ci("bot_corner")][1] - GP.get("or_top_in", 0.003)
                     - GP.get("or_bot_in", 0.003)) + GP.get("or_back_h", OR_BACK_H))
     L_ = 0.80 * w                                             # text length in px (along u)
-    ch = 0.80 * h_mid / wordmark_aspect() / GP.get("or_len", OR_LEN) * h   # letter height in px (along v), true aspect
+    # round 14: on the plate as built (plate_len: from the C back), the letters at most 0.83 of its length (Leatt's
+    # near plate in iso55, his SKU: the print over 0.09 to 0.92 of the face, 837 to 903 px of 830 to 909 at mid
+    # height; scratch rowprof14.py)
+    plen = plate_len() if (GP.get("or_hinge", 1.0 if OR_HINGE else 0.0)) else GP.get("or_len", OR_LEN)
+    ch_m = min(0.80 * h_mid / wordmark_aspect(), 0.83 * plen)                # letter height, m
+    L_ = ch_m * wordmark_aspect() / h_mid * w                               # text length in px (along u)
+    ch = ch_m / plen * h                                                     # letter height in px (along v)
     stamp_wordmark(im, w + (w - L_) / 2, h - (0.5 * h + ch / 2), L_, ch, (236, 236, 238))
     right = im.crop((w, 0, 2 * w, h))
     im.paste(right.transpose(Image.FLIP_LEFT_RIGHT), (0, 0))         # the left half: the right one mirrored
@@ -3125,7 +3277,7 @@ def build_goggle(body, Rt, prof):
     foam, foam_back = build_foam(rings, info, skin_G)
     mount = shell_mount(prof)                         # on the helmet: outriggers drape over the shell
     parts = [fr, build_fins(), build_frame_logo(), build_lens(), build_posts(), build_outriggers(mount=mount),
-             build_strap_ends(), build_nose_guard(skin_G=skin_G), build_nose_ribs(skin_G=skin_G), foam]
+             build_strap_ends(mount=mount), build_nose_guard(skin_G=skin_G), build_nose_ribs(skin_G=skin_G), foam]
     strap, sinfo, _ = build_strap(Rt, prof, strap_ends(mount))
     for P in parts:
         P.V = g2h(P.V) @ R.T + t
@@ -3161,14 +3313,14 @@ def strap_ends(mount):
     return ends
 
 
-def free_parts(gp=None):
+def free_parts(gp=None, post=False):
     """The goggle alone as in Leatt's product photos (GOGGLE frame): frame, fins, logo, lens, posts, the free (flat)
     outriggers, nose guard and the foam at its default thickness (no face to press on); for the comparison with
     the goggle-alone photos (goggle_views.py)."""
     fr, info = build_frame(gp)
     rings, _ = frame_rings(gp)
     foam, _ = build_foam(rings, info, np.array([[0.0, 10.0, 0.0]]))
-    return [fr, build_fins(gp), build_frame_logo(gp), build_lens(gp), build_posts(gp), build_outriggers(gp, None),
+    return [fr, build_fins(gp), build_frame_logo(gp), build_lens(gp), build_posts(gp), build_outriggers(gp, None, post),
             build_strap_ends(gp), build_nose_guard(gp), build_nose_ribs(gp), foam]
 
 
@@ -3284,7 +3436,7 @@ MATERIALS = {
     "goggle_noseguard": dict(rgb=[30, 30, 32], rough=0.6),
     "goggle_post": dict(rgb=[20, 20, 22], rough=0.35),
     # round 13: the carrier's clear post (phr and the Forge front: a clear knob on the C's outer edge, the red behind
-    # it seen through; the ISO renders on white show none beyond the C)
+    # it seen through; the ISO renders on white show none beyond the C). Round 14: on the plate (CAR_POST_PLATE)
     "goggle_post_clear": dict(rgb=[235, 235, 238], rough=0.05, transmission=1.0),
     # gloss black (kit photo; round 6, iso55: Leatt's face reads 23/23/23 with thin crisp edge highlights; rough 0.25
     # under a coat rendered a grey sheen, 46; rough 0.05 bare, 36 and crisp edges, the rest is our studio's backdrop)
@@ -3304,7 +3456,7 @@ MATERIALS["goggle_strap_in"] = H.MATERIALS["goggle_strap_in"]
 MATERIALS["goggle_strap"] = dict(image="goggle_strap_print.jpg", normal="goggle_strap_print_n.png", rough=0.85,
                                  sheen=0.12, spec=0.25,
                                  detail=dict(image="goggle_strap_weave.png", mask="goggle_strap_mask.png",
-                                             repeat=(0.644 * 1000.0 / 19.0, 1.0),    # SA.STRAP_LEN_UV / SA.TILE_MM
+                                             repeat=(0.6512 * 1000.0 / 19.0, 1.0),   # SA.STRAP_LEN_UV / SA.TILE_MM
                                              bump_strength=0.35))
 # round 13: the strap's end behind the carrier (build_strap_ends) in the carrier's shade. Leatt's iso55 windows read
 # the strap p50 4 to 6 (rows 870 to 900 and 1035 to 1085), its cut end's teal 22/42/40 (median; peak 61/90/85). Our
@@ -3342,14 +3494,15 @@ def write_strap_textures(outdir=None):
     return info
 
 if __name__ == "__main__":
-    # python3 goggle.py --free OUT.npz [TURN | TURN/TURN]: the goggle alone (free_parts) for goggle_views.py, its
-    # outriggers turned TURN deg out from straight back (side +1 / side -1; default OR_FREE_TURN)
+    # python3 goggle.py --free OUT.npz [TURN | TURN/TURN] [post]: the goggle alone (free_parts) for goggle_views.py,
+    # its outriggers turned TURN deg out from straight back (side +1 / side -1; default OR_FREE_TURN); post: with the
+    # clear posts on the plates (round 14: the Royal and the Forge photos show them, his goggle has none)
     if len(sys.argv) > 2 and sys.argv[1] == "--free":
-        if len(sys.argv) > 3:
+        if len(sys.argv) > 3 and sys.argv[3] != "post":
             t_ = [float(a) for a in sys.argv[3].split("/")]
             OR_FREE_TURN = {1: t_[0], -1: t_[-1]}
         os.makedirs(TEXDIR, exist_ok=True)
         outrigger_texture(os.path.join(TEXDIR, "goggle_outrigger.png"))
         write_strap_textures()
-        H.write_npz(sys.argv[2], free_parts())
+        H.write_npz(sys.argv[2], free_parts(post="post" in sys.argv[3:]))
         print("wrote", sys.argv[2])

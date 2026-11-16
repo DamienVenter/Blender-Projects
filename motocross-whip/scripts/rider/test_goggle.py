@@ -111,15 +111,18 @@ def test_velocity55_shape_from_leatts_photos():
     # 55 deg from the widest point, 62 from the hinge inboard)
     R_ = np.vstack(rings)
     for sg, (box, end, n) in G.outrigger_frames().items():
-        hinge = box[[0, 1]].mean(0)                                         # the outer face's front edge
+        # round 14: the printed plate starts OR_PLATE_FRONT along it, in the C; the hinge is OR_HINGE_LEN before its
+        # back end (round 9 to 13: its front end inside the frame's widest point, now the arms there)
+        front, back = box[[0, 1]].mean(0), box[[2, 3]].mean(0)
+        t = (back - front) / np.linalg.norm(back - front)
+        hinge = back - t * G.OR_HINGE_LEN - n / np.linalg.norm(n) * G.OR_FACE_OUT   # the plate's face off it
         near = R_[np.abs(R_[:, 2] - hinge[2]) < 0.004]
         assert abs((sg * near[:, 0]).max() - sg * hinge[0] - G.OR_HINGE_IN) < 1e-4   # OR_HINGE_IN inside that point
         assert 0.030 < hinge[1] - R_[:, 1].min() < 0.045                    # 30 to 45 mm behind the frame's front
-        assert (sg * box[[4, 5], 0] < sg * hinge[0] - 0.002).all()          # its front end inside it (front photos)
-        back = box[[2, 3]].mean(0)
-        assert abs(np.linalg.norm(back - hinge) - G.OR_HINGE_LEN) < 0.002   # round 12: OR_LEN less OR_HINGE_BACK
-        turn = math.degrees(math.atan2(sg * (back[0] - hinge[0]), back[1] - hinge[1]))
-        assert abs(turn - G.OR_FREE_TURN) < 0.5
+        assert abs(np.linalg.norm(back - front) - G.plate_len()) < 0.002    # round 12: OR_LEN less OR_HINGE_BACK
+        turn = math.degrees(math.atan2(sg * (back[0] - front[0]), back[1] - front[1]))   # along the plate
+        ft = G.OR_FREE_TURN[sg] if isinstance(G.OR_FREE_TURN, dict) else G.OR_FREE_TURN
+        assert abs(turn - ft) < 0.5
 
 
 def test_round5_offsets_teeth_and_nose_ribs():
@@ -486,20 +489,27 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         assert need[-1, -1] > 0 and need[-1].sum() < need[-1].size          # its top back corner on the shell
         gap = (np.abs(Gi[..., 0]) - need)[need > 0]
         assert G.OR_GAP - 1e-4 < gap.min() < G.OR_GAP + 0.0005              # ... resting on it, not inside
-        assert np.allclose(Go[0], free[sg][0][0])           # front edge on the hinge, whatever each row's turn
+        # its hinge where the free plate's is, whatever the turn (round 14: the plate's front edge OR_PLATE_FRONT along
+        # it, in the C, its outer face OR_FACE_OUT outside the hinge)
+        def hinge(g):
+            tt = (g[-1, :, :2] - g[0, :, :2]) / np.linalg.norm(g[-1, :, :2] - g[0, :, :2], axis=1)[:, None]
+            return g[0, :, :2] - (G.OR_HINGE_LEN - G.plate_len()) * tt - sg * G.OR_FACE_OUT * np.c_[tt[:, 1], -tt[:, 0]]
+        assert np.allclose(hinge(Go), hinge(free[sg][0]), atol=1e-6)
         assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), G.OR_T)
         assert G.WORN_TURN[sg][0] == G.WORN_TURN[sg][1]                   # round 13: one turn, the plate rigid
-        assert abs(G.WORN_TURN[sg][1] - 20.25) <= 0.5                          # measured: the turn at which the top
+        assert abs(G.WORN_TURN[sg][1] - 16.7) <= 0.5                           # measured: the turn at which the top
                                                                             # back corner clears phase 2's shell
-                                                                            # (decision 51) by OR_GAP from round 12's
-                                                                            # hinge (scratch lean13b.py; the search
-                                                                            # steps 0.25 deg)
+                                                                            # (decision 51) by OR_GAP from round 14's
+                                                                            # hinge (20.25 from round 12's; the
+                                                                            # search steps 0.25 deg from the C's
+                                                                            # stop, CAR_STOP_TURN)
         # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
         # row; the 5 mm plate bends out along its length more than its thickness)
         j = Gi.shape[1] // 2
         i = int(np.argmin(np.linalg.norm(0.5 * (Gi + Go)[:, j] - anchor, axis=1)))
         lo, hi = sorted([abs(Gi[i, j, 0]), abs(Go[i, j, 0])])
-        assert i >= Gi.shape[0] - 6 and lo < abs(anchor[0]) < hi
+        # (round 14: OR_ANCHOR in from the back end of the plate, now plate_len long, at its row within one)
+        assert abs(i - (Gi.shape[0] - 1) * (1 - G.OR_ANCHOR / G.plate_len())) <= 1 and lo < abs(anchor[0]) < hi
         assert Gi[:, 0, 2].max() < anchor[2] < Gi[:, -1, 2].min()
         assert np.linalg.norm(Gi[-1, Gi.shape[1] // 2] - anchor) < G.OR_ANCHOR + 0.004
         # the strap starts at this side's anchor: its foremost point on this side (GOGGLE frame)
@@ -514,7 +524,9 @@ def test_round13_worn_plate_turns_as_one_and_leans_as_leatts():
     764 px at row 860 and 751 at 980, -10.8 px a 100 rows (scratch edge13.py on the photo). Rounds 9 to 12 twisted the
     plate (the turn growing from the bottom row's need to the top's) and it leaned +3.3; rigid it leans -6.5 at any
     turn. That photo is an empty helmet: there the goggle sits 12.6 mm lower and 3.5 mm further back (round 12, the
-    pink frames' best overlay), the plate meets no shell (turn 0) and its back edge stands at 760 / 752 px."""
+    pink frames' best overlay), the plate meets no shell and its back edge stood at 760 / 752 px at turn 0. Round 14:
+    from round 14's hinge it stands at 776 / 768 at turn 0 and 759.4 / 751.5 on the C's stop (CAR_STOP_TURN, 13.7
+    deg), where the strap pulls it in to: the C's inner bar against the frame's side."""
     Vo, Fo, prof = H.shell_outer()
     cam = H.PRINT_CAMS["isoright"]
 
@@ -531,7 +543,7 @@ def test_round13_worn_plate_turns_as_one_and_leans_as_leatts():
     try:
         G.PLACE = (ty + 0.0035, tz - 0.0126, pitch, k)
         u = back_edge(G.outrigger_grids(mount=G.shell_mount(prof)))
-        assert G.WORN_TURN[-1] == (0.0, 0.0)
+        assert G.WORN_TURN[-1] == (G.CAR_STOP_TURN, G.CAR_STOP_TURN)
         assert abs(u[0] - 764.0) < 6.0 and abs(u[1] - 751.0) < 6.0, u
         assert -16.0 < (u[1] - u[0]) / 1.2 < -5.0
     finally:
@@ -760,13 +772,16 @@ def test_round10_strap_weave_band_limited():
 def test_round10_plate_tapers_with_chamfered_back_corners():
     """Round 10 item 2: Leatt's plate (his goggle photos, iso55 and phr) narrows from 63.5 mm at the frame to about
     50 mm at its back and its back corners are cut at 45 deg (2 mm top, 3 mm bottom); round 9's was 63.5 to 58.7 mm
-    with square corners (plate edges 1.7 / 2.7 mm rms off Leatt's in iso55, now 1.1 / 1.5)."""
+    with square corners (plate edges 1.7 / 2.7 mm rms off Leatt's in iso55, now 1.1 / 1.5). Round 14: the plate
+    starts in the C (OR_PLATE_FRONT), its front edge as tall as the C (CAR_Z, 61.1 mm: Leatt's C in iso55, rows 800
+    to 1124 at 5.32 px a mm) less its cut corners (OR_FRONT_CUT, 45 deg)."""
     for sg, (Go, Gi, anchor) in G.outrigger_grids().items():
         h = np.linalg.norm(Go[:, -1] - Go[:, 0], axis=1) * 1000
         mid = 0.5 * (Go[:, -1] + Go[:, 0])
         back = np.linalg.norm(mid - mid[-1], axis=1) * 1000
-        assert 60.0 < h[0] < 66.0, (sg, h[0])
-        assert 10.0 < h[0] - h[-1] < 16.0, (sg, h[0], h[-1])               # the taper and the cut corners
+        full = h[0] + 1000 * sum(G.OR_FRONT_CUT)
+        assert abs(full - 1000 * (G.CAR_Z[1] - G.CAR_Z[0])) < 0.1 and 60.0 < full < 66.0, (sg, h[0], full)
+        assert 10.0 < full - h[-1] < 16.0, (sg, full, h[-1])               # the taper and the cut corners
         h3 = float(np.interp(3.0, back[::-1], h[::-1]))
         assert h3 - h[-1] > 4.0, (sg, h3, h[-1])                           # cut in the last 3 mm, not a taper
 
@@ -1001,9 +1016,10 @@ def goggle_overlaps(parts, gp=None, h=0.0004):
             if key == "lens":
                 s_, z_, off = lens_coords(L, X)
                 k = "lens_outer" if (off + back(s_, z_)).mean() > -0.0015 else "lens_inner"
-            elif key == "outriggers" and np.abs(X[:, 0]).mean() < 0.1:
-                # round 13: the strap carrier on the frame's end (its clear post, moulded 0.5 mm into it, unpaired)
-                k = "carrier" if len(X) > 100 else "carrier_post"
+            elif key == "outriggers" and len(X) != 2 * len(G.or_u()) * G.OR_NV:
+                # round 13: the strap carrier (its clear post, moulded 0.5 mm into it, unpaired); round 14: on the
+                # plate, with its arms (unpaired: they reach the hinge in the frame's side)
+                k = "carrier" if len(X) > 100 else "carrier_part"
             else:
                 k = key
             comps.setdefault(k, []).append((V, T, bad))
@@ -1227,7 +1243,7 @@ def test_round12_strap_u_is_true_mm_from_each_end(built):
     assert abs((us[-1] - us[0]) * L / arc[-1] - 1.0) < 0.04, ((us[-1] - us[0]) * L, arc[-1])
 
 
-def test_round12_plate_front_hides_behind_the_frame_side():
+def test_round12_plate_front_hides_behind_the_c():
     """Round 12 item 2: in Leatt's Pinata iso-right his plate shows 762 to 840 px and his frame's pink side 845 to 918;
     ours showed 760 to 889, over the frame's side (whose back edge projects at 845, as his), and in iso55 (free) his
     side face starts at 920 px, ours at 950. Placed as on his empty helmet (12.6 mm lower, 3.5 mm back) ours read wider
@@ -1235,21 +1251,27 @@ def test_round12_plate_front_hides_behind_the_frame_side():
     front edge) at least 1.5 mm inside the frame's outer side at the hinge's own height and depth, and the lens (whose
     ends curl back into the frame's sides past the hinge, item 3) stays 0.3 mm inside the plate's inner face even with
     the plate turned straight back (grown its full groove from the moved lens edge it ran 0.9 mm into the plate),
-    the plate shortened by the hinge's move back (its back end, the strap's exit, stays)."""
+    the plate shortened by the hinge's move back (its back end, the strap's exit, stays). Round 14 (the joint fit, C
+    on the plate): Leatt's C stands beyond the frame's end with the plate hidden behind it (phr, the Forge front;
+    round 13's review at 1:1), so the plate starts in the C, at its outer corner, 15.5 mm along from the hinge (which
+    has no part: the arms start CAR_ARM_FROM along): at the C's stop (CAR_STOP_TURN, the least turn) its front edge
+    stands 5.8 mm outside the frame's side at its height and depth and is the C's height, and no lens point lies in
+    the plate (the lens's ends curl into the frame's sides well ahead of it)."""
     rings, _ = G.frame_rings()
     R_ = np.vstack(rings)
     lens = np.asarray(G.build_lens().V)
-    for sg, (box, end, n) in G.outrigger_frames(turn={1: 0.0, -1: 0.0}).items():
-        hinge = box[[0, 1]].mean(0)
-        ring = R_[(np.abs(R_[:, 2] - hinge[2]) < 0.004) & (np.abs(R_[:, 1] - hinge[1]) < 0.0015) & (sg * R_[:, 0] > 0)]
+    a = G.CAR_STOP_TURN
+    for sg, (box, end, n) in G.outrigger_frames(turn={1: a, -1: a}).items():
+        front = box[[0, 1]].mean(0)
+        ring = R_[(np.abs(R_[:, 2] - front[2]) < 0.004) & (np.abs(R_[:, 1] - front[1]) < 0.0015) & (sg * R_[:, 0] > 0)]
         assert len(ring) >= 3
-        assert (sg * ring[:, 0]).max() - sg * hinge[0] > 0.0015, ((sg * ring[:, 0]).max(), sg * hinge[0])
+        assert sg * front[0] - (sg * ring[:, 0]).max() > 0.004, ((sg * ring[:, 0]).max(), sg * front[0])
+        assert np.allclose(np.sort(box[[0, 1], 2]), G.CAR_Z, atol=1e-6), box[[0, 1], 2]
         t = box[2] - box[0]
         t[2] = 0.0
         t /= np.linalg.norm(t)
         along, out = (lens - box[0]) @ t, (lens - box[0]) @ (n / np.linalg.norm(n))
-        by = (along > -0.001) & (np.abs(lens[:, 2] - hinge[2]) < 0.03)
-        assert by.sum() > 100 and out[by].max() < -G.OR_T - 0.0003, (by.sum(), out[by].max() + G.OR_T)
+        assert not np.any((along > -0.001) & (out > -G.OR_T - 0.0003) & (np.abs(lens[:, 2] - front[2]) < 0.03))
         assert abs(G.OR_HINGE_LEN + G.OR_HINGE_BACK - G.OR_LEN) < 1e-9
 
 
@@ -1339,19 +1361,42 @@ def test_round13_face_foam_has_no_grazing_gloss():
 
 
 # ---------------------------------------------------------------- round 13: the strap carrier (decision 57)
-def carrier_pieces():
+def carrier_pieces(**kw):
     """Round 13: the far (x > 0) strap carrier, its clear post and the strap's end behind it, from the free goggle
-    (GOGGLE frame): {name: (V, T, open edges)}."""
-    parts = {P.name: P for P in G.free_parts()}
+    (GOGGLE frame): {name: (V, T, open edges)}. Round 14: on the plate, its arms (8 corners each), the post only on
+    request (free_parts(post=True)), the wall behind the windows' outer part (8 corners) apart from the strap."""
+    parts = {P.name: P for P in G.free_parts(**kw)}
     out = {}
+    n_plate = 2 * len(G.or_u()) * G.OR_NV
     for V, T, bad in solids(parts["goggle_outriggers"]):
         X = V[np.unique(T)]
-        if 0.06 < X[:, 0].mean() < 0.1:
-            out["post" if len(X) < 100 else "carrier"] = (V, T, bad)
+        if X[:, 0].mean() > 0.06 and len(X) != n_plate:
+            k = "arm" if len(X) == 8 else "post" if len(X) < 100 else "carrier"
+            out[k + ("2" if k in out else "")] = (V, T, bad)
     for V, T, bad in (solids(parts["goggle_strap_end"]) if "goggle_strap_end" in parts else []):
-        if V[np.unique(T)][:, 0].mean() > 0:
-            out["strap_end"] = (V, T, bad)
+        X = V[np.unique(T)]
+        if X[:, 0].mean() > 0:
+            out["strap_wall" if len(X) == 8 else "strap_end"] = (V, T, bad)
     return out, parts
+
+
+# round 14: Leatt's lens post's head (u px, measured on the photos: scratch crops14.py) in the views that see the C;
+# the Forge front's camera spreads the two posts 606 px apart where the photo has 542 (12 % wide): its u are scaled
+# by both posts
+POST_HEAD_U = {"iso55": 1679.5, "wiso": 1678.0, "phr": 1618.5, "frg": 1656.0}
+POST_HEAD_U_R = {"frg": 1114.0}
+
+
+def post_relative(view):
+    """Round 14: the map from a camera's u to the photo's near the far lens post: u -> s u + c."""
+    x = json.load(open(G.CAMERAS))[view]["x"]
+    lm = G.photo_landmarks()
+    mL = G.photo_project(x, np.atleast_2d(lm["POST_L"]), 1920, 1920)[0][0, 0]
+    s = 1.0
+    if view in POST_HEAD_U_R:
+        mR = G.photo_project(x, np.atleast_2d(lm["POST_R"]), 1920, 1920)[0][0, 0]
+        s = (POST_HEAD_U[view] - POST_HEAD_U_R[view]) / (mL - mR)
+    return lambda u: s * u + POST_HEAD_U[view] - s * mL
 
 
 def coverage(view, V, T):
@@ -1371,21 +1416,30 @@ def test_round13_strap_carrier_round_the_lens_post():
     bottom 1124 / 1125, two windows at the chassis slots' heights (rows 830 to 900 and 1025 to 1092; the white ISO 832
     to 903 and 1027 to 1092), the strap dark behind them and its cut end a column of teal in the lower window (1679 to
     1683 px, rows 1040 to 1076). Main had none: the frame's black end face, 1658 to 1696. Built as part of the
-    outriggers on each side, a closed solid with a clear post on its outer edge, the strap's end threaded behind it
-    (goggle_strap_end): through both cameras its outer edge within 3 px, the windows' rows within 8, its top 0 to 8
-    and its bottom 0 to 16 px short (it stops where our frame's corners reach its back: 1.1 and 3.0 mm), the strap's
-    teal within 3 px and in the lower window only."""
+    outriggers on each side, a closed solid, the strap's end threaded behind it (goggle_strap_end): through both
+    cameras its outer edge within 3 px, the windows' rows within 8, its top 0 to 8 and its bottom 0 to 16 px short,
+    the strap's teal within 3 px and in the lower window only. Round 14: on the plate, its u relative to Leatt's lens
+    post (post_relative: the ISO camera puts our post 5 px right of his), its arms, no clear post (Leatt's CAD has
+    none; test_round14_post_only_for_the_royal_and_forge); the outer edge is the silhouette of the C and the plate
+    beyond it (the grey band 1701 to 1704 px outside the C's dark front face), at Leatt's half-max edge between that
+    band (105, 100) and the background (235): 1704.5 and 1703 px, rows 830 to 1090 within 1 (scratch rowprof14.py).
+    A vertical edge there leans 4.9 px (2.6 in the white ISO) over these 240 rows through the cameras where his
+    stands upright; phr's leans 6.4 (ours 5.4) and the Forge front's -1.7 (ours 4.3): no one tilt of the C fits them
+    all, so it stays upright and the 3 px holds the lean."""
     pc, parts = carrier_pieces()
-    assert set(pc) == {"carrier", "post", "strap_end"}, sorted(pc)
+    assert set(pc) == {"carrier", "arm", "arm2", "strap_end", "strap_wall"}, sorted(pc)
     assert all(b == 0 for _, _, b in pc.values()), {k: b for k, (_, _, b) in pc.items()}
-    assert "goggle_post_clear" in parts["goggle_outriggers"].M and G.MATERIALS["goggle_post_clear"]["transmission"] > 0.9
     shade = [f for f, m in zip(parts["goggle_strap_end"].F, parts["goggle_strap_end"].M) if m == "goggle_strap_teal"]
-    for view, edge, top, bot, wins in (("iso55", 1703, 800, 1124, ((830, 900), (1025, 1092))),
-                                       ("wiso", 1701, 797, 1125, ((832, 903), (1027, 1092)))):
+    far = [(V, T) for V, T, _ in solids(parts["goggle_outriggers"]) if V[np.unique(T)][:, 0].mean() > 0.06]
+    for view, edge, top, bot, wins in (("iso55", 1704.5, 800, 1124, ((830, 900), (1025, 1092))),
+                                       ("wiso", 1703, 797, 1125, ((832, 903), (1027, 1092)))):
+        u = post_relative(view)
         m = coverage(view, *pc["carrier"][:2])
-        outer = np.array([np.nonzero(m[r])[0].max() for r in range(840, 1081)])
-        assert np.abs(outer - edge).max() <= 3, (view, outer.min(), outer.max())
-        col = m[:, edge - 18]
+        sil = np.any([coverage(view, V, T) for V, T in far], axis=0)
+        e0 = int(round(edge - u(0.0)))                                   # Leatt's edge in the camera's px
+        outer = np.array([np.nonzero(sil[r])[0].max() + 0.5 for r in range(840, 1081)])
+        assert np.abs(outer - (edge - u(0.0))).max() <= 3, (view, u(outer.min()), u(outer.max()))
+        col = m[:, e0 - 18]
         rows = np.nonzero(col[700:1200])[0] + 700
         assert 0 <= rows.min() - top <= 8 and 0 <= bot - rows.max() <= 16, (view, rows.min(), rows.max())
         holes = np.nonzero(np.diff(np.r_[0, (~col[rows.min():rows.max() + 1]).astype(int), 0]))[0].reshape(-1, 2)
@@ -1393,41 +1447,158 @@ def test_round13_strap_carrier_round_the_lens_post():
         # the strap's end seen through the windows, its teal (the cut end's rows in the shade) in the lower one
         se = coverage(view, *pc["strap_end"][:2]) & ~m
         for a, b in wins:
-            assert se[a + 5:b - 5, edge - 30:edge - 6].sum() > 100, (view, a, b)
+            assert se[a + 5:b - 5, e0 - 30:e0 - 6].sum() > 100, (view, a, b)
         V = np.asarray(parts["goggle_strap_end"].V)
         T = np.array([np.asarray(f)[list(k)] for f in shade if V[f, 0].mean() > 0 for k in ((0, 1, 2), (0, 2, 3))])
         teal = coverage(view, V, T) & ~m
         ys, xs = np.nonzero(teal)
-        assert abs(np.median(xs) - 1681) <= 3 and wins[1][0] <= ys.min() and ys.max() <= wins[1][1], \
-            (view, np.median(xs), ys.min(), ys.max())
+        assert abs(u(np.median(xs)) - 1681) <= 3 and wins[1][0] <= ys.min() and ys.max() <= wins[1][1], \
+            (view, u(np.median(xs)), ys.min(), ys.max())
 
 
-def test_round13_carrier_stands_off_the_frame_flat():
+def test_round13_carrier_is_flat():
     """Round 13 item 1: the carrier is flat (Leatt's bar reads one tone top to bottom, 43; bowed with our frame's end
-    its face tilted down 28 deg below the lower window and mirrored the studio's low light, 250) and stands CAR_OFF in
-    front of the most the frame comes forwards over the windows' heights (5.5 mm, the lower window's foot), running
-    up and down only while the frame's corners stay CAR_CLEAR behind its back face; the strap's end lies between them
-    (parts apart: test_round11_goggle_parts_do_not_run_into_each_other). Its front face is one plane within 0.01 mm
-    and every face's vertices are its own (the renders shade every face smooth: shared with the window sills, the
-    face's normals bent at the sills' rows into white dashes, 255)."""
-    F = G.car_frame()
-    zg, bow = F["bow"]
-    inside = (zg >= F["zb"]) & (zg <= F["zt"])
-    assert 0.004 < F["b0"] < 0.007 and (bow[inside] <= F["b0"] + G.CAR_OFF - G.CAR_CLEAR + 1e-9).all()
-    assert F["zt"] > 0.025 and F["zb"] < -0.031                   # its top 1 mm and its bottom 3 mm short of Leatt's
+    its face tilted down 28 deg below the lower window and mirrored the studio's low light, 250). Its front face is one
+    plane within 0.01 mm and every face's vertices are its own (the renders shade every face smooth: shared with the
+    window sills, the face's normals bent at the sills' rows into white dashes, 255). Round 14: on the plate (its
+    frame car_frame_plate), Leatt's top and bottom (CAR_Z: the frame's corners no longer in its way)."""
+    g = G.outrigger_grids()
+    F = G.car_frame_plate(g[1][0], 1)
+    assert (F["zb"], F["zt"]) == G.CAR_Z
     pc, parts = carrier_pieces()
     V, T, _ = pc["carrier"]
     X = V[np.unique(T)]
     d = (X - F["R0"]) @ F["nrm"]
     front = d > d.max() - 0.0005
-    assert np.ptp(d[front]) < 1e-5 and abs(d.max() - (F["b0"] + G.CAR_OFF + G.CAR_T)) < 1e-6
+    assert np.ptp(d[front]) < 1e-5 and abs(d.max() - (G.CAR_OFF + G.CAR_T)) < 1e-6
     P = parts["goggle_outriggers"]
     PV = np.asarray(P.V)
-    slab = lambda f: (PV[f, 0] > 0).all() and (np.abs((PV[f] - F["R0"]) @ F["nrm"] - F["b0"] - G.CAR_OFF   # noqa: E731
+    slab = lambda f: (PV[f, 0] > 0).all() and (np.abs((PV[f] - F["R0"]) @ F["nrm"] - G.CAR_OFF   # noqa: E731
                                                        - G.CAR_T / 2) < G.CAR_T / 2 + 1e-6).all()
-    car = [f for f, m in zip(P.F, P.M) if m in ("goggle_outrigger", "goggle_slot") and slab(f)]
+    own = set(map(tuple, np.round(X / 1e-7).astype(np.int64)))                  # the C's, not the plate's or arms'
+    mine = lambda f: all(tuple(k) in own for k in np.round(PV[f] / 1e-7).astype(np.int64))  # noqa: E731
+    car = [f for f, m in zip(P.F, P.M) if m in ("goggle_outrigger", "goggle_slot") and slab(f) and mine(f)]
     idx = np.concatenate([np.asarray(f) for f in car])
     assert len(car) > 100 and len(np.unique(idx)) == len(idx)    # no vertex shared between two faces
+
+
+# ---------------------------------------------------------------- round 14: the C on the plate (decision 60)
+def test_round14_carrier_rides_on_the_plate():
+    """Round 14 item 1: one C on the plate, the plate turned its own way in each photo (CAR_TURNS), meets Leatt's C in
+    the four front views that see it: its front face's inner and outer edges, the windows' inner edge, the
+    silhouette beyond it (the C or the plate at mid height) and, in phr and the Forge front, the clear post where it
+    passes the C's outer corner and its tip, each relative to his lens post (post_relative); and the NEAR plate seen
+    from outside in iso55 and phr (one near turn, CAR_NEAR_TURN): its back edge (830, 930.5 px at mid height) and its
+    front edge, the C's outer corner (909, 986), relative to his right lens post (the cameras' landmark): within 4 px
+    (the joint fit's largest residual 3.6, with the near C kept out of the frame: scratch fitc14n4.py; the cameras'
+    landmark rms 4.4 to 4.5). Main's C on the frame's
+    end (scratch mainres14.py): iso55 2 to 8 px off, the white ISO 2 to 8, phr 23 to 51, the Forge front 3 to 47;
+    the far fit alone with round 12's hinge (this round's first build) put the near plate's front edge 20 px (iso55)
+    and 11 px (phr) behind Leatt's. With one turn for all four photos (iso55's) phr's C stands 5 px or more off: the
+    turn is each photo's own."""
+    obs = {"iso55": dict(E1=1658.5, Win=1674, E2=1699.5, sil=1704.5),
+           "wiso": dict(E1=1656.5, Win=1673, E2=1698, sil=1702.5),
+           "phr": dict(E1=1630, Win=1639, E2=1657.5, sil=1675, pb=1665, pt=1700),
+           "frg": dict(E1=1660.5, Win=1673, E2=1692.5, sil=1707.5, pb=1702, pt=1735)}
+    cams = json.load(open(G.CAMERAS))
+
+    def worst(turns):
+        out = {}
+        for view, o in obs.items():
+            Go = G.outrigger_grids(dict(G.GP, or_free_turn={1: turns[view], -1: G.CAR_NEAR_TURN}))[1][0]
+            F = G.car_frame_plate(Go, 1, post=True)
+            z = F["zc"]
+            off = float((F["E2"] - F["H"]) @ F["n"])               # the C's outer corner out from the plate's face
+            pb, pn, (ln, _, _) = F["post"]
+            pts = dict(E1=np.r_[F["E1"], z], Win=np.r_[F["E2"] - F["c"][:2] * G.CAR_PLATE_WIN[1], z],
+                       E2=np.r_[F["E2"], z], pb=pb + pn * off, pt=pb + pn * ln)
+            u = post_relative(view)
+            pr = lambda X: u(G.photo_project(cams[view]["x"], np.atleast_2d(X), 1920, 1920)[0][:, 0])  # noqa: E731
+            got = {k: pr(X)[0] for k, X in pts.items()}
+            got["sil"] = max(got["E2"], pr(Go[:, Go.shape[1] // 2]).max())
+            out[view] = {k: round(got[k] - v, 1) for k, v in o.items()}
+        lm = G.photo_landmarks()
+        for view, ph_r, o in (("iso55", 1076.0, dict(back=830.0, front=909.0)),
+                              ("phr", 1104.0, dict(back=930.5, front=986.0))):
+            Gn = G.outrigger_grids(dict(G.GP, or_free_turn={1: turns[view], -1: G.CAR_NEAR_TURN}))[-1][0]
+            F = G.car_frame_plate(Gn, -1)
+            m = np.array([-1.0, 1.0, 1.0])
+            pr = lambda X: G.photo_project(cams[view]["x"], np.atleast_2d(X), 1920, 1920)[0][:, 0]  # noqa: E731
+            sh = ph_r - pr(lm["POST_R"])[0]
+            got = dict(back=pr(Gn[-1, Gn.shape[1] // 2])[0], front=pr(np.r_[F["E2"], F["zc"]] * m)[0])
+            out[view + "_near"] = {k: round(got[k] + sh - v, 1) for k, v in o.items()}
+        return out
+    res = worst(G.CAR_TURNS)
+    assert max(abs(r) for d in res.values() for r in d.values()) <= 4.0, res
+    one = worst({v: G.CAR_TURNS["iso55"] for v in obs})
+    assert max(abs(r) for r in one["phr"].values()) > 5.0, one["phr"]
+
+
+def test_round14_outrigger_front_open_but_its_arms():
+    """Round 14 item 1: between the hinge and the C the outrigger is open but for an arm at its top and bottom (phr:
+    background between them at rows 837 to 867 and 1060 to 1087, the strap at mid height; the Forge front the same;
+    phyb: the arms from behind). Main's printed plate ran from the hinge, its LEATT where phr shows the C. Sampled
+    over its surface (0.5 mm), nothing of the far outrigger lies 5 to 15 mm along it from the hinge between the arms'
+    heights, the arms are there (CAR_ARM tall at the C's top and bottom), and the plate itself starts at the C's outer
+    corner (15.5 mm: round 14's joint fit, the near plate's front edge)."""
+    parts = {P.name: P for P in G.free_parts()}
+    box = G.outrigger_frames()[1][0]
+    front, back = box[[0, 1]].mean(0), box[[2, 3]].mean(0)
+    t = (back - front)[:2] / np.linalg.norm((back - front)[:2])
+    hinge = back[:2] - t * G.OR_HINGE_LEN
+    zb, zt = G.CAR_Z
+    P = np.vstack([surface_samples(V, T, 0.0005) for V, T, _ in solids(parts["goggle_outriggers"])
+                   if V[np.unique(T)][:, 0].mean() > 0.06])
+    a = (P[:, :2] - hinge) @ t
+    run = (a > 0.005) & (a < 0.015)
+    mid = (P[:, 2] > zb + G.CAR_ARM + 0.0005) & (P[:, 2] < zt - G.CAR_ARM - 0.0005)
+    assert not (run & mid).any(), (int((run & mid).sum()), np.round(P[run & mid][:3] * 1000, 1))
+    assert (run & (P[:, 2] < zb + G.CAR_ARM)).sum() > 50 and (run & (P[:, 2] > zt - G.CAR_ARM)).sum() > 50
+    assert abs(float((front[:2] - hinge) @ t) - G.OR_PLATE_FRONT) < 1e-6 and 0.0150 < G.OR_PLATE_FRONT < 0.0160
+
+
+def test_round14_post_only_for_the_royal_and_forge():
+    """Round 14 item 1: the clear post on the plate (phr: base 2.7 mm, head 4.5 mm, standing out square to the plate
+    to 1700 px; the Forge front to 1735) where photos of the real goggle show it, the Royal's and the Forge's: built
+    on request (free_parts(post=True); goggle.py --free ... post). Leatt's CAD of his SKU (iso55) and the white ISO
+    have none, nor his Pinata kit photos or the 2022 back photo (phyb), so his goggle, free and worn, has none. Main's
+    stood on the C's edge in every view, 47 px out beyond the far end in iso55 (01f)."""
+    assert "goggle_post_clear" not in parts_by_name(G.free_parts())["goggle_outriggers"].M
+    pc, parts = carrier_pieces(post=True)
+    assert "post" in pc and pc["post"][2] == 0
+    X = pc["post"][0][np.unique(pc["post"][1])]
+    ln, r0, r1 = G.CAR_POST_PLATE
+    assert 1.9 * r1 < np.ptp(X[:, 2]) <= 2 * r1 + 1e-6 and 0.009 < ln < 0.010 and abs(2 * r0 - 0.0027) < 1e-4
+
+
+def test_round14_c_stops_on_the_frame():
+    """Round 14 item 1: the C on the plate swings with it, so a plate can turn in only until its C's inner bar meets
+    the frame's side (the back rim, z 13 to 23 mm). The first joint fit put the near plate at 8.7 deg with its C 2.5
+    mm inside the frame (bounded at 15.5 deg, 1.2 mm); fitted with the C kept out (scratch fitc14n4.py), the near
+    plate rests on that stop, 13.7 deg. Sampled over its surface (0.4 mm), the near C at CAR_STOP_TURN lies outside
+    the frame and the face foam, 0.7 deg further in it does not; the free near plate is at the stop and the worn
+    plates never inside it."""
+    for a, clear in ((G.CAR_STOP_TURN, True), (G.CAR_STOP_TURN - 0.7, False)):
+        parts = parts_by_name(G.free_parts(dict(G.GP, or_free_turn={1: G.CAR_TURNS["iso55"], -1: a})))
+        car = [(V, T) for V, T, _ in solids(parts["goggle_outriggers"]) if len(V[np.unique(T)]) > 100
+               and V[np.unique(T)][:, 0].mean() < -0.06 and len(V[np.unique(T)]) != 2 * len(G.or_u()) * G.OR_NV]
+        P = np.vstack([surface_samples(V, T, 0.0004) for V, T in car])
+        hit = np.zeros(len(P), bool)
+        for name in ("goggle_frame", "goggle_foam"):
+            for V, T, _ in solids(parts[name]):
+                U = V[np.unique(T)]
+                m = np.all((P > U.min(0) - 1e-5) & (P < U.max(0) + 1e-5), axis=1)
+                if m.any():
+                    hit[np.nonzero(m)[0][inside_solid(P[m], V, T)]] = True
+        assert (not hit.any()) if clear else hit.sum() > 5, (a, int(hit.sum()))
+    assert G.OR_FREE_TURN[-1] == G.CAR_NEAR_TURN == G.CAR_STOP_TURN
+    Vo, Fo, prof = H.shell_outer()
+    G.outrigger_grids(mount=G.shell_mount(prof))
+    assert all(t >= G.CAR_STOP_TURN for v in G.WORN_TURN.values() for t in v), G.WORN_TURN
+
+
+def parts_by_name(parts):
+    return {P.name: P for P in parts}
 
 
 def test_frame_width_and_wrap():
