@@ -587,22 +587,31 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   for it (move the part along one camera's rays and see what the other sees), build to the photos and record how
   far the CAD then departs: the photos show the product as made (goggle round 13, the strap carrier's C and post).
 
-## Goggle round 14: C on the plate, strap's pull, crisp steps (2026-11-16, goggle.py, goggle_views.py, ledger goggle.md section 17, decision 60)
+## Goggle round 14: C on the plate, the far end, one goggle, strap's pull, crisp steps (2026-11-16, goggle.py, goggle_views.py, ledger goggle.md section 17, decision 60)
 - **Fit landmarks with visibility, not projected positions only**: one C on the plate fitted four views at 1.25 px
   rms, but its face lay 14 to 19 mm behind the frame's chassis wall in three of them; what the photos' "windows"
-  matched in iso55 were the frame's own clip slots. Before building a fit, ray-test each landmark through each
-  camera against everything else in the model (a depth map per view), and refit with hidden points barred.
+  matched in iso55 were the frame's own clip slots, and at 1:1 the C was a featureless dark slab. Before building a
+  fit, ray-test each landmark through each camera against everything else in the model, put the occluder's signed
+  distance in the cost, and look at the 1:1 crop before calling it done.
 - **A fit that needs the pivot inside the part is telling you about another part**: with visibility the pivot went
-  into the frame and phr's turn to 14 deg (rms 4.0, at most 8.9 px). The blocker was round 12's 6.9 mm pillar wall,
-  built for a 46 px band that was really the C. When a later round reinterprets a feature, revisit the parts earlier
-  rounds built to imitate it (here the wall and round 10's clip slots at the C's window heights).
+  into the frame. The blocker was round 12's 6.9 mm pillar wall, built for a 46 px band that was really the C, and
+  round 10's clip slots at the C's window heights. When a later round reinterprets a feature, rebuild the parts
+  earlier rounds made to imitate it (here: the face dropped 6 mm, the slots removed), then refit (1.35 px rms).
+- **Lower a wall with its bevel**: a fixed bevel on a shorter wall leans it (53 to 64 deg) and shows as a black strip
+  from the other side; scale the bevel with the wall's height.
+- **Moving one part moves the stops on it**: the dropped face brought the frame's side 4.6 mm back and put the near C
+  0.82 mm inside it at the old stop; re-derive every stop and clearance from the rebuilt meshes (16.0 deg, not 13.7).
+- **A gain in what is seen can cost the outline metric**: showing the C left a 6 px band of frame where Leatt's frame
+  mask has none (p90 3.9 to 5.7 mm in iso55). Report both numbers with the cause; do not trade one away silently.
+- **One model, not a per-view switch**: an accessory shown in some photos only (the clear post in the Royal and Forge
+  photos) is decided once for the owner's goggle from his own photos, the maker's photos of his SKU and the box
+  contents; every view renders that one model.
 - **Compare against the posts when a camera is known to be off**: the Forge front's camera (fitted to the outline
-  only) spreads the goggle 12 % wide; its crops put our far end 30 px out with the C in the right place relative to
-  the lens posts. Say so beside such a crop, or the reader takes the camera's error for the model's.
-- **A rest found by two constraints takes the larger**: the worn plate rests by the shell or the strap's pull, the
-  larger turn; the pull turns the plate until the strap's free span runs in line with it (a secant search on the
-  turn: the exit angle falls about 2 deg a degree). Check both placements: on him the shell holds (span 3.7 deg
-  inwards); on the empty helmet the strap does (13.7 to 14.98 deg).
+  only) spreads the goggle 12 % wide; refitting it to the posts made its outline worse, so it stays, and its crops
+  are read against the lens posts. Say so beside such a crop.
+- **A rest found by several constraints takes the largest**: the worn plate rests by the shell (never below its stop)
+  or the strap's pull, the larger; the pull turns the plate until the strap's free span runs in line with it (a
+  secant search on the turn). Check both placements (him, Leatt's empty helmet).
 - **Sampling, not easing, can blur a step**: loops sampled every 1 mm ran each tooth step over two samples whatever
   the easing; a sample put 0.5 mm either side of each step made Leatt's 6 px step.
 - **A shared look call per run misses per-view looks**: when the look gains per-photo arguments (exposure, tint),
