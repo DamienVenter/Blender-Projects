@@ -308,7 +308,8 @@ def test_jersey_inks_are_leatts_flat(built):
     """Decision 52: the print's inks are those of Leatt US's front flat (evenly lit), not the on-model photos' paler
     ones (round 2: magenta with 4 times the flat's green, teal with 2.3 times its red, lime with twice its blue).
     The teal is not one ink but the end of the stripes' gradient, and the flat's teal box is its hem, tucked under
-    the pant on him: test_stripe_gradient_maps_onto_the_flats checks it band by band."""
+    the pant on him: test_stripe_gradient_maps_onto_the_flats checks it band by band. Phase B's palette (decision 61)
+    moves the black and the magenta within this (test_inks_and_grey_layer_are_phase_bs_fit)."""
     a = texture("jersey_color.png")
     ref = K.photo_inks(K.FLAT_REF)
     for ink in ("magenta", "lime", "black"):
@@ -316,6 +317,60 @@ def test_jersey_inks_are_leatts_flat(built):
         got = np.median(a[m], 0) * 255
         want = K.to_srgb(ref[ink]) * 255
         assert m.sum() > 20000 and np.abs(got - want).max() < 30, (ink, got.round(), want.round())
+
+
+def test_inks_and_grey_layer_are_phase_bs_fit(built, texels):
+    """Materials round 1, phase B (decision 61; research/scene-look.md "The kit's inks (phase B)"): the prints' grey
+    layer is sheen 0 and Specular IOR Level 0.25, and the textures' inks are the palette's (INK_FACTORS, ink_palette):
+    each ink lands on its fitted colour; the black's blends with the white within 7 of 255 of the fitted blend, the
+    lime's and the teal's with the white and each other exact; colours of no ink's class stay (the sleeves' grey-teal
+    band, a light pink at a logo's edge, the LB tone); the magenta's traced shades lose their green as the ink does
+    (barycentric palettes left the back yoke's 25); a 1-level step moves no colour more than 6 levels (the
+    near-singular teal-magenta wedge of a barycentric palette jumped 100). In the textures: the black at the
+    palette's within 6 levels, jersey and pant, on the charts, with under 3 % of their black texels left under 30
+    levels (the texels under the I.K.S panels too, which the print filters at their edges), the pant's magenta green under 5 and the front yoke's under 3, its blue under 127.
+    Main (ea66687): sheen 0.18 to 0.10 and the default 0.5; no palette; the black 23, 21, 29 (jersey) and 22, 22, 25
+    (pant) against 42, 42, 47; the pant's magenta 188, 41, 130; the yoke 226, 14, 132."""
+    for m in ("jersey_print", "jersey_mesh", "jersey_print_hd", "jersey_print_hd_mesh", "pant_print"):
+        assert K.MATERIALS[m].get("sheen") == 0.0 and K.MATERIALS[m].get("spec") == 0.25, (m, K.MATERIALS[m])
+    src, dst = K.palette_inks()
+    for k in src:
+        assert np.abs(K.to_lin(K.ink_palette(K.to_srgb(src[k]))) - dst[k]).max() < 1e-9, k
+    t = np.linspace(0, 1, 21)[:, None]
+    for a, b, tol in (("white", "black", 7), ("white", "lime", 0.01), ("white", "teal", 0.01), ("lime", "teal", 0.01)):
+        got = K.ink_palette(K.to_srgb(src[a] * (1 - t) + src[b] * t)) * 255
+        assert np.abs(got - K.to_srgb(dst[a] * (1 - t) + dst[b] * t) * 255).max() < tol, (a, b)
+    for c in ((99, 120, 125), (252, 231, 248), (203, 238, 250)):
+        assert np.abs(K.ink_palette(np.array(c) / 255) * 255 - c).max() < 0.5, c
+    for c in ((213, 37, 131), (231, 25, 140), (183, 39, 125)):     # the jersey's and the pant's magenta, the back yoke
+        assert K.ink_palette(np.array(c) / 255)[1] * 255 < 3, c
+    rng = np.random.default_rng(0)
+    x = rng.random((20000, 3))
+    dx = rng.normal(size=x.shape)
+    dx = dx / np.abs(dx).max(1, keepdims=True) / 255
+    step = np.abs(K.ink_palette(np.clip(x + dx, 0, 1)) - K.ink_palette(x)).max() * 255
+    assert step < 6, step
+    black = K.to_srgb(dst["black"]) * 255
+    for name in ("jersey", "pants"):
+        a, _, _, chm, _ = texels[name]
+        x = a[chm >= 0]                                     # on the charts (the padding is their mean colour)
+        blk = x[K.ink_class("black", x)]
+        med, unlifted = np.median(blk, 0) * 255, (blk.max(1) * 255 < 30).mean()
+        assert np.abs(med - black).max() < 6 and unlifted < 0.03, (name, med.round(1), unlifted)
+    mag = np.median(x[K.ink_class("magenta", x)], 0) * 255
+    assert mag[1] < 5, mag.round(1)
+    # the front yoke's flat middle (test_back_yoke_is_the_fronts_magenta's faces): main 226, 14, 132
+    _, g = built
+    V, faces = part(g, "jersey")
+    FS, UV = g["jersey__FS"], g["jersey__UV"].reshape(-1, 2)
+    C = np.array([V[f].mean(0) for f in faces])
+    U = np.array([UV[s:s + n].mean(0) for s, n in zip(np.r_[0, np.cumsum(FS)[:-1]], FS)])
+    a = texture("jersey_color.png")
+    H, W = a.shape[:2]
+    col = a[np.minimum(((1 - U[:, 1]) * H).astype(int), H - 1), np.minimum((U[:, 0] * W).astype(int), W - 1)]
+    front = K.ink_class("magenta", col) & (C[:, 1] < 0) & (C[:, 2] > 1.46) & (np.abs(C[:, 0]) < 0.10)
+    f = np.median(col[front], 0) * 255
+    assert front.sum() > 30 and f[1] < 3 and f[2] < 127, f.round(1)
 
 
 def test_stripe_gradient_maps_onto_the_flats(built):

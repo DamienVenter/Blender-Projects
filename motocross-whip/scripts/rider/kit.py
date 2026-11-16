@@ -1580,6 +1580,28 @@ def ink_class(name, a):
     raise ValueError(name)
 
 
+INK_SOFT = 0.1    # ink_weight's ramp each side of an ink_class bound (display levels / 255, or a ratio)
+
+
+def ink_weight(name, a):
+    """ink_class softened (display values 0..1): each of its bounds ramped over INK_SOFT either side, so the weight
+    runs smoothly from 1 well inside the class to 0 well outside it."""
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+
+    def s(m):                                                           # m > 0 inside the bound
+        return smoothstep(-INK_SOFT, INK_SOFT, m)
+    rr, gg = np.maximum(r, 1e-6), np.maximum(g, 1e-6)
+    if name == "magenta":
+        return s(r - 0.43) * s(0.45 - g / rr) * s(b / rr - 0.3)
+    if name == "lime":
+        return s(g - 0.47) * s(r / gg - 0.55) * s(0.55 - b / gg)
+    if name == "teal":
+        return s(g - 0.39) * s(b / gg - 0.6) * s(0.75 - r / gg)
+    if name == "black":
+        return s(0.275 - a.max(-1))
+    raise ValueError(name)
+
+
 def photo_inks(name):
     """A photo's inks (linear RGB): per class in its box, the median of the brighter half of its pixels (the black:
     of all of them), so the shading and the edges' blends do not count."""
@@ -1594,6 +1616,58 @@ def photo_inks(name):
             px = px[L >= np.median(L)]
         out[k] = to_lin(np.median(px, 0))
     return out
+
+
+# Materials round 1, phase B (decision 61; research/scene-look.md "The kit's inks (phase B)"): the textures carry
+# Leatt US's front flat's inks (photo_inks times gain, white INK_WHITE). Fitted jointly to Leatt's flats under Standard
+# (each ink's colour against the white, at the flat's luminance) and his photos 07, 08 and 09 at PHOTO_EV (each
+# ink's diffuse body), at the prints' grey layer (MATERIALS: sheen 0, Specular IOR Level 0.25), the inks' albedos
+# move by these factors per channel (linear light). The black: his darks (the specular that lifted them is halved);
+# the flat's own black, 0.009 of its white, is under what any dielectric reflects of an even light (Fresnel 0.04 at
+# IOR 1.5): Leatt's photograph, not the cloth. The magenta: its green out and its blue down (his pinks: green 1 to 21
+# of 255, redder than ours). The lime and the teal stay: his 07 and 09 disagree on them (their lightness a stop
+# apart) and their fitted change was within a few levels
+INK_FACTORS = {"black": (2.76, 2.76, 2.76), "magenta": (1.03, 0.02, 0.86)}
+
+
+def palette_inks(factors=None):
+    """The textures' inks before the palette and after it (linear RGB): white, black, magenta, lime, teal."""
+    f = INK_FACTORS if factors is None else factors
+    flat = photo_inks(FLAT_REF)
+    white = to_lin(np.array(INK_WHITE) / 255)
+    gain = white.mean() / flat["white"].mean()
+    src = {k: white if k == "white" else flat[k] * gain for k in ("white", "black", "magenta", "lime", "teal")}
+    return src, {k: v * np.asarray(f.get(k, (1.0, 1.0, 1.0)), float) for k, v in src.items()}
+
+
+def ink_palette(rgb, factors=None):
+    """Display values in and out (last axis RGB): the inks' factors laid on the texture as the fit laid them on the
+    inks' classes in his photos and Leatt's flats. In linear light a texel of a chromatic ink's class (ink_weight:
+    ink_class softened) takes that ink's factors as a product, so the magenta's whole class (its traced shades, the
+    back yoke's green 25 and the front's 14, and its fades) loses its green as the ink does; a texel of the black's
+    class takes the black's lift (its fitted colour less its own) as a sum, so the black's shades and its blends with
+    the white at the cut edges keep their steps. Each ink lands on its fitted colour (its own class whole, the others'
+    none); colours of no class (the whites, the sleeves' grey-teal bands, the light pinks at the logos' edges) stay.
+    Barycentric palettes (each colour placed among black, white and the two inks next to it by hue, one affine map per
+    wedge) were tried and dropped: the traced shades kept their green as a white or lime part (the back yoke 18
+    levels over the front), and the teal, almost opposite the magenta round the grey axis (177 deg), made the
+    teal-magenta wedge near singular (light pinks lost their green whole; 1-level steps jumped 100 levels).
+    Elementwise: the same bytes on any thread count."""
+    src, dst = palette_inks(factors)
+    f = INK_FACTORS if factors is None else factors
+    shape = np.shape(rgb)
+    a = np.clip(np.reshape(rgb, (-1, 3)).astype(float), 0, 1)
+    x = to_lin(a)
+    inks = [k for k in ("magenta", "lime", "teal") if k in f]
+    w = np.stack([ink_weight(k, a) for k in inks], 1) if inks else np.zeros((len(a), 0))
+    w = w / np.maximum(w.sum(1, keepdims=True), 1.0)                       # where two classes' ramps meet
+    F = np.ones_like(x)
+    for j, k in enumerate(inks):
+        F = F + w[:, j:j + 1] * (np.asarray(f[k], float) - 1.0)
+    out = x * F
+    if "black" in f:
+        out = out + ink_weight("black", a)[:, None] * (dst["black"] - src["black"])
+    return to_srgb(out).reshape(shape)
 
 
 # The stripes are one airbrushed gradient, lime under the yoke to teal at the hem, not two inks: the boxes' "teal" is
@@ -2384,7 +2458,12 @@ class Canvas:
 # retyped in a font; only the name is set in a font (his photos do not resolve its lettering).
 ART = os.path.join(HERE, "..", "..", "textures", "damien-v1", "art")
 SPONSORS = os.path.join(HERE, "..", "..", "reference", "sponsors")
-INK_WHITE, INK_DARK = (246, 245, 250), (34, 24, 44)   # PHOTO 06: white digits, dark purple-grey outline
+INK_WHITE, INK_DARK_06 = (246, 245, 250), (34, 24, 44)   # PHOTO 06: white digits, dark purple-grey outline
+# the outline is a dark ink on the black ground: it moves as the black does (phase B, INK_FACTORS, x 2.76 in linear
+# light) and keeps its place against it, lighter and purple, 1.35 times the ground's luminance as in PHOTO 06
+# (through ink_palette it would take the black's lift as a sum, 49, 43, 59: 1.13 times): 59, 44, 75
+INK_DARK = tuple(int(round(float(v) * 255))
+                 for v in to_srgb(to_lin(np.array(INK_DARK_06) / 255) * np.array(INK_FACTORS["black"])))
 NUMBER_W = 0.300         # m, the 114 with its outline across the flat back panel (PHOTO 06: 0.59 of his 0.49 m
                          # deltoid breadth as seen = 0.29 m; plus 3 % for the back's wrap)
 NUMBER_OUTLINE = 0.0045  # m (PHOTO 06: 0.024 of the number's height)
@@ -3186,6 +3265,8 @@ def paint_jersey(body, V, N, Q, chart, UV, scale, out_dir, prints=()):
     img = level_raglan(img, pos, chm, V, Q, chart)
     for mk in marks:                                           # Leatt's sleeve marks, from the official files
         img = mk["canvas"].apply(img, pos, mk["zone"])
+    # the inks' palette (phase B, decision 61): Leatt's print and marks, not Damien's additions laid next
+    img[mask] = ink_palette(img[mask])
     # Damien's additions (also printed sharper on the print overlay, which takes `base` round them)
     base = img.copy()
     img = lay_prints(img, pos, nrm, mask, prints, texel=1.0 / (scale * TEX_RES))
@@ -3293,6 +3374,9 @@ def paint_pants(body, pants, V, N, Q, chart, UV, scale, out_dir):
     iks = mask.copy()
     iks[mask] = iks_field(pants, body, pos[mask]) > 0
     img[iks] = (0.085, 0.085, 0.09)                                  # the black I.K.S panels
+    # the inks' palette (phase B, decision 61), the texels under the panels too: the print's faces filter them at the
+    # panels' edges (the panels themselves are pant_iks)
+    img[mask] = ink_palette(img[mask])
     # relief
     h = np.zeros(pos.shape[:2])
     seams = [seam_points(V, Q, chart, {(0, 2), (1, 3), (0, 1), (2, 3), (0, 3), (1, 2)})]
@@ -3402,18 +3486,24 @@ def to_part(name, V, faces, mat_index, W, smooth=True, UV=None):
     return out
 
 
-# Materials (ledger "Materials"): sublimated polyester knit with a soft sheen; the breathable mesh side panels
-# rougher and duller; the I.K.S panels black leather and ripstop (a fine relief); the Waistlock's Hypalon-rubber
+# Materials (ledger "Materials"): sublimated polyester knit; the breathable mesh side panels rougher. The prints'
+# grey layer (phase B, decision 61; research/scene-look.md "The kit's inks (phase B)"): sheen 0 and Specular IOR
+# Level 0.25 (half the default's reflection), fitted with the inks' palette (INK_FACTORS) to Leatt's flats under
+# Standard and his photos at PHOTO_EV: main's sheen and full specular put a grey veil over the magenta (green 0.048 of
+# the white under Standard against the flat's 0.004; 54 to 74 of 255 in his photos against 5 to 21); the I.K.S panels black leather and ripstop (a fine relief); the Waistlock's Hypalon-rubber
 # strap, its textile tab, the moulded plastic buckle.
 MATERIALS = {
-    "jersey_print": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.58, "sheen": 0.18},
-    "jersey_mesh": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.74, "sheen": 0.1},
+    "jersey_print": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.58, "sheen": 0.0,
+                     "spec": 0.25},
+    "jersey_mesh": {"image": "jersey_color.png", "normal": "jersey_normal.png", "rough": 0.74, "sheen": 0.0,
+                    "spec": 0.25},
     # the print overlay over Damien's additions: the same cloth, its own sharper atlas
     "jersey_print_hd": {"image": "jersey_print_color.png", "normal": "jersey_print_normal.png", "rough": 0.58,
-                        "sheen": 0.18},
+                        "sheen": 0.0, "spec": 0.25},
     "jersey_print_hd_mesh": {"image": "jersey_print_color.png", "normal": "jersey_print_normal.png", "rough": 0.74,
-                             "sheen": 0.1},
-    "pant_print": {"image": "pants_color.png", "normal": "pants_normal.png", "rough": 0.56, "sheen": 0.16},
+                             "sheen": 0.0, "spec": 0.25},
+    "pant_print": {"image": "pants_color.png", "normal": "pants_normal.png", "rough": 0.56, "sheen": 0.0,
+                   "spec": 0.25},
     "pant_iks": {"rgb": [22, 22, 24], "rough": 0.46, "sheen": 0.12, "coat": 0.05, "bump": 0.22, "bump_scale": 1400.0},
     "strap": {"rgb": [18, 18, 19], "rough": 0.62},
     "strap_tab": {"rgb": [20, 20, 22], "rough": 0.85, "sheen": 0.3},
