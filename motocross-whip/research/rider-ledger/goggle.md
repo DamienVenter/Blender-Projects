@@ -1431,44 +1431,58 @@ origin/main 30bab2d (main had not moved): 114 passed, exit 0.
   the wall 6.9 mm tall for iso55's 46 px band, which round 13 found to be the C; round 10's slots at the C's window
   heights were the C's windows.
 
-### The frame's far end to the photos, the C refitted (item 1b; SIDE_LIP_DROP, CHASSIS_SLOTS, CAR_INNER_CUT, CAR_STRAP_IN)
-- SIDE_LIP_DROP 6 mm (frame_rings): the face on the pillars comes down towards the curled lens (the rings from b to
-  v1 move back along the lens normal, weighted by side_w), its bevel scaled with the wall's height so it keeps
-  round 12's lean (unscaled it leaned 53 to 64 deg and showed a 5 to 6 px black strip on the near side in iso55,
-  974 to 979 px, where Leatt's has none). CHASSIS_SLOTS empty (their heights live on in CAR_WIN_Z). The C's inner
-  cut 6.5 mm; the strap's end runs 5.0 mm past the C's inner end into the gap.
-- phr against Leatt's lens post (ours raw + 3.4 px): the black band 4 to 5 px (Leatt 7; round 12's wall 28), the red
-  frame end 2 to 3 px (Leatt 15), the gap with the strap's teal (1619 to 1621 px at its middle; 4.0 mm read 1621 to
-  1624), the C's inner edge 1627 to 1630 (Leatt 1630).
-- The C refitted with visibility in the cost (the new frame's signed distance, scratch sdf_drop.npz, cld_seed.json):
-  1.35 px rms, at most 3.7 (the Forge front's inner edge), the near C 0.28 mm clear of the frame; the face turned
-  21.9 deg (18.3), 9.0 mm across (8.7), the windows to 5.6 mm (5.4), the plate 30.4 mm long (31.1); turns iso55
-  56.1 deg, the white ISO 56.0, phr 65.4, the Forge front 54.6, the near plate 16.0. The stop (CAR_STOP_TURN) moved
-  from 13.7 to 16.0: the dropped face brought the frame's outer side 4.6 mm further back at the end, and at 13.7 the
-  near C stood 0.82 mm inside it (162 points); at 16.0 none, at 15.3 0.17 mm deep (z 19 to 23 mm).
-- iso55 at 1:1 (01f, 01a): two windows, the strap's teal in the lower one (rays through it meet goggle_strap_end over
-  3.5 to 4.6 mm of the window; 1680 to 1685 px against the lens post, Leatt 1679 to 1683), the ball pin, the satin
-  carrier (goggle_carrier, rgb 26/26/28, rough 0.40: L 40 to 43, Leatt 43, slightly red).
-- iso55's offset (one C for the CAD and the photos): our raw iso55 sits about +5 px from Leatt's, the camera's; against
-  the lens post the C lies within 1 to 2 px.
+### The frame's far end to the photos, the C refitted (item 1b; SIDE_LIP_DROP, drop_w, CHASSIS_SLOTS, CAR_INNER_CUT, CAR_STRAP_IN)
+- The pillar's face comes down towards the curled lens (frame_rings: the rings from b to v1 move back along the lens
+  normal, weighted by drop_w), its bevel scaled with the wall's height so it keeps round 12's lean (unscaled it
+  leaned 53 to 64 deg and showed a 5 to 6 px black strip on the near side in iso55, 974 to 979 px, where Leatt's has
+  none). CHASSIS_SLOTS empty (their heights live on in CAR_WIN_Z). The C's inner cut 6.5 mm; the strap's end runs
+  5.0 mm past the C's inner end into the gap.
+- How far: 6 mm (the first rebuild, commit 8d4f1ff) narrowed the frame to 202.7 mm (spec 205 to 218; at the pillar
+  the lens normal points outwards and the face is the frame's side, so the drop moves it in) and put phr's frame end
+  at 1609 to 1612 px. 4 mm (SIDE_LIP_DROP): 205.8 mm, the frame end 1614 to 1619 (Leatt 1611 to 1618).
+- drop_w: side_w's ramp put the drop's turn into a few samples (at 4 mm the frame's fairness test read dturn 6.0,
+  ripple 32 um, kink 2.1; at 6 mm 9.1, 45, 3.1; bounds 1, 10, 1). The weight is now side_w dilated over 4 samples
+  either side and smoothed with a 4-sample Gaussian along the loop (DROP_DILATE, DROP_SIGMA): 0.81, 5.8 um, 0.93;
+  the C's windows keep weights 0.95 to 1. The fairness test measures in sample index, so the weight is smooth in
+  index.
+- The plate's length and the strap's anchor are taken from its outer face (outrigger_grids): the inner face starts
+  CAR_INNER_CUT behind the C, so measured there the plate came out short and the anchor stood on the cut's first
+  row, 12.3 mm from the back (the rest and weave tests caught it in the full suite).
+- The C refitted with visibility in the cost (the 6 mm frame's signed distance, scratch sdf_drop.npz,
+  cld_seed.json): 1.35 px rms, at most 3.7 (the Forge front's inner edge); the face turned 21.9 deg (18.3), 9.0 mm
+  across (8.7), the windows to 5.6 mm (5.4), the plate 30.4 mm long (31.1); turns iso55 56.1 deg, the white ISO
+  56.0, phr 65.4, the Forge front 54.6, the near plate 16.0. The stop (CAR_STOP_TURN) moved from 13.7 to 16.0: the
+  dropped face brought the frame's outer side further back at the end, and at 13.7 the near C stood inside it. At
+  4 mm (scratch nearhit14.py, 0.4 mm samples): 128 points inside at 13.7, 19 at 15.3 (z 19.5 to 22.4 mm), none at
+  16.0, so the stop holds; the far C was not refitted at 4 mm.
+- phr against Leatt's lens post (ours raw + 3.4 px), the final build, row 860: our frame's dark face 1589 to 1610,
+  its red edge 1612 to 1614, the gap 1616 to 1625, the C 1627 to 1652, the plate's edge and print to 1671 (Leatt:
+  black 1595 to 1600, red 1601 to 1611, gap 1613 to 1626, the C 1628 to 1657 and its outer bar to 1672). Row 1060:
+  the gap 1618 to 1630 (Leatt 1620 to 1627), the outline's end 1674 (1677). The strap's teal in our gap at row 990
+  (1621 to 1627, rgb 20/32/30).
+- iso55 against the post (ours raw - 5 px), row 960: our face 1652 to 1669, the C 1670 to 1699 (rgb 46/36/39),
+  its edge to 1703, the outline's end 1704 to 1705 (Leatt: the lens to 1655, the C 1658 to 1700, 48/47/48, its edge
+  to 1704). The windows, the strap's teal in the lower one (rays through it meet goggle_strap_end), the ball pin.
+- iso55's offset (one C for the CAD and the photos): our raw iso55 sits about +5 px from Leatt's, the camera's.
 - The Forge front: refitting its camera to the lens posts (scratch cams_frg14b.json) left the posts 25 and -35 px off
   and made its outline worse (model to photo p50/p90 2.0/10.2 to 4.0/14.0 px): not adopted. Its crops put our far end
-  about 30 px out; against the posts the C's place holds.
-- Not right: the outline p90 rose in iso55, phy and the white ISO (below). The misses (scratch errwhere14.py) are a
-  6 px band of frame between our lens end and the C on the mid rows, two edges a row about 8 mm from Leatt's outline;
-  Leatt's frame masks have no frame there. Less drop raises the wall in front of the C again (at 0 its face is 13.7
-  to 18.6 mm behind it); no drop tried gives both. The cameras disagree too: against the posts our lens end is 8 px
-  too long in phr and 8 px too short in iso55, and the rim's x-gradients are nearly parallel across phr, iso55 and
-  phy (scratch jac14.py), so phr's frame end cannot move without moving iso55's and phy's outline.
-- Not right: phr's red frame end is 2 to 3 px (Leatt 15); our plate's print shows beyond the C in phr and the Forge
-  front where Leatt shows background; the C's arms that run into the frame at its top and bottom (all of Leatt's
-  views; the exploded view moulds the C on the frame) are missing, so background shows there; the near C's arms
-  show over the frame's top and bottom in iso55 (02a); the C reads slightly red.
+  about 30 px out.
+- Not right: the face covers the lens's last few mm in phr and iso55 (it starts 6 to 8 px before Leatt's black and
+  Leatt's C), and the outline p90 stays above main's in iso55, phy and the white ISO (below; the misses at iso55's
+  x 1640 to 1680 and phy's 1600 to 1680). phr's frame end stands at Leatt's but reads black with a 2 to 3 px red edge
+  (Leatt 3 to 7 px black, 11 to 14 red); a trial with gap a's outer half in the frame's colour gave 12 to 15 black and
+  7 to 9 red but a 6 to 7 px pink band with specular flecks in iso55 where Leatt's C is: not adopted. Between our C
+  and its outer edge the plate's edge and print (the white LEATT letters) stand where Leatt's C has its outer bar
+  (phr, the Forge front). iso55's upper window is 13 px wide at row 870 (Leatt 25) with the plate's front end lit in
+  it; at row 800 the C's top face reads light where Leatt's is dark. The C's arms that run into the frame at its top
+  and bottom (all of Leatt's views) are missing; the near C's arms show over the frame's top and bottom in iso55
+  (02a); the C reads slightly red.
 - phyb (item 1d, Leatt's back view: the strap wraps round the C, a loop): not done; ours stands off the frame and the
   free goggle has no strap.
 - Tests: test_round14_carrier_rides_on_the_plate, test_round14_outrigger_front_open_but_its_arms,
   test_round14_c_windows_open_to_the_strap, test_round14_strap_in_phrs_gap, test_round14_carrier_satin,
-  test_round14_c_stops_on_the_frame (each fails on main).
+  test_round14_c_stops_on_the_frame (each fails on main); test_velocity55's hinge now checks OR_HINGE_POINT against
+  the undropped frame, test_outriggers_rest reads the anchor and the thickness on the plate's uncut rows.
 
 ### The post (item 1c)
 - The first build put the clear post on the C's outer edge in the phr and Forge front views only: a per-view switch,
@@ -1480,29 +1494,27 @@ origin/main 30bab2d (main had not moved): 114 passed, exit 0.
 - Test: test_round14_one_goggle_no_post (fails on main: main builds it in every view, 47 px out in iso55).
 
 ### The worn carrier against his photos (item 2)
-- On him the near plate rests on the shell, the C clear of the frame: no sky through its windows in his 07 (the first
-  build, scratch hissky14.py: rays through them meet the outrigger and the strap's end slot; 06b after the rebuild
-  shows none), as his photo. The black spot at the C in 07 is the lens
-  post. Through the lens in iso55 at 1:1 (02a) round 13's dark strip at 1000 to 1040 px is gone.
+- On him the near plate rests on the shell, the C clear of the frame: no sky through its windows in his 07 (scratch
+  hissky14.py: rays through them meet the outrigger and the strap's end slot; 06b shows none), as his photo. The
+  black spot at the C in 07 is the lens post. Through the lens in iso55 at 1:1 (02a) round 13's dark strip at 1000
+  to 1040 px is gone.
 
 ### The strap's pull on the worn plate (item 3; strap_exit, strap_rest, WORN_SHELL, WORN_MIN)
 - The worn plate rested by the shell only. Built: the rest is the larger of the shell's (never below the stop) and
-  the strap's.
-  The strap pulls the plate's back end along its span, so the plate turns out until the two run in line (a secant
-  search on the turn, within 0.05 deg). With the stop at round 14's first 13.7 the empty helmet's plate (the goggle
-  12.6 mm lower, 3.5 mm back) turns from 13.7 to 14.98 deg, the strap's exit +2.11 to -0.01 deg.
-- With the stop at 16.0 (1b) the plate rests at its stop on both placements and the strap leaves it inwards: the
-  empty helmet 16.0 deg, exit -1.74 deg, the back edge 760.4 / 752.6 px at rows 860 / 980 (Leatt 764 / 751); on him
-  16.75 deg (the shell), exit -3.51. The test holds the pull's own check at the 13.7 stop.
+  the strap's. The strap pulls the plate's back end along its span, so the plate turns out until the two run in
+  line (a secant search on the turn, within 0.05 deg). With the stop at 13.7 the empty helmet's plate (the goggle
+  12.6 mm lower, 3.5 mm back) turns from 13.7 to 14.96 deg, the strap's exit to +0.01 deg.
+- With the stop at 16.0 the plate rests at its stop on Leatt's empty helmet and the strap leaves it inwards: 16.0
+  deg, exit -1.67 deg, the back edge 760.3 / 752.4 px at rows 860 / 980 (Leatt 764 / 751); on him 16.75 deg (the
+  shell), exit -3.73. The test holds the pull's own check at the 13.7 stop.
 - Test: test_round14_strap_pull_and_plate_rest_agree (fails on main).
 
 ### The outlines and the lens end (item 4)
 - Outline model-to-photo p90 (scratch errfar14.py, round 13's metric with the strap's end as rendered), mm, against
   main 3e653c9: round 14's first build iso55 3.92 (4.08), phy 3.51 (3.84), phr 3.60 (3.95), the white ISO 3.89
-  (4.25); after the far end's rebuild iso55 5.68, phy 6.48, phr 2.89, the white ISO 6.55 (the cause above).
+  (4.25); the 6 mm drop 5.68, 6.48, 2.89, 6.55; the final 4 mm 5.32, 5.28, 2.89, 5.85 (the cause above).
 - The lens end's bow at iso55 rows 840 and 1090 (the first build) was the chassis wall seen through the lens's grazing
-  end (Leatt's corners show his frame there); not changed, the fairness test untouched, not re-measured after the
-  rebuild.
+  end (Leatt's corners show his frame there); not changed, not re-measured after the rebuild.
 
 ### The teeth's steps (item 5; TOOTH_SNAP, tooth_steps, apply_snaps)
 - The frame's loops were sampled every 1 mm, so a step ran over two samples whatever TOOTH_EASE. Now each loop moves

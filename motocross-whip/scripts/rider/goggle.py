@@ -641,7 +641,7 @@ def frame_rings(gp=None, per=None, notch=False):
     Co_fit, Co = Co, Co + foot
     bv, back = bv_side, lens_back(Co[:, 0], Co[:, 1])
     lip0 = lip
-    lip = lip - SIDE_LIP_DROP * side_w(Co_fit[:, 0])                # round 14 (1b): the pillar's wall to the photos
+    lip = lip - SIDE_LIP_DROP * drop_w(Co_fit[:, 0])                # round 14 (1b): the pillar's wall to the photos
     bv = bv * np.clip((lip + back) / np.maximum(lip0 + back, 1e-6), 0.0, 1.0)   # ... at round 12's lean
     Ci, dl, dm, dn = nose_back(Co, Ci, d, notch)                    # round 11: the bridge behind the comb
     dm = dm + lens_back(Ci[:, 0], Ci[:, 1])           # round 12: the plate behind the lens stays behind the curled lens
@@ -729,10 +729,18 @@ SIDE_LENS_MID = 0.075
 SIDE_LENS_Z = ((-0.030, -0.015), (0.012, 0.025))    # m: the pillar's height (start of the late curl), eased from
                                                     # the bands' edges (lower z -32 to -40.5, upper 30)
 SIDE_BEVEL = 0.0012
-SIDE_LIP_DROP = 0.00600      # m, round 14 (1b): the face on the pillars comes down towards the curled lens by this
-                             # (phr: Leatt's black band 7 px, ours 28 with round 12's 6.9 mm wall, now 4 to 5), its
-                             # bevel shrinking with the wall so it keeps round 12's lean (not, it leaned 53 to 64 deg
-                             # and showed 5 to 6 px of black on the near side in iso55, where Leatt's has none)
+SIDE_LIP_DROP = 0.00400      # m, round 14 (1b): the face on the pillars comes down towards the curled lens by this,
+                             # its bevel shrinking with the wall so it keeps round 12's lean (not, it leaned 53 to 64
+                             # deg and showed 5 to 6 px of black on the near side in iso55, where Leatt's has none).
+                             # The lens normal there points out, so the drop also brings the frame's side in. phr
+                             # against the lens post, rows at the C's windows (z 13, -22 mm): the frame's end 1617 to
+                             # 1619 px (Leatt's red end 1617; round 12's wall to 1648); 6 mm put it at 1609 to 1612
+                             # and the frame 202.7 mm across (205 to 218: test_frame_width_and_wrap), 4 mm 205.8
+DROP_DILATE, DROP_SIGMA = 4, 4.0     # samples along the frame's loop: the drop's weight (drop_w) widened and smoothed.
+                                     # On side_w's own ramp the pillars' lower corners failed round 6's fairness (4 mm:
+                                     # ring b turning 6.0 deg more from one sample to the next, ripple 32 um, kink 2.1
+                                     # deg; 6 mm: 9.1, 45, 3.1); now 0.81 (another ring's) / 5.8 / 0.93 (bounds 1 / 10
+                                     # / 1), the weight over the C's windows' rows 0.95 to 1 (side_w's 0.91 to 1)
 SIDE_GROOVE_MIN = 0.0006
 
 
@@ -740,6 +748,21 @@ def side_w(s):
     """Round 12: 0 to 1 over the lens's |s| SIDE_S (smootherstep): where the side section applies."""
     x = np.clip((np.abs(s) - SIDE_S[0]) / (SIDE_S[1] - SIDE_S[0]), 0.0, 1.0)
     return x * x * x * (x * (6.0 * x - 15.0) + 10.0)
+
+
+def drop_w(s):
+    """Round 14 (1b): SIDE_LIP_DROP's weight per lens edge sample (the frame's loop, in order, closed): side_w,
+    widened DROP_DILATE samples either way (a running maximum) and smoothed with a Gaussian of DROP_SIGMA samples, both
+    wrapped round the loop, so the dropped face stays fair round the pillars' corners."""
+    w = side_w(s)
+    if DROP_DILATE > 0:
+        w = np.max([np.roll(w, k) for k in range(-DROP_DILATE, DROP_DILATE + 1)], axis=0)
+    if DROP_SIGMA > 0:
+        r = int(math.ceil(4.0 * DROP_SIGMA))
+        g = np.exp(-0.5 * (np.arange(-r, r + 1) / DROP_SIGMA) ** 2)
+        g /= g.sum()
+        w = np.sum([g[k + r] * np.roll(w, k) for k in range(-r, r + 1)], axis=0)
+    return w
 
 
 def side_foot(gp, Co, Cu, tu):
@@ -1365,7 +1388,9 @@ CAR_CLEAR = 0.0003                  # m, the carrier's back face off the frame's
 # same fit against the new frame's signed distance, from the built C (scratch cld_seed.json): 1.35 px rms, 3.7 at
 # most (the Forge front's inner edge), the near C 0.28 mm clear; the face turned 21.9 deg (18.3), 9.0 mm across
 # (8.7), the windows to 5.6 mm (5.4), the plate 30.4 mm long (31.1); the far turns 56.1, 56.0, 65.4, 54.6, the near
-# 16.0 (none of the C inside the frame there, 19 points 0.7 deg further in).
+# 16.0 (none of the C inside the frame there, 19 points 0.7 deg further in). That fit was against the 6 mm drop;
+# the drop came to 4 mm after (SIDE_LIP_DROP: phr's frame end, the frame's width): the near C at 13.7 deg 128 points
+# inside, 15.3 19 (z 19.5 to 22.4 mm), 16.0 none, so the stop holds.
 # From the plate's outer face front edge (the hinge): the C's front face's inner end CAR_Q along the plate and out
 # (inboard: negative), the face turned CAR_PSI from square to the plate, CAR_PLATE_W across to its outer corner (0.2
 # mm proud of the plate's face: the plate's front edge, OR_PLATE_FRONT), two windows over CAR_PLATE_WIN in from that
@@ -1628,12 +1653,15 @@ def outrigger_grids(gp=None, mount=None, nu=OR_NU, nv=OR_NV):
             Gi = Gi.copy()
             Go[..., 0] += sg * lift
             Gi[..., 0] += sg * lift
-        L = np.linalg.norm(Gi[-1, nv // 2] - Gi[0, nv // 2])
+        # the plate's length along its outer face (round 14 (1b): the inner face starts CAR_INNER_CUT further back; its
+        # length put the anchor 12.3 mm from the back end, on the cut's first row)
+        L = np.linalg.norm(Go[-1, nv // 2] - Go[0, nv // 2])
         i_a = float(np.interp(np.clip(1.0 - OR_ANCHOR / L, 0, 1), uu, np.arange(nu)))
         i0 = int(i_a)
         f = i_a - i0
-        mid = 0.5 * (Go + Gi)[:, nv // 2]
-        anchor = mid[i0] * (1 - f) + mid[min(i0 + 1, nu - 1)] * f
+        go = Go[:, nv // 2]
+        thick = Go[-1, nv // 2] - Gi[-1, nv // 2]                  # OR_T outwards (the back rows are not cut)
+        anchor = go[i0] * (1 - f) + go[min(i0 + 1, nu - 1)] * f - 0.5 * thick
         out[sg] = (Go, Gi, anchor)
     return out
 

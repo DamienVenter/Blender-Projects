@@ -596,7 +596,7 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - **A fit that needs the pivot inside the part is telling you about another part**: with visibility the pivot went
   into the frame. The blocker was round 12's 6.9 mm pillar wall, built for a 46 px band that was really the C, and
   round 10's clip slots at the C's window heights. When a later round reinterprets a feature, rebuild the parts
-  earlier rounds made to imitate it (here: the face dropped 6 mm, the slots removed), then refit (1.35 px rms).
+  earlier rounds made to imitate it (here: the face dropped 4 mm, the slots removed), then refit (1.35 px rms).
 - **Lower a wall with its bevel**: a fixed bevel on a shorter wall leans it (53 to 64 deg) and shows as a black strip
   from the other side; scale the bevel with the wall's height.
 - **Moving one part moves the stops on it**: the dropped face brought the frame's side 4.6 mm back and put the near C
@@ -614,6 +614,17 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
   secant search on the turn). Check both placements (him, Leatt's empty helmet).
 - **Sampling, not easing, can blur a step**: loops sampled every 1 mm ran each tooth step over two samples whatever
   the easing; a sample put 0.5 mm either side of each step made Leatt's 6 px step.
+- **Run the whole test file after a geometry change, not the tests you think it touches**: lowering the face passed
+  every round 14 test picked for it, and the full suite then failed five others (frame fairness, frame width, the
+  hinge, the plate's rest, the strap's weave scale).
+- **Moving a surface along its normal moves it sideways too**: at the pillar the lens normal points outwards, so a
+  6 mm drop narrowed the frame to 202.7 mm (spec 205 to 218); check the spec table after every such move (4 mm:
+  205.8).
+- **Smooth a weight in the index the test measures**: a fairness test that differentiates by sample needs the
+  weight smooth per sample (dilate, then a Gaussian along the loop), not only smooth in arc length.
+- **Derive lengths from the uncut face**: after one face of a part is cut back, lengths and anchors taken from that
+  face shift (the strap's anchor moved to the cut's first row); take them from the face that keeps the part's
+  full length.
 - **A shared look call per run misses per-view looks**: when the look gains per-photo arguments (exposure, tint),
   a script that applies it once per run must re-apply it per view with the view's name.
 

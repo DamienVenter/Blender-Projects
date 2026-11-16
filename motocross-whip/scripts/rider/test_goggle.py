@@ -117,7 +117,17 @@ def test_velocity55_shape_from_leatts_photos():
         t = (back - front) / np.linalg.norm(back - front)
         hinge = back - t * G.OR_HINGE_LEN - n / np.linalg.norm(n) * G.OR_FACE_OUT   # the plate's face off it
         near = R_[np.abs(R_[:, 2] - hinge[2]) < 0.004]
-        assert abs((sg * near[:, 0]).max() - sg * hinge[0] - G.OR_HINGE_IN) < 1e-4   # OR_HINGE_IN inside that point
+        # round 14 (1b): the widest point as the C was fitted to it (OR_HINGE_POINT); the face dropped after brought
+        # the frame's side in there, so it stands no further out than that point
+        assert abs(G.OR_HINGE_POINT[0] - sg * hinge[0] - G.OR_HINGE_IN) < 1e-4   # OR_HINGE_IN inside that point
+        assert (sg * near[:, 0]).max() <= G.OR_HINGE_POINT[0] + 1e-4
+        keep = G.SIDE_LIP_DROP, G.OR_HINGE_POINT
+        try:                                                               # ... the widest point before the drop
+            G.SIDE_LIP_DROP, G.OR_HINGE_POINT = 0.0, None
+            hp = G.hinge_points(zc=keep[1][2])[sg]
+        finally:
+            G.SIDE_LIP_DROP, G.OR_HINGE_POINT = keep
+        assert np.allclose(hp, [sg * keep[1][0], keep[1][1], keep[1][2]], atol=1e-6)
         assert 0.030 < hinge[1] - R_[:, 1].min() < 0.045                    # 30 to 45 mm behind the frame's front
         assert abs(np.linalg.norm(back - front) - G.plate_len()) < 0.002    # round 12: OR_LEN less OR_HINGE_BACK
         turn = math.degrees(math.atan2(sg * (back[0] - front[0]), back[1] - front[1]))   # along the plate
@@ -495,7 +505,9 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
             tt = (g[-1, :, :2] - g[0, :, :2]) / np.linalg.norm(g[-1, :, :2] - g[0, :, :2], axis=1)[:, None]
             return g[0, :, :2] - (G.OR_HINGE_LEN - G.plate_len()) * tt - sg * G.OR_FACE_OUT * np.c_[tt[:, 1], -tt[:, 0]]
         assert np.allclose(hinge(Go), hinge(free[sg][0]), atol=1e-6)
-        assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), G.OR_T)
+        assert np.allclose(np.linalg.norm(Go[-1] - Gi[-1], axis=1), G.OR_T)
+        # round 14 (1b): the inner face starts CAR_INNER_CUT along the plate behind the outer face's front edge
+        assert np.allclose(np.linalg.norm(Go[0] - Gi[0], axis=1), np.hypot(G.OR_T, G.CAR_INNER_CUT))
         assert G.WORN_TURN[sg][0] == G.WORN_TURN[sg][1]                   # round 13: one turn, the plate rigid
         assert abs(G.WORN_TURN[sg][1] - 16.7) <= 0.5                           # measured: the turn at which the top
                                                                             # back corner clears phase 2's shell
@@ -506,9 +518,13 @@ def test_outriggers_rest_on_the_shell_and_hold_the_strap(built):
         # the anchor sits between the faces near the back end, at mid height (round 8: the faces at the anchor's own
         # row; the 5 mm plate bends out along its length more than its thickness)
         j = Gi.shape[1] // 2
-        i = int(np.argmin(np.linalg.norm(0.5 * (Gi + Go)[:, j] - anchor, axis=1)))
-        lo, hi = sorted([abs(Gi[i, j, 0]), abs(Go[i, j, 0])])
-        # (round 14: OR_ANCHOR in from the back end of the plate, now plate_len long, at its row within one)
+        thick = Go[-1, j] - Gi[-1, j]                                     # OR_T outwards (the back rows: not cut)
+        i = int(np.argmin(np.linalg.norm(Go[:, j] - 0.5 * thick - anchor, axis=1)))
+        lo, hi = sorted([abs(Go[i, j, 0] - thick[0]), abs(Go[i, j, 0])])
+        # (round 14: OR_ANCHOR in from the back end of the plate, now plate_len long, at its row within one; 1b: read
+        # on the outer face, the inner one starting CAR_INNER_CUT behind the C's corner, so its rows are spread over
+        # a shorter face. Measured on the inner face the anchor stood on the cut's first row, 12.3 mm from the back)
+        assert abs(np.linalg.norm(Go[-1, j] - 0.5 * thick - anchor) - G.OR_ANCHOR) < 0.0015
         assert abs(i - (Gi.shape[0] - 1) * (1 - G.OR_ANCHOR / G.plate_len())) <= 1 and lo < abs(anchor[0]) < hi
         assert Gi[:, 0, 2].max() < anchor[2] < Gi[:, -1, 2].min()
         assert np.linalg.norm(Gi[-1, Gi.shape[1] // 2] - anchor) < G.OR_ANCHOR + 0.004
@@ -1767,7 +1783,8 @@ def test_round14_c_stops_on_the_frame():
     mm inside the frame (bounded at 15.5 deg, 1.2 mm); fitted with the C kept out (scratch fitc14n4.py), the near
     plate rests on that stop, 13.7 deg. The frame's end rebuilt (1b: SIDE_LIP_DROP brought its outer side 4.6 mm
     further back) put that C 0.82 mm inside it at 13.7 (goggle_overlaps: 162 points); refitted against the new frame
-    the stop is 16.0 deg. Sampled over its surface (0.4 mm), the near C at CAR_STOP_TURN lies outside the frame and
+    the stop is 16.0 deg (the drop then came to 4 mm: 128 points inside at 13.7, 19 at 15.3, none at 16.0).
+    Sampled over its surface (0.4 mm), the near C at CAR_STOP_TURN lies outside the frame and
     the face foam, 0.7 deg further in it does not; the free near plate is at the stop and the worn plates never
     inside it."""
     for a, clear in ((G.CAR_STOP_TURN, True), (G.CAR_STOP_TURN - 0.7, False)):
