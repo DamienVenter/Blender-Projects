@@ -32,13 +32,22 @@ import os
 # SKY_SUN_Y (luminance, strength 1, the sun 78 deg high, 1024 samples), the lamp sun_w sin(78 deg). Fitted on his
 # 07, 08 and 09 with the sky turned to his sun's height: the sky behind him in 09 at dE 1.4, his shell's shade at 6.2
 # (decision 54's sky: 26.8); aerosols 0 to 4, air 0.5 to 2, ozone 0 to 3, altitude 1500 m and a weaker sky (0.16,
-# the shade's own best, 5.7) moved the shade by 0.6 dE at most and the 09 sky by up to 17
+# the shade's own best, 5.7) moved the shade by 0.6 dE at most and the 09 sky by up to 17.
+# The shade's colour (decision 61, research/scene-look.md "The shade light"): his white shell's shade is bluer than
+# ours in all three photos (linear B/G 1.13, 1.10, 1.14 against 1.03, 1.03, 0.98) while the lit sides match, and in
+# this rig the shade is 78 to 87 % the ground's light (the sky 13 to 22 %). A gain on the sky's colour fitted on 09's
+# shade puts the lit sides at 9 to 10 dE (1.4 to 3.8) and the sky behind him 10 to 16 further, so the ground's hue
+# is fitted on 09's shade (a* b*, its luminance kept: not darker) and the sun's on 07's and 08's lit sides (its
+# luminance kept): GROUND_07 x (0.9245, 0.9946, 1.2801), an effective ground with part of it in shade under the blue
+# sky (09's shade 11.0 -> 6.2 dE, 07's 6.3 -> 2.4, 08's 8.2 -> 5.8); the sun a little warm against that sky (B -7.6 %,
+# the sky model's own sun -19 %), which keeps the lit sides (07 2.1 -> 2.4, 08 1.5 -> 1.0)
+GROUND_07 = (0.41, 0.40, 0.36)           # his 07: the lit pavement over his white shell's top x 0.8 (decision 55)
 SKY_SUN_Y = 141.03
 SUN_ELEV = 78.0                          # deg, his 07's sun (the bike's shadow): the height the strength is set at
 RIG = dict(
     sun_w=4.0 * 2.0 ** 3.4,              # W/m2 (Blender units) on a plane facing the sun
     sun_disc=0.53,                       # deg, the sun's angular diameter
-    sun_rgb=(1.0, 1.0, 1.0),
+    sun_rgb=(1.004, 1.007, 0.924),       # luminance 1 (decision 61)
     sky_strength=4.0 * 2.0 ** 3.4 * math.sin(math.radians(SUN_ELEV)) / SKY_SUN_Y,     # 0.2929
     air_density=1.0,
     aerosol_density=1.0,
@@ -46,7 +55,8 @@ RIG = dict(
     altitude=100.0,                      # m
     sky_ground_albedo=0.3,               # the sky model's own ground: no effect on 5.2's multiple-scattering sky
                                          # (0.1, 0.3 and 0.6 gave the same light on a level plane to 4 digits)
-    ground=(0.41, 0.40, 0.36),           # albedo of the rig's ground (the world below the horizon)
+    ground=(0.379, 0.398, 0.461),        # albedo of the rig's ground (the world below the horizon): GROUND_07's
+                                         # luminance, 09's shade's hue (decision 61)
 )
 SKY_KEYS = ("air_density", "aerosol_density", "ozone_density", "altitude")
 # the sky's irradiance on a level ground at strength 1 (R, G, B), by the sun's elevation (deg): `e1` below, for
@@ -283,7 +293,8 @@ def check_turn(samples=16, px=48):
     rg["turn"].inputs["Rotation"].default_value = (0.0, 0.0, 0.0)
     cam.matrix_world = q.to_matrix().to_4x4() @ cam.matrix_world
     b = shot()
-    ground = int((a[..., 2] < a[..., 0]).sum())
+    gcol = np.array(rg["ground"].outputs[0].default_value[:3])      # the ground: its own uniform radiance
+    ground = int((np.abs(a - gcol).max(-1) < 1e-3 * gcol.max()).sum())
     return rg["elevation"], float(np.percentile(np.abs(a - b) / (np.abs(b) + 1e-3), 95)), ground
 
 

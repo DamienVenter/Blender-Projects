@@ -85,6 +85,20 @@ def test_photo_up_gives_the_suns_height_without_roll(view, phi, theta, pitch):
     assert abs(b - pitch) < 0.05, (view, b)
 
 
+def test_the_shade_light_is_bluer_than_the_sun():
+    """Decision 61: his white shell's shade is bluer than ours in 07, 08 and 09 (linear B/G 1.10 to 1.14 against 0.98
+    to 1.03) while the lit sides match, and the shade is mostly the ground's light. The ground keeps GROUND_07's
+    luminance (not darker) with 09's shade's hue (B/G over 1.1); the sun keeps its luminance and gives a little blue
+    to the sky (B/G 0.90 to 0.95, between white and the sky model's own sun's 0.81)."""
+    luma = (0.2126, 0.7152, 0.0722)
+    g, s = day_rig.RIG["ground"], day_rig.RIG["sun_rgb"]
+    lum = lambda c: sum(a * b for a, b in zip(luma, c))       # noqa: E731
+    assert abs(lum(g) - lum(day_rig.GROUND_07)) < 0.002, (g, lum(g))
+    assert g[2] / g[1] > 1.1 and g[0] / g[1] < 1.0, g
+    assert abs(lum(s) - 1.0) < 0.002, s
+    assert 0.90 < s[2] / s[1] < 0.95, s
+
+
 def test_e1_interpolates_the_table():
     assert day_rig.e1(70.0) == day_rig.E1[70]
     assert day_rig.e1(10.0) == day_rig.E1[min(day_rig.E1)]
