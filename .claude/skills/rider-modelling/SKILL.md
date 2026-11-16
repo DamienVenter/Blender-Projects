@@ -1217,6 +1217,17 @@ description: How Damien the rider is built (body from MakeHuman's CC0 data shape
 - A texture that differs from the committed file after a rebuild was a stale commit, not a random build: build
   twice (bit-identical here, 141 and 156 s) and compare with git's copy before hunting for threads or seeds; commit
   textures from the same build as the code (test_kit_textures_rebuild_to_the_committed_files).
+- Then hunt for threads all the same: "bit-identical" held on one thread count only. OpenBLAS splits a dot over
+  10,000 long across its threads and adds the parts (x.dot(x), np.linalg.norm of a vector, so scipy's lsqr), so
+  its last bits follow OMP_NUM_THREADS / OPENBLAS_NUM_THREADS (above the CPU count it is capped: 8 ran as 4 here).
+  lscm's front chart moved by an ulp, every chart's place with it, the print by up to 2.5e-5 of a level over 97 %
+  of jersey_color.png, and on 2 threads its texel [725, 1753] crossed a rounding boundary. 12 of its values lie
+  within 1e-6 of one, so no rounding rule at the cast holds them: pin the source. Find the step by hashing every
+  intermediate in call order on two thread counts (the first to differ: lscm, 296th of 551). kit.main runs on one
+  BLAS thread (kit.blas_threads: ctypes on the loaded OpenBLAS, restored after); the suite builds into a temp dir
+  (never into textures/) and then rebuilds on another thread count
+  (test_kit_textures_are_the_same_on_another_thread_count), after the first build and not alongside it (memory is
+  shared, above: run thread-count variants one after another).
 
 ## Helmet round 5 (decision 56): lessons (helmet.py, helmet_detail.py, helmet_ba.py, helmet_art.py, ledger helmet.md section 10)
 - A side photo read at the centre plane (helmet.px2h) misplaces any edge that stands off that plane: the visor's
