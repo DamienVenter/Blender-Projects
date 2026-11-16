@@ -223,8 +223,15 @@ def round_corners(P, r, n=6):
 
 
 def outward(P, N):
-    """In-surface unit directions away from a closed loop's inside."""
+    """In-surface unit directions away from a closed loop's inside. Where neighbours coincide (a rim's offset snapped
+    onto the shell's edge: the brow's centre vent touches the port's edge on the centre line) the tangent spans
+    further."""
     t = np.roll(P, -1, 0) - np.roll(P, 1, 0)
+    for k in (2, 3, 4):
+        z = np.linalg.norm(t, axis=1) < 1e-9
+        if not z.any():
+            break
+        t[z] = (np.roll(P, -k, 0) - np.roll(P, k, 0))[z]
     o = np.cross(t, N)
     o /= np.linalg.norm(o, axis=1)[:, None]
     c = P.mean(0)
@@ -244,13 +251,21 @@ def loop_faces(rings, n):
 
 
 def orient(V, F, N_ref, P_ref):
-    """Flip all faces if their normals point into the shell on average (the top faces must face outwards)."""
-    F = np.asarray(F)
-    a, b, c = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+    """Flip all faces if their normals point into the shell on average (the top faces must face outwards). Faces of
+    one size come back as an array, of mixed sizes (quads and triangles) as lists."""
+    if len({len(f) for f in F}) > 1:
+        a, b, c = (V[[f[k] for f in F]] for k in range(3))
+        cen = np.array([V[list(f)].mean(0) for f in F])
+    else:
+        F = np.asarray(F)
+        a, b, c = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+        cen = V[F].mean(1)
     fn = np.cross(b - a, c - a)
     from scipy.spatial import cKDTree
-    j = cKDTree(P_ref).query(V[F].mean(1))[1]
-    return F[:, ::-1] if np.sum(np.sum(fn * N_ref[j], 1)) < 0 else F
+    j = cKDTree(P_ref).query(cen)[1]
+    if np.sum(np.sum(fn * N_ref[j], 1)) >= 0:
+        return F
+    return F[:, ::-1] if isinstance(F, np.ndarray) else [list(f)[::-1] for f in F]
 
 
 def plate(P, N, Q, NQ, h):
@@ -721,22 +736,49 @@ def textures(texdir, force=False):
 # it at the bottom; his right half is the mirror. Its bottom is flat (iso-right at 4x: the frame's lower edge level
 # for 25 px, 6 mm, each side of the centre line). The rim: the white paint's edge; the opening: where the wall meets
 # the lattice (MY27: the wall's inner edge line; iso-right: the lattice's edge).
-MOUTH_RIM = [(0.0, -92.5), (5.0, -92.7), (11.0, -93.4), (17.5, -94.8), (26.0, -98.5), (33.0, -102.0), (40.0, -105.0),
-             (45.0, -107.5), (48.5, -110.0), (50.2, -113.0), (50.4, -116.0), (50.0, -119.5), (49.2, -123.5),
-             (47.5, -128.0), (44.8, -133.0), (41.5, -138.0), (37.8, -142.8), (31.4, -150.1), (25.0, -156.0),
-             (20.5, -161.0), (16.5, -165.5), (11.0, -168.6), (5.0, -169.5), (0.0, -169.6)]
-MOUTH_OPEN = [(0.0, -98.0), (8.0, -99.0), (15.0, -100.5), (24.0, -104.5), (32.0, -109.5), (36.5, -113.0),
-              (37.8, -116.5), (37.8, -120.0), (37.0, -124.3), (33.0, -133.0), (27.0, -141.5), (19.5, -150.8),
-              (13.5, -158.0), (10.0, -162.5), (6.0, -164.8), (0.0, -165.3)]
-# The column's rails, their centre lines at the opening's top and bottom (x, z mm; MY27 read them 37 mm apart at the
-# top and 19 at the bottom, iso-right 31 and 14: their means, centred, as each camera puts the centre line 5 to 8 mm
-# to one side there)
-MOUTH_RAIL = [(17.0, -100.0), (8.5, -164.5)]
-MOUTH_FRAME_H = 0.0020            # the wall's top over the shell (the lattice stays under it: inside the recess)
-MOUTH_FLOOR_H = 0.0004
+# Round 5 (decision 56): Leatt's opening is a shield (the coordinator's 1:1 review of 06a: angular, straight sides in
+# every photo narrowing to a flat bottom; phase 2's was a rounded oval) and its frame a deep recessed tunnel, not a
+# flat band. The rim (the white paint's edge) keeps phase 2's trace, which those photos see within 3 mm (its sides,
+# straight in the photos, curve in the chin's front plane as the chin does), with its corners made sharp where the
+# solved landmarks put them (helmet_ba: mouth_corner, its side corner, at x 51.0, z -113.5 mm on the shell from three
+# photos; mouth_bottom, the flat bottom's corner, at x 13.1, z -168.7) and the shoulder straight. The white paint
+# rolls in over a lip's first band (MOUTH_LIP[0]), then the black moulding: the lip's second band and a wall sloping in
+# and back to the inner opening, MOUTH_INSET inside the rim and MOUTH_DEPTH behind it, where the lattice lies over a
+# dark floor; the column's two rails stand MOUTH_RAIL_H out of it, MOUTH_RAIL_W wide (Leatt: rails 5 mm in the 1:1
+# crops). The shell is cut along the rim (helmet.cut_loop, in the flat mesh's own parameters: helmet.on_mesh) and
+# pushed back behind it out of sight (mouth_dent: the shell stays one closed surface, the lip starts on its cut edge).
+# Round 5 (decision 56), from the 1:1 crops of Leatt's MY27 front-iso-left and Pinata iso-right through the solved
+# cameras: the frame broad (iso-right's near side about 16 mm projected from the rim to the lattice, the top 7 mm,
+# the bottom 6 mm; iso-left's far wall black 60 to 80 px), the lattice deep in it (the side panels' shading: MY27's
+# fins 8 mm and more tall); the white roll at the rim thin (iso-right at 2.6x: the paint turns into the dark frame
+# within 1 mm, no white inside it: the first build's second band, 2.5 mm back in white, read as a white strip down the
+# far side). The shell is cut a second time MOUTH_EDGE outside the rim: smooth vertex normals at the rim averaged the
+# surface with the dent's walls (pushed back 16.5 mm) and shaded the white beside the rim in teeth, one per triangle
+# (iso-left at 2.4x); now the rim's vertices touch the surface only through that band.
+MOUTH_RIM = [(0.0, -92.5), (5.0, -92.7), (11.0, -93.4), (17.5, -94.8), (26.0, -98.6), (33.0, -102.0), (40.0, -105.4),
+             (46.0, -108.6), (51.0, -113.5), (50.3, -117.0), (50.0, -119.5), (49.2, -123.5), (47.5, -128.0),
+             (44.8, -133.0), (41.5, -138.0), (37.8, -142.8), (31.4, -150.1), (25.0, -156.0), (20.5, -161.0),
+             (13.1, -168.7), (6.0, -169.1), (0.0, -169.2)]
+MOUTH_SHARP = ((51.0, -113.5), (13.1, -168.7))      # corners kept sharp (the rest smoothed once)
+MOUTH_INSET = {"top": 0.0070, "side": 0.0120, "bottom": 0.0060}     # the inner opening inside the rim
+MOUTH_DEPTH = 0.0110              # m, the inner opening (the lattice's plane) behind the rim
+MOUTH_LIP = ((0.0008, 0.0008), (0.0012, 0.0025))   # m, the lip's two rings (in from the rim, back): white, black
+MOUTH_EDGE = 0.0003               # m, the shell's second cut outside the rim (1 to 2 px at 1:1)
+MOUTH_STEP = 0.0025               # m, the rim's points along it (the shell's cut and the lip's first ring)
+MOUTH_TURN = 0.15                 # the front face's end at the side corner: the half width's slope along y
+MOUTH_FLOOR = 0.0015              # m, the dark floor behind the lattice's plane
+MOUTH_DENT = 0.0040               # m, the shell pushed back this far behind the floor inside the rim
 MOUTH_CELL = 0.0070               # the column's triangles (their rows 26 to 30 px apart at 0.23 mm/px)
 MOUTH_BAR_W, MOUTH_BAR_H = 0.0010, 0.0014
-MOUTH_RAIL_W, MOUTH_RAIL_H = 0.0030, 0.0018
+# The column's rails, their centre lines at the inner opening's top and bottom (x, z mm). Phase 2 read them on the
+# shell's surface (MY27 37 mm apart at the top and 19 at the bottom, iso-right 31 and 14). Round 5: their front edges
+# lie about 3 mm behind it (the rails' tops, MOUTH_DEPTH - MOUTH_RAIL_H), and cast there they stand wider: MY27 40 mm
+# apart at z -106 to -114 and 27 at z -161, iso-right 41 at z -110 to -115 (its far bottom end hidden): 4 mm out on
+# each side, the V's slope kept (the rails meet the inner opening's flat bottom at its corners, as Leatt's do)
+MOUTH_RAIL = [(21.5, -100.0), (12.5, -164.0)]
+MOUTH_RAIL_W, MOUTH_RAIL_H = 0.0050, 0.0080
+MOUTH_FRAME_H = 0.0020            # (kept for the side vents' and brow vents' rims)
+MOUTH_FLOOR_H = 0.0004
 MAT_FRAME = "helmet_frame_black"
 
 
@@ -801,20 +843,164 @@ def front_cast(shell, xz):
     return cast_dir(shell, np.c_[xz[:, 0], np.full(len(xz), y0), xz[:, 1]], np.array([0.0, 1.0, 0.0]))
 
 
-def mouth_xz(half, m=48):
-    """The closed loop (x, z in m) of a half outline in mm (his left, from the centre line at the top round to it at
-    the bottom): resampled to m points by length and mirrored (2 m - 2 points)."""
-    h = np.asarray(half, float) / 1000.0
+def mouth_rim_half():
+    """His left half of the rim in the front plane (x, z in m), from the top on the centre line round to the bottom
+    on it: MOUTH_RIM smoothed once but at its sharp corners and its ends, resampled every MOUTH_STEP by length with
+    the corners kept as points. Returns the points and the corners' mask."""
+    h = np.asarray(MOUTH_RIM, float)
+    sharp = np.array([any(np.allclose(q, c) for c in MOUTH_SHARP) for q in h])
+    keep = sharp.copy()
+    keep[[0, -1]] = True
+    sm = h.copy()
+    sm[1:-1] = 0.25 * h[:-2] + 0.5 * h[1:-1] + 0.25 * h[2:]
+    h = np.where(keep[:, None], h, sm)
     s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(h, axis=0), axis=1))]
-    t = np.linspace(0, s[-1], m)
-    h = np.c_[np.interp(t, s, h[:, 0]), np.interp(t, s, h[:, 1])]
-    return np.vstack([h, (h[1:-1] * [-1, 1])[::-1]])
+    t = np.linspace(0, s[-1], int(round(s[-1] / (1000 * MOUTH_STEP))) + 1)
+    sc = s[sharp]
+    t = np.sort(np.r_[t[np.abs(t[:, None] - sc[None]).min(1) > 0.4 * 1000 * MOUTH_STEP], sc])
+    xz = np.c_[np.interp(t, s, h[:, 0]), np.interp(t, s, h[:, 1])] / 1000.0
+    return xz, np.isin(t, sc)
+
+
+_MOUTH = {}
+
+
+def mouth_rim_3d(prof=None):
+    """The rim's left half on the shell's surface (helmet frame, m; the analytic surface, helmet.half_width), from
+    the top on the centre line round to the bottom: each front-plane point (x, z) at the y where the shell's half
+    width reaches x, searched back from the chin rim. Where the front face turns into the chin bar's side before
+    reaching x (the side corner: there the width creeps 1 mm in 10 mm of y, so a cast along y landed on the side,
+    12 mm back), at the turn: where the width's slope along y falls under MOUTH_TURN. Returns the points and the
+    corners' mask (cached)."""
+    if "rim" not in _MOUTH:
+        half, sharp = mouth_rim_half()
+        _MOUTH["rim"] = (front_to_surface(prof or H.Profile(), half), sharp)
+    return _MOUTH["rim"]
+
+
+def front_to_surface(prof, half):
+    """Front-plane points (x, z in m) of the rim's left half on the analytic surface (mouth_rim_3d's cast)."""
+    fc = prof.fine_chin
+    o = np.argsort(fc[:, 1])
+    dy = 0.00005
+    ys = np.arange(0.0, 0.06, dy)
+    out = []
+    for x, z in half:
+        yc = np.interp(z, fc[o, 1], fc[o, 0])
+        if x <= 0.0:
+            out.append((0.0, yc, z))
+            continue
+        Y = yc + ys
+        X = H.half_width(prof, Y, np.full(len(Y), z))
+        g = np.gradient(X, dy)
+        wall = np.nonzero((g < MOUTH_TURN) & (X > 0.03))[0]
+        end = wall[0] if len(wall) else len(Y) - 1
+        hit = np.nonzero(X[:end + 1] >= x)[0]
+        if len(hit) and hit[0] > 0:
+            i = hit[0]
+            y = Y[i - 1] + (Y[i] - Y[i - 1]) * (x - X[i - 1]) / max(X[i] - X[i - 1], 1e-12)
+        else:
+            y = Y[end]
+        out.append((float(H.half_width(prof, np.array([y]), np.array([z]))[0]), y, z))
+    return np.array(out)
+
+
+def mouth_edge_3d(prof=None):
+    """The rim moved MOUTH_EDGE out of the opening along the surface (square to the rim in its tangent plane; the
+    ends on the centre line moved along it): the shell's second cut (helmet.shell_outer). In the front plane the side
+    corner could not move: the rim lies on the front face's turn into the side there (mouth_rim_3d). With the
+    corners' mask (cached)."""
+    if "edge" not in _MOUTH:
+        prof = prof or H.Profile()
+        R, sharp = mouth_rim_3d(prof)
+        full = np.vstack([R, (R[1:-1] * [-1, 1, 1])[::-1]])
+        t = (np.roll(full, -1, 0) - np.roll(full, 1, 0))[:len(R)]
+        h = 1e-5
+        y, z = R[:, 1], R[:, 2]
+        gy = (H.half_width(prof, y + h, z) - H.half_width(prof, y - h, z)) / (2 * h)
+        gz = (H.half_width(prof, y, z + h) - H.half_width(prof, y, z - h)) / (2 * h)
+        o = np.cross(t, np.c_[np.ones(len(R)), -gy, -gz])
+        o /= np.linalg.norm(o, axis=1)[:, None]
+        n_in = inward_xz(full[:, [0, 2]])[:len(R)]
+        o *= -np.sign(np.median(np.sum(o[:, [0, 2]] * n_in, 1)))
+        E = R + o * MOUTH_EDGE
+        ends = np.array([[0.0, R[0, 2] + MOUTH_EDGE], [0.0, R[-1, 2] - MOUTH_EDGE]])
+        E[[0, -1]] = front_to_surface(prof, ends)
+        _MOUTH["edge"] = (E, sharp)
+    return _MOUTH["edge"]
+
+
+def mouth_cut(prof=None, to_domain=None, edge=False):
+    """The polygon (y, z) the shell is cut along (helmet.cut_loop): the rim's left half on the surface, from the top
+    on the chin rim round to the bottom on it, closed outside the profile domain (the chin rim between its ends,
+    1 mm out), so the centre line's vertices between the ends lie inside; and the rim's corners (y, z). to_domain
+    carries the rim's points (x, y, z) into the domain (helmet.on_mesh: the mesh's own parameters); without it they
+    are read at their (y, z). edge (with to_domain): the same for the loop MOUTH_EDGE outside it (mouth_edge_3d)."""
+    if to_domain is not None or "cut" not in _MOUTH:
+        prof = prof or H.Profile()
+        R, sharp = mouth_edge_3d(prof) if edge else mouth_rim_3d(prof)
+        if to_domain is not None:
+            R = np.c_[R[:, 0], to_domain(R)]
+        fc = prof.fine_chin
+        t = np.gradient(fc, axis=0)
+        t /= np.linalg.norm(t, axis=1)[:, None]
+        out = -np.c_[-t[:, 1], t[:, 0]] * (1.0 if prof.area >= 0 else -1.0)    # out of the domain
+        i0 = int(np.argmin(np.linalg.norm(fc - R[0, 1:], axis=1)))
+        i1 = int(np.argmin(np.linalg.norm(fc - R[-1, 1:], axis=1)))
+        idx = np.arange(i1, i0 - 1, -1) if i1 > i0 else np.arange(i1, i0 + 1)
+        back = fc[idx] + out[idx] * 0.001
+        poly = np.vstack([R[:, 1:], back])
+        if to_domain is not None:
+            return poly, R[sharp, 1:]
+        _MOUTH["cut"] = (poly, R[sharp, 1:])
+    return _MOUTH["cut"]
+
+
+def mouth_rim_xz():
+    """The rim's closed loop in the chin's front plane (x, z in m) on the surface: the left half from the top on the
+    centre line round to the bottom, then the right half (its mirror) back up."""
+    R = mouth_rim_3d()[0]
+    return np.vstack([R[:, [0, 2]], (R[1:-1, [0, 2]] * [-1, 1])[::-1]])
+
+
+def inward_xz(xz):
+    """Unit normals in the front plane pointing into the closed loop xz."""
+    t = np.roll(xz, -1, 0) - np.roll(xz, 1, 0)
+    n = np.c_[-t[:, 1], t[:, 0]]
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    c = xz.mean(0)
+    return -n if np.mean(np.sum(n * (c - xz), 1)) < 0 else n
+
+
+def mouth_inner_xz(rim):
+    """The inner opening in the front plane: the rim moved in by MOUTH_INSET (top, side or bottom by the edge's
+    direction), point for point."""
+    n = inward_xz(rim)
+    w = np.where(n[:, 1] < -0.7, MOUTH_INSET["top"], np.where(n[:, 1] > 0.7, MOUTH_INSET["bottom"],
+                                                             MOUTH_INSET["side"]))
+    w = np.convolve(np.r_[w[-4:], w, w[:4]], np.ones(9) / 9, mode="same")[4:-4]
+    q = rim + n * w[:, None]
+    for _ in range(3):                                 # untangle the corners' miters
+        q = 0.25 * np.roll(q, 1, 0) + 0.5 * q + 0.25 * np.roll(q, -1, 0)
+    return q
+
+
+def at_depth(shell, xz, d):
+    """Front-plane points cast onto the shell and moved back (+y) by d: the tunnel's points; with the shell's
+    normals."""
+    P, N = front_cast(shell, xz)
+    return P + np.array([0.0, d, 0.0]), N
+
+
+def ring_band(A, B, n):
+    """Quads between two closed rings of n points each, own vertices: V, F."""
+    return np.vstack([A, B]), loop_faces([A, B], n)
 
 
 def mouth_lattice(shell, open_xz):
-    """The opening's lattice in the chin's front plane, cast onto the shell: across bars on every row of the
-    triangles from edge to edge, the two diagonal families, and the column's two rails over them. Mirror symmetric by
-    construction. Pieces (V, F, mats)."""
+    """The opening's lattice in the lattice's plane (MOUTH_DEPTH behind the shell): across bars on every row of the
+    triangles from edge to edge, the two diagonal families, and the column's two rails standing out of it. Mirror
+    symmetric by construction. Pieces (V, F, mats)."""
     from matplotlib.path import Path
     inside = Path(open_xz).contains_points
     (xt, zt), (xb, zb) = np.asarray(MOUTH_RAIL) / 1000.0
@@ -856,7 +1042,7 @@ def mouth_lattice(shell, open_xz):
     runs(p, inside(p), MOUTH_RAIL_W, MOUTH_RAIL_H, True)
     out = []
     for p, w, hh, mirror in lines:
-        S3, NS = front_cast(shell, p)
+        S3, NS = at_depth(shell, p, MOUTH_DEPTH)
         Vb, Fb = bar(S3, NS, w, hh)
         mat = MAT_FRAME if w == MOUTH_RAIL_W else MAT_MESH
         out.append((Vb, [list(f) for f in Fb], [mat] * len(Fb)))
@@ -866,17 +1052,181 @@ def mouth_lattice(shell, open_xz):
 
 
 def mouthpiece(shell):
-    """The mouthpiece: its wall (MAT_FRAME, the outer wall in MAT: the white paint folding in at the rim), the dark
-    floor (MAT_DARK), the lattice (MAT_MESH) and the column's rails (MAT_FRAME). Pieces (V, F, mats)."""
-    open_xz = mouth_xz(MOUTH_OPEN)
-    Q, NQ = front_cast(shell, mouth_xz(MOUTH_RIM))
-    P, N = front_cast(shell, open_xz)
-    V, F = plate(P, N, Q, NQ, MOUTH_FRAME_H)
-    n = len(P)
-    out = [(V, [list(f) for f in F], [MAT_FRAME] * (4 * n) + [MAT] * n)]
-    Vc, Fc = cap(P, N, MOUTH_FLOOR_H, shell)
-    out.append((Vc, [list(f) for f in Fc], [MAT_DARK] * len(Fc)))
-    return out + mouth_lattice(shell, open_xz)
+    """The mouthpiece: the lip folding in from the rim (white, MAT, then black, MAT_FRAME; the shell is cut along the
+    rim, helmet.cut_loop), the black wall sloping in and back to the inner opening (MAT_FRAME), the dark floor behind it (MAT_DARK), the
+    lattice (MAT_MESH) and the column's rails (MAT_FRAME). Pieces (V, F, mats): the lip's bands, wall, floor, then
+    the lattice's bars and rails."""
+    R = mouth_rim_3d()[0]
+    R0 = np.vstack([R, (R[1:-1] * [-1, 1, 1])[::-1]])  # the rim on the surface, the shell's cut edge
+    rim = R0[:, [0, 2]]
+    inner = mouth_inner_xz(rim)
+    n = len(rim)
+    nin = inward_xz(rim)
+    _, NR0 = front_cast(shell, rim)
+    lip = [R0]
+    for d_in, d_back in MOUTH_LIP:
+        L, _ = at_depth(shell, rim + nin * d_in, d_back)
+        lip.append(L)
+    W0 = lip[-1]
+    W1, _ = at_depth(shell, inner, MOUTH_DEPTH)
+    wall = [W0 + (W1 - W0) * k / 3.0 for k in range(4)]
+    pieces = []
+    for k in range(len(lip) - 1):                       # each lip band its own vertices: the lit fold reads crisp
+        V, F = ring_band(lip[k], lip[k + 1], n)
+        pieces.append((V, orient(V, F, NR0, R0), MAT if k == 0 else MAT_FRAME))
+    V = np.vstack(wall)
+    F = loop_faces(wall, n)
+    pieces.append((V, orient(V, F, NR0, R0), MAT_FRAME))
+    c = inner.mean(0)                                   # the floor: rings shrinking to the centre
+    fl = [at_depth(shell, c + (inner - c) * sc, MOUTH_DEPTH + MOUTH_FLOOR)[0] for sc in (1.0, 0.67, 0.34)]
+    c3 = at_depth(shell, c[None], MOUTH_DEPTH + MOUTH_FLOOR)[0]
+    V = np.vstack(fl + [c3])
+    F = [list(f) for f in loop_faces(fl, n)] + [[3 * n, (i + 1) % n + 2 * n, i + 2 * n] for i in range(n)]
+    pieces.append((V, orient(V, F, NR0, R0), MAT_DARK))
+    out = [(V, [list(f) for f in F], [m] * len(F)) for V, F, m in pieces]
+    return out + mouth_lattice(shell, inner)
+
+
+def mouth_dent(V, prof=None):
+    """Shell vertices (helmet frame) inside the rim (in the profile domain, both halves: helmet.cut_loop's polygon;
+    those on it stay), pushed back (+y) behind the tunnel's floor: the shell stays one closed surface, its faces there
+    out of sight behind the lip, wall and floor. Returns the moved copy."""
+    from matplotlib.path import Path
+    poly = getattr(prof, "mouth_poly", None)            # the mesh's own (helmet.shell_outer), else the surface's
+    poly = mouth_cut(prof)[0] if poly is None else poly
+    Q = V[:, 1:]
+    inside = Path(poly).contains_points(Q)
+    idx = np.nonzero(inside)[0]
+    d = np.full(len(idx), np.inf)
+    for a, ab in zip(poly, np.roll(poly, -1, axis=0) - poly):
+        tt = np.clip(((Q[idx] - a) @ ab) / max(ab @ ab, 1e-30), 0, 1)
+        d = np.minimum(d, np.linalg.norm(Q[idx] - (a + tt[:, None] * ab), axis=1))
+    inside[idx[d < 1e-7]] = False
+    V = V.copy()
+    V[inside, 1] += MOUTH_DEPTH + MOUTH_FLOOR + MOUTH_DENT
+    return V
+
+
+# ---------------------------------------------------------------- the chin cap's moulded LEATT (round 5, decision 56)
+# Leatt's wordmark stands moulded on the chin cap's front slope, centred on the centre line, reading from the front
+# with its tops towards the face: Pinata iso-left at 5x shows its letters' lit upper edges (black on black: no print),
+# V25 white iso-left its soft lit tops. Cast through the solved cameras: its middle at y -192.9, z -58.1 mm
+# (iso-left) and y -192.6, z -58.7 (V25); its length 43 mm (iso-left, x -20.1 to +23.0) and 35 mm (V25, whose
+# camera puts it 13 mm to his left), 40 mm taken, centred (a moulding on the centre line). Raised CHIN_LEATT_H: the
+# lit edges 1 to 2 px at 0.2 mm/px. The official wordmark's outlines (helmet_art.WORDMARK); the paint's black under
+# its clear coat (MAT_CAP: the Pinata cap is black; MY27's is blue, V25's white).
+CHIN_LEATT_C = (0.0, -0.1928, -0.0584)
+CHIN_LEATT_LEN = 0.040
+CHIN_LEATT_H = 0.0006
+CHIN_LEATT_STEP = 0.0003          # m, outline points at most this far apart
+MAT_CAP = "helmet_cap_letters"
+
+
+def wordmark_loops(min_area=0.002):
+    """The official wordmark's outlines in letter heights (x from its left, y down from its top), loops under
+    min_area (antialiasing specks) dropped, the registered mark dropped."""
+    import contourpy
+    from PIL import Image
+    from scipy import ndimage
+    import helmet_art
+    a = np.array(Image.open(helmet_art.WORDMARK).convert("RGBA"))[..., 3].astype(float) / 255.0
+    m = a > 0.5
+    lab, n = ndimage.label(m)
+    sizes = ndimage.sum(m, lab, range(1, n + 1))
+    keep = np.isin(lab, 1 + np.nonzero(sizes > 0.05 * sizes.max())[0])
+    ys, xs = np.nonzero(keep)
+    a = a * ndimage.binary_dilation(keep, iterations=2)
+    c = np.pad(a[ys.min():ys.max() + 1, xs.min():xs.max() + 1], 2)
+    h = ys.max() - ys.min() + 1
+    loops = []
+    for ln in contourpy.contour_generator(z=c, line_type="Separate").lines(0.5):
+        P = (np.asarray(ln, float) - 2.0) / h
+        P = P[:-1] if np.allclose(P[0], P[-1]) else P
+        area = 0.5 * np.sum(P[:, 0] * np.roll(P[:, 1], -1) - np.roll(P[:, 0], -1) * P[:, 1])
+        if len(P) > 3 and abs(area) > min_area:
+            loops.append(P)
+    return loops
+
+
+def chin_wordmark(shell):
+    """The raised LEATT on the chin cap: its top (Delaunay over the outline points and an inner grid, triangles kept
+    whose centroid and edge midpoints lie inside) CHIN_LEATT_H over the shell, its walls down to SINK under it, each
+    with its own vertices (crisp edges). Laid in the shell's tangent plane at CHIN_LEATT_C (across: x; up: towards the
+    face along the slope) and cast back onto the shell along its normal there. Pieces (V, F, mats)."""
+    from matplotlib.path import Path
+    from scipy.spatial import Delaunay
+    import types
+    C0 = np.asarray(CHIN_LEATT_C, float)
+    P0, N0 = shell.snap(C0[None])
+    P0, N0 = P0[0], N0[0]
+    ex = np.array([1.0, 0.0, 0.0]) - N0 * N0[0]
+    ex /= np.linalg.norm(ex)
+    ey = np.cross(N0, ex)
+    ey = ey if ey[1] > 0 else -ey
+    near = np.nonzero(np.linalg.norm(shell.V[shell.F].mean(1) - P0, axis=1) < 0.05)[0]
+    local = types.SimpleNamespace(V=shell.V, F=shell.F[near], N=shell.N)
+    loops = wordmark_loops()
+    asp = max(L[:, 0].max() for L in loops)
+    hgt = CHIN_LEATT_LEN / asp
+    loops2 = [_resample_closed(np.c_[(L[:, 0] - asp / 2) * hgt, (0.5 - L[:, 1]) * hgt], CHIN_LEATT_STEP)
+              for L in loops]
+
+    def inside(Q):
+        r = np.zeros(len(Q), bool)
+        for L2 in loops2:
+            r ^= Path(L2).contains_points(Q)
+        return r
+
+    def lift(Q, t):
+        S = P0 + Q[:, :1] * ex + Q[:, 1:] * ey
+        X, NX = cast_dir(local, S + N0 * 0.01, -N0)
+        return X + NX * t
+
+    bp = np.vstack(loops2)
+    lo, hi = bp.min(0), bp.max(0)
+    g = 0.0008
+    gx, gy = np.meshgrid(np.arange(lo[0] + g / 2, hi[0], g), np.arange(lo[1] + g / 2, hi[1], g))
+    G2 = np.c_[gx.ravel(), gy.ravel()]
+    G2 = G2[inside(G2)]
+    from scipy.spatial import cKDTree
+    G2 = G2[cKDTree(bp).query(G2)[0] > 0.0002]
+    pts = np.vstack([bp, G2])
+    tri = Delaunay(pts).simplices
+    T = pts[tri]
+    ok = inside(T.mean(1))
+    for a_, b_ in ((0, 1), (1, 2), (2, 0)):
+        ok &= inside(0.45 * (T[:, a_] + T[:, b_]) + 0.1 * T.mean(1))
+    tri = tri[ok]
+    V = lift(pts, CHIN_LEATT_H)
+    nm = np.cross(V[tri[:, 1]] - V[tri[:, 0]], V[tri[:, 2]] - V[tri[:, 0]])
+    flip = (nm @ N0) < 0
+    tri[flip] = tri[flip][:, ::-1]
+    out = [(V, tri.tolist(), [MAT_CAP] * len(tri))]
+    for L2 in loops2:
+        n = len(L2)
+        Vt, Vb = lift(L2, CHIN_LEATT_H), lift(L2, -SINK)
+        e = np.roll(L2, -1, axis=0) - L2
+        rgt = np.c_[e[:, 1], -e[:, 0]] / np.maximum(np.linalg.norm(e, axis=1), 1e-12)[:, None]
+        k = int(np.argmax(np.linalg.norm(e, axis=1)))
+        mid = 0.5 * (L2[k] + L2[(k + 1) % n])
+        sgn = -1.0 if inside((mid + rgt[k] * 1e-5)[None])[0] else 1.0     # rgt * sgn: away from the letter
+        i = np.arange(n)
+        j = (i + 1) % n
+        q = np.c_[i, j, n + j, n + i]
+        fn = np.cross(Vt[j] - Vt[i], Vb[i] - Vt[i])
+        outv = (sgn * rgt)[:, :1] * ex + (sgn * rgt)[:, 1:] * ey
+        q[(fn * outv).sum(1) < 0] = q[(fn * outv).sum(1) < 0][:, ::-1]
+        out.append((np.vstack([Vt, Vb]), q.tolist(), [MAT_CAP] * n))
+    return out
+
+
+def _resample_closed(P, step):
+    """A closed loop with points at most step apart (its own points kept: corners stay sharp)."""
+    out = []
+    for a, b in zip(P, np.roll(P, -1, axis=0)):
+        k = max(1, int(np.ceil(np.linalg.norm(b - a) / step)))
+        out.append(a + (b - a) * (np.arange(k) / k)[:, None])
+    return np.vstack(out)
 
 
 def vent_pieces(shell, P, N, rim_w, rim_h, rim_mat=MAT_FRAME, mesh=None):
@@ -978,7 +1328,7 @@ def build(Vo, Fo, part=None):
     for side in (1.0, -1.0):                            # the grip panels, with their relief's UVs
         for V, F, mats, uv in grip_panel(shell, side):
             part.add(V, F, mats, uv)
-    for V, F, mats in mouthpiece(shell) + side_vents(shell) + brow_vents(shell):
+    for V, F, mats in mouthpiece(shell) + side_vents(shell) + brow_vents(shell) + chin_wordmark(shell):
         part.add(V, [list(f) for f in F], mats)
     return part
 

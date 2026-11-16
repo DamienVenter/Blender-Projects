@@ -44,9 +44,13 @@ TRACE_TEX = 2048                    # texels of the tracing atlas (2.15 px/mm, t
 
 
 # ---------------------------------------------------------------- the atlas as points on the shell
+_CUT = {}                           # the shell's mouth cut in its own parameters (helmet.shell_outer), for mouth_ink
+
+
 def surfaces():
     """Outer shell and visor top: (V, F, N, UV) in the helmet frame, UV 0..1 (helmet.atlas_uvs)."""
     Vo, Fo, prof = H.shell_outer()
+    _CUT["mouth"] = prof.mouth_poly
     uv_o = H.atlas_uvs(Vo, Fo)[0]
     G = H.visor_surface(prof)
     nr, nc, _ = G.shape
@@ -271,12 +275,15 @@ def back_zone(P, N, S):
     return Path(BACK_ZONE).contains_points(uv) & vis & (cos > 0.0) & (S == 0)
 
 
-# The chin's mouthpiece (phase 2, decision 51): its moulding covers the shell inside its rim (helmet_detail.MOUTH_RIM,
+# The chin's mouthpiece (phase 2, decision 51): its moulding covers the shell inside its rim (helmet_detail.mouth_rim_xz,
 # traced through the two solved cameras that see the chin's outline within 5 mm). The Pinata iso-left camera, which
 # owns the chin's front, puts Leatt's black 10 to 15 mm off there (its chin outline stands 13 mm inside Leatt's): its
 # black ran past the rim as teeth, a FORCE polygon in its px could not hold it. Inside the rim the shell is black, in
 # a band MOUTH_RING round it white (the paint folding in at the rim). The same for the chin bar's side vents
-# (helmet_detail.SIDE_VENT_YZ, on the chin's sides): black inside, white in a band SIDE_RING round them.
+# (helmet_detail.SIDE_VENT_YZ, on the chin's sides): black inside, white in a band SIDE_RING round them. Round 5
+# (decision 56): inside the rim means inside the shell's cut in its own parameters (y, z: helmet.shell_outer's
+# mouth_poly, the faces pushed back behind the mouthpiece); by the front-plane outline, texels on the chin bar's side
+# behind the rim's top corner fell inside it and hung a black flag 2 mm out of the rim (iso-left at 2.4x).
 MOUTH_RING = 0.008
 SIDE_RING = 0.005
 # The chin cap's lower edge across the chin's front (x, z in mm): the dark moulding over the chin bar's top meets the
@@ -299,7 +306,7 @@ def mouth_ink(P, S, out):
     import helmet_detail as D
     from matplotlib.path import Path
     from scipy.spatial import cKDTree
-    rim = D.mouth_xz(D.MOUTH_RIM, 200)
+    rim = D.mouth_rim_xz()
     xz = P[:, [0, 2]]
     cap = np.asarray(CHIN_CAP) / 1000.0
     ax = np.abs(P[:, 0])
@@ -313,7 +320,8 @@ def mouth_ink(P, S, out):
     out[flank & (P[:, 2] > zs + 0.001)] = INKS.index("black")
     out[flank & (P[:, 2] < zs - 0.001) & (P[:, 2] > zs - CHIN_CAP_BAND)] = INKS.index("white")
     front = (S == 0) & (P[:, 1] < -0.12)
-    inside = Path(rim).contains_points(xz) & front
+    cut = _CUT.get("mouth")
+    inside = (Path(rim).contains_points(xz) if cut is None else Path(cut).contains_points(P[:, 1:])) & front
     near = cKDTree(rim).query(xz)[0] < MOUTH_RING
     out[front & near & ~inside] = INKS.index("white")
     out[inside] = INKS.index("black")

@@ -291,7 +291,7 @@ def raw_width(prof, Y, Z):
     # 3 mm mesh that hid the surface's own normal from the shading test (round 3)
     Lc, Pc = crown_shape(foot[:, 0])
     w = _W_OF_Z(Z) * _Q_OF_Y(Y)
-    return w * falloff(dc / Lc, Pc) * chin_g(dh), np.minimum(dc, dh)
+    return w * falloff(dc / Lc, Pc) * chin_g(dh, Z), np.minimum(dc, dh)
 
 
 SMOOTH_H = 0.002                    # m, grid of the smoothed field
@@ -354,11 +354,22 @@ def ring_offsets(L, p, n):
     return L * (1.0 - (1.0 - s ** p) ** (1.0 / p))
 
 
-def chin_g(d):
+# Round 5 (decision 56): through the refitted cameras the chin bar's upper part (z -60 to -90 mm, its front corner at x
+# 43 to 50 mm) stood outside Leatt's far outline in all three iso photos (MY27 front-iso-left +2 to +9 mm, Pinata
+# iso-right +4 to +6, iso-left +2 to +4; scratch outbox.py) while its lower part sits inside or on it (MY27 +0.5 to
+# +4, iso-right -0.3 to -8, iso-left -3 to -6). The nose's share falls to NOSE_TOP[2] of itself above NOSE_TOP[1]
+# (a C2 step from NOSE_TOP[0]): the mouthpiece's rim (top -92.5 mm) and everything below stay.
+NOSE_TOP = (-0.097, -0.082, 0.90)
+
+
+def chin_g(d, z=None):
     """The chin bar's share of the width at a distance d from its rim: the V (L_CHIN, P_CHIN) and the blunt nose
-    (CHIN_NOSE), their smooth maximum."""
+    (CHIN_NOSE, narrower over the chin bar's upper part at heights z: NOSE_TOP), their smooth maximum."""
     g = falloff(d / L_CHIN, P_CHIN)
     nose = CHIN_NOSE[0] * falloff(d / CHIN_NOSE[1], CHIN_NOSE[2])
+    if z is not None:
+        k = np.clip((np.asarray(z, float) - NOSE_TOP[0]) / (NOSE_TOP[1] - NOSE_TOP[0]), 0.0, 1.0)
+        nose = nose * (1.0 + (NOSE_TOP[2] - 1.0) * k * k * k * (k * (6 * k - 15) + 10))
     return (g ** CHIN_NOSE[3] + nose ** CHIN_NOSE[3]) ** (1.0 / CHIN_NOSE[3])
 
 
@@ -442,8 +453,11 @@ def domain_points(prof, h=0.005, nring=14):
     gy = gy + (np.arange(gy.shape[0])[:, None] % 2) * h / 2
     pts.append(np.c_[gy.ravel(), gz.ravel()])
     Q = np.vstack(pts)
-    # inside, nothing closer than 1.2 mm to the outline, clear of the band (3D) and of the rings it replaces
+    # inside, nothing closer than 1.2 mm to the outline, clear of the band (3D) and of the rings it replaces. Round 5:
+    # the outline's samples are 3 mm apart, so points of the chin's innermost rings halfway between two of them (1.5
+    # mm from each, a few hundredths of a millimetre off the rim) passed; the chin rim's polyline excludes them
     keep = prof.inside(Q) & (cKDTree(prof.outline).query(Q)[0] > 0.0012)
+    keep &= rim_dist(prof.ftree_chin, prof.fine_chin, Q)[0] > CHIN_LAYER_D
     band = crown_band(prof)
     Q = Q[keep]
     B3 = np.c_[half_width(prof, band[:, 0], band[:, 1]), band]
@@ -476,14 +490,369 @@ def mesh_domain(prof, P):
     return tri[np.abs(cr) > 1e-9]                   # slivers along nearly straight outline corners
 
 
+# Round 5 (decision 56): the chin's front had no vertices between the centre line and 25 to 35 mm out to each side
+# (the blunt nose spreads the width from 0 to 28 mm within 1.2 mm of the chin rim in the profile, the outline's
+# exclusion), so its triangles ran up to 35 mm across it: the crumpled bottom corner and the lumps of the chin's
+# shading at 1:1, and a dent behind the mouthpiece's rim spanned whole triangles. Splitting those triangles at their
+# edges' middles (a draft) or refining the domain's Delaunay there folds the surface: in the profile the strip is a
+# few hundredths of a millimetre deep and its rows bend with the rim, so straight domain edges between vertices at
+# different depths cross the rows. So no domain point lies within CHIN_LAYER_D of the chin rim, and the rim's first
+# layer of triangles (each with one or two vertices on the chin rim) is split in rows instead: every edge from the rim
+# to a vertex off it is divided in equal steps along the surface (as many as CHIN_ROW_STEP gives on the 90th
+# percentile edge), and each triangle into the bands between those levels (a trapezoid in the profile, convex, so
+# either diagonal is valid; the shorter on the surface is taken). Every row's vertices sit at about the same width, so
+# no triangle crosses one. Then the shell is cut along the mouthpiece's rim (helmet_detail.mouth_cut: the rim on the
+# surface carried into the flat mesh's own parameters, on_mesh; its corners vertices of the mesh), so the shell has an
+# edge loop exactly on it and the recess behind it is clean, and again MOUTH_EDGE outside it (the vertex normals).
+# After: the chin front's edges at most 7.2 mm (35.5 before), its triangles' centres within 0.33 mm of the surface at
+# the 99th percentile (3.8), no neighbouring triangles turned more than 48 deg against each other.
+CHIN_LAYER_D = 0.006                # m in the profile: no domain point nearer the chin rim (the nose's steep band)
+CHIN_ROW_STEP = 0.004              # m on the surface: the rows' spacing across the layer
+
+
+def layer_strip(prof, P, T, rim, step=CHIN_ROW_STEP, n=600):
+    """The triangles with a vertex on the chin rim split in m bands across it (see above). Returns P, T, rim."""
+    chin = np.asarray(rim, bool) & (prof.tree_chin.query(P)[0] < 1e-7)
+    E = sorted({(a, b) if chin[a] else (b, a) for t in T for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0]))
+                if chin[a] != chin[b]})
+    u = np.linspace(0.0, 1.0, n) ** 3                          # dense at the rim, where the width rises fastest
+    R, Q = P[[e[0] for e in E]], P[[e[1] for e in E]]
+    S = R[:, None, :] + (Q - R)[:, None, :] * u[None, :, None]  # (edges, n, 2)
+    X = half_width(prof, S[..., 0].ravel(), S[..., 1].ravel()).reshape(len(E), n)
+    X[:, 0] = 0.0
+    # the rim's 3 mm samples lie up to a micrometre off its fine polyline, where the width is already 1 to 2 mm: the
+    # width along an edge is read as its running maximum so that step does not count twice
+    X = np.maximum.accumulate(X, axis=1)
+    S3 = np.concatenate([X[..., None], S], axis=2)
+    s = np.concatenate([np.zeros((len(E), 1)), np.cumsum(np.linalg.norm(np.diff(S3, axis=1), axis=2), axis=1)], 1)
+    m = int(np.ceil(np.percentile(s[:, -1], 90) / step))
+    chain, newP = {}, []
+    for k, (r, q) in enumerate(E):
+        t = np.interp(np.arange(1, m) / m * s[k, -1], s[k], u)
+        chain[(r, q)] = [r] + list(len(P) + len(newP) + np.arange(m - 1)) + [q]
+        newP.extend(P[r] + (P[q] - P[r]) * t[:, None])
+    P = np.vstack([P, newP])
+    rim = np.r_[rim, np.zeros(len(newP), bool)]
+    V3 = np.c_[half_width(prof, P[:, 0], P[:, 1]), P]
+    V3[rim, 0] = 0.0
+
+    def quad(p0, p1, p2, p3):                                  # counter-clockwise; the shorter diagonal
+        if np.linalg.norm(V3[p0] - V3[p2]) <= np.linalg.norm(V3[p1] - V3[p3]):
+            return [[p0, p1, p2], [p0, p2, p3]]
+        return [[p0, p1, p3], [p1, p2, p3]]
+
+    T2 = []
+    for t in T:
+        k = int(chin[t].sum())
+        if k in (0, 3):
+            T2.append(list(t))
+            continue
+        r = 0                                                  # rotate: (r, q1, q2) or (r1, r2, q)
+        while not (chin[t[r]] and (k == 1 or chin[t[(r + 1) % 3]])):
+            r += 1
+        a, b, c = t[r], t[(r + 1) % 3], t[(r + 2) % 3]
+        if k == 1:                                             # apex on the rim: a triangle, then bands
+            A, B = chain[(a, b)], chain[(a, c)]
+            T2.append([a, A[1], B[1]])
+            for j in range(1, m):
+                T2 += quad(A[j], A[j + 1], B[j + 1], B[j])
+        else:                                                  # base on the rim: bands, then a triangle
+            A, B = chain[(a, c)], chain[(b, c)]
+            for j in range(m - 1):
+                T2 += quad(A[j], B[j], B[j + 1], A[j + 1])
+            T2.append([A[m - 1], B[m - 1], c])
+    return P, np.array(T2), rim
+
+
+def _ekey(a, b):
+    return (a, b) if a < b else (b, a)
+
+
+def _cross2(P, t):
+    a, b, c = P[t[0]], P[t[1]], P[t[2]]
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def surface_flips(P, T, V3, fixed, active, passes=20):
+    """Edge flips on the surface (V3: the lifted vertices) among the triangles touching an active vertex: an edge is
+    flipped where the two angles facing it sum over 180 deg on the surface or its two triangles fold against each
+    other, if the flipped pair is valid in the profile (counter-clockwise), does not fold, and neither the edge nor
+    the new one joins two fixed vertices (the cut: a triangle of three would be a sliver along it) or exists."""
+    T = [list(t) for t in T]
+
+    def nrm(t):
+        n = np.cross(V3[t[1]] - V3[t[0]], V3[t[2]] - V3[t[0]])
+        return n / max(np.linalg.norm(n), 1e-30)
+
+    def ang(c, a, b):
+        u, v = V3[a] - V3[c], V3[b] - V3[c]
+        return np.arccos(np.clip(u @ v / max(np.linalg.norm(u) * np.linalg.norm(v), 1e-30), -1, 1))
+
+    for _ in range(passes):
+        E = {}
+        for i, t in enumerate(T):
+            for k in range(3):
+                E.setdefault(_ekey(t[k], t[(k + 1) % 3]), []).append(i)
+        n_flip, done = 0, set()
+        for (a, b), tl in E.items():
+            if len(tl) != 2 or tl[0] in done or tl[1] in done or (fixed[a] and fixed[b]):
+                continue
+            i1, i2 = tl
+            if not (active[T[i1]].any() or active[T[i2]].any()):
+                continue
+            t1 = T[i1]
+            k = t1.index(a)
+            if t1[(k + 1) % 3] != b:
+                a, b = b, a
+                k = t1.index(a)
+            c = t1[(k + 2) % 3]
+            d = [q for q in T[i2] if q not in (a, b)][0]
+            if c == d or _ekey(c, d) in E or (fixed[c] and fixed[d]):
+                continue
+            n1, n2 = [a, d, c], [d, b, c]
+            if _cross2(P, n1) <= 0 or _cross2(P, n2) <= 0:
+                continue
+            old = nrm([a, b, c]) @ nrm([b, a, d])
+            new = nrm(n1) @ nrm(n2)
+            if new < 0.0:
+                continue
+            if old < 0.0 or ang(c, a, b) + ang(d, b, a) > np.pi + 1e-9:
+                T[i1], T[i2] = n1, n2
+                done.update((i1, i2))
+                n_flip += 1
+        if n_flip == 0:
+            break
+    return np.array(T)
+
+
+CUT_SNAP = 0.0008                  # m on the surface: a vertex this near the mouth's cut moves onto it
+
+
+def _closest_on_triangle(p, a, b, c):
+    """The point of triangle abc nearest p and its barycentric weights (Ericson, Real-Time Collision Detection 5.1.5)."""
+    ab, ac, ap = b - a, c - a, p - a
+    d1, d2 = ab @ ap, ac @ ap
+    if d1 <= 0 and d2 <= 0:
+        return a, (1.0, 0.0, 0.0)
+    bp = p - b
+    d3, d4 = ab @ bp, ac @ bp
+    if d3 >= 0 and d4 <= d3:
+        return b, (0.0, 1.0, 0.0)
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0 and d1 >= 0 and d3 <= 0:
+        v = d1 / (d1 - d3)
+        return a + v * ab, (1 - v, v, 0.0)
+    cp = p - c
+    d5, d6 = ab @ cp, ac @ cp
+    if d6 >= 0 and d5 <= d6:
+        return c, (0.0, 0.0, 1.0)
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0 and d2 >= 0 and d6 <= 0:
+        w = d2 / (d2 - d6)
+        return a + w * ac, (1 - w, 0.0, w)
+    va = d3 * d6 - d5 * d4
+    if va <= 0 and (d4 - d3) >= 0 and (d5 - d6) >= 0:
+        w = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+        return b + w * (c - b), (0.0, 1 - w, w)
+    den = 1.0 / (va + vb + vc)
+    v, w = vb * den, vc * den
+    return a + ab * v + ac * w, (1 - v - w, v, w)
+
+
+def on_mesh(P, T, X, R, k=48):
+    """Points R on the surface (x, y, z; left half) carried to the domain through the flat mesh (P, T, widths X): the
+    nearest point of its triangles in 3D, at the same barycentric weights in (y, z). Near the chin rim a domain point
+    does not lie where the triangle round it would put it (the rows bend with the rim while the triangles are flat:
+    the mouth's bottom corner, on the surface at x 13.1 mm, fell in a triangle whose plane gives 10 mm there)."""
+    V3 = np.c_[X, P]
+    A, B, C = V3[T[:, 0]], V3[T[:, 1]], V3[T[:, 2]]
+    tree = cKDTree((A + B + C) / 3)
+    out = []
+    for r in np.atleast_2d(R):
+        best = (np.inf, None)
+        for i in tree.query(r, k=min(k, len(T)))[1]:
+            q, w = _closest_on_triangle(r, A[i], B[i], C[i])
+            dq = np.linalg.norm(q - r)
+            if dq < best[0]:
+                best = (dq, np.asarray(w) @ P[T[i]])
+        out.append(best[1])
+    return np.array(out)
+
+
+def cut_loop(P, T, rim, poly, corners, eps=1e-8, X=None, keep=None):
+    """The domain triangulation cut along the closed polygon poly (y, z): its corners made vertices first (the
+    triangle round each split in three), then every edge from a point inside to one outside split where it crosses
+    (bisection), and the triangles split along the cut. Points on the cut (within eps) are neither inside nor out.
+    With X (the widths at P), the new points take theirs on the triangles they split (flat: the cut stays in their
+    planes), a vertex within CUT_SNAP of a crossing on the surface moves onto it, the split polygons take the fan
+    whose triangles are the fairest on the surface and the triangles round the cut are flipped there
+    (surface_flips). keep: vertices of an earlier cut, neither moved nor their edges flipped. Returns P, T, rim and
+    the widths (None without X)."""
+    from matplotlib.path import Path
+    path = Path(poly)
+    T = [list(t) for t in T]
+    P = np.asarray(P, float)
+    X = None if X is None else np.asarray(X, float).copy()
+    kept = np.zeros(len(P), bool) if keep is None else np.asarray(keep, bool).copy()
+    for c in np.atleast_2d(corners):
+        if np.linalg.norm(P - c, axis=1).min() < 1e-6:
+            continue
+        for j, t in enumerate(T):
+            a, b, cc = P[t]
+            M = np.array([b - a, cc - a]).T
+            u, v = np.linalg.solve(M, c - a)
+            if u >= -1e-12 and v >= -1e-12 and u + v <= 1 + 1e-12:
+                n = len(P)
+                P = np.vstack([P, c])
+                rim = np.r_[rim, False]
+                kept = np.r_[kept, False]
+                if X is not None:
+                    X = np.r_[X, (1 - u - v) * X[t[0]] + u * X[t[1]] + v * X[t[2]]]
+                T[j:j + 1] = [[t[0], t[1], n], [t[1], t[2], n], [t[2], t[0], n]]
+                break
+
+    def seg_dist(Q):
+        A, B = poly, np.roll(poly, -1, axis=0)
+        AB = B - A
+        d = np.full(len(Q), np.inf)
+        for a, ab in zip(A, AB):
+            tt = np.clip(((Q - a) @ ab) / max(ab @ ab, 1e-30), 0, 1)
+            d = np.minimum(d, np.linalg.norm(Q - (a + tt[:, None] * ab), axis=1))
+        return d
+
+    def side(Q):
+        s = np.where(path.contains_points(Q), -1, 1)
+        s[seg_dist(Q) < eps] = 0
+        return s
+
+    def crossing(a, b):
+        """The crossing on edge a-b, its fraction from a and its width on the edge."""
+        lo, hi = (P[a], P[b]) if S[a] < 0 else (P[b], P[a])
+        for _ in range(48):
+            mid = 0.5 * (lo + hi)
+            if path.contains_point(mid):
+                lo = mid
+            else:
+                hi = mid
+        q = 0.5 * (lo + hi)
+        f = np.linalg.norm(q - P[a]) / max(np.linalg.norm(P[b] - P[a]), 1e-30)
+        return q, f, (None if X is None else (1 - f) * X[a] + f * X[b])
+
+    S = side(P)
+    if X is not None:
+        # a crossing within CUT_SNAP of an edge's end on the surface (and under a third of the edge) moves that
+        # vertex onto the cut instead, if its triangles stay valid in the profile: else the cut leaves slivers a
+        # tenth of a millimetre wide beside it
+        V3 = np.c_[X, P]
+        edges = {}
+        for t in T:
+            for i in range(3):
+                edges[_ekey(t[i], t[(i + 1) % 3])] = edges.get(_ekey(t[i], t[(i + 1) % 3]), 0) + 1
+        bound = np.zeros(len(P), bool)
+        for (a, b), k in edges.items():
+            if k == 1:
+                bound[[a, b]] = True
+        best = {}
+        for (a, b) in edges:
+            if S[a] * S[b] != -1:
+                continue
+            q, f, xq = crossing(a, b)
+            for v in (a, b):
+                dv = np.linalg.norm(V3[v] - np.r_[xq, q])
+                if (dv < min(CUT_SNAP, np.linalg.norm(V3[a] - V3[b]) / 3) and not rim[v] and not bound[v]
+                        and not kept[v] and dv < best.get(v, (np.inf,))[0]):
+                    best[v] = (dv, q, xq)
+        for v, (dv, q, xq) in best.items():
+            keep = P[v].copy()
+            P[v] = q
+            if all(_cross2(P, t) > 0 for t in T if v in t):
+                S[v], X[v] = 0, xq
+            else:
+                P[v] = keep
+        S = np.where(S == 0, 0, side(P))
+    cross = {}
+    newP, newR, newX = [], [], []
+    for t in T:
+        for i in range(3):
+            a, b = t[i], t[(i + 1) % 3]
+            if S[a] * S[b] == -1 and _ekey(a, b) not in cross:
+                cross[_ekey(a, b)] = len(P) + len(newP)
+                q, f, xq = crossing(a, b)
+                newP.append(q)
+                newR.append(bool(rim[a] and rim[b]))
+                newX.append(xq)
+    if newP:
+        P = np.vstack([P, newP])
+        rim = np.r_[rim, np.array(newR, bool)]
+        kept = np.r_[kept, np.zeros(len(newP), bool)]
+        S = np.r_[S, np.zeros(len(newP), int)]
+        if X is not None:
+            X = np.r_[X, newX]
+    T2 = []
+    for t in T:
+        if not ((S[t] < 0).any() and (S[t] > 0).any()):
+            T2.append(t)
+            continue
+        ring = []
+        for i in range(3):
+            a, b = t[i], t[(i + 1) % 3]
+            ring.append(a)
+            if _ekey(a, b) in cross:
+                ring.append(cross[_ekey(a, b)])
+        for keep in (lambda q: S[q] <= 0, lambda q: S[q] >= 0):
+            sub = [q for q in ring if keep(q)]
+            fans = [[[sub[r], sub[(r + k) % len(sub)], sub[(r + k + 1) % len(sub)]] for k in range(1, len(sub) - 1)]
+                    for r in range(len(sub) if X is not None else 1)]
+            T2 += max(fans, key=lambda f: _fan_quality(P, f, X))
+    T2 = np.array(T2)
+    if X is not None:
+        T2 = surface_flips(P, T2, np.c_[X, P], (S == 0) | kept, S == 0)
+    return P, T2, rim, X
+
+
+def _on_poly(Q, poly, eps=1e-8):
+    """Points Q (y, z) on the closed polygon poly (within eps)."""
+    d = np.full(len(Q), np.inf)
+    for a, ab in zip(poly, np.roll(poly, -1, axis=0) - poly):
+        tt = np.clip(((Q - a) @ ab) / max(ab @ ab, 1e-30), 0, 1)
+        d = np.minimum(d, np.linalg.norm(Q - (a + tt[:, None] * ab), axis=1))
+    return d < eps
+
+
+def _fan_quality(P, fan, X):
+    """A fan's fairness: invalid in the profile is worst; else the smallest angle of its triangles on the surface."""
+    if any(_cross2(P, t) <= 0 for t in fan):
+        return -1.0
+    if X is None:
+        return 0.0
+    q = np.inf
+    for t in fan:
+        V = np.c_[X[t], P[t]]
+        for k in range(3):
+            u, v = V[(k + 1) % 3] - V[k], V[(k + 2) % 3] - V[k]
+            q = min(q, np.arccos(np.clip(u @ v / max(np.linalg.norm(u) * np.linalg.norm(v), 1e-30), -1, 1)))
+    return q
+
+
 def shell_outer(prof=None):
     """Outer surface of the shell, both halves, one vertex on the centre plane for each rim point."""
     prof = prof or Profile()
     P = domain_points(prof)
     T = mesh_domain(prof, P)
-    X = half_width(prof, P[:, 0], P[:, 1])
     rim_mask = np.minimum(prof.tree_crown.query(P)[0], prof.tree_chin.query(P)[0]) < 1e-7
+    P, T, rim_mask = layer_strip(prof, P, T, rim_mask)
+    X = half_width(prof, P[:, 0], P[:, 1])
     X[rim_mask] = 0.0
+    # the mouthpiece's rim carried onto the flat mesh's own parameters (on_mesh), kept on the profile for the dent
+    import helmet_detail
+    poly, corners = helmet_detail.mouth_cut(prof, to_domain=lambda R: on_mesh(P, T, X, R))
+    prof.mouth_poly = poly
+    P, T, rim_mask, X = cut_loop(P, T, rim_mask, poly, corners, X=X)
+    # round 5: a second cut MOUTH_EDGE outside the rim (helmet_detail.mouth_edge_3d), the rim's vertices kept: the
+    # band between the two lies on the surface, so the vertex normals beside the rim do not take in the dent's walls
+    on_rim = _on_poly(P, poly)
+    edge, edge_corners = helmet_detail.mouth_cut(prof, to_domain=lambda R: on_mesh(P, T, X, R), edge=True)
+    P, T, rim_mask, X = cut_loop(P, T, rim_mask, edge, edge_corners, X=X, keep=on_rim)
     n = len(P)
     VL = np.c_[X, P]                                       # left half (x > 0)
     VR = np.c_[-X, P]
@@ -809,6 +1178,59 @@ PAD_MAX = 0.040                    # m, the pads' bow into the port at most
 PAD_POW = 0.6                      # the pad's pillow: its bow over its depth, sin ** PAD_POW
 PAD_MEDIAN = 9                     # port edge points (3.5 mm apart): the reach's median, then
 PAD_SMOOTH = 5.0                   # its Gaussian's sigma (and the pads' direction's), in points: 18 mm
+# Round 5 (decision 56): the chin bar's narrower top (NOSE_TOP) brought the port's lower corners 3 mm in (x 31 to 28 mm
+# at y -146 mm), under the goggle lens's lower corners: the cheek pads' bow there (5.8 to 6.6 mm, from the side photo's
+# notch) put 12 of its points 0.06 to 0.79 mm into the pads (main: 0.31 to 1.4 mm clear). The pads are foam: they give
+# way where the lens meets them, pressed back along their normals within PAD_GIVE_R of each contact (scratch diag4.py;
+# the goggle's frame, nose ribs and foam sit in the pads on main too: the goggle's worn fit, not the pads')
+PAD_CLEAR = 0.0003                 # m, the lens's least gap to the pads (main's: 0.31 mm)
+PAD_GIVE_R = 0.005                 # m, the dent's reach round each contact
+
+
+def pads_give_way(shell, lens, R, tr, it=4):
+    """The comfort liner's pads (helmet_pad faces of shell) pressed back along their normals where the goggle's lens
+    (its vertices, edge midpoints and face centres, and their mirror images) comes within PAD_CLEAR of them: each
+    contact's shortfall, falling off as (1 - (d / PAD_GIVE_R) ** 2) ** 2, the deepest at each vertex, repeated until
+    clear; his right side copies his left's, mirrored. Both parts in the world frame (R, tr: the helmet's placement).
+    Returns the deepest dent (m)."""
+    import helmet_detail
+    tri = np.array([[f[0], f[i], f[i + 1]] for f, m in zip(shell.F, shell.M) if m == "helmet_pad"
+                    for i in range(1, len(f) - 1)])
+    pv = np.unique(tri)
+    V = (shell.V - tr) @ R
+    mi = cKDTree(V[pv]).query(V[pv] * [-1, 1, 1])[1]  # each pad vertex's mirror image (the shell is symmetric)
+    left, mid = V[pv, 0] > 1e-9, np.abs(V[pv, 0]) <= 1e-9
+    L = (lens.V - tr) @ R
+    S = [L]
+    for f in lens.F:
+        q = L[f]
+        S += [q.mean(0)[None], (q + np.roll(q, -1, 0)) / 2]
+    L = np.vstack(S)
+    L = np.vstack([L, L * [-1, 1, 1]])
+    L = L[cKDTree(V[pv]).query(L)[0] < PAD_GIVE_R]
+    total = np.zeros(len(V))
+    for _ in range(it):
+        ex = helmet_detail.ExactShell(V, tri)
+        P, N = ex._closest(L, 12)
+        need = PAD_CLEAR - np.sum((L - P) * N, 1)
+        c = need > 1e-6
+        if not c.any():
+            break
+        dent = np.zeros(len(pv))
+        tree = cKDTree(V[pv])
+        for q, n_ in zip(P[c], need[c]):
+            j = np.array(tree.query_ball_point(q, PAD_GIVE_R), int)
+            if len(j):
+                w = (1 - (np.linalg.norm(V[pv[j]] - q, axis=1) / PAD_GIVE_R) ** 2) ** 2
+                dent[j] = np.maximum(dent[j], n_ * w)
+        dent = np.where(left | mid, dent, dent[mi])
+        D = ex.N[pv] * dent[:, None]
+        D = np.where(left[:, None], D, D[mi] * [-1, 1, 1])  # mirror exact: his right copies his left
+        D[mid, 0] = 0.0
+        V[pv] -= D
+        total[pv] += dent
+    shell.V = V @ R.T + tr
+    return float(total.max())
 
 
 # ---------------------------------------------------------------- visor
@@ -1007,9 +1429,9 @@ def build(body):
     Vi, thick, strips = shell_solid(Vo, Fo, skin_H)
     shell = Part("helmet_shell")
     uv_o = atlas_uvs(Vo, Fo)[0]
-    shell.add(Vo, Fo, "helmet_paint", list(uv_o))
-    o_in = shell.add(Vi, Fo[:, ::-1], "helmet_liner")
     import helmet_detail
+    shell.add(helmet_detail.mouth_dent(Vo, prof), Fo, "helmet_paint", list(uv_o))   # round 5: the mouthpiece's recess
+    o_in = shell.add(Vi, Fo[:, ::-1], "helmet_liner")
     helmet_detail.textures(TEXDIR)                    # the grip's relief, the roll's ribs, the pads' mesh
     for loop, rings in strips:
         m = len(loop)
@@ -1050,6 +1472,9 @@ def build(body):
     import goggle as G                                # the goggle and his eyes (goggle.py)
     gparts, ginfo = G.build_goggle(body, (R, tr), prof)
     info.update(ginfo)
+    lens = [p for p in gparts if p.name == "goggle_lens"]
+    if lens:                                          # round 5: the pads give way to its lower corners
+        info["pads_give_mm"] = round(1000 * pads_give_way(shell, lens[0], R, tr), 2)
     return parts + gparts, info, (R, tr)
 
 
@@ -1423,6 +1848,8 @@ MATERIALS = {
     # the chin's mouthpiece frame (phase 2, decision 51): glossy black plastic (Pinata iso-left: its lower band mid 11
     # 11 12 with glints to 66, its lit side to 184 185 195, the softbox's reflection)
     "helmet_frame_black": dict(rgb=[16, 16, 18], rough=0.3),
+    # the chin cap's moulded LEATT (round 5): the print's black ink (helmet_art.json) under the paint's clear coat
+    "helmet_cap_letters": dict(rgb=[22, 21, 23], rough=0.5, spec=0.0, coat=1.0, coat_rough=0.03),
     # the brow tag's rim (Pinata iso-left: light grey, lit to 184 188 194 beside its dark centre): bright metal-look
     "helmet_tag_rim": dict(rgb=[168, 171, 176], rough=0.3, metal=0.7),
     "helmet_liner": dict(rgb=[34, 34, 38], rough=0.9, sheen=0.4),

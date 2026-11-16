@@ -175,9 +175,11 @@ def test_vents_are_moulded_away_from_the_front(built):
     """Round 3 (decision 46): main's crown vents were flat painted triangles; Leatt's top photo shows a raised white
     insert round a triangle lattice over the dark opening. The rear exhaust slots carry a wire mesh (round 4) and the
     lower rear vents a raised white piece drawn to a point (helmet_detail.py, from the photos' px through the print's
-    cameras). The part is mirror symmetric and stands on the shell (no more than its height above it, no more than
-    SINK under it); the crown rims stand 1.5 mm proud; each vent with its lattice (10 bars or more) lies inside its
-    insert's outline in the top photo (within 5 px); the lower piece runs 40 mm or more down the shell."""
+    cameras). The part is mirror symmetric (but the chin's moulded LEATT) and stands on the shell (no more than its
+    height above it, no more than SINK under it; round 5: but the mouthpiece's tunnel inside its rim, recessed up to
+    16.5 mm: test_mouthpiece_shield_and_tunnel); the crown rims stand 1.5 mm proud; each vent with its lattice (10
+    bars or more) lies inside its insert's outline in the top photo (within 5 px); the lower piece runs 40 mm or more
+    down the shell."""
     from scipy.spatial import cKDTree
     import helmet_art as A
     import helmet_detail as D
@@ -185,12 +187,18 @@ def test_vents_are_moulded_away_from_the_front(built):
     assert "helmet_vents" in built["parts"], "no moulded vents (main: painted only)"
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]                 # back in the helmet frame
-    assert cKDTree(V).query(V * [-1, 1, 1])[0].max() < 1e-6
+    cap = np.zeros(len(V), bool)                        # round 5: the chin's LEATT reads one way (not mirrored)
+    for f, m in zip(P.F, P.M):
+        if m == D.MAT_CAP:
+            cap[f] = True
+    assert cKDTree(V[~cap]).query(V[~cap] * [-1, 1, 1])[0].max() < 1e-6
     assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE,
-                        D.MAT_FRAME, D.MAT_TAG}
+                        D.MAT_FRAME, D.MAT_TAG, D.MAT_CAP}
     Vo, Fo, _ = H.shell_outer()
     h = surface_height(V, Vo, Fo)                       # height above the shell
-    assert h.min() > -D.SINK - 0.0004 and h.max() < D.LOW_PIECE_H + 0.0002
+    rim = D.mouth_rim_xz()
+    tunnel = Path(rim + D.inward_xz(rim) * 0.0002).contains_points(V[:, [0, 2]]) & (V[:, 1] < -0.15)
+    assert tunnel.sum() > 100 and h[~tunnel].min() > -D.SINK - 0.0004 and h.max() < D.LOW_PIECE_H + 0.0002
     ins = np.zeros(len(V), bool)
     for f, m in zip(P.F, P.M):
         if m == D.MAT_INSERT:
@@ -608,9 +616,9 @@ def test_mouthpiece_and_side_vents(built):
     column, over a dark floor; and the chin bar's side vents a wire mesh in a white wall. On the built part: the wall in
     MAT_FRAME reaches 48 mm or more each side of the centre line at z -116 mm (the shield's corners) and 35 mm or
     more at z -142 mm (its lower sides; the first trace through the Pinata iso-left camera made a diamond, 28 mm
-    there), from z -92 to -170 mm; 30 or more lattice bars (cells 7 mm a side), all under the wall's top (inside the
-    recess); the side vents' floor centred within 5 mm of the chin_vent landmark, with 30 or more wires. Main: none
-    of it (print)."""
+    there), from z -92 to -170 mm (round 5: from the lip's inner edge, 2 mm in); 30 or more lattice bars (cells 7 mm
+    a side), all inside the opening, the rails standing less than the tunnel's depth; the side vents' floor centred
+    within 5 mm of the chin_vent landmark, with 30 or more wires. Main: none of it (print)."""
     import helmet_detail as D
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]
@@ -621,17 +629,17 @@ def test_mouthpiece_and_side_vents(built):
     for z, w in ((-0.116, 0.048), (-0.142, 0.035)):
         row = Vf[np.abs(Vf[:, 2] - z) < 0.0015]
         assert row[:, 0].max() > w and row[:, 0].min() < -w, f"mouthpiece {1000 * row[:, 0].max():.1f} mm at z {z}"
-    assert -0.094 < Vf[:, 2].max() < -0.090 and -0.173 < Vf[:, 2].min() < -0.169
+    assert -0.098 < Vf[:, 2].max() < -0.090 and -0.173 < Vf[:, 2].min() < -0.164
     Vo, Fo, _ = H.shell_outer()
     shell = D.Shell(Vo, Fo)
     pieces = D.mouthpiece(shell)
     bars = [p for p in pieces if p[2][0] == D.MAT_MESH]
     assert len(bars) >= 30
-    rails = [p for p in pieces[2:] if p[2][0] == D.MAT_FRAME]
+    rails = [p for p in pieces[4:] if p[2][0] == D.MAT_FRAME]             # round 5: lip bands, wall, floor first
     assert len(rails) == 2 and np.allclose(rails[0][0], rails[1][0] * [-1, 1, 1])
     Vb = np.vstack([p[0] for p in bars])
     assert Vb[:, 2].max() < -0.095 and Vb[:, 2].min() > -0.168           # inside the opening
-    assert D.MOUTH_BAR_H < D.MOUTH_RAIL_H < D.MOUTH_FRAME_H
+    assert D.MOUTH_BAR_H < D.MOUTH_RAIL_H < D.MOUTH_DEPTH                # the rails stand in the tunnel
     side = D.side_vents(shell)
     floor = [p[0] for p in side if p[2][0] == D.MAT_DARK]
     wires = [p for p in side if p[2][0] == D.MAT_MESH]
@@ -639,6 +647,175 @@ def test_mouthpiece_and_side_vents(built):
     c = floor[0].mean(0)
     assert np.linalg.norm(c - X) < 0.005, f"side vent {1000 * np.linalg.norm(c - X):.1f} mm off the landmark"
     assert len(wires) >= 30 and all(p[2][0] == D.MAT for p in side[:1])
+
+
+def front_y(Vo, Fo, xz):
+    """The undented shell's front surface y at front-plane points (x, z), cast along +y."""
+    import helmet_detail as D
+    return D.front_cast(D.Shell(Vo, Fo), xz)[0][:, 1]
+
+
+def test_mouthpiece_shield_and_tunnel(built):
+    """Round 5 (decision 56): the coordinator's 1:1 review of 06a: Leatt's mouthpiece is a shield (straight sides
+    narrowing to a flat bottom, angular corners) and a deep recessed tunnel with wide rails; phase 2's an oval band
+    lying on the shell with 3 mm rails. Its rim's corners sit on the landmarks solved from the photos (helmet_ba:
+    mouth_corner and mouth_bottom, their feet on the shell) within 1.5 mm and turn 30 deg or more at one point; its
+    bottom is flat (the rim within 0.6 mm in z inside the bottom corner); the lattice lies 8 mm or more behind the
+    shell's surface; the shell inside the rim is pushed back out of the tunnel (no vertex of its outer surface within
+    12 mm behind it 1 mm or more inside the rim; the liner, 8.8 mm behind it at the opening's top corners, still
+    crosses the tunnel there: round 6); the rails' front faces 4.5 to 5.8 mm wide (Leatt about 5 mm at 1:1; main
+    3 mm), their centre lines 19 to 22 mm off the centre line at z -110 mm and 14 to 16.5 at z -145, above the
+    shield's flat bottom (Leatt's fins cast 3 mm behind the surface, where their front edges lie: MY27 40 mm apart at
+    the top and 27 at the bottom, iso-right 41 at the top; main 15.7 and 9.0, read on the surface)."""
+    import helmet_detail as D
+    from matplotlib.path import Path
+    R, sharp = D.mouth_rim_3d()
+    ba = json.load(open(H.BA_JSON))["landmarks"]
+    Vo, Fo, _ = H.shell_outer()
+    No = H.normals(Vo, Fo)
+    for name, c in zip(("mouth_corner", "mouth_bottom"), R[sharp]):
+        X = np.array(ba[name]["X"])
+        j = np.argmin(((Vo - X) ** 2).sum(1))
+        foot = X - ((X - Vo[j]) @ No[j]) * No[j]
+        assert np.linalg.norm(c - foot) < 0.0015, f"{name}: rim corner {1000 * np.linalg.norm(c - foot):.1f} mm off"
+    xz = R[:, [0, 2]]
+    for i in np.nonzero(sharp)[0]:
+        a, b = xz[i] - xz[i - 1], xz[i + 1] - xz[i]
+        turn = np.degrees(np.arccos(a @ b / np.linalg.norm(a) / np.linalg.norm(b)))
+        assert turn > 30.0, f"rim corner at {np.round(1000 * xz[i], 1)} mm turns {turn:.0f} deg"
+    bottom = xz[np.nonzero(sharp)[0][1]:]                # from the bottom corner to the centre line
+    assert np.ptp(bottom[:, 1]) < 0.0006, f"bottom not flat: {1000 * np.ptp(bottom[:, 1]):.1f} mm"
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
+    mesh = np.unique(np.concatenate([P.F[k] for k, m in enumerate(P.M) if m == D.MAT_MESH]))
+    Vm = V[mesh][(V[mesh][:, 1] < -0.15) & (np.abs(V[mesh][:, 0]) < 0.05) & (V[mesh][:, 2] < -0.09)]
+    assert len(Vm) > 100, "no lattice"
+    back = Vm[:, 1] - front_y(Vo, Fo, Vm[:, [0, 2]])
+    assert back.min() > 0.008, f"lattice {1000 * back.min():.1f} mm behind the surface (main: on it)"
+    rim = D.mouth_rim_xz()
+    inner = Path(rim + D.inward_xz(rim) * 0.001)
+    S = built["parts"]["helmet_shell"]
+    Vs = ((S.V - built["t"]) @ built["R"])[:len(Vo)]      # the outer surface (the part's first vertices)
+    Vs = Vs[inner.contains_points(Vs[:, [0, 2]]) & (Vs[:, 1] < -0.15)]
+    gap = Vs[:, 1] - front_y(Vo, Fo, Vs[:, [0, 2]])
+    assert (gap < 0.012).sum() == 0, f"{(gap < 0.012).sum()} shell vertices in the tunnel (main: the print)"
+    pieces = D.mouthpiece(D.Shell(Vo, Fo))
+    rails = [p for p in pieces[4:] if p[2][0] == D.MAT_FRAME]
+    Vr = np.asarray(rails[0][0])
+    depth = Vr[:, 1] - front_y(Vo, Fo, Vr[:, [0, 2]])
+    top = Vr[depth < depth.min() + 0.0005]               # its front face (the walls flare along the shell's normals)
+    zm = np.median(top[:, 2])
+    w = np.ptp(top[np.abs(top[:, 2] - zm) < 0.0005, 0])
+    assert 0.0045 < w < 0.0058, f"rail {1000 * w:.1f} mm wide"
+    for z, lo, hi in ((-0.110, 0.019, 0.022), (-0.145, 0.014, 0.0165)):
+        row = np.abs(Vr[np.abs(Vr[:, 2] - z) < 0.001, 0])
+        assert len(row) > 4, f"no rail at z {1000 * z:.0f} mm"
+        c = 0.5 * (row.min() + row.max())
+        assert lo < c < hi, f"rail centre {1000 * c:.1f} mm off the centre line at z {1000 * z:.0f} mm"
+
+
+def angle_normals(V, F):
+    """Vertex normals weighted by the corners' angles (Blender's smooth shading)."""
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    fn /= np.maximum(np.linalg.norm(fn, axis=1), 1e-30)[:, None]
+    vn = np.zeros_like(V)
+    for k in range(3):
+        a, b = V[F[:, (k + 1) % 3]] - V[F[:, k]], V[F[:, (k + 2) % 3]] - V[F[:, k]]
+        cosw = np.sum(a * b, 1) / np.maximum(np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1), 1e-30)
+        np.add.at(vn, F[:, k], fn * np.arccos(np.clip(cosw, -1, 1))[:, None])
+    return vn / np.maximum(np.linalg.norm(vn, axis=1), 1e-30)[:, None], fn
+
+
+def test_mouth_rim_shading_clean(built):
+    """Round 5 (decision 56): the shell's faces inside the mouthpiece's rim are pushed back 16.5 mm behind it
+    (helmet_detail.mouth_dent) and share the rim's vertices with the faces outside, so the rim's smooth normals
+    (weighted by the corners' angles, as Blender's) took in the dent's walls and shaded the white beside the rim in
+    teeth, one per triangle (round 5's first build, iso-left at 2.4x). The shell is cut again MOUTH_EDGE outside the
+    rim (helmet.shell_outer, helmet_detail.mouth_edge_3d): the faces outside the rim whose vertex normals the dent
+    turns more than 15 deg (against the undented shell's: the chin bar's bottom fold, 7 mm under the rim, turns its
+    own 48 deg) lie within 1 mm of it (the first build: the rim's whole first row, 2 to 4 mm; now 0.3 mm along the
+    rim, 0.95 mm beside the shield's bottom corners, where the side profile's domain, nearly edge-on at the chin's
+    front, puts a cut vertex 0.7 mm off the rim's curve)."""
+    import helmet_detail as D
+    from scipy.spatial import cKDTree
+    S = built["parts"]["helmet_shell"]
+    V = (S.V - built["t"]) @ built["R"]
+    F = np.array([f for f, m in zip(S.F, S.M) if m == "helmet_paint"])
+    Vo, Fo, _ = H.shell_outer()
+    assert np.array_equal(F, Fo)
+    V = V[:len(Vo)]                                     # the outer surface (the part's first vertices)
+    vn, _ = angle_normals(V, F)
+    vo, _ = angle_normals(Vo, F)                        # the undented shell's
+    R = D.mouth_rim_3d()[0]
+    R = np.vstack([R, (R[1:-1] * [-1, 1, 1])[::-1]])
+    ts = np.linspace(0, 1, 41)[:-1]
+    Rf = np.vstack([R[i] + (np.roll(R, -1, 0)[i] - R[i]) * t for i in range(len(R)) for t in ts])
+    d = cKDTree(Rf).query(V)[0]
+    out = (np.abs(V - Vo).sum(1) < 1e-7)[F].all(1) & (d[F].min(1) < 0.010)      # undented (to the frame's rounding)
+    tilt = np.degrees(np.arccos(np.clip(np.einsum("fkj,fkj->fk", vn[F], vo[F]), -1, 1))).max(1)
+    bad = out & (tilt > 15.0)
+    far = 1000 * d[F[bad]].max() if bad.any() else 0.0
+    assert out.sum() > 200 and far < 1.0, f"faces shaded off the surface reach {far:.1f} mm from the rim"
+
+
+def test_chin_front_mesh_follows_the_surface():
+    """Round 5 (decision 56): the chin's front had no vertices between the centre line and 25 to 35 mm out (the blunt
+    nose's width rises 28 mm within 1.2 mm of the chin rim in the profile, the domain's exclusion there), so its
+    triangles ran 30 mm across and lay up to 5 mm off the surface: the crumpled bottom corner and the lumpy shading at
+    1:1. Now (helmet.layer_strip, the cut in the mesh's own parameters): no edge of the chin's front longer than 8 mm
+    (main 35.5), its triangles' centres within 0.5 mm of the surface at the 99th percentile and 1.5 mm at most (main
+    3.8 and 4.9), and no two neighbouring triangles anywhere on the shell turned more than 60 deg against each
+    other (a fold; the first drafts left them at the mouthpiece's bottom corner)."""
+    V, F, prof = H.shell_outer()
+    E = np.sort(np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1)
+    L = np.linalg.norm(V[E[:, 0]] - V[E[:, 1]], axis=1)
+    c = V[E].mean(1)
+    m = (c[:, 1] < -0.18) & (c[:, 2] < -0.09) & (c[:, 2] > -0.17) & (np.abs(c[:, 0]) < 0.055)
+    assert m.sum() > 500 and L[m].max() < 0.008, f"chin front edge {1000 * L[m].max():.1f} mm"
+    cen = V[F].mean(1)
+    left = (cen[:, 0] > 0) & (cen[:, 1] < -0.15) & (cen[:, 2] < -0.05)
+    cen = cen[left]
+    dch = H.rim_dist(prof.ftree_chin, prof.fine_chin, cen[:, 1:])[0]
+    cen = cen[dch > 5e-5]                              # beside the rim the width is read across its 3 mm chords
+    h = 2e-6
+    gy = (H.half_width(prof, cen[:, 1] + h, cen[:, 2]) - H.half_width(prof, cen[:, 1] - h, cen[:, 2])) / (2 * h)
+    gz = (H.half_width(prof, cen[:, 1], cen[:, 2] + h) - H.half_width(prof, cen[:, 1], cen[:, 2] - h)) / (2 * h)
+    dev = np.abs(H.half_width(prof, cen[:, 1], cen[:, 2]) - cen[:, 0]) / np.sqrt(1 + gy ** 2 + gz ** 2)
+    assert np.percentile(dev, 99) < 0.0005 and dev.max() < 0.0015, \
+        f"chin front off the surface: p99 {1000 * np.percentile(dev, 99):.2f}, max {1000 * dev.max():.2f} mm"
+    n = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    faces = {}
+    for i, f in enumerate(F):
+        for k in range(3):
+            faces.setdefault((min(f[k], f[(k + 1) % 3]), max(f[k], f[(k + 1) % 3])), []).append(i)
+    pairs = np.array([v for v in faces.values() if len(v) == 2])
+    dots = (n[pairs[:, 0]] * n[pairs[:, 1]]).sum(1)
+    worst = V[F[pairs[np.argmin(dots), 0]]].mean(0)
+    assert dots.min() > 0.5, f"fold of {np.degrees(np.arccos(dots.min())):.0f} deg at {np.round(1000 * worst, 1)} mm"
+
+
+def test_chin_wordmark(built):
+    """Round 5 (decision 56): the raised LEATT on the chin cap above the mouthpiece (Leatt's iso-left and V25 white
+    photos: about 40 mm long, centred, z -58 mm; helmet_detail.CHIN_LEATT_C), in the print's black ink under the clear
+    coat: its faces centred on the centre line within 1 mm, 38 to 42 mm across, standing 0.4 to 0.7 mm out of the
+    shell. Main: none (the print's)."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    cap = [k for k, m in enumerate(P.M) if m == D.MAT_CAP]
+    assert cap, "no chin LEATT (main)"
+    V = (P.V - built["t"]) @ built["R"]
+    Vc = V[np.unique(np.concatenate([P.F[k] for k in cap]))]
+    assert abs(Vc[:, 0].max() + Vc[:, 0].min()) / 2 < 0.001
+    assert 0.038 < np.ptp(Vc[:, 0]) < 0.042, f"LEATT {1000 * np.ptp(Vc[:, 0]):.1f} mm across"
+    assert -0.062 < Vc[:, 2].min() and Vc[:, 2].max() < -0.054
+    Vo, Fo, _ = H.shell_outer()
+    from scipy.spatial import cKDTree
+    No = H.normals(Vo, Fo)
+    j = cKDTree(Vo).query(Vc)[1]
+    h = ((Vc - Vo[j]) * No[j]).sum(1)
+    top = h[h > 0.0002]
+    assert 0.0004 < np.median(top) < 0.0007, f"LEATT stands {1000 * np.median(top):.2f} mm"
 
 
 def test_brow_vents_and_tag(built):
@@ -1171,6 +1348,28 @@ def chevron_band_check(A, tex, chev, frames):
     return out
 
 
+def test_mouthpiece_rim_corners_clean(art):
+    """Round 5 (decision 56): the coordinator's 1:1 review of 06a: the rim's top corner had a jagged white-and-black
+    edge. At the rim's side corners the front face turns into the chin bar's side (helmet_detail.mouth_rim_3d), and the
+    side's texels just behind them lay inside the rim's outline in the front plane (within 0.2 to 0.7 mm of it) and
+    took the opening's black: a flag 2 mm out of the rim, 1 to 3 mm behind the corner (iso-left at 2.4x, cast through
+    its camera). Now the black is inside the shell's cut in its own parameters (helmet_art.mouth_ink). Within 5 mm of
+    the mouth_corner landmark (helmet_ba, solved from three photos) and 0.8 mm or more behind it, 98 % of the texels
+    are white."""
+    A = art["A"]
+    img = art["drawn"][0]
+    r, c, P, N, S = A.texels(SMALL)
+    X = np.array(json.load(open(H.BA_JSON))["landmarks"]["mouth_corner"]["X"])
+    near = (S == 0) & (P[:, 0] > 0) & (np.linalg.norm(P - X, axis=1) < 0.005)
+    yc = P[near][np.argmin(np.linalg.norm(P[near] - X, axis=1)), 1]
+    side = near & (P[:, 1] > yc + 0.0008)
+    assert side.sum() > 10
+    px = img[r[side], c[side]]
+    ok = px.min(1) > 190
+    assert ok.mean() > 0.98, \
+        f"{100 * (1 - ok.mean()):.0f} % of the {side.sum()} texels behind the rim's corner not white"
+
+
 def test_mouthpiece_print_white_round_its_rim(art):
     """Phase 2 (decision 51): the print round the mouthpiece and the side vents is the white paint, inside them the
     black: the Pinata iso-left camera, which owns the chin's front, laid Leatt's black 10 to 15 mm off there and it
@@ -1187,13 +1386,13 @@ def test_mouthpiece_print_white_round_its_rim(art):
     A = art["A"]
     img = art["drawn"][0]
     r, c, P, N, S = A.texels(SMALL)
-    rim = D.mouth_xz(D.MOUTH_RIM, 200)
+    rim = D.mouth_rim_xz()
     front = (S == 0) & (P[:, 1] < -0.12)
     xz = P[:, [0, 2]]
     d = cKDTree(rim).query(xz)[0]
     band = front & ~Path(rim).contains_points(xz) & (d > 0.0015) & (d < 0.007)
     band &= (np.abs(P[:, 0]) < 0.045) & (P[:, 2] > -0.172)  # not the labels beside its corners, nor the lower trim
-    op = D.mouth_xz(D.MOUTH_OPEN, 200)
+    op = D.mouth_inner_xz(rim)
     inner = front & Path(op.mean(0) + 0.8 * (op - op.mean(0))).contains_points(xz)
     sv = D.resample_loop(np.asarray(D.SIDE_VENT_YZ, float) / 1000.0, 0.0005)
     yz = P[:, [1, 2]]
