@@ -192,8 +192,8 @@ def test_vents_are_moulded_away_from_the_front(built):
         if m == D.MAT_CAP:
             cap[f] = True
     assert cKDTree(V[~cap]).query(V[~cap] * [-1, 1, 1])[0].max() < 1e-6
-    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_RIDGE,
-                        D.MAT_FRAME, D.MAT_TAG, D.MAT_CAP}
+    assert set(P.M) == {D.MAT, D.MAT_INSERT, D.MAT_DARK, D.MAT_MESH, D.MAT_GRIP, D.MAT_GRIP_EDGE, D.MAT_GRIP_BEVEL,
+                        D.MAT_GRIP_GROOVE, D.MAT_FRAME, D.MAT_TAG, D.MAT_CAP}
     Vo, Fo, _ = H.shell_outer()
     h = surface_height(V, Vo, Fo)                       # height above the shell
     rim = D.mouth_rim_xz()
@@ -420,39 +420,72 @@ def test_trim_rolls_into_the_port(body):
 
 def test_grip_panels_moulded_beside_the_port(built):
     """Phase 2 (decision 51): beside the port's rear edges, from the brow's corner to the chin bar's top, a moulded
-    grip panel on each side (Leatt's Pinata iso photos): its own dark grey (95 92 97, de-lit from the photo; neither
-    the trim's black nor the print), standing GRIP_H proud of the shell, 18 to 36 mm wide (the photo through the
-    solved iso-left camera: 20 to 35 mm), its top carrying the sandblast grain's UVs, and on it the triangle relief
-    moulded as ridges GRIP_RIDGE_H high over the whole panel (cells 7.3 mm). Main: no panel (the print's black and the trim)."""
+    grip panel on each side (Leatt's Pinata iso photos): its own dark grey (round 5: 80 77 82, the field's median 68
+    in the photo under the Standard view; neither the trim's black nor the print), its floor standing GRIP_H proud
+    of the shell (round 5: the tiles over it), 18 to 36 mm wide (the photo through the solved iso-left camera: 20 to
+    35 mm), carrying the sandblast grain's UVs. Main: no panel (the print's black and the trim)."""
     import helmet_detail as D
     P = built["parts"]["helmet_vents"]
     V = (P.V - built["t"]) @ built["R"]
-    top = [k for k, m in enumerate(P.M) if m == D.MAT_GRIP]
-    assert top and any(m == D.MAT_GRIP_EDGE for m in P.M)
-    Vt = V[np.unique(np.concatenate([P.F[k] for k in top]))]
+    Vo, Fo, _ = H.shell_outer()
+    h = surface_height(V, Vo, Fo)
+    grip = [k for k, m in enumerate(P.M) if m in (D.MAT_GRIP, D.MAT_GRIP_GROOVE)]
+    assert grip and any(m == D.MAT_GRIP_EDGE for m in P.M)
+    gv = np.unique(np.concatenate([P.F[k] for k in grip]))
+    fl = gv[h[gv] < D.GRIP_H + 0.0001]                   # the floor (the tiles stand over it)
+    assert abs(np.median(h[fl]) - D.GRIP_H) < 0.0001 and h[fl].min() > 0.0, f"floor {1000 * np.median(h[fl]):.2f} mm"
     for s in (1, -1):
-        S = Vt[Vt[:, 0] * s > 0]
-        assert len(S) > 100
+        S = V[fl][V[fl][:, 0] * s > 0]
+        assert len(S) > 1000
         for z in np.arange(-0.055, -0.0, 0.01):
             row = S[np.abs(S[:, 2] - z) < 0.002]
             assert len(row) and 0.018 < np.ptp(row[:, 1]) < 0.036, f"panel {1000 * np.ptp(row[:, 1]):.0f} mm at z {z}"
-    uv = np.array([u for k in top for u in P.UV[k]])
-    assert np.ptp(uv[:, 1]) > 2.0                        # the relief repeats along the panel
+    uv = np.array([u for k in grip for u in P.UV[k]])
+    assert np.ptp(uv[:, 1]) > 2.0                        # the grain repeats along the panel
     g = H.MATERIALS[D.MAT_GRIP]
-    assert g["rgb"] == [95, 92, 97] and os.path.exists(os.path.join(H.TEXDIR, g["normal"]))
+    assert g["rgb"] == [80, 77, 82] and os.path.exists(os.path.join(H.TEXDIR, g["normal"]))
+
+
+def test_grip_panel_fills_the_corner_with_tiles(built):
+    """Round 5 (decision 56): the coordinator's 1:1 review of 05: Leatt's panel fills the corner between the trim's
+    roll and the print from under the brow down to the chin bar, its relief raised tiles (triangles, and rhombi
+    where a groove is left out) in a dark net of grooves with lit bevels (Pinata iso-left at 6x); phase 2's was a
+    band over rows 805 to 1094 with ridges, the print's black round it. Through the solved iso-left camera the
+    panel's floor reaches the brow's edge at the paint (row 745 or above beyond x 1320 px; main 805) and the print's
+    edge over the chin bar (below row 1135; main 1094), and on every row from 800 to 1090 runs out to within 8 px of
+    the paint's edge (GRIP_OUTER_PX). The tiles stand GRIP_TILE_H over the floor, 80 to 160 a side (built: 114),
+    rhombi among them (8 % or more four-cornered; built: 20 %), their tops 38 to 55 % of the field (grooves 0.6 mm
+    and bevels 0.25 mm round 6.0 mm cells; built: 45 %), and the floor between them is the grooves' dark
+    (MAT_GRIP_GROOVE) over the whole field."""
+    import helmet_detail as D
+    P = built["parts"]["helmet_vents"]
+    V = (P.V - built["t"]) @ built["R"]
     Vo, Fo, _ = H.shell_outer()
-    Q, NQ = D.Shell(Vo, Fo).snap(Vt)
-    h = np.sum((Vt - Q) * NQ, 1)                          # the top's height over the shell
-    assert abs(np.median(h) - D.GRIP_H) < 0.0002 and h.min() > 0.0, f"panel top {1000 * np.median(h):.2f} mm proud"
-    rid = [k for k, m in enumerate(P.M) if m == D.MAT_GRIP_RIDGE]
-    Vr = V[np.unique(np.concatenate([P.F[k] for k in rid]))]
-    Q, NQ = D.Shell(Vo, Fo).snap(Vr)
-    hr = np.sum((Vr - Q) * NQ, 1)
-    top = hr[hr > D.GRIP_H + 0.5 * D.GRIP_RIDGE_H]
-    assert abs(np.median(top) - D.GRIP_H - D.GRIP_RIDGE_H) < 0.0002, f"ridges {1000 * np.median(top):.2f} mm proud"
-    for s in (1, -1):                                    # over the whole panel, each side
-        R = Vr[(Vr[:, 0] * s > 0) & (hr > D.GRIP_H + 0.5 * D.GRIP_RIDGE_H)]
-        assert len(R) > 400 and np.ptp(R[:, 1]) > 0.015 and np.ptp(R[:, 2]) > 0.05
+    h = surface_height(V, Vo, Fo)
+    floor = [f for f, m in zip(P.F, P.M) if m in (D.MAT_GRIP, D.MAT_GRIP_GROOVE) and h[f].max() < D.GRIP_H + 1e-4]
+    fv = np.unique(np.concatenate(floor))
+    fv = fv[V[fv, 0] > 0]
+    q = H.cam_project(H.PRINT_CAMS["isoleft"], V[fv])[0]
+    top_row = q[q[:, 0] > 1320, 1].min()
+    assert top_row < 745, f"the panel's top at the paint: row {top_row:.0f}"
+    assert q[:, 1].max() > 1135, f"the panel's bottom: row {q[:, 1].max():.0f}"
+    op = np.asarray(D.GRIP_OUTER_PX, float)
+    for r in range(800, 1091, 10):
+        gap = np.interp(r, op[:, 1], op[:, 0]) - q[np.abs(q[:, 1] - r) < 2.0, 0].max()
+        assert gap < 8.0, f"row {r}: the panel ends {gap:.0f} px short of the paint"
+    area = lambda F: sum(0.5 * np.linalg.norm(np.cross(V[f[1]] - V[f[0]], V[f[2]] - V[f[0]])) for f in F)
+    top = [f for f, m in zip(P.F, P.M) if m == D.MAT_GRIP and h[f].min() > D.GRIP_H + 0.5 * D.GRIP_TILE_H]
+    tv = np.unique(np.concatenate(top))
+    assert abs(np.median(h[tv]) - D.GRIP_H - D.GRIP_TILE_H) < 0.00005, f"tiles {1000 * np.median(h[tv]):.2f} mm proud"
+    for s in (1, -1):
+        T = [f for f in top if V[f[0], 0] * s > 0]
+        cnt = np.bincount(np.concatenate(T))
+        corners = cnt[cnt >= 3]                          # each tile's top is a fan round its centre
+        assert 80 <= len(corners) <= 160, f"{len(corners)} tiles"
+        assert np.mean(corners == 4) > 0.08, f"{100 * np.mean(corners == 4):.0f} % four-cornered"
+        G = [f for f, m in zip(P.F, P.M) if m == D.MAT_GRIP_GROOVE and V[f[0], 0] * s > 0]
+        r = area(T) / area(G)
+        assert 0.38 < r < 0.55, f"tile tops {100 * r:.0f} % of the field"
 
 
 def test_pads_fill_the_port_to_the_side_notch(body):

@@ -1857,9 +1857,16 @@ MATERIALS = {
     # triangle relief (Pinata iso-left: the flat cells' mid grey 76 73 77 beside the white paint's 185 186 190, de-lit
     # by the white ink 226 229 235 in linear light: 95 92 97), the trim's roll in black rubber ribbed across, the pads'
     # knit mesh with its red stitching (an sRGB albedo map)
-    "helmet_grip": dict(rgb=[95, 92, 97], rough=0.75, normal="helmet_grip_relief.png", normal_strength=1.0),
-    "helmet_grip_edge": dict(rgb=[95, 92, 97], rough=0.75),
-    "helmet_grip_ridge": dict(rgb=[95, 92, 97], rough=0.6, normal="helmet_grip_relief.png", normal_strength=1.0),
+    # round 5 (decision 56): de-lit again through the comparison rig (Leatt's iso-left camera and studio light, the
+    # Standard view): the tiles' field reads 68 at its median in the photo, 82 rendered at phase 2's 95 92 97 and 64 at
+    # 74 72 76: 80 77 82
+    "helmet_grip": dict(rgb=[80, 77, 82], rough=0.75, normal="helmet_grip_relief.png", normal_strength=1.0),
+    "helmet_grip_edge": dict(rgb=[80, 77, 82], rough=0.75),
+    # the relief's raised tiles (round 5, Leatt at 4x and 6x): their bevels the tiles' own rubber, a little smoother
+    # (lit 0.25 mm wide on the side facing the key light, by the softbox's reflection), the grooves' floor between them
+    # dark (the field's p10 17 in the photo, 12 rendered at 14 14 15: 18 17 19)
+    "helmet_grip_bevel": dict(rgb=[80, 77, 82], rough=0.4, normal="helmet_grip_relief.png", normal_strength=1.0),
+    "helmet_grip_groove": dict(rgb=[18, 17, 19], rough=0.85),
     "helmet_roll": dict(rgb=[18, 18, 20], rough=0.65, normal="helmet_roll_ribs.png", normal_strength=1.0),
     "helmet_pad": dict(image="helmet_pad_mesh.png", rough=0.9, sheen=0.5),
     "visor_under": dict(rgb=[214, 217, 222], rough=0.45),
