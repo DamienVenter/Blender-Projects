@@ -69,7 +69,8 @@ post (ours raw + 3.4 px in phr, raw - 5 in iso55). Ledger: research/rider-ledger
 - iso55: the upper window 13 px wide at row 870 (Leatt 25), with the plate's front end lit in it (Leatt's is dark);
   at row 800 the C's top face reads light (155 to 226) where Leatt's is dark (21).
 - The C's arms that run into the frame at its top and bottom (Leatt's, all views) are missing.
-- The C reads slightly red.
+- The C reads slightly red. In the white ISO (01b) it reads 62 at row 960 where Leatt's reads 24 (main's 26):
+  Leatt's white goggle has a darker C than the Pinata (48 there under the same CAD light); ours keeps the Pinata's.
 - Item 1d (phyb's strap loop) and item 6 (the Forge back-strap sheet) not done.
 
 ## Outlines

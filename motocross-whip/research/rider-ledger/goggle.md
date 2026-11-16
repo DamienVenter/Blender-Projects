@@ -1476,7 +1476,8 @@ origin/main 30bab2d (main had not moved): 114 passed, exit 0.
   (phr, the Forge front). iso55's upper window is 13 px wide at row 870 (Leatt 25) with the plate's front end lit in
   it; at row 800 the C's top face reads light where Leatt's is dark. The C's arms that run into the frame at its top
   and bottom (all of Leatt's views) are missing; the near C's arms show over the frame's top and bottom in iso55
-  (02a); the C reads slightly red.
+  (02a); the C reads slightly red, and in the white ISO 62 at row 960 against Leatt's 24 (main's 26; Leatt's white
+  goggle has a darker C than the Pinata, 48 under the same CAD light; ours keeps the Pinata's).
 - phyb (item 1d, Leatt's back view: the strap wraps round the C, a loop): not done; ours stands off the frame and the
   free goggle has no strap.
 - Tests: test_round14_carrier_rides_on_the_plate, test_round14_outrigger_front_open_but_its_arms,
