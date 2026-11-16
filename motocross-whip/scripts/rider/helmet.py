@@ -1280,6 +1280,26 @@ VISOR_REAR = [(0.0, 0.0), (0.022, 0.0), (0.026, -0.0005), (0.028, -0.0010), (0.0
               (0.101, -0.0269), (0.107, -0.0210), (0.113, -0.0149), (0.200, -0.0149)]
 VISOR_REAR_FROM = -0.06            # m, stations ahead of this y keep their place (the rear edge's corner: y -28.8)
 VISOR_FINE = 8                     # the finer grid's columns per column
+# Round 5 (decision 56): VISOR_LOW is Leatt's lip in Royal's px, but px2h reads it side-on at the centre plane, and
+# the wing stands 100 mm or more nearer the camera: through the solved Royal camera main's lip ran 51 to 57 px (12 to
+# 14 mm) above Leatt's from u 760 back to the rear corner (scratch k4n). From u 660 (none) to 760 (all) the lower
+# edge is moved until the left edge's projection lies on VISOR_LOW, in VISOR_LIP_FIT rounds (behind the rear corner
+# by the corner's own amount); ahead of u 660 (the peak's front edge and the arch's shoulder, fitted in phase 2) it
+# stays.
+VISOR_LIP_FIT = 3
+VISOR_LIP_FROM = (660.0, 760.0)
+# The fit's change fades in across the arch from |phi| 0.5 to 0.9 (smoothstep; 1 at the lip): carried up the whole arch
+# (as (1 - cos) ** VISOR_ARCH) it lowered the visor 1.4 to 2.8 mm where it lies over the shell at the crown's front
+# corner (y -98 to -103 mm, |x| 51 to 68 mm), and the push onto the shell folded two quads there (normals 68 and 62
+# deg apart; main's worst there 41 deg).
+VISOR_LIP_SPREAD = (0.5, 0.9)
+# The wings' windows (round 5, decision 56). Leatt's wing is open between its side arm and the shell: Royal's side
+# photo at 2x shows a slanted window through it, a parallelogram with rounded corners in a white lip, the shell seen
+# through it (its lip's outer corners below, Royal_Left px, read on the wing through the solved camera: visor_windows);
+# Pinata iso-left and iso-right show the background through the far wing's window under the peak. Main's wing was
+# closed (the coordinator's 1:1 review of 01).
+VISOR_WINDOW_PX = [(660, 484), (801, 509), (916, 636), (867, 655)]
+VISOR_WINDOW_R = 0.0012            # m, its corners' rounding (Royal at 2x: 4 to 6 px)
 
 
 def grid_at(F, c, t):
@@ -1292,33 +1312,41 @@ def grid_at(F, c, t):
             + a * b * F[t0 + 1, c0 + 1])
 
 
-def visor_rear_edge(F, nphi, y_end):
+def visor_rear_edge(F, nphi, y_end, ref=None):
     """The visor's grid (nphi columns) from a finer one F whose rear stations run straight across: ahead of
     VISOR_REAR_FROM its own columns; behind it a band whose last row lies on VISOR_REAR. Where each fine column first
     crosses the rear edge gives the edge; every column then runs from its place on the station at VISOR_REAR_FROM to
     the edge's point at the same share of its length (sliding each column to its own crossing sheared the band into
-    folded quads where the columns run nearly along the edge's steep part)."""
+    folded quads where the columns run nearly along the edge's steep part). ref: a grid whose shares place the columns
+    (round 5: the lip's fit lowers the wing and lengthens the edge; the unfitted grid's shares keep the columns where
+    they were over the crown's tongue, else they slid outward and the tongue's corner lost its points: 12 px off the
+    top photo)."""
     rear = np.array(VISOR_REAR)
     nr, nf, _ = F.shape
     step = (nf - 1) // (nphi - 1)
     i0 = int(np.searchsorted(F[:, nf // 2, 1], VISOR_REAR_FROM))
-    te = np.full(nf, nr - 1.0)
-    for k in range(nf):
-        g = F[:, k, 1] - (y_end + np.interp(np.abs(F[:, k, 0]), rear[:, 0], rear[:, 1]))
-        h = np.nonzero(g[i0:] > 1e-9)[0]
-        if len(h):
-            m = i0 + h[0]
-            te[k] = (m - 1) + g[m - 1] / (g[m - 1] - g[m])
+    def crossing(F):
+        te = np.full(nf, nr - 1.0)
+        for k in range(nf):
+            g = F[:, k, 1] - (y_end + np.interp(np.abs(F[:, k, 0]), rear[:, 0], rear[:, 1]))
+            h = np.nonzero(g[i0:] > 1e-9)[0]
+            if len(h):
+                m = i0 + h[0]
+                te[k] = (m - 1) + g[m - 1] / (g[m - 1] - g[m])
+        return te
+    te = crossing(F)
     ce = np.arange(nf, dtype=float)
 
     def share(P):
         c = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
         return c / c[-1]
 
-    fe = share(grid_at(F, ce, te))
+    Fr = F if ref is None else ref
+    fe = share(grid_at(Fr, ce, te if ref is None else crossing(ref)))
     cj = np.arange(nphi) * step
-    f = share(F[i0])[cj]
-    c_end, t_end = np.interp(f, fe, ce), np.interp(f, fe, te)
+    f = share(Fr[i0])[cj]
+    c_end = np.interp(f, fe, ce)
+    t_end = np.interp(c_end, ce, te)
     r = np.linspace(0.0, 1.0, nr - i0)[:, None]
     C = (1 - r) * cj[None, :] + r * c_end[None, :]
     T = (1 - r) * i0 + r * t_end[None, :]
@@ -1327,8 +1355,10 @@ def visor_rear_edge(F, nphi, y_end):
     return G
 
 
-def visor_surface(prof, nu=56, nphi=41):
-    """Top surface of the visor as a grid (stations from the tip back to the rear, arch across)."""
+def visor_surface(prof, nu=56, nphi=41, fit=None):
+    """Top surface of the visor as a grid (stations from the tip back to the rear, arch across); the wing's lip fitted
+    in fit rounds (default VISOR_LIP_FIT)."""
+    fit = VISOR_LIP_FIT if fit is None else fit
     top = px2h(VISOR_TOP)
     low = px2h(VISOR_LOW)
     plan = np.array(VISOR_PLAN, float)
@@ -1337,12 +1367,35 @@ def visor_surface(prof, nu=56, nphi=41):
     zt = np.interp(ys, top[:, 0], top[:, 1])
     zl = np.interp(ys, low[:, 0], low[:, 1])
     a = np.interp(us, plan[:, 0], plan[:, 1])
+    if fit:                                            # the wing's lip onto Leatt's through the solved camera
+        proj, lip, zl0 = royal_proj(), np.asarray(VISOR_LOW, float), zl.copy()
+        w = np.clip((us - VISOR_LIP_FROM[0]) / (VISOR_LIP_FROM[1] - VISOR_LIP_FROM[0]), 0, 1)
+        w = w * w * (3 - 2 * w)
+        corner = np.searchsorted(us, VISOR_LOW[-2][0])            # behind the rear corner: the corner's own move
+        for _ in range(fit):
+            E = visor_grid(prof, us, ys, zt, zl, a, nphi, zl0=zl0)[:, -1]    # his left edge, station by station
+            uv = proj(E)
+            dz = (uv[:, 1] - np.interp(uv[:, 0], lip[:, 0], lip[:, 1])) * proj.mpp(E)
+            dz[corner:] = dz[corner]
+            zl = zl + w * dz
+        return visor_grid(prof, us, ys, zt, zl, a, nphi, ref=visor_grid(prof, us, ys, zt, zl0, a, nphi, fine=True),
+                          zl0=zl0)
+    return visor_grid(prof, us, ys, zt, zl, a, nphi)
+
+
+def visor_grid(prof, us, ys, zt, zl, a, nphi, ref=None, fine=False, zl0=None):
+    """visor_surface's grid from its stations (Royal u, y), their tops, lower edges and half widths (fine: the finer
+    grid before its rear edge is cut; ref: such a grid placing the rear band's columns, visor_rear_edge; zl0: the lower
+    edges before the lip's fit, whose change fades in across the arch, VISOR_LIP_SPREAD)."""
     nf = VISOR_FINE * (nphi - 1) + 1                   # the rear edge is found on a finer grid (visor_rear_edge)
     phi = np.linspace(-1, 1, nf)
     G = np.zeros((len(us), nf, 3))
-    for i, (y, z0, z1, ai) in enumerate(zip(ys, zt, zl, a)):
+    zl0 = zl if zl0 is None else zl0
+    sp = np.clip((np.abs(phi) - VISOR_LIP_SPREAD[0]) / (VISOR_LIP_SPREAD[1] - VISOR_LIP_SPREAD[0]), 0, 1)
+    sp = sp * sp * (3 - 2 * sp)
+    for i, (y, z0, z1, z10, ai) in enumerate(zip(ys, zt, zl, zl0, a)):
         c = 1 - np.cos(phi * np.pi / 2)
-        z = z0 - (z0 - z1) * c ** VISOR_ARCH
+        z = z0 - (z0 - z10) * c ** VISOR_ARCH + (z1 - z10) * c ** VISOR_ARCH * sp
         x = ai * np.sin(phi * np.pi / 2)
         G[i] = np.c_[x, np.full(nf, y), z]
     # lie over the shell where the shell is under it: never closer than VISOR_GAP
@@ -1355,7 +1408,9 @@ def visor_surface(prof, nu=56, nphi=41):
     gap = VISOR_GAP - (VISOR_GAP - VISOR_EDGE_GAP) * k * k * (3 - 2 * k)
     need = ins & (np.abs(flat[:, 0]) < hw + gap)
     flat[need, 0] = side[need] * (hw[need] + gap[need])
-    return visor_rear_edge(flat.reshape(G.shape), nphi, ys[-1])
+    if fine:
+        return flat.reshape(G.shape)
+    return visor_rear_edge(flat.reshape(G.shape), nphi, ys[-1], ref=ref)
 
 
 def grid_faces(nr, nc, off=0, flip=False):
@@ -1367,13 +1422,159 @@ def grid_faces(nr, nc, off=0, flip=False):
     return F
 
 
-def thicken_grid(G, t, mat_top, mat_under, mat_edge, part):
-    """A grid surface made solid: top, underside offset by t along its normals, edge strips all round."""
+def royal_proj():
+    """Royal_Left's solved camera (research/helmet-ba.json) as a function from helmet-frame points to photo px; its
+    attribute mpp gives the metres per px at each point (its depth over the focal length)."""
+    cam = json.load(open(BA_JSON))["cameras"]["royal_left"]
+    C, Rc, f, cx, cy = np.array(cam["C"]), np.array(cam["R"]), cam["f"], cam["cx"], cam["cy"]
+
+    def proj(X):
+        q = (np.atleast_2d(X) - C) @ Rc.T
+        return np.c_[cx + f * q[:, 0] / q[:, 2], cy - f * q[:, 1] / q[:, 2]]
+    proj.mpp = lambda X: ((np.atleast_2d(X) - C) @ Rc.T)[:, 2] / f
+    return proj
+
+
+def visor_windows(G, step=0.0005):
+    """The wing's window on his left (x > 0) in the grid's (column, row) parameters: VISOR_WINDOW_PX in Royal_Left
+    through its solved camera (research/helmet-ba.json: the wing stands 100 mm or more off the centre plane, where
+    px2h's side-on scale put the window 45 to 50 px, 11 to 12 mm, too high), its corners rounded VISOR_WINDOW_R
+    (quadratic arcs), sampled about every step, each point found on the grid's left half by Newton's method on its
+    bilinear surface seen through that camera (the wing faces the camera: one to one)."""
+    proj = royal_proj()
+    W = np.asarray(VISOR_WINDOW_PX, float)
+    rad, st = VISOR_WINDOW_R / S, step / S                         # px (S: m per px on the centre plane)
+    pts = []
+    for k in range(len(W)):
+        a, b, c = W[k - 1], W[k], W[(k + 1) % len(W)]
+        p0 = b + (a - b) / np.linalg.norm(a - b) * rad
+        p1 = b + (c - b) / np.linalg.norm(c - b) * rad
+        arc = [(1 - u) ** 2 * p0 + 2 * u * (1 - u) * b + u * u * p1 for u in np.linspace(0, 1, 7)]
+        q = W[(k + 1) % len(W)] + (b - c) / np.linalg.norm(b - c) * rad
+        n = max(2, int(np.ceil(np.linalg.norm(q - p1) / st)))
+        pts += arc + [p1 + (q - p1) * t for t in np.linspace(0, 1, n + 1)[1:-1]]
+    Q = np.array(pts)
+    nr, nc, _ = G.shape
+    half = proj(G[:, nc // 2 + 1:].reshape(-1, 3))
+    i, j = np.divmod(np.argmin(((half[:, None, :] - Q[None]) ** 2).sum(-1), 0), nc - nc // 2 - 1)
+    c, t = (j + nc // 2 + 1).astype(float), i.astype(float)
+    for _ in range(30):
+        r = proj(grid_at(G, c, t)) - Q
+        e = 1e-4
+        dc = (proj(grid_at(G, c + e, t)) - proj(grid_at(G, c - e, t))) / (2 * e)
+        dt = (proj(grid_at(G, c, t + e)) - proj(grid_at(G, c, t - e))) / (2 * e)
+        det = dc[:, 0] * dt[:, 1] - dc[:, 1] * dt[:, 0]
+        c = np.clip(c - (r[:, 0] * dt[:, 1] - r[:, 1] * dt[:, 0]) / det, nc // 2, nc - 1)
+        t = np.clip(t - (dc[:, 0] * r[:, 1] - dc[:, 1] * r[:, 0]) / det, 0, nr - 1)
+    assert np.abs(proj(grid_at(G, c, t)) - Q).max() < 1e-3, "the window's outline is off the wing"
+    return np.c_[c, t]
+
+
+def cut_grid(G, hole, keep_off=0.0012):
+    """The grid cut along hole (a closed polygon in (column, row) parameters on his left, its points about 0.5 mm
+    apart on the surface) and along its mirror image. The cells round it (one more all round) are triangulated anew:
+    Delaunay over their corners (those keep_off or more from the outline) and the outline's points, in parameters
+    scaled to the cells' mean size on the surface, the triangles inside the outline dropped. The region's border
+    keeps the grid's edges (bowed out by a hair for the triangulation alone, so that its straight sides stay edges);
+    his right side's cells take the left's triangles mirrored. Returns the vertices (the grid's first, in order; the
+    outline's on the grid's bilinear surface), the other cells' quads, the triangles and the two windows' outlines
+    as vertex loops."""
+    from matplotlib.path import Path
+    from scipy.spatial import Delaunay
+    nr, nc, _ = G.shape
+    (c0, r0), (c1, r1) = np.floor(hole.min(0)).astype(int) - 1, np.ceil(hole.max(0)).astype(int) + 1
+    assert c0 > nc // 2 and r0 >= 0 and r1 <= nr - 1 and c1 <= nc - 1, "the window's cells leave the wing"
+    cells = G[r0:r1 + 1, c0:c1 + 1]
+    k = np.array([np.linalg.norm(np.diff(cells, axis=1), axis=2).mean(),    # m per column and per row
+                  np.linalg.norm(np.diff(cells, axis=0), axis=2).mean()])
+    gp = np.array([(j, i) for i in range(r0, r1 + 1) for j in range(c0, c1 + 1)], float)
+    border = (gp[:, 0] == c0) | (gp[:, 0] == c1) | (gp[:, 1] == r0) | (gp[:, 1] == r1)
+    A, B = hole * k, np.roll(hole, -1, axis=0) * k
+    d = np.full(len(gp), np.inf)
+    for a, b in zip(A, B):
+        t = np.clip(((gp * k - a) @ (b - a)) / max((b - a) @ (b - a), 1e-30), 0, 1)
+        d = np.minimum(d, np.linalg.norm(gp * k - (a + t[:, None] * (b - a)), axis=1))
+    path = Path(hole)
+    use = border | ((d > keep_off) & ~path.contains_points(gp))
+    pts = np.vstack([gp[use], hole])
+    ids = np.r_[[int(i) * nc + int(j) for j, i in gp[use]], nr * nc + np.arange(len(hole))]
+    Q = pts * k
+    bow = 1e-3 * k.min()
+    sx, sy = (pts[:, 0] - c0) / (c1 - c0), (pts[:, 1] - r0) / (r1 - r0)
+    on = np.r_[border[use], np.zeros(len(hole), bool)]
+    Q[on & (pts[:, 1] == r0), 1] -= bow * np.sin(np.pi * sx[on & (pts[:, 1] == r0)])
+    Q[on & (pts[:, 1] == r1), 1] += bow * np.sin(np.pi * sx[on & (pts[:, 1] == r1)])
+    Q[on & (pts[:, 0] == c0), 0] -= bow * np.sin(np.pi * sy[on & (pts[:, 0] == c0)])
+    Q[on & (pts[:, 0] == c1), 0] += bow * np.sin(np.pi * sy[on & (pts[:, 0] == c1)])
+    T = []
+    for s in Delaunay(Q).simplices:
+        a, b, c = pts[s]
+        cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+        if abs(cr) < 1e-12 or path.contains_point((a + b + c) / 3):
+            continue
+        T.append(list(ids[s]) if cr > 0 else list(ids[s[::-1]]))     # counter-clockwise, as the grid's quads
+    E = {}
+    for t in T:
+        for a, b in zip(t, t[1:] + t[:1]):
+            E[(min(a, b), max(a, b))] = E.get((min(a, b), max(a, b)), 0) + 1
+    w = nr * nc + np.arange(len(hole))
+    miss = sum(E.get((min(a, b), max(a, b)), 0) != 1 for a, b in zip(w, np.roll(w, -1)))
+    assert miss == 0, f"{miss} of the window's outline segments are not edges"
+    for i0, j0, i1, j1 in ((r0, c0, r0, c1), (r1, c0, r1, c1), (r0, c0, r1, c0), (r0, c1, r1, c1)):
+        side = [i * nc + j for i in range(i0, i1 + 1) for j in range(j0, j1 + 1)]
+        miss = sum(E.get((min(a, b), max(a, b)), 0) != 1 for a, b in zip(side, side[1:]))
+        assert miss == 0, f"{miss} of the cells' border edges lost"
+    n0, n = nr * nc, nr * nc + len(hole)
+    P = np.vstack([np.array([(j, i) for i in range(nr) for j in range(nc)], float), hole])
+    mirror = np.r_[[i * nc + (nc - 1 - j) for i in range(nr) for j in range(nc)], np.arange(n0, n) + (n - n0)]
+    P = np.vstack([P, np.c_[nc - 1 - hole[:, 0], hole[:, 1]]])
+    T = T + [[mirror[a], mirror[c], mirror[b]] for a, b, c in T]
+    touched = {(i, j) for i in range(r0, r1) for j in range(c0, c1)}
+    touched |= {(i, nc - 2 - j) for i, j in touched}
+    Fq = [[i * nc + j, i * nc + j + 1, (i + 1) * nc + j + 1, (i + 1) * nc + j] for i in range(nr - 1)
+          for j in range(nc - 1) if (i, j) not in touched]
+    V = grid_at(G, P[:, 0], P[:, 1])
+    V[:n0] = G.reshape(-1, 3)
+    return V, np.array(Fq), np.array(T), [w, mirror[w]]
+
+
+def edge_strip(part, A, B, out, mat, uv=None):
+    """Quads between two closed rings A and B (the same count), facing out (per ring point)."""
+    n = len(A)
+    o = part.add(np.vstack([A, B]), [], mat)
+    F = [[o + k, o + (k + 1) % n, o + n + (k + 1) % n, o + n + k] for k in range(n)]
+    nx = (np.arange(n) + 1) % n
+    fn = np.cross(B[nx] - A, B - A[nx])                 # the quads' normals from their diagonals
+    if np.sum(fn * out) < 0:
+        F = [f[::-1] for f in F]
+        uv = None if uv is None else [u[::-1] for u in uv]
+    for k, f in enumerate(F):
+        part.F.append(f)
+        part.M.append(mat)
+        part.UV.append(None if uv is None else uv[k])
+
+
+def thicken_grid(G, t, mat_top, mat_under, mat_edge, part, holes=None):
+    """A grid surface made solid: top, underside offset by t along its normals, edge strips all round. holes: the
+    window on his left (visor_windows: its outline in the grid's parameters), cut through both wings
+    (cut_grid) and edged as the outline is (round 5)."""
     nr, nc, _ = G.shape
     V = G.reshape(-1, 3)
     Ft = np.array(grid_faces(nr, nc))
-    tris = np.vstack([Ft[:, [0, 1, 2]], Ft[:, [0, 2, 3]]])
+    T3, loops = np.zeros((0, 3), int), []
+    if holes is not None:
+        V, Ft, T3, loops = cut_grid(G, holes)
+    tris = np.vstack([Ft[:, [0, 1, 2]], Ft[:, [0, 2, 3]], T3])
     N = normals(V, tris)
+    for L, cc in zip(loops, (holes[:, 0], nc - 1 - holes[:, 0]) if loops else ()):
+        # the outline lies on the grid's bilinear surface: its normal there. Delaunay leaves slivers along the outline
+        # (three of its points each, a hundredth of a mm2); two of them, turned over, swung their points' normals 83
+        # and 85 deg and the window's wall stood out of it in two spikes 3 mm tall (Royal at 5x, scratch k4y)
+        e = 1e-3
+        n = np.cross(grid_at(G, cc + e, holes[:, 1]) - grid_at(G, cc - e, holes[:, 1]),
+                     grid_at(G, cc, holes[:, 1] + e) - grid_at(G, cc, holes[:, 1] - e))
+        n /= np.linalg.norm(n, axis=1)[:, None]
+        N[L] = n * np.sign(np.sum(n * N[L]))
     # top faces point up/out: orient by the centre of the grid
     c = V.mean(0)
     flip = np.mean(np.sum(N * (V - c), 1)) < 0
@@ -1399,14 +1600,29 @@ def thicken_grid(G, t, mat_top, mat_under, mat_edge, part):
     out *= np.sign(np.sum(out * (P - V[inner]), 1))[:, None]
     Vt = V.copy()
     Vt[idx] = P - out * VISOR_LIP
-    Ftop = np.array(grid_faces(nr, nc, 0, flip))
-    uv_top = atlas_uvs(V, Ftop, visor=True)[0] if mat_top == "helmet_paint" else None   # as before: the trace holds
-    o1 = part.add(Vt, Ftop, mat_top, None if uv_top is None else list(uv_top))
-    part.top = (Vt, Ftop, N, uv_top)
-    part.add(Vu, grid_faces(nr, nc, 0, not flip), mat_under)
+    win = []
+    for L in loops:                                   # the windows' lips: their top drawn in as the outline's
+        Pw, Nw = V[L], N[L]
+        ow = np.cross(np.roll(Pw, -1, 0) - np.roll(Pw, 1, 0), Nw)
+        ow /= np.linalg.norm(ow, axis=1)[:, None]
+        ow *= np.sign(np.sum(ow * (Pw.mean(0) - Pw), 1))[:, None]          # into the window
+        Vt[L] = Pw - ow * VISOR_LIP
+        win.append((L, Pw, Nw, ow))
+    Ftop = Ft[:, ::-1] if flip else Ft
+    T3 = T3[:, ::-1] if flip else T3
+    # UVs: the triangles as quads with their last corner twice (the islands' orientation is the whole top's)
+    uv_top = atlas_uvs(V, np.vstack([Ftop, np.c_[T3, T3[:, 2]]]), visor=True)[0] if mat_top == "helmet_paint" else None
+    faces = [list(f) for f in Ftop] + [list(f) for f in T3]
+    uvs = None if uv_top is None else [list(u) for u in uv_top[:len(Ftop)]] + [list(u[:3]) for u in uv_top[len(Ftop):]]
+    o1 = part.add(Vt, faces, mat_top, uvs)
+    tri_top = np.vstack([Ftop[:, [0, 1, 2]], Ftop[:, [0, 2, 3]], T3])
+    uv_tri = None if uv_top is None else np.vstack([uv_top[:len(Ftop)][:, [0, 1, 2]], uv_top[:len(Ftop)][:, [0, 2, 3]],
+                                                    uv_top[len(Ftop):, :3]])
+    part.top = (Vt, tri_top, N, uv_tri) if len(T3) else (Vt, Ftop, N, None if uv_top is None else uv_top[:len(Ftop)])
+    part.add(Vu, [f[::-1] for f in faces], mat_under)
     uvv = {}
     if uv_top is not None:
-        for fc, uc in zip(Ftop, uv_top):
+        for fc, uc in zip(faces, uvs):
             for i, u in zip(fc, uc):
                 uvv[int(i)] = u
     F, UV = [], []
@@ -1418,6 +1634,15 @@ def thicken_grid(G, t, mat_top, mat_under, mat_edge, part):
     B = P - Nb * VISOR_LIP
     part.add(np.vstack([Vt[idx], B]), F, mat_top, UV if uv_top is not None else None)
     part.add(np.vstack([B, Vu[idx]]), F, mat_edge)
+    for L, Pw, Nw, ow in win:                         # the windows' chamfer and wall, facing into the window
+        uvw = None
+        if uv_top is not None:
+            a = [uvv.get(int(i)) for i in L]
+            uvw = [[a[k], a[(k + 1) % len(L)], a[(k + 1) % len(L)], a[k]] for k in range(len(L))]
+            uvw = None if any(u is None for u in a) else uvw
+        Bw = Pw - Nw * VISOR_LIP
+        edge_strip(part, Vt[L], Bw, ow, mat_top, uvw)
+        edge_strip(part, Bw, Vu[L], ow, mat_edge)
     return o1
 
 
@@ -1454,7 +1679,8 @@ def build(body):
                                  (along[i + 1] / tu, (across[k + 1, j] - v0[j]) / tv),
                                  (along[i + 1] / tu, (across[k, j] - v0[j]) / tv)] if port else None)
     visor = Part("helmet_visor")
-    thicken_grid(visor_surface(prof), VISOR_T, "helmet_paint", "visor_under", "visor_under", visor)
+    G = visor_surface(prof)
+    thicken_grid(G, VISOR_T, "helmet_paint", "visor_under", "visor_under", visor, holes=visor_windows(G))
     parts = [shell, visor]
     parts.append(helmet_detail.build(Vo, Fo))         # moulded vents (round 3, decision 46), grip panels (51)
     if PAINT:                                         # the old projection of Leatt's photos (lighting baked in)

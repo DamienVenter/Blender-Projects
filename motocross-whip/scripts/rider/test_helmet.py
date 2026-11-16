@@ -418,6 +418,113 @@ def test_trim_rolls_into_the_port(body):
     assert near > 0.0015, f"the trim's roll {1000 * near:.1f} mm off his skin"
 
 
+def _royal_px(X):
+    """Helmet-frame points through Royal_Left's solved camera (research/helmet-ba.json), px."""
+    import json
+    cam = json.load(open(H.BA_JSON))["cameras"]["royal_left"]
+    q = (np.atleast_2d(X) - np.array(cam["C"])) @ np.array(cam["R"]).T
+    return np.c_[cam["cx"] + cam["f"] * q[:, 0] / q[:, 2], cam["cy"] - cam["f"] * q[:, 1] / q[:, 2]]
+
+
+def test_visor_lip_runs_on_leatts_in_royal():
+    """Round 5 (decision 56): VISOR_LOW is Leatt's lip traced in Royal's px; through the solved Royal camera the
+    wing's lip (the top grid's left edge) lies on it within 1 px from u 760 back to the rear corner (u 1075) and
+    within 12 px at u 700 (main: 50 to 57 px above it, 12 to 14 mm: px2h read the side view at the centre plane,
+    the wing stands 100 mm nearer the camera). Ahead of u 660 the peak keeps phase 2's fit (main's lip there)."""
+    Vo, Fo, prof = H.shell_outer()
+    G = H.visor_surface(prof)
+    uv = _royal_px(G[:, -1])
+    lip = np.asarray(H.VISOR_LOW, float)
+    off = uv[:, 1] - np.interp(uv[:, 0], lip[:, 0], lip[:, 1])
+    m = (uv[:, 0] > 760) & (uv[:, 0] < 1075)
+    assert m.sum() > 10 and np.abs(off[m]).max() < 1.0, f"lip {off[m].min():+.0f} to {off[m].max():+.0f} px off"
+    k = np.argmin(np.abs(uv[:, 0] - 700))
+    assert abs(off[k]) < 12.0, f"lip {off[k]:+.0f} px off at u 700"
+
+
+def test_visor_wings_have_windows(built):
+    """Round 5 (decision 56): the coordinator's 1:1 review of 01: Leatt's wing is open, a slanted window with rounded
+    corners in a lit lip (Royal at 2x; the iso views see the background through the far wing); main's was closed.
+    The visor's top (helmet_paint: its face and the lip's chamfer) is bounded by three loops, the outline and a
+    window each side, mirror images; the left window through the solved Royal camera lies within 3 px of
+    VISOR_WINDOW_PX's sides and covers 85 % or more of its area (its corners rounded VISOR_WINDOW_R); the visor
+    stays closed (every edge used twice)."""
+    from matplotlib.path import Path
+    P = built["parts"]["helmet_visor"]
+    V = (P.V - built["t"]) @ built["R"]
+    _, inv = np.unique(np.round(V, 9), axis=0, return_inverse=True)
+    inv = inv.ravel()
+    E = {}
+    for f in P.F:
+        g = [inv[i] for i in f]
+        for a, b in zip(g, g[1:] + g[:1]):
+            if a != b:
+                E[(min(a, b), max(a, b))] = E.get((min(a, b), max(a, b)), 0) + 1
+    assert min(E.values()) >= 2, "the visor is open"
+    top = []
+    for f, m in zip(P.F, P.M):
+        g = [int(inv[i]) for i in f]
+        g = [v for k, v in enumerate(g) if v != g[k - 1]]  # the tip's row welds into one point
+        if m == "helmet_paint" and len(set(g)) >= 3:
+            top.append(g)
+    Vu = np.zeros((inv.max() + 1, 3))
+    Vu[inv] = V
+    loops = sorted(H.boundary_loops(top), key=lambda L: np.ptp(Vu[L], 0).sum())      # the windows, then the outline
+    assert len(loops) == 3, f"{len(loops)} loops round the visor's top (main: 1)"
+    win = [Vu[L] for L in loops[:2]]
+    left = win[0] if win[0][:, 0].mean() > 0 else win[1]
+    right = win[1] if win[0][:, 0].mean() > 0 else win[0]
+    assert np.abs(np.sort(left[:, 1]) - np.sort(right[:, 1])).max() < 1e-6
+    q = _royal_px(left)
+    W = np.asarray(H.VISOR_WINDOW_PX, float)
+    d = np.full(len(q), np.inf)
+    for a, b in zip(W, np.roll(W, -1, 0)):
+        t = np.clip(((q - a) @ (b - a)) / ((b - a) @ (b - a)), 0, 1)
+        d = np.minimum(d, np.linalg.norm(q - (a + t[:, None] * (b - a)), axis=1))
+    assert d.max() < 3.0, f"window {d.max():.1f} px off Leatt's"
+    area = lambda X: 0.5 * abs(np.dot(X[:, 0], np.roll(X[:, 1], -1)) - np.dot(X[:, 1], np.roll(X[:, 0], -1)))
+    assert area(q) > 0.85 * area(W), f"window {100 * area(q) / area(W):.0f} % of Leatt's"
+    assert Path(W).contains_points(q).mean() > 0.5
+
+
+def test_visor_window_is_clear(built):
+    """Round 5 (decision 56): through the solved Royal camera, rays through the left window 12 px (3 mm) or more
+    inside VISOR_WINDOW_PX's sides miss the left wing (nearer the sides its wall shows, 10 px wide along the top edge
+    as Leatt's lit band there). Slivers along the outline had turned two of its points' normals over (83 and 85 deg)
+    and the wall stood into the opening in two spikes 3 mm tall: 3 rays hit them (Royal at 5x)."""
+    import json
+    from matplotlib.path import Path
+    P = built["parts"]["helmet_visor"]
+    V = (P.V - built["t"]) @ built["R"]
+    T = np.array([[f[0], f[k], f[k + 1]] for f in P.F for k in range(1, len(f) - 1)])
+    T = T[(V[T][:, :, 0] > 0).all(1)]
+    cam = json.load(open(H.BA_JSON))["cameras"]["royal_left"]
+    C, Rc, f, cx, cy = np.array(cam["C"]), np.array(cam["R"]), cam["f"], cam["cx"], cam["cy"]
+    W = np.asarray(H.VISOR_WINDOW_PX, float)
+    uu, vv = np.meshgrid(np.arange(650, 930, 2.0), np.arange(470, 670, 2.0))
+    Q = np.c_[uu.ravel(), vv.ravel()]
+    Q = Q[Path(W).contains_points(Q)]
+    d = np.full(len(Q), np.inf)
+    for a, b in zip(W, np.roll(W, -1, 0)):
+        t = np.clip(((Q - a) @ (b - a)) / ((b - a) @ (b - a)), 0, 1)
+        d = np.minimum(d, np.linalg.norm(Q - (a + t[:, None] * (b - a)), axis=1))
+    Q = Q[d > 12.0]
+    A = V[T[:, 0]]
+    e1, e2, s = V[T[:, 1]] - A, V[T[:, 2]] - A, C - A
+    q = np.cross(s, e1)
+    hits = []
+    for u, v in Q:                                     # Moller-Trumbore against every face of the left wing
+        D = Rc.T @ np.array([(u - cx) / f, -(v - cy) / f, 1.0])
+        p = np.cross(D, e2)
+        det = np.sum(e1 * p, 1)
+        ok = np.abs(det) > 1e-15
+        inv = np.where(ok, 1.0 / np.where(ok, det, 1.0), 0.0)
+        a, b, t = np.sum(s * p, 1) * inv, (q @ D) * inv, np.sum(e2 * q, 1) * inv
+        if np.any(ok & (a >= 0) & (b >= 0) & (a + b <= 1) & (t > 0)):
+            hits.append((u, v))
+    assert len(Q) > 1000 and not hits, f"{len(hits)} of {len(Q)} rays through the window hit the wing: {hits[:4]}"
+
+
 def test_grip_panels_moulded_beside_the_port(built):
     """Phase 2 (decision 51): beside the port's rear edges, from the brow's corner to the chin bar's top, a moulded
     grip panel on each side (Leatt's Pinata iso photos): its own dark grey (round 5: 80 77 82, the field's median 68
