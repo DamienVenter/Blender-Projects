@@ -18,11 +18,18 @@ import body as B   # noqa: E402
 import kit as K    # noqa: E402
 
 
+# The kit's textures as the tests read them: the fixture's build (into a temp dir: the suite never writes into
+# textures/rider), or textures/rider's files with KIT_TEX=0
+TEXOUT = {"dir": K.TEXDIR, "work": None}
+
+
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
     d = tmp_path_factory.mktemp("kit")
     np.savez_compressed(d / "body.npz", **B.build())
-    K.main(str(d / "body.npz"), str(d / "kit.npz"), tex=os.environ.get("KIT_TEX", "1") == "1")
+    tex = os.environ.get("KIT_TEX", "1") == "1"
+    K.main(str(d / "body.npz"), str(d / "kit.npz"), tex=tex, tex_dir=str(d / "tex"))
+    TEXOUT["dir"], TEXOUT["work"] = (str(d / "tex") if tex else K.TEXDIR), d
     body = K.Body(str(d / "body.npz"))
     return body, dict(np.load(d / "kit.npz"))
 
@@ -69,50 +76,73 @@ def test_gear_file_loads_and_is_consistent(built):
     assert hb.min() >= 0 and hb.max() < len(body.V) and len(np.unique(hb)) == len(hb)
 
 
-def committed(path):
-    """A file's bytes as the git index holds it (under Git LFS, the object its pointer names); None outside a git
-    checkout or without git-lfs."""
-    import subprocess
-    d, n = os.path.split(os.path.abspath(path))
-    try:
-        blob = subprocess.run(["git", "show", ":./" + n], cwd=d, capture_output=True, check=True).stdout
-        if blob.startswith(b"version https://git-lfs"):
-            blob = subprocess.run(["git", "lfs", "smudge", n], cwd=d, input=blob, capture_output=True,
-                                  check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return blob
-
-
-def test_kit_textures_rebuild_to_the_committed_files(built):
-    """The kit's textures are a pure function of kit.py and its references (numpy only: no random, no resampler,
-    the same bytes on 1 and 4 threads): the suite's build (the fixture writes them into textures/rider) gives the
-    committed files, every texel and every byte, so the suite leaves the tree clean. Main at ea66687 failed: its
-    jersey_print_color.png was round 3c's (778fd8d, rebuilt byte for byte by 778fd8d's kit.py), not rebuilt when
-    round 4 (decision 58) changed the jersey colour it samples: 2 texels 1 level apart. Bytes depend on Pillow's PNG
-    encoder (zlib); the texels do not."""
-    import hashlib
-    import io
-
-    from PIL import Image
-    if os.environ.get("KIT_TEX", "1") != "1":
-        pytest.skip("KIT_TEX=0: the textures were not built")
-    _, g = built
+def kit_textures(g):
+    """The texture files the kit's materials name."""
     spec = json.loads(str(g["materials"]))
     names = sorted({m[k] for m in spec.values() for k in ("image", "normal") if k in m})
     assert {"jersey_color.png", "jersey_print_color.png", "pants_color.png"} <= set(names), names
+    return names
+
+
+def texture_differences(names, ref_dir, new_dir):
+    """Each file of new_dir against ref_dir's: texel by texel, then byte by byte (sha256). Returns what differs."""
+    import hashlib
+
+    from PIL import Image
+    out = []
     for n in names:
-        p = os.path.join(K.TEXDIR, n)
-        old = committed(p)
-        if old is None:
-            pytest.skip("no git checkout with git-lfs to compare with")
-        a = np.asarray(Image.open(io.BytesIO(old)))
-        b = np.asarray(Image.open(p))
-        assert a.shape == b.shape, (n, a.shape, b.shape)
+        p, q = os.path.join(ref_dir, n), os.path.join(new_dir, n)
+        if open(p, "rb").read(40).startswith(b"version https://git-lfs"):
+            pytest.skip("%s is a Git LFS pointer: run git lfs pull" % n)
+        a, b = np.asarray(Image.open(p)), np.asarray(Image.open(q))
+        if a.shape != b.shape:
+            out.append("%s: shape %s against %s" % (n, b.shape, a.shape))
+            continue
         d = (a != b).reshape(a.shape[0], a.shape[1], -1).any(-1)
-        assert not d.any(), "%s: %d texels differ (max %d levels) at %s" % (
-            n, int(d.sum()), int(np.abs(a.astype(int) - b).max()), np.argwhere(d)[:4].tolist())
-        assert hashlib.sha256(old).hexdigest() == hashlib.sha256(open(p, "rb").read()).hexdigest(), n
+        if d.any():
+            out.append("%s: %d texels differ (max %d levels) at %s" % (
+                n, int(d.sum()), int(np.abs(a.astype(int) - b).max()), np.argwhere(d)[:4].tolist()))
+        elif hashlib.sha256(open(p, "rb").read()).digest() != hashlib.sha256(open(q, "rb").read()).digest():
+            out.append(n + ": the same texels, other bytes (Pillow's PNG encoder)")
+    return out
+
+
+def test_kit_textures_rebuild_to_the_committed_files(built):
+    """The kit's textures are a pure function of kit.py and its references (no random, no resampler, one BLAS thread:
+    kit.blas_threads): the suite's build, into a temp dir (the suite never writes into textures/rider), gives
+    textures/rider's files, every texel and every byte (sha256). Main at ea66687 failed: its jersey_print_color.png
+    was round 3c's (778fd8d), not rebuilt when round 4 (decision 58) changed the jersey colour it samples: 2 texels
+    1 level apart. Main at bcee814 failed on 2 threads (OMP_NUM_THREADS=2): jersey_color.png's [725, 1753] a level
+    lower (test_kit_textures_are_the_same_on_another_thread_count). Bytes depend on Pillow's PNG encoder (zlib);
+    the texels do not."""
+    if os.environ.get("KIT_TEX", "1") != "1":
+        pytest.skip("KIT_TEX=0: the textures were not built")
+    _, g = built
+    assert os.path.realpath(TEXOUT["dir"]) != os.path.realpath(K.TEXDIR)
+    bad = texture_differences(kit_textures(g), K.TEXDIR, TEXOUT["dir"])
+    assert not bad, bad
+
+
+def test_kit_textures_are_the_same_on_another_thread_count(built):
+    """kit.py on another BLAS thread count (OMP_NUM_THREADS, OPENBLAS_NUM_THREADS, MKL_NUM_THREADS: 2, or 3 where
+    the suite runs on 2) builds the same textures, byte for byte, as the suite's build. Main at bcee814 failed (2
+    threads against 4): OpenBLAS splits a dot over 10,000 long across its threads, lsqr's norms in lscm moved the
+    jersey's front chart's UVs by an ulp and the print by up to 2.5e-5 of a level, and jersey_color.png's [725,
+    1753] blue (121.00000016 before the cast on 4 threads, 120.99999999 on 2) came out a level lower."""
+    import subprocess
+    if os.environ.get("KIT_TEX", "1") != "1":
+        pytest.skip("KIT_TEX=0: the textures were not built")
+    _, g = built
+    d = TEXOUT["work"]
+    libs = K._openblas()
+    n = 3 if (libs[0][0]() if libs else 0) == 2 else 2
+    env = dict(os.environ, OMP_NUM_THREADS=str(n), OPENBLAS_NUM_THREADS=str(n), MKL_NUM_THREADS=str(n))
+    # after the fixture's build, not alongside it: one texture build at a time (1.5 to 1.9 GB each)
+    r = subprocess.run([sys.executable, os.path.join(HERE, "kit.py"), str(d / "body.npz"), str(d / "other.npz"),
+                        "--tex-dir", str(d / "tex_other")], env=env, capture_output=True, text=True, timeout=3600)
+    assert r.returncode == 0, (r.stdout + r.stderr)[-3000:]
+    bad = texture_differences(kit_textures(g), TEXOUT["dir"], str(d / "tex_other"))
+    assert not bad, ("%d threads" % n, bad)
 
 
 def test_sizes_against_the_charts(built):
@@ -300,8 +330,9 @@ def test_logos_are_official_files():
 
 
 def texture(name):
+    """One of the kit's textures as the fixture built it (textures/rider's with KIT_TEX=0), RGB in 0..1."""
     from PIL import Image
-    return np.asarray(Image.open(os.path.join(K.HERE, "..", "..", "textures", "rider", name)).convert("RGB")) / 255.0
+    return np.asarray(Image.open(os.path.join(TEXOUT["dir"], name)).convert("RGB")) / 255.0
 
 
 def test_jersey_inks_are_leatts_flat(built):

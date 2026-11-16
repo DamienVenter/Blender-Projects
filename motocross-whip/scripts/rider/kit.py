@@ -1,6 +1,7 @@
 """Damien's kit: Leatt Moto 5.5 UltraWeld jersey and Moto 5.5 I.K.S pant, Tiger Pink, 2026, on his body.
 
-python3 kit.py BODY.npz OUT.npz [--no-tex]      (body.py's output; writes a gear npz for build_rider.py RIDER_GEAR)
+python3 kit.py BODY.npz OUT.npz [--no-tex] [--tex-dir DIR]
+    (body.py's output; writes a gear npz for build_rider.py RIDER_GEAR, the textures into textures/rider or DIR)
 
 Sources: research/rider-gear-leatt.md sections 1 and 2 (identification, construction, size charts), Leatt's photos
 in reference/leatt-gear/jersey and pants, his photos reference/damien-bike-2026-11-12/06 to 10. Every number is in
@@ -3574,7 +3575,68 @@ def roll_spec_pants(P):
     return np.where(top, 0.004, 0.002), np.where(top, 0.040, 0.025)               # waistband, cuffs
 
 
-def main(body_path, out_path, tex=True):
+# ---------------------------------------------------------------- one build, one result (decision 61)
+# OpenBLAS splits a dot product over 10,000 long across its threads and adds the parts, so the sum's last bits
+# depend on the thread count (OMP_NUM_THREADS, OPENBLAS_NUM_THREADS; by default the CPUs). scipy's lsqr takes such
+# dots (np.linalg.norm) in lscm on the jersey's front chart: its UVs moved by an ulp, every chart's place with them,
+# and jersey_color.png's texels by up to 2.5e-5 of a level before the cast (4.07 of its 4.19 million texels). 12 of
+# its values lie within 1e-6 of a rounding boundary, so a rule at the cast cannot hold them: on 2 threads texel
+# [725, 1753]'s blue came out 120.99999999 + 0.5 (120) against 121.00000016 on 4 (121; 1 thread 121.00000074). The
+# build runs on one BLAS thread (blas_threads), whatever the environment says: the same bytes on every run with this
+# numpy and scipy (another CPU can take other OpenBLAS kernels). Another BLAS (MKL, Accelerate) is not pinned:
+# test_kit_rider's rebuild on another thread count catches it.
+
+def _openblas():
+    """The OpenBLAS libraries this process has loaded (numpy's and scipy's wheels each bundle one), as (get, set)
+    ctypes functions of their thread count; none on another BLAS or without /proc."""
+    import ctypes
+    try:
+        with open("/proc/self/maps") as f:
+            paths = sorted({ln.split()[-1] for ln in f if "openblas" in ln.lower() and "/" in ln})
+    except OSError:
+        return []
+    out = []
+    for p in paths:
+        try:
+            lib = ctypes.CDLL(p)
+        except OSError:
+            continue
+        for pre, suf in (("scipy_openblas", "64_"), ("scipy_openblas", ""), ("openblas", "64_"), ("openblas", "")):
+            get, put = (getattr(lib, "%s_%s_num_threads%s" % (pre, k, suf), None) for k in ("get", "set"))
+            if get is not None and put is not None:
+                get.restype, put.argtypes = ctypes.c_int, [ctypes.c_int]
+                out.append((get, put))
+                break
+    return out
+
+
+class blas_threads:
+    """with blas_threads(1): ... runs the block on n BLAS threads (every OpenBLAS loaded), then restores them."""
+
+    def __init__(self, n=1):
+        self.n, self.libs, self.was = n, [], []
+
+    def __enter__(self):
+        self.libs = _openblas()
+        self.was = [get() for get, _ in self.libs]
+        for _, put in self.libs:
+            put(self.n)
+        return len(self.libs)
+
+    def __exit__(self, *exc):
+        for (_, put), n in zip(self.libs, self.was):
+            put(n)
+        return False
+
+
+def main(body_path, out_path, tex=True, tex_dir=None):
+    """The kit's gear file (out_path) and, with tex, its textures into tex_dir (default textures/rider), on one BLAS
+    thread (blas_threads: the same bytes whatever the thread count)."""
+    with blas_threads(1):
+        return build_kit(body_path, out_path, tex, tex_dir or TEXDIR)
+
+
+def build_kit(body_path, out_path, tex, tex_dir):
     body = Body(body_path)
     _, waist_top = pant_region(body)
     pants = build_pants(body)
@@ -3606,10 +3668,10 @@ def main(body_path, out_path, tex=True):
     jN = vnormals(jersey["V"], jersey["Q"])
     prints = damien_prints(jersey["V"], jN)                        # his number, name and sponsors
     if tex:
-        os.makedirs(TEXDIR, exist_ok=True)
-        nj, jinfo = paint_jersey(body, jersey["V"], jN, jersey["Q"], jc, jUV, jscale, TEXDIR, prints)
+        os.makedirs(tex_dir, exist_ok=True)
+        nj, jinfo = paint_jersey(body, jersey["V"], jN, jersey["Q"], jc, jUV, jscale, tex_dir, prints)
         npn = paint_pants(body, pants, pants["V"], vnormals(pants["V"], pants["Q"]), pants["Q"], pc, pUV, pscale,
-                          TEXDIR)
+                          tex_dir)
         print("laser-cut holes: jersey", nj, "pant", npn)
     names = ["jersey", "pants"]
     out = {"mats": np.array(mats), "materials": json.dumps(MATERIALS)}
@@ -3624,7 +3686,7 @@ def main(body_path, out_path, tex=True):
     print(f"print atlas: the front's prints at {PRINT_TEXEL['front'] / shrink * 1000:.3f} mm a texel")
     if tex:
         paint_print_atlas(jersey["V"], jN, jersey["Q"], F, auv, fis, islands, jscale, prints, jinfo["base"],
-                          jinfo["dark"], jinfo["nm"], TEXDIR)
+                          jinfo["dark"], jinfo["nm"], tex_dir)
     used, inv = np.unique(jersey["Q"][F], return_inverse=True)
     oM = np.where(jersey_mesh_faces(jersey["V"], jersey["Q"])[F], mats.index("jersey_print_hd_mesh"),
                   mats.index("jersey_print_hd"))
@@ -3649,4 +3711,5 @@ def main(body_path, out_path, tex=True):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], "--no-tex" not in sys.argv)
+    a = sys.argv
+    main(a[1], a[2], "--no-tex" not in a, a[a.index("--tex-dir") + 1] if "--tex-dir" in a else None)
